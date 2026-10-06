@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Department;
 use App\Entity\User;
+use App\Service\Grossanlass\GrossanlassMaterialProgressService;
 use App\Service\Grossanlass\GrossanlassUebersichtService;
 use App\Service\GroupAccessService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -19,6 +20,7 @@ class GrossanlassUebersichtController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private GrossanlassUebersichtService $uebersicht,
+        private GrossanlassMaterialProgressService $progress,
         private GroupAccessService $groupAccess,
     ) {}
 
@@ -34,6 +36,19 @@ class GrossanlassUebersichtController extends AbstractController
     public function submitBoard(string $departmentId): JsonResponse
     {
         return $this->handle($departmentId, fn (Department $d, User $u) => $this->uebersicht->submitBoard($d, $u));
+    }
+
+    /** Mengenbasierter Materialfortschritt pro Materialposition; optional `group_id` (inkl. Unterknoten). */
+    #[Route('/progress', name: 'progress', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function progress(string $departmentId, Request $request): JsonResponse
+    {
+        $groupId = trim((string) $request->query->get('group_id', ''));
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $d, User $u) => $this->progress->overview($d, $u, $groupId !== '' ? $groupId : null),
+        );
     }
 
     #[Route('/meine-einsaetze', name: 'mine', methods: ['GET'])]

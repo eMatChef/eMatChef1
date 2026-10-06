@@ -408,6 +408,8 @@ final class DemoGrossanlassSeedService
             $row->setSource('Demo-Seed');
             $row->setFamily($family);
             $row->setOrigin(DepartmentGrossanlassCommitment::ORIGIN_LOAN);
+            $row->setReturnRequired(true);
+            $row->setOwnerKind(DepartmentGrossanlassCommitment::OWNER_EXTERNAL);
             $row->setReleased(true);
             $this->entityManager->persist($row);
         }

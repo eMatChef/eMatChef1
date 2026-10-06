@@ -41,6 +41,7 @@ final class GrossanlassIdGenerator
     public const TASK = 'task';
     public const VEHICLE_NEED = 'vehicle_need';
     public const GROUP_SHARE = 'group_share';
+    public const CHARGE_MOVEMENT = 'charge_movement';
 
     /** @var array<string, string> */
     public const PREFIXES = [
@@ -72,6 +73,7 @@ final class GrossanlassIdGenerator
         self::TASK => 'gt',
         self::VEHICLE_NEED => 'gv',
         self::GROUP_SHARE => 'gl',
+        self::CHARGE_MOVEMENT => 'cm',
     ];
 
     public static function prefix(string $kind): string

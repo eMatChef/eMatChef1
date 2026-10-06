@@ -71,6 +71,7 @@ final class GrossanlassCostCalculator
                 'loan' => [DepartmentGrossanlassCost::KIND_LOAN, DepartmentGrossanlassCost::KIND_RENTAL],
                 'buy' => [DepartmentGrossanlassCost::KIND_PURCHASE],
                 'buy_resale' => [DepartmentGrossanlassCost::KIND_BUY_RESALE],
+                'donation' => [DepartmentGrossanlassCost::KIND_LOAN],
                 default => DepartmentGrossanlassCost::KINDS,
             };
             if (in_array($preferredKind, $allowed, true)) {

@@ -48,8 +48,14 @@ final class GrossanlassPackService
         $einsatz = $this->findEinsatz($department, $einsatzId);
         $this->ensureDefaultPack($einsatz);
         $existing = $this->packsOf($einsatz);
+        $remaining = $this->remainingByKey($einsatz, $existing[0] ?? null);
+        if (array_sum($remaining) < 1) {
+            throw new \InvalidArgumentException(
+                'Einsatzmenge ist schon ganz auf Packs verteilt — zuerst die Menge eines Packs verringern',
+            );
+        }
         $pack = $this->makePack($einsatz, count($existing));
-        $this->copyLinesFrom($existing[0] ?? null, $pack, $einsatz);
+        $this->copyLinesFrom($existing[0] ?? null, $pack, $einsatz, $remaining);
         $this->entityManager->flush();
 
         return $this->serializePack($pack);
@@ -66,12 +72,19 @@ final class GrossanlassPackService
         if (!$line instanceof DepartmentGrossanlassPackLine || $line->getPack()->getDepartmentId() !== $department->getId()) {
             throw new \InvalidArgumentException('Packzeile nicht gefunden');
         }
+        $einsatz = $line->getPack()->getEinsatz();
+        if (array_key_exists('qty_needed', $data)) {
+            $needed = (int) $data['qty_needed'];
+            // Verringern geht immer (auch bei Altdaten über der Einsatzmenge), Erhöhen nur bis zur Restmenge.
+            if ($needed > $line->getQtyNeeded() || $needed < 1) {
+                self::assertNeededFits($einsatz->getQty(), $this->neededOnOtherLines($einsatz, $line), $needed);
+            }
+            $line->setQtyNeeded($needed);
+        }
         if (array_key_exists('qty_packed', $data)) {
             $line->setQtyPacked((int) $data['qty_packed']);
         }
-        if (array_key_exists('qty_needed', $data)) {
-            $line->setQtyNeeded((int) $data['qty_needed']);
-        }
+        self::assertPackedFits($line->getQtyNeeded(), $line->getQtyPacked());
         if (array_key_exists('valid_from', $data)) {
             $raw = trim((string) ($data['valid_from'] ?? ''));
             $line->setValidFrom($raw !== '' ? new \DateTime($raw) : null);
@@ -215,6 +228,71 @@ final class GrossanlassPackService
         }
 
         return $pack;
+    }
+
+    /**
+     * Pack-Mengen an eine geänderte Einsatzmenge anpassen. Ein einzelner Pack folgt der Einsatzmenge;
+     * bei mehreren Packs darf die Summe die neue Menge nicht übersteigen.
+     */
+    public function fitPacksToEinsatzQty(DepartmentGrossanlassEinsatz $einsatz, int $qty): void
+    {
+        $byKey = [];
+        foreach ($this->packsOf($einsatz) as $pack) {
+            foreach ($this->linesOf($pack) as $line) {
+                $byKey[self::lineKey($line)][] = $line;
+            }
+        }
+        foreach ($byKey as $lines) {
+            if (count($lines) === 1) {
+                $line = $lines[0];
+                self::assertPackedFits(max(1, $qty), $line->getQtyPacked());
+                $line->setQtyNeeded(max(1, $qty));
+                continue;
+            }
+            $total = array_sum(array_map(static fn (DepartmentGrossanlassPackLine $l) => $l->getQtyNeeded(), $lines));
+            if ($total > $qty) {
+                throw new \InvalidArgumentException(sprintf(
+                    'Packs brauchen zusammen %d, Einsatz hätte nur noch %d — zuerst die Pack-Mengen anpassen',
+                    $total,
+                    $qty,
+                ));
+            }
+        }
+    }
+
+    /**
+     * Summe der Pack-Mengen eines Einsatzes darf die Einsatzmenge nicht übersteigen (Teilpack bleibt erlaubt).
+     *
+     * @throws \InvalidArgumentException
+     */
+    public static function assertNeededFits(int $einsatzQty, int $neededOnOtherPacks, int $needed): void
+    {
+        if ($needed < 1) {
+            throw new \InvalidArgumentException('Pack-Menge muss mindestens 1 sein');
+        }
+        $max = max(0, $einsatzQty - $neededOnOtherPacks);
+        if ($needed > $max) {
+            throw new \InvalidArgumentException(sprintf(
+                'Pack-Menge %d zu gross: Einsatz %d, andere Packs %d, hier höchstens %d',
+                $needed,
+                $einsatzQty,
+                $neededOnOtherPacks,
+                $max,
+            ));
+        }
+    }
+
+    /**
+     * @throws \InvalidArgumentException
+     */
+    public static function assertPackedFits(int $needed, int $packed): void
+    {
+        if ($packed < 0) {
+            throw new \InvalidArgumentException('Gepackte Menge darf nicht negativ sein');
+        }
+        if ($packed > $needed) {
+            throw new \InvalidArgumentException(sprintf('Gepackt %d ist mehr als die Pack-Menge %d', $packed, $needed));
+        }
     }
 
     public function applyBooleanPacked(DepartmentGrossanlassEinsatz $einsatz, bool $packed): void
@@ -368,8 +446,15 @@ final class GrossanlassPackService
         return $pack;
     }
 
-    private function copyLinesFrom(?DepartmentGrossanlassPack $from, DepartmentGrossanlassPack $to, DepartmentGrossanlassEinsatz $einsatz): void
-    {
+    /**
+     * @param array<string, int> $remaining Zeilen-Schlüssel → noch nicht auf Packs verteilte Menge
+     */
+    private function copyLinesFrom(
+        ?DepartmentGrossanlassPack $from,
+        DepartmentGrossanlassPack $to,
+        DepartmentGrossanlassEinsatz $einsatz,
+        array $remaining = [],
+    ): void {
         $sources = $from instanceof DepartmentGrossanlassPack ? $this->linesOf($from) : [];
         if ($sources === []) {
             $line = new DepartmentGrossanlassPackLine();
@@ -398,6 +483,10 @@ final class GrossanlassPackService
             return;
         }
         foreach ($sources as $source) {
+            $rest = $remaining[self::lineKey($source)] ?? 0;
+            if ($rest < 1) {
+                continue;
+            }
             $line = new DepartmentGrossanlassPackLine();
             $line->setId(GrossanlassIdGenerator::unique(
                 $this->entityManager,
@@ -408,11 +497,58 @@ final class GrossanlassPackService
             $line->setCommitmentId($source->getCommitmentId());
             $line->setWishLineId($source->getWishLineId());
             $line->setLabel($source->getLabel());
-            $line->setQtyNeeded($source->getQtyNeeded());
+            $line->setQtyNeeded($rest);
             $line->setValidFrom($source->getValidFrom());
             $line->setValidTo($source->getValidTo());
             $this->entityManager->persist($line);
         }
+    }
+
+    /**
+     * Restmenge je Zeilen-Schlüssel des ersten Packs: Einsatzmenge minus alle Pack-Mengen.
+     *
+     * @return array<string, int>
+     */
+    private function remainingByKey(DepartmentGrossanlassEinsatz $einsatz, ?DepartmentGrossanlassPack $template): array
+    {
+        if (!$template instanceof DepartmentGrossanlassPack) {
+            return [];
+        }
+        $used = [];
+        foreach ($this->packsOf($einsatz) as $pack) {
+            foreach ($this->linesOf($pack) as $line) {
+                $key = self::lineKey($line);
+                $used[$key] = ($used[$key] ?? 0) + $line->getQtyNeeded();
+            }
+        }
+        $out = [];
+        foreach ($this->linesOf($template) as $line) {
+            $key = self::lineKey($line);
+            $out[$key] = max(0, $einsatz->getQty() - ($used[$key] ?? 0));
+        }
+
+        return $out;
+    }
+
+    private function neededOnOtherLines(DepartmentGrossanlassEinsatz $einsatz, DepartmentGrossanlassPackLine $line): int
+    {
+        $key = self::lineKey($line);
+        $sum = 0;
+        foreach ($this->packsOf($einsatz) as $pack) {
+            foreach ($this->linesOf($pack) as $other) {
+                if ($other->getId() !== $line->getId() && self::lineKey($other) === $key) {
+                    $sum += $other->getQtyNeeded();
+                }
+            }
+        }
+
+        return $sum;
+    }
+
+    /** Gleiche Ware über mehrere Packs eines Einsatzes. */
+    private static function lineKey(DepartmentGrossanlassPackLine $line): string
+    {
+        return ($line->getCommitmentId() ?? '') . '|' . ($line->getWishLineId() ?? '') . '|' . $line->getLabel();
     }
 
     /** @return list<DepartmentGrossanlassPack> */
