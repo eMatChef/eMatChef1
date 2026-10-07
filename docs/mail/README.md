@@ -8,6 +8,21 @@ Absender-Metadaten (From-Name, Reply-To) werden in der App unter **Superadmin �
 
 ---
 
+## Development und Staging: Mailtrap Email Sandbox
+
+Production verwendet unverändert SES (`ses+api://…`). Development und Staging zeigen mit **`MAILER_DSN`** auf je eine **eigene Mailtrap Email Sandbox** (SMTP, Port 2525), damit keine Testmail an echte Empfänger geht:
+
+```text
+MAILER_DSN="smtp://MAILTRAP_USERNAME:MAILTRAP_PASSWORD@sandbox.smtp.mailtrap.io:2525"
+```
+
+- Der Anwendungscode bleibt Symfony Mailer; die Umgebung entscheidet allein über `MAILER_DSN` (keine Umgebungs-Weichen im PHP-Code).
+- Zugangsdaten nur in der Server-`.env` bzw. `backend/.env.local` — nie im Repository, in Seeds oder in der Doku. Vorlagen: `deploy/develop-droplet.env.example`, `deploy/staging-droplet.env.example`, `backend/.env.local.example`.
+- Nach Änderung `cache:clear` bzw. Backend neu starten (siehe Pitfall in `deploy/SERVER-UPDATE.md`).
+- Öffentliche Beschreibung für Entwickler: `docs.ematchef.ch` → Anleitung → Entwicklung → Testumgebung.
+
+---
+
 ## Architektur (Kurz)
 
 ```text
