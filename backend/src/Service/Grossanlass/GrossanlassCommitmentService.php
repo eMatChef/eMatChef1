@@ -185,7 +185,7 @@ final class GrossanlassCommitmentService
         $details = [
             'from_line_id' => $line->getId(),
             'inbound_status' => 'expected',
-            'inbound_mode' => 'delivery',
+            'inbound_mode' => $quote?->getInboundMode() === 'pickup' ? 'pickup' : 'delivery',
         ];
         if ($quote !== null) {
             $details['quote_id'] = $quote->getId();

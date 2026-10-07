@@ -975,6 +975,7 @@ final class GrossanlassUebersichtService
         $commitment = $row->getCommitment();
         $from = $row->getStartsAt();
         $to = $row->getEndsAt();
+        $group = $row->getGroup() ?? $commitment?->getProcurementLine()?->getGroup();
 
         return [
             'id' => $row->getId(),
@@ -987,8 +988,8 @@ final class GrossanlassUebersichtService
             'stock' => $commitment?->getQuantity() ?? $row->getQty(),
             'from' => $from->format(\DateTimeInterface::ATOM),
             'to' => $to->format(\DateTimeInterface::ATOM),
-            'ressort' => $row->getGroup()?->getName() ?? '',
-            'group_id' => $row->getGroupId(),
+            'ressort' => $group?->getName() ?? '',
+            'group_id' => $group?->getId() ?? $row->getGroupId(),
             'status' => $row->getStatus(),
             'who' => $row->getWho(),
             'place' => $row->getPlace(),
