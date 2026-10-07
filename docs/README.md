@@ -12,6 +12,7 @@ Neuer Chat: diese Datei lesen, dann höchstens die eine fachliche Datei zur Aufg
 | Fachliche Beziehungen | [DOMAIN-MODEL.md](./DOMAIN-MODEL.md) |
 | Entwickeln, Tests, Commands | [DEVELOPMENT.md](./DEVELOPMENT.md) |
 | Git, Branches, CI/CD | [../CONTRIBUTING.md](../CONTRIBUTING.md) |
+| Mail (Production SES, Development/Staging Mailtrap) | [mail/README.md](./mail/README.md) |
 | Testumgebung, Demo-Konten, Test-TOTP, Benutzeranleitung | [docs.ematchef.ch](https://docs.ematchef.ch/de/entwicklung/testumgebung); Quelle der Demo-Konten: `backend/data/seeds/dev-demo/demo-accounts.json` |
 
 ## Dokumentationsquellen

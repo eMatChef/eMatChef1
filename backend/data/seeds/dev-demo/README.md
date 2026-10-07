@@ -6,7 +6,9 @@ fixe Test-TOTP-Secrets für `superadmin`, `orgchef`, `suborgchef` (Reseed änder
 `docs.ematchef.ch → Anleitung → Entwicklung → Testumgebung` (Login, Rolle, QR, Setup-Key). Bestehende `*@ematchef.ch`-Konten werden beim Reseed umgestellt.
 Dazu `supplier@demo.ematchef.ch` (Testfirma, Supplier-Bereich)
 und Grossanlass-Rollen in der Abteilung **Demo Grossanlass**:
+feat/grossanlass-material-flow
 `ga-mw@`, `ga-cmw@`, `ga-ok@`, `ga-komm@`, `ga-spon@`, `ga-lw@`, `ga-clw@`, `ga-bereich@` (Leader), `ga-helfer@` (jeweils `@demo.ematchef.ch`).
+develop
 
 ## Grossanlass-Demo-Szenario (PFF-inspiriert)
 
