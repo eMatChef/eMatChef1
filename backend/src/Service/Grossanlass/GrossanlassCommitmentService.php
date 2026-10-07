@@ -24,6 +24,7 @@ final class GrossanlassCommitmentService
         private EntityManagerInterface $entityManager,
         private GrossanlassAccessService $access,
         private GrossanlassCostService $costService,
+        private GrossanlassChargeMovementService $movements,
     ) {}
 
     /**
@@ -37,8 +38,27 @@ final class GrossanlassCommitmentService
         }
         $rows = $this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)
             ->findBy(['departmentId' => $department->getId()], ['createdAt' => 'DESC']);
+        $received = $this->movements->receivedByCommitment(
+            array_map(static fn (DepartmentGrossanlassCommitment $row) => $row->getId(), $rows),
+        );
 
-        return array_map(fn (DepartmentGrossanlassCommitment $row) => $this->serialize($row), $rows);
+        return array_map(
+            fn (DepartmentGrossanlassCommitment $row) => $this->serialize($row, $received[$row->getId()] ?? 0),
+            $rows,
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function get(Department $department, User $user, string $id): array
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        if (!$this->access->canSeeMaterialUebersicht($user, $department)) {
+            throw new \RuntimeException('Keine Berechtigung für Zusagen');
+        }
+
+        return $this->serialize($this->find($department, $id));
     }
 
     /**
@@ -57,7 +77,7 @@ final class GrossanlassCommitmentService
         $row->setDepartment($department);
         $this->apply($row, $department, $data, true);
         $this->entityManager->persist($row);
-        $this->costService->syncFromCommitment($row, $data);
+        $this->syncCost($row, $data);
         $this->entityManager->flush();
 
         return $this->serialize($row);
@@ -72,10 +92,25 @@ final class GrossanlassCommitmentService
         $this->assertManage($department, $user);
         $row = $this->find($department, $id);
         $this->apply($row, $department, $data, false);
-        $this->costService->syncFromCommitment($row, $data);
+        $this->syncCost($row, $data);
         $this->entityManager->flush();
 
         return $this->serialize($row);
+    }
+
+    /**
+     * Eigenbestand hat keinen Kostenfall; bestehende Kostenzeilen werden weiter nachgeführt.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function syncCost(DepartmentGrossanlassCommitment $row, array $data): void
+    {
+        if ($row->getOrigin() === DepartmentGrossanlassCommitment::ORIGIN_OWN
+            && $this->entityManager->getRepository(DepartmentGrossanlassCost::class)->findOneBy(['commitmentId' => $row->getId()]) === null
+        ) {
+            return;
+        }
+        $this->costService->syncFromCommitment($row, $data);
     }
 
     public function delete(Department $department, User $user, string $id): void
@@ -164,14 +199,20 @@ final class GrossanlassCommitmentService
             ? DepartmentGrossanlassCommitment::FAMILY_VEHICLE
             : DepartmentGrossanlassCommitment::FAMILY_MATERIAL;
 
+        $returnRequired = $quote?->isReturnNeeded() ?? false;
+        $ownership = [
+            'procurement_line_id' => $line->getId(),
+            'return_required' => $returnRequired,
+            'owner_kind' => $returnRequired
+                ? DepartmentGrossanlassCommitment::OWNER_EXTERNAL
+                : DepartmentGrossanlassCommitment::OWNER_GROSSANLASS,
+        ];
+
         if ($existing instanceof DepartmentGrossanlassCommitment) {
             $merged = array_merge($existing->getItemDetails(), $details);
-            $stillExpected = (($merged['inbound_status'] ?? 'expected') !== 'here')
+            $stillExpected = $this->movements->receivedQuantity($existing) === 0
                 && !$existing->isPacked()
                 && !$existing->isReturnedToFirm();
-            if ($stillExpected) {
-                $merged['inbound_status'] = 'expected';
-            }
             $payload = [
                 'name' => $line->getLabel(),
                 'source' => $source,
@@ -180,7 +221,7 @@ final class GrossanlassCommitmentService
                 'item_details' => $merged,
                 'category_id' => $line->getCategoryId(),
                 'released' => true,
-            ];
+            ] + $ownership;
             if ($stillExpected && $qty > 0) {
                 $payload['quantity'] = $qty;
             }
@@ -214,7 +255,7 @@ final class GrossanlassCommitmentService
             'category_id' => $line->getCategoryId(),
             'released' => true,
             'present_from' => $order->getDeliveryAt(),
-        ], true);
+        ] + $ownership, true);
         $this->entityManager->persist($row);
         $this->entityManager->flush();
     }
@@ -225,19 +266,9 @@ final class GrossanlassCommitmentService
     private function commitmentsForLine(Department $department, string $lineId): array
     {
         $rows = $this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)
-            ->findBy(['departmentId' => $department->getId()]);
-        $out = [];
-        foreach ($rows as $row) {
-            if (!$row instanceof DepartmentGrossanlassCommitment) {
-                continue;
-            }
-            $from = trim((string) ($row->getItemDetails()['from_line_id'] ?? ''));
-            if ($from === $lineId) {
-                $out[] = $row;
-            }
-        }
+            ->findBy(['departmentId' => $department->getId(), 'procurementLineId' => $lineId]);
 
-        return $out;
+        return array_values(array_filter($rows, static fn ($row) => $row instanceof DepartmentGrossanlassCommitment));
     }
 
     /**
@@ -271,20 +302,35 @@ final class GrossanlassCommitmentService
             }
             $row->setFamily($family);
         }
+        $originChanged = false;
         if (array_key_exists('origin', $data) || $creating) {
             $origin = (string) ($data['origin'] ?? DepartmentGrossanlassCommitment::ORIGIN_LOAN);
             if (!in_array($origin, DepartmentGrossanlassCommitment::ORIGINS, true)) {
                 throw new \InvalidArgumentException('Ungültige Herkunftsart');
             }
+            $originChanged = $creating || $origin !== $row->getOrigin();
             $row->setOrigin($origin);
         }
+        $this->applyOwnership($row, $department, $data, $originChanged);
         if (array_key_exists('quantity', $data) || $creating) {
-            $row->setQuantity(max(0, (int) ($data['quantity'] ?? ($creating ? 1 : $previousQty))));
+            $nextQty = max(0, (int) ($data['quantity'] ?? ($creating ? 1 : $previousQty)));
+            if (!$creating && $nextQty !== $previousQty) {
+                $received = $this->movements->receivedQuantity($row);
+                if ($nextQty < $received) {
+                    throw new \InvalidArgumentException(sprintf(
+                        'Menge %d ist kleiner als die bereits erhaltene Menge %d',
+                        $nextQty,
+                        $received,
+                    ));
+                }
+            }
+            $row->setQuantity($nextQty);
         }
         if (array_key_exists('item_details', $data) || $creating) {
             $details = $data['item_details'] ?? [];
             $row->setItemDetails(is_array($details) ? $this->sanitizeItemDetails($details) : []);
         }
+        $this->applyProcurementLine($row, $department, $data);
         if (array_key_exists('plate', $data) || $creating) {
             $row->setPlate(isset($data['plate']) ? trim((string) $data['plate']) : null);
         }
@@ -346,11 +392,108 @@ final class GrossanlassCommitmentService
             }
             $row->setServices($services);
         }
+        // Eingangsstand kommt aus den Charge-Bewegungen, nicht aus dem Request.
+        $details = $row->getItemDetails();
+        $inboundStatus = $this->movements->inboundSummaryFor($row)['state'] === GrossanlassChargeMovementService::STATE_COMPLETE
+            ? 'here'
+            : 'expected';
+        if (($details['inbound_status'] ?? null) !== $inboundStatus) {
+            $details['inbound_status'] = $inboundStatus;
+            $row->setItemDetails($details);
+        }
         if ($row->getQuantity() === 0) {
             $row->setReleased(false);
             if ($previousQty > 0) {
                 $this->releaseBookingsForZeroQuantity($row);
             }
+        }
+    }
+
+    /**
+     * Rückgabepflicht und Eigentümer. Ohne explizite Angabe folgen sie der Herkunft,
+     * aber nur beim Anlegen oder wenn sich die Herkunft ändert.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function applyOwnership(
+        DepartmentGrossanlassCommitment $row,
+        Department $department,
+        array $data,
+        bool $originChanged,
+    ): void {
+        if (array_key_exists('return_required', $data)) {
+            $row->setReturnRequired(filter_var($data['return_required'], FILTER_VALIDATE_BOOLEAN));
+        } elseif ($originChanged) {
+            $row->setReturnRequired(DepartmentGrossanlassCommitment::defaultReturnRequired($row->getOrigin()));
+        }
+
+        $ownerDepartmentId = array_key_exists('owner_department_id', $data)
+            ? trim((string) ($data['owner_department_id'] ?? ''))
+            : null;
+        if (array_key_exists('owner_kind', $data)) {
+            $kind = (string) $data['owner_kind'];
+        } elseif ($ownerDepartmentId !== null && $ownerDepartmentId !== '') {
+            $kind = DepartmentGrossanlassCommitment::OWNER_DEPARTMENT;
+        } elseif ($originChanged) {
+            $kind = DepartmentGrossanlassCommitment::defaultOwnerKind($row->getOrigin());
+        } else {
+            $kind = $row->getOwnerKind();
+        }
+        if (!in_array($kind, DepartmentGrossanlassCommitment::OWNER_KINDS, true)) {
+            throw new \InvalidArgumentException('Ungültiger Eigentümer');
+        }
+        $row->setOwnerKind($kind);
+
+        if ($kind !== DepartmentGrossanlassCommitment::OWNER_DEPARTMENT) {
+            $row->setOwnerDepartment(null);
+
+            return;
+        }
+        if ($ownerDepartmentId === null) {
+            if ($row->getOwnerDepartmentId() === null) {
+                throw new \InvalidArgumentException('Eigentümer-Abteilung fehlt');
+            }
+
+            return;
+        }
+        $owner = $ownerDepartmentId !== ''
+            ? $this->entityManager->getRepository(Department::class)->find($ownerDepartmentId)
+            : null;
+        if (!$owner instanceof Department) {
+            throw new \InvalidArgumentException('Eigentümer-Abteilung nicht gefunden');
+        }
+        if ($owner->getId() === $department->getId()) {
+            throw new \InvalidArgumentException('Eigenbestand bitte als Eigentümer Grossanlass erfassen');
+        }
+        $row->setOwnerDepartment($owner);
+    }
+
+    /**
+     * Bedarfsposition als echte Relation. `item_details.from_line_id` bleibt für bestehende Leser erhalten;
+     * zeigt es auf einen Wunsch statt auf eine Position, bleibt die Relation leer.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function applyProcurementLine(DepartmentGrossanlassCommitment $row, Department $department, array $data): void
+    {
+        if (array_key_exists('procurement_line_id', $data)) {
+            $lineId = trim((string) ($data['procurement_line_id'] ?? ''));
+        } else {
+            $lineId = trim((string) ($row->getItemDetails()['from_line_id'] ?? ''));
+            if ($lineId === '' || $lineId === $row->getProcurementLineId()) {
+                return;
+            }
+        }
+        if ($lineId === '') {
+            $row->setProcurementLine(null);
+
+            return;
+        }
+        $line = $this->entityManager->getRepository(ActivityGrossanlassProcurementLine::class)->find($lineId);
+        if ($line instanceof ActivityGrossanlassProcurementLine && $line->getDepartmentId() === $department->getId()) {
+            $row->setProcurementLine($line);
+        } elseif (array_key_exists('procurement_line_id', $data)) {
+            throw new \InvalidArgumentException('Bedarfsposition nicht gefunden');
         }
     }
 
@@ -531,10 +674,11 @@ final class GrossanlassCommitmentService
     /**
      * @return array<string, mixed>
      */
-    public function serialize(DepartmentGrossanlassCommitment $row): array
+    public function serialize(DepartmentGrossanlassCommitment $row, ?int $received = null): array
     {
         $wishFrom = $row->getWishFrom();
         $wishTo = $row->getWishTo();
+        $inbound = $this->movements->inboundSummaryFor($row, $received);
 
         return [
             'id' => $row->getId(),
@@ -546,6 +690,14 @@ final class GrossanlassCommitmentService
             'packed' => $row->isPacked(),
             'pack_phase' => $row->getPackPhase(),
             'returned_to_firm' => $row->isReturnedToFirm(),
+            'return_required' => $row->isReturnRequired(),
+            'owner_kind' => $row->getOwnerKind(),
+            'owner_department_id' => $row->getOwnerDepartmentId(),
+            'owner_department_name' => $row->getOwnerDepartment()?->getName(),
+            'procurement_line_id' => $row->getProcurementLineId(),
+            'received_quantity' => $inbound['received'],
+            'missing_quantity' => $inbound['missing'],
+            'inbound_state' => $inbound['state'],
             'item_details' => $row->getItemDetails(),
             'source' => $row->getSource(),
             'plate' => $row->getPlate(),

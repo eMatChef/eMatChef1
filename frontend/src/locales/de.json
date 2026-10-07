@@ -826,6 +826,8 @@
         "bl": "Bereichsleitung",
         "komm": "Kommunikation",
         "spon": "Sponsoring",
+        "lw": "Logistikwart",
+        "clw": "Co-Logistikwart",
         "u": "Helfer"
       }
     },
@@ -6054,6 +6056,8 @@
         "uGa": "Helfer",
         "komm": "Komm - Kommunikation",
         "spon": "Spon - Sponsoring",
+        "lw": "LW - Logistikwart",
+        "clw": "CLW - Co-Logistikwart",
         "l1": "L1 - Leader 1",
         "l2": "L2 - Leader 2",
         "l3": "L3 - Leader 3",
@@ -6348,6 +6352,8 @@
         "blGa": "Bereichsleitung",
         "komm": "Kommunikation",
         "spon": "Sponsoring",
+        "lw": "Logistikwart",
+        "clw": "Co-Logistikwart",
         "l1": "Leader 1",
         "l2": "Leader 2",
         "l3": "Leader 3",
@@ -8928,6 +8934,8 @@
       "cmw": "Co-Materialchef (cmw)",
       "komm": "Kommunikation (komm)",
       "spon": "Sponsoring (spon)",
+      "lw": "Logistikwart (lw)",
+      "clw": "Co-Logistikwart (clw)",
       "mw": "Materialchef (mw)"
     },
     "errors": {
@@ -12016,12 +12024,16 @@
         "reusable": "Eigenbestand",
         "cut_consumable": "Einweg / Zuschnitt",
         "loan": "Leihe",
-        "buy_resale": "Ankauf / Weiterverkauf"
+        "buy_resale": "Ankauf / Weiterverkauf",
+        "own": "GA-Bestand",
+        "donation": "Schenkung / Sponsoring"
       },
       "originBadge": {
         "loan": "Leihe",
         "buy": "Kauf",
-        "buy_resale": "Weiterverkauf"
+        "buy_resale": "Weiterverkauf",
+        "own": "GA-Bestand",
+        "donation": "Schenkung"
       },
       "chargeIntro": "Eine Charge pro Herkunft — Leihe von der Absprache, Kauf von der Bestellung. QR klebt an der Charge, nicht am Stamm.",
       "chargeCount": "{count} Chargen",
@@ -12106,6 +12118,7 @@
         "fieldFrom": "Von",
         "fieldTo": "Bis",
         "fieldRelease": "Für Einsätze freigeben",
+        "returnRequired": "Rückgabe an Eigentümer erforderlich",
         "fieldReleaseHint": "Ohne Freigabe sehen Bauprojekte den Artikel, können ihn aber nicht buchen. Übernahme und Rückgabe bleiben geblockt.",
         "sectionService": "Parkdienst (Fahrzeuge)",
         "serviceHint": "Reinigen, Schmieren und ähnliche Dienste belegen das Fahrzeug — in dieser Zeit kein Einsatz.",
@@ -12125,6 +12138,21 @@
         "releasedShort": "Freigegeben",
         "heldShort": "Zusage, noch nicht frei"
       }
+    },
+    "materialProgress": {
+      "title": "Materialfortschritt",
+      "required": "{n} benötigt",
+      "covered": "{n} gedeckt",
+      "open": "{n} offen",
+      "received": "{n} eingegangen",
+      "allocated": "{n} zugewiesen",
+      "packed": "{n} gepackt",
+      "ready_for_transport": "{n} transportbereit",
+      "in_transit": "{n} unterwegs",
+      "at_place": "{n} vor Ort",
+      "return_open": "{n} Rückbau offen",
+      "returned": "{n} zurück",
+      "disposed": "{n} entsorgt/verbraucht"
     },
     "materialUebersicht": {
       "title": "Materialübersicht",
@@ -12173,12 +12201,17 @@
         "deliveryCreated": "Lieferung als Einsatz geplant",
         "pickupCreateError": "Absprache gespeichert, Abhol-Einsatz konnte nicht angelegt werden.",
         "inboundCreateError": "Absprache gespeichert, Ankunfts-Einsatz konnte nicht angelegt werden.",
-        "markHere": "Da — QR kleben",
-        "markedHere": "Charge ist da",
+        "markedHere": "Charge vollständig erhalten",
+        "receivedPartial": "Teileingang gebucht: {received} von {expected}",
+        "receivedProgress": "Erhalten {received} von {expected} · offen {missing}",
+        "receiveQty": "Menge",
+        "receivePlace": "Annahmeort",
+        "receiveNote": "Notiz",
+        "receiveSubmit": "Eingang buchen",
+        "receiveQtyInvalid": "Bitte eine ganze Menge grösser als 0 eingeben.",
         "orderedQty": "Bestellt {n} Stk",
         "thisDelivery": "Diese Lieferung {n} Stk",
         "orderedCheck": "Bestellt {n} Stk — abhaken",
-        "orderedProgress": "Erhalten {received} / {ordered}",
         "openPdf": "Bestellung PDF",
         "openOrder": "Zur Bestellung",
         "openHistory": "Historie"

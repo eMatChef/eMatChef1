@@ -8,6 +8,8 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'department_grossanlass_commitment')]
 #[ORM\Index(name: 'idx_ga_commitment_dept', columns: ['department_id'])]
 #[ORM\Index(name: 'idx_ga_commitment_inquiry', columns: ['inquiry_id'])]
+#[ORM\Index(name: 'idx_ga_commitment_line', columns: ['procurement_line_id'])]
+#[ORM\Index(name: 'idx_ga_commitment_owner_dept', columns: ['owner_department_id'])]
 class DepartmentGrossanlassCommitment
 {
     public const FAMILY_VEHICLE = 'vehicle';
@@ -16,12 +18,29 @@ class DepartmentGrossanlassCommitment
     public const ORIGIN_LOAN = 'loan';
     public const ORIGIN_BUY = 'buy';
     public const ORIGIN_BUY_RESALE = 'buy_resale';
+    /** GA-/Eigenbestand. */
+    public const ORIGIN_OWN = 'own';
+    /** Schenkung / Sponsoring / Sachleistung — bleibt beim Grossanlass. */
+    public const ORIGIN_DONATION = 'donation';
+
+    public const OWNER_GROSSANLASS = 'grossanlass';
+    public const OWNER_EXTERNAL = 'external';
+    public const OWNER_DEPARTMENT = 'department';
 
     /** @var list<string> */
     public const FAMILIES = [self::FAMILY_VEHICLE, self::FAMILY_MATERIAL];
 
     /** @var list<string> */
-    public const ORIGINS = [self::ORIGIN_LOAN, self::ORIGIN_BUY, self::ORIGIN_BUY_RESALE];
+    public const ORIGINS = [
+        self::ORIGIN_LOAN,
+        self::ORIGIN_BUY,
+        self::ORIGIN_BUY_RESALE,
+        self::ORIGIN_OWN,
+        self::ORIGIN_DONATION,
+    ];
+
+    /** @var list<string> */
+    public const OWNER_KINDS = [self::OWNER_GROSSANLASS, self::OWNER_EXTERNAL, self::OWNER_DEPARTMENT];
 
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
@@ -40,6 +59,26 @@ class DepartmentGrossanlassCommitment
     #[ORM\ManyToOne(targetEntity: DepartmentGrossanlassInquiry::class)]
     #[ORM\JoinColumn(name: 'inquiry_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?DepartmentGrossanlassInquiry $inquiry = null;
+
+    #[ORM\Column(name: 'procurement_line_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $procurementLineId = null;
+
+    #[ORM\ManyToOne(targetEntity: ActivityGrossanlassProcurementLine::class)]
+    #[ORM\JoinColumn(name: 'procurement_line_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?ActivityGrossanlassProcurementLine $procurementLine = null;
+
+    #[ORM\Column(name: 'return_required', type: 'boolean', options: ['default' => false])]
+    private bool $returnRequired = false;
+
+    #[ORM\Column(name: 'owner_kind', type: 'string', length: 16, options: ['default' => self::OWNER_GROSSANLASS])]
+    private string $ownerKind = self::OWNER_GROSSANLASS;
+
+    #[ORM\Column(name: 'owner_department_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $ownerDepartmentId = null;
+
+    #[ORM\ManyToOne(targetEntity: Department::class)]
+    #[ORM\JoinColumn(name: 'owner_department_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?Department $ownerDepartment = null;
 
     #[ORM\Column(type: 'string', length: 255)]
     private string $name = '';
@@ -491,6 +530,82 @@ class DepartmentGrossanlassCommitment
     public function getUpdatedAt(): \DateTime
     {
         return $this->updatedAt;
+    }
+
+    public function getProcurementLineId(): ?string
+    {
+        return $this->procurementLineId;
+    }
+
+    public function getProcurementLine(): ?ActivityGrossanlassProcurementLine
+    {
+        return $this->procurementLine;
+    }
+
+    public function setProcurementLine(?ActivityGrossanlassProcurementLine $line): self
+    {
+        $this->procurementLine = $line;
+        $this->procurementLineId = $line?->getId();
+        $this->touch();
+
+        return $this;
+    }
+
+    public function isReturnRequired(): bool
+    {
+        return $this->returnRequired;
+    }
+
+    public function setReturnRequired(bool $returnRequired): self
+    {
+        $this->returnRequired = $returnRequired;
+        $this->touch();
+
+        return $this;
+    }
+
+    public function getOwnerKind(): string
+    {
+        return $this->ownerKind;
+    }
+
+    public function setOwnerKind(string $ownerKind): self
+    {
+        $this->ownerKind = $ownerKind;
+        $this->touch();
+
+        return $this;
+    }
+
+    public function getOwnerDepartmentId(): ?string
+    {
+        return $this->ownerDepartmentId;
+    }
+
+    public function getOwnerDepartment(): ?Department
+    {
+        return $this->ownerDepartment;
+    }
+
+    public function setOwnerDepartment(?Department $department): self
+    {
+        $this->ownerDepartment = $department;
+        $this->ownerDepartmentId = $department?->getId();
+        $this->touch();
+
+        return $this;
+    }
+
+    /** Rückgabepflicht, wenn nichts explizit gesetzt wurde. */
+    public static function defaultReturnRequired(string $origin): bool
+    {
+        return $origin === self::ORIGIN_LOAN;
+    }
+
+    /** Eigentümer, wenn nichts explizit gesetzt wurde. */
+    public static function defaultOwnerKind(string $origin): string
+    {
+        return $origin === self::ORIGIN_LOAN ? self::OWNER_EXTERNAL : self::OWNER_GROSSANLASS;
     }
 
     private function touch(): void

@@ -62,6 +62,8 @@ describe('ga Bereichsleitung access', () => {
     expect(gaDeptRoleSkipsGroupFlags('bl')).toBe(false)
     expect(gaDeptRoleSkipsGroupFlags('u')).toBe(false)
     expect(gaDeptRoleSkipsGroupFlags('komm')).toBe(false)
+    expect(gaDeptRoleSkipsGroupFlags('lw')).toBe(false)
+    expect(gaDeptRoleSkipsGroupFlags('clw')).toBe(false)
   })
 
   it('maps dept stage badges for grossanlass roles', () => {
@@ -71,6 +73,8 @@ describe('ga Bereichsleitung access', () => {
     expect(gaDeptStageBadge('bl')).toEqual({ short: 'BL', role: 'bl' })
     expect(gaDeptStageBadge('komm')).toEqual({ short: 'KOM', role: 'komm' })
     expect(gaDeptStageBadge('spon')).toEqual({ short: 'SPON', role: 'spon' })
+    expect(gaDeptStageBadge('lw')).toEqual({ short: 'LW', role: 'lw' })
+    expect(gaDeptStageBadge('clw')).toEqual({ short: 'CLW', role: 'clw' })
     expect(gaDeptStageBadge('u')).toEqual({ short: 'H', role: 'u' })
     expect(gaDeptStageBadge('l1')).toBeNull()
   })

@@ -1,7 +1,51 @@
 import apiClient from './apiClient'
 
 export type GrossanlassCommitmentFamily = 'vehicle' | 'material'
-export type GrossanlassCommitmentOrigin = 'loan' | 'buy' | 'buy_resale'
+export type GrossanlassCommitmentOrigin = 'loan' | 'buy' | 'buy_resale' | 'own' | 'donation'
+
+export type GrossanlassCommitmentOwnerKind = 'grossanlass' | 'external' | 'department'
+
+/** Eingangsstand aus den Charge-Bewegungen (Server berechnet). */
+export type GrossanlassInboundState = 'none' | 'partial' | 'complete'
+
+export type GrossanlassChargeMovementKind =
+  | 'received'
+  | 'returned_to_store'
+  | 'to_workshop'
+  | 'returned_to_owner'
+  | 'sold_handover'
+  | 'disposed'
+  | 'consumed'
+  | 'lost'
+
+export type GrossanlassChargeMovement = {
+  id: string
+  commitment_id: string
+  kind: GrossanlassChargeMovementKind
+  quantity: number
+  occurred_at: string
+  place_id: string | null
+  place_name: string | null
+  einsatz_id: string | null
+  note: string | null
+  created_by_user_id: string | null
+  created_by_name: string | null
+  created_at: string
+}
+
+export type GrossanlassChargeMovementPayload = {
+  kind?: 'received'
+  quantity: number
+  place_id?: string | null
+  note?: string | null
+  occurred_at?: string | null
+}
+
+export type GrossanlassChargeMovementResult = {
+  movement: GrossanlassChargeMovement
+  inbound: { expected: number; received: number; missing: number; state: GrossanlassInboundState }
+  commitment: GrossanlassCommitment
+}
 
 export type GrossanlassCommitmentService = {
   id?: string
@@ -35,6 +79,14 @@ export type GrossanlassCommitment = {
   services: GrossanlassCommitmentService[]
   packed?: boolean
   returned_to_firm?: boolean
+  return_required?: boolean
+  owner_kind?: GrossanlassCommitmentOwnerKind
+  owner_department_id?: string | null
+  owner_department_name?: string | null
+  procurement_line_id?: string | null
+  received_quantity?: number
+  missing_quantity?: number
+  inbound_state?: GrossanlassInboundState
   quantity: number
   item_details: GrossanlassCommitmentItemDetails
   created_at: string
@@ -69,6 +121,10 @@ export type GrossanlassCommitmentPayload = {
   source: string
   family?: GrossanlassCommitmentFamily
   origin?: GrossanlassCommitmentOrigin
+  return_required?: boolean
+  owner_kind?: GrossanlassCommitmentOwnerKind
+  owner_department_id?: string | null
+  procurement_line_id?: string | null
   quantity?: number
   item_details?: GrossanlassCommitmentItemDetails
   plate?: string
@@ -139,6 +195,29 @@ export async function createGrossanlassCommitmentFromInquiry(
 ): Promise<GrossanlassCommitment> {
   const response = await apiClient.post<GrossanlassCommitment>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/zusagen/from-inquiry/${inquiryId}`,
+  )
+  return response.data
+}
+
+export async function listGrossanlassChargeMovements(
+  departmentId: string,
+  commitmentId: string,
+): Promise<GrossanlassChargeMovement[]> {
+  const response = await apiClient.get<GrossanlassChargeMovement[]>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/zusagen/${commitmentId}/movements`,
+  )
+  return response.data
+}
+
+/** Wareneingang (Teilmenge) an einer Charge buchen. */
+export async function recordGrossanlassChargeMovement(
+  departmentId: string,
+  commitmentId: string,
+  data: GrossanlassChargeMovementPayload,
+): Promise<GrossanlassChargeMovementResult> {
+  const response = await apiClient.post<GrossanlassChargeMovementResult>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/zusagen/${commitmentId}/movements`,
+    { kind: 'received', ...data },
   )
   return response.data
 }

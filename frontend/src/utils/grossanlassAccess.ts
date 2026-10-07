@@ -123,6 +123,10 @@ export function gaDeptStageBadge(role: string | null | undefined): GaDeptStageBa
       return { short: 'KOM', role: r }
     case 'spon':
       return { short: 'SPON', role: r }
+    case 'lw':
+      return { short: 'LW', role: r }
+    case 'clw':
+      return { short: 'CLW', role: r }
     case 'u':
       return { short: 'H', role: r }
     default:

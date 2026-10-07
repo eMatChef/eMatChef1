@@ -325,6 +325,9 @@ function originBadge(item: GaPreviewRow): string {
   if (charges.length > 1) {
     return t('grossanlass.materials.chargeCount', { count: charges.length })
   }
+  if (item.origin === 'own' || item.origin === 'donation') {
+    return t(`grossanlass.materials.originBadge.${item.origin}`)
+  }
   if (item.origin === 'buy_resale') return t('grossanlass.materials.originBadge.buy_resale')
   if (item.origin === 'buy') return t('grossanlass.materials.originBadge.buy')
   if (item.lifecycle === 'loan' || item.origin === 'loan') {

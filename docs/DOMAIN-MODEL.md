@@ -10,7 +10,7 @@ Department 1—* Membership *—1 User
 Department 1—* Group (Baum über Group.parent) 1—* GroupMembership *—1 User
 ```
 
-- `Membership.role` ist der Department-Rollenwert (`DepartmentRole`, Spalte kurz: `sa`, `org`, `sub`, `mw`, `cmw`, `dc`, `bl`, `komm`, `spon`, `l1`, `l2`, `l3`, `u`). Hierarchie und Symfony-Rollen: `backend/src/Enum/DepartmentRole.php`. Wer welche Rolle vergeben darf: `backend/src/Service/MembershipRoleCatalog.php`.
+- `Membership.role` ist der Department-Rollenwert (`DepartmentRole`, Spalte kurz: `sa`, `org`, `sub`, `mw`, `cmw`, `dc`, `bl`, `komm`, `spon`, `lw`, `clw`, `l1`, `l2`, `l3`, `u`). Hierarchie und Symfony-Rollen: `backend/src/Enum/DepartmentRole.php`. Wer welche Rolle vergeben darf: `backend/src/Service/MembershipRoleCatalog.php`.
 - `Membership.isJsCoach` ist ein Flag, keine Rolle.
 - `GroupMembership.role` ist nur `leader` (Gruppenchef) oder `member`.
 - `User` ist die reale eMatChef-Person. `ExternalIdentity` ist die externe Login-Identität bei einem Provider (aktuell Google und MiData); `Membership` beschreibt Department-Zugehörigkeit und Rollen, `GroupMembership` die Gruppenzugehörigkeit.
@@ -24,7 +24,7 @@ Department 1—* Group (Baum über Group.parent) 1—* GroupMembership *—1 Use
 - `Department.isGrossanlass` markiert ein Grossanlass-Department; optionale `DepartmentGrossanlassConfig` (1:1).
 - `ExternalIdentity` ist kein Rollen-/Department- oder Provider-Token-Container. Es hält nur den Provider-Namen, die externe User-ID und optionale E-Mail-Metadaten; Email ist kein Identitätsschlüssel.
 
-Grossanlass-spezifische Rollen (`cmw`, `bl`, `komm`, `spon`, …): `backend/src/Service/Grossanlass/GrossanlassAccessRoles.php` und [grossanlass/README.md](./grossanlass/README.md).
+Grossanlass-spezifische Rollen (`cmw`, `bl`, `komm`, `spon`, `lw`, `clw`, …): `backend/src/Service/Grossanlass/GrossanlassAccessRoles.php` und [grossanlass/README.md](./grossanlass/README.md).
 
 ## Material
 

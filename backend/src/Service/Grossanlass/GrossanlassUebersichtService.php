@@ -467,7 +467,11 @@ final class GrossanlassUebersichtService
             $row->setStatus($status);
         }
         if (array_key_exists('qty', $data)) {
-            $row->setQty((int) $data['qty']);
+            $qty = max(1, (int) $data['qty']);
+            if ($qty !== $row->getQty()) {
+                $this->packs->fitPacksToEinsatzQty($row, $qty);
+            }
+            $row->setQty($qty);
         }
         if (array_key_exists('kind', $data)) {
             $nextKind = (string) $data['kind'];
@@ -775,7 +779,7 @@ final class GrossanlassUebersichtService
     {
         $out = [];
         foreach ($commitments as $row) {
-            if ($row->getOrigin() !== DepartmentGrossanlassCommitment::ORIGIN_LOAN) {
+            if (!$row->isReturnRequired()) {
                 continue;
             }
             $due = $row->getReturnFrom() ?? $row->getPresentTo();
@@ -893,8 +897,10 @@ final class GrossanlassUebersichtService
         $procurementLineId = trim((string) ($lineMap[$lineId] ?? ''));
         $hits = [];
         foreach ($commitments as $row) {
+            // Relation zur Bedarfsposition; item_details.from_line_id kann auch auf einen Wunsch zeigen.
             $details = $row->getItemDetails();
-            $fromLine = is_array($details) ? trim((string) ($details['from_line_id'] ?? '')) : '';
+            $fromLine = (string) ($row->getProcurementLineId()
+                ?? (is_array($details) ? trim((string) ($details['from_line_id'] ?? '')) : ''));
             if ($fromLine === '') {
                 continue;
             }

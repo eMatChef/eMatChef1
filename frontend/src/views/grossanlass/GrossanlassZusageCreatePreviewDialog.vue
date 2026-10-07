@@ -23,6 +23,11 @@
       />
     </div>
     <ETextField v-model="source" :label="t('grossanlass.materials.zusage.fieldPartner')" hide-details />
+    <ESwitch
+      v-model="returnRequired"
+      :label="t('grossanlass.materials.zusage.returnRequired')"
+      hide-details
+    />
 
     <h3 class="zusage-section">{{ t('grossanlass.beschaffung.kosten.linesTitle') }}</h3>
     <p class="zusage-hint zusage-hint--muted">{{ t('grossanlass.beschaffung.kosten.zusageHint') }}</p>
@@ -240,7 +245,9 @@ import {
   createGrossanlassCommitment,
   type GrossanlassCommitment,
   type GrossanlassCommitmentPart,
+  type GrossanlassCommitmentPayload,
 } from '@/api/grossanlassCommitments'
+import { originLabelKey } from '@/views/grossanlass/gaCharge'
 
 const open = defineModel<boolean>({ default: false })
 const props = withDefaults(defineProps<{
@@ -279,6 +286,8 @@ const returnDate = ref('2027-07-18')
 const returnFromTime = ref('08:00')
 const returnToTime = ref('12:00')
 const released = ref(false)
+/** Rückgabepflicht explizit; Vorgabe folgt der Herkunft (Leihe = ja). */
+const returnRequired = ref(true)
 const quantity = ref<number | string>(1)
 const weight = ref('')
 const packUnit = ref('')
@@ -306,11 +315,9 @@ const familyItems = computed(() => {
   if (!props.allowVehicle) return [material]
   return [material, vehicle]
 })
-const originItems = computed(() => [
-  { title: t('grossanlass.materials.lifecycle.loan'), value: 'loan' },
-  { title: t('grossanlass.materials.lifecycle.reusable'), value: 'buy' },
-  { title: t('grossanlass.materials.lifecycle.buy_resale'), value: 'buy_resale' },
-])
+const originItems = computed(() =>
+  (['loan', 'buy', 'buy_resale', 'own', 'donation'] as const).map((value) => ({ title: t(originLabelKey(value)), value })),
+)
 const loanKindItems = computed(() => [
   { title: t('grossanlass.beschaffung.kosten.kind.loan'), value: 'loan' },
   { title: t('grossanlass.beschaffung.kosten.kind.rental'), value: 'rental' },
@@ -356,6 +363,7 @@ function applyPreset() {
   returnFromTime.value = preset.returnFromTime ?? '08:00'
   returnToTime.value = preset.returnToTime ?? '12:00'
   released.value = preset.released ?? false
+  returnRequired.value = (preset.origin ?? 'loan') === 'loan'
   quantity.value = 1
   weight.value = ''
   packUnit.value = ''
@@ -376,6 +384,7 @@ function applyPreset() {
 }
 
 watch(origin, (value) => {
+  returnRequired.value = value === 'loan'
   if (value === 'buy') costKind.value = 'purchase'
   else if (value === 'buy_resale') costKind.value = 'buy_resale'
   else if (costKind.value !== 'rental') costKind.value = 'loan'
@@ -419,6 +428,14 @@ function removePart(index: number) {
   parts.value = parts.value.filter((_, i) => i !== index)
 }
 
+function costKindForOrigin(): GrossanlassCommitmentPayload['cost_kind'] {
+  if (origin.value === 'loan') return costKind.value
+  if (origin.value === 'buy') return 'purchase'
+  if (origin.value === 'buy_resale') return 'buy_resale'
+  if (origin.value === 'donation') return 'loan'
+  return undefined
+}
+
 async function submit() {
   if (!canSubmit.value || !departmentId.value) return
   try {
@@ -427,6 +444,7 @@ async function submit() {
       source: source.value.trim(),
       family: family.value,
       origin: origin.value,
+      return_required: returnRequired.value,
       plate: plate.value.trim(),
       quantity: Math.max(1, Number(quantity.value) || 1),
       item_details: {
@@ -456,7 +474,7 @@ async function submit() {
             toIso: combineIso(firstServiceDate.value, firstServiceToTime.value),
           }]
         : [],
-      cost_kind: origin.value === 'loan' ? costKind.value : origin.value === 'buy' ? 'purchase' : 'buy_resale',
+      cost_kind: costKindForOrigin(),
       payer_group_id: payerGroupId.value,
       asset_treatment: origin.value === 'buy' ? assetTreatment.value : null,
       soll_chf: sollChf.value === '' ? null : Number(sollChf.value),

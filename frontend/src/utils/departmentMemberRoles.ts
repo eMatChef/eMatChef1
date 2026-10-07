@@ -7,6 +7,8 @@ export const DEPT_ROLES = {
   bl: { short: 'BL', color: '#d97706' },
   komm: { short: 'Komm', color: '#7c3aed' },
   spon: { short: 'Spon', color: '#c026d3' },
+  lw: { short: 'LW', color: '#0d9488' },
+  clw: { short: 'CLW', color: '#0f766e' },
   l1: { short: 'L1', color: '#10b981' },
   l2: { short: 'L2', color: '#f59e0b' },
   l3: { short: 'L3', color: '#ef4444' },
@@ -19,7 +21,7 @@ export type DeptRoleKey = keyof typeof DEPT_ROLES
 export const ROLE_HIERARCHY_PFADI: DeptRoleKey[] = ['mw', 'dc', 'l1', 'l2', 'l3', 'u']
 
 /** Grossanlass: kein L1–L3; komm ≈ spon. */
-export const ROLE_HIERARCHY_GROSSANLASS: DeptRoleKey[] = ['mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'u']
+export const ROLE_HIERARCHY_GROSSANLASS: DeptRoleKey[] = ['mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'u']
 
 /** @deprecated Nutze hierarchyForDepartment — bleibt Pfadi für Aufrufer ohne Flag. */
 export const ROLE_HIERARCHY: DeptRoleKey[] = ROLE_HIERARCHY_PFADI
@@ -40,6 +42,8 @@ const GROSSANLASS_RANK: Record<string, number> = {
   bl: 3,
   komm: 4,
   spon: 4,
+  lw: 4,
+  clw: 4,
   u: 5,
 }
 
@@ -56,6 +60,8 @@ export function normalizeDeptRole(role: string): string {
   if (value === 'bereichsleitung') return 'bl'
   if (value === 'kommunikation') return 'komm'
   if (value === 'sponsoring') return 'spon'
+  if (value === 'logistikwart') return 'lw'
+  if (value === 'co_logistikwart' || value === 'cologistikwart') return 'clw'
   return value
 }
 
@@ -89,9 +95,9 @@ export function getDeptRoleShort(role: string, isGrossanlass = false): string {
   return DEPT_ROLES[key as DeptRoleKey]?.short || key.toUpperCase()
 }
 
-const GROSSANLASS_ASSIGNABLE_BY_STRUKTUR: DeptRoleKey[] = ['cmw', 'dc', 'bl', 'komm', 'spon', 'u']
+const GROSSANLASS_ASSIGNABLE_BY_STRUKTUR: DeptRoleKey[] = ['cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'u']
 
-/** GA: MW, CMW und OK-Leitung vergeben CMW, OK, BL, Komm, Spon, Helfer — auch mehrfach. */
+/** GA: MW, CMW und OK-Leitung vergeben CMW, OK, BL, Komm, Spon, LW, CLW, Helfer — auch mehrfach. */
 export function canAssignGrossanlassDeptRoles(actorDeptRole: string): boolean {
   return ['mw', 'cmw', 'dc'].includes(normalizeDeptRole(actorDeptRole))
 }

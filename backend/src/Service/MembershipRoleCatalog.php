@@ -6,7 +6,7 @@ use App\Entity\Department;
 
 /**
  * Erlaubte membership.role-Werte und Vergabe-Rang (streng niedriger = vergeben).
- * Pfadi und Grossanlass teilen nicht dieselbe Liste (kein L1–L3 im GA; CMW/Komm/Spon nur dort).
+ * Pfadi und Grossanlass teilen nicht dieselbe Liste (kein L1–L3 im GA; CMW/Komm/Spon/LW/CLW nur dort).
  */
 final class MembershipRoleCatalog
 {
@@ -14,10 +14,10 @@ final class MembershipRoleCatalog
     public const PFADI = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'];
 
     /** @var list<string> */
-    public const GROSSANLASS = ['mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'u'];
+    public const GROSSANLASS = ['mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'u'];
 
     /** @var list<string> */
-    public const ALL = ['mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'l1', 'l2', 'l3', 'u'];
+    public const ALL = ['mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'l1', 'l2', 'l3', 'u'];
 
     /** @var array<string, int> */
     private const PFADI_RANK = [
@@ -37,6 +37,8 @@ final class MembershipRoleCatalog
         'bl' => 3,
         'komm' => 4,
         'spon' => 4,
+        'lw' => 4,
+        'clw' => 4,
         'u' => 5,
     ];
 
@@ -69,7 +71,7 @@ final class MembershipRoleCatalog
                 return false;
             }
 
-            return in_array($targetRole, ['cmw', 'dc', 'bl', 'komm', 'spon', 'u'], true);
+            return in_array($targetRole, ['cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'u'], true);
         }
 
         if ($grossanlass && $actorRole === 'bl') {

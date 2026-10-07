@@ -1,6 +1,6 @@
 import type { GrossanlassCommitment } from '@/api/grossanlassCommitments'
 import type { SandboxComboComponent } from '@/views/dev/materialSandboxTypes'
-import { commitmentStemKey } from '@/views/grossanlass/gaCharge'
+import { commitmentStemKey, originLabelKey } from '@/views/grossanlass/gaCharge'
 import type { GaPreviewRow } from '@/views/grossanlass/grossanlassMaterialsPreviewData'
 
 type Translate = (key: string, values?: Record<string, string | number>) => string
@@ -22,6 +22,9 @@ function windowOf(row: GaPreviewRow): string {
 }
 
 function originLabel(row: GaPreviewRow, t: Translate): string {
+  if (row.origin === 'own' || row.origin === 'donation') {
+    return t(`grossanlass.materials.originBadge.${row.origin}`)
+  }
   if (row.origin === 'buy_resale') return t('grossanlass.materials.originBadge.buy_resale')
   if (row.origin === 'buy') return t('grossanlass.materials.originBadge.buy')
   if (row.origin === 'loan' || row.lifecycle === 'loan') {
@@ -33,6 +36,7 @@ function originLabel(row: GaPreviewRow, t: Translate): string {
 function positionLabel(row: GaPreviewRow, t: Translate): string {
   const source = (row.source || '').trim()
   if (source) return source
+  if (row.origin && row.origin !== 'loan') return t(originLabelKey(row.origin))
   if (row.origin === 'loan' || row.lifecycle === 'loan') {
     return t('grossanlass.materials.originBadge.loan')
   }

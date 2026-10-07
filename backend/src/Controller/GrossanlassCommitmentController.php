@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Department;
 use App\Entity\User;
+use App\Service\Grossanlass\GrossanlassChargeMovementService;
 use App\Service\Grossanlass\GrossanlassCommitmentService;
 use App\Service\GroupAccessService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -19,6 +20,7 @@ class GrossanlassCommitmentController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private GrossanlassCommitmentService $commitments,
+        private GrossanlassChargeMovementService $movements,
         private GroupAccessService $groupAccess,
     ) {}
 
@@ -76,6 +78,35 @@ class GrossanlassCommitmentController extends AbstractController
 
                 return ['ok' => true];
             },
+        );
+    }
+
+    #[Route('/{commitmentId}/movements', name: 'movements_list', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function movements(string $departmentId, string $commitmentId): JsonResponse
+    {
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->movements->list($department, $user, $commitmentId),
+        );
+    }
+
+    /** Mengenbewegung an der Charge buchen (heute: Wareneingang `received`). */
+    #[Route('/{commitmentId}/movements', name: 'movements_create', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function recordMovement(string $departmentId, string $commitmentId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handle(
+            $departmentId,
+            function (Department $department, User $user) use ($commitmentId, $data): array {
+                $result = $this->movements->record($department, $user, $commitmentId, $data);
+                $result['commitment'] = $this->commitments->get($department, $user, $commitmentId);
+
+                return $result;
+            },
+            201,
         );
     }
 

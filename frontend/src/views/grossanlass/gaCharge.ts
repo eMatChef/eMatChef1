@@ -1,4 +1,4 @@
-import type { GrossanlassCommitment } from '@/api/grossanlassCommitments'
+import type { GrossanlassCommitment, GrossanlassInboundState } from '@/api/grossanlassCommitments'
 
 export type GaInboundStatus = 'expected' | 'here'
 export type GaInboundMode = 'pickup' | 'delivery'
@@ -17,8 +17,25 @@ export function commitmentsOnStem(
   return all.filter((item) => commitmentStemKey(item) === key)
 }
 
+/** Eingangsstand aus den Charge-Bewegungen; Fallback für Antworten ohne `inbound_state`. */
+export function inboundState(row: GrossanlassCommitment): GrossanlassInboundState {
+  if (row.inbound_state) return row.inbound_state
+  return row.item_details?.inbound_status === 'here' ? 'complete' : 'none'
+}
+
+export function receivedQty(row: GrossanlassCommitment): number {
+  if (typeof row.received_quantity === 'number') return row.received_quantity
+  return inboundState(row) === 'complete' ? row.quantity : 0
+}
+
+export function missingQty(row: GrossanlassCommitment): number {
+  if (typeof row.missing_quantity === 'number') return row.missing_quantity
+  return Math.max(0, row.quantity - receivedQty(row))
+}
+
+/** «here» erst bei vollständigem Eingang (oder Material schon gepackt / an Firma zurück). */
 export function inboundStatus(row: GrossanlassCommitment): GaInboundStatus {
-  if (row.item_details?.inbound_status === 'here' || row.packed || row.returned_to_firm) {
+  if (inboundState(row) === 'complete' || row.packed || row.returned_to_firm) {
     return 'here'
   }
   return 'expected'
@@ -52,7 +69,18 @@ export function chargeFlags(row: GrossanlassCommitment): GaChargeFlag[] {
   return flags
 }
 
+/** i18n-Schlüssel für die Herkunft in Auswahl und Listen: Kauf ist «Kauf», nicht «Eigenbestand». */
+export function originLabelKey(origin: GrossanlassCommitment['origin'] | string): string {
+  if (origin === 'buy') return 'grossanlass.materials.originBadge.buy'
+  if (origin === 'buy_resale') return 'grossanlass.materials.lifecycle.buy_resale'
+  if (origin === 'own') return 'grossanlass.materials.lifecycle.own'
+  if (origin === 'donation') return 'grossanlass.materials.lifecycle.donation'
+  return 'grossanlass.materials.lifecycle.loan'
+}
+
 export function originBadgeKey(origin: GrossanlassCommitment['origin']): string {
+  if (origin === 'own') return 'own'
+  if (origin === 'donation') return 'donation'
   if (origin === 'buy_resale') return 'buy_resale'
   if (origin === 'buy') return 'buy'
   return 'loan'

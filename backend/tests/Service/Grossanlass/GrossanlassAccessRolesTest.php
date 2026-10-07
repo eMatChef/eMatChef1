@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Service\Grossanlass;
 
+use App\Entity\Department;
 use App\Service\Grossanlass\GrossanlassAccessRoles;
 use App\Service\Grossanlass\GrossanlassGmailAccountService;
 use App\Service\MembershipRoleCatalog;
@@ -93,6 +94,18 @@ class GrossanlassAccessRolesTest extends TestCase
         self::assertFalse(MembershipRoleCatalog::canAssign('bl', 'dc', true));
         self::assertFalse(MembershipRoleCatalog::canAssign('komm', 'spon', true));
         self::assertTrue(MembershipRoleCatalog::canAssign('komm', 'u', true));
+        foreach (['lw', 'clw'] as $role) {
+            self::assertTrue(MembershipRoleCatalog::canAssign('mw', $role, true));
+            self::assertTrue(MembershipRoleCatalog::canAssign('cmw', $role, true));
+            self::assertTrue(MembershipRoleCatalog::canAssign('dc', $role, true));
+            self::assertFalse(MembershipRoleCatalog::canAssign($role, 'dc', true));
+            self::assertTrue(MembershipRoleCatalog::isAllowed((new Department())->setIsGrossanlass(true), $role));
+            self::assertFalse(MembershipRoleCatalog::isAllowed(null, $role));
+            self::assertFalse(GrossanlassAccessRoles::canWorkMailbox($role));
+            self::assertFalse(GrossanlassAccessRoles::canTakeInquiry($role));
+        }
+        self::assertSame('lw', GrossanlassAccessRoles::normalize('logistikwart'));
+        self::assertSame('clw', GrossanlassAccessRoles::normalize('co_logistikwart'));
         self::assertFalse(MembershipRoleCatalog::isAllowed(null, 'cmw'));
         self::assertFalse(MembershipRoleCatalog::isAllowed(null, 'bl'));
     }

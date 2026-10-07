@@ -1,3 +1,4 @@
+import type { GrossanlassCommitmentOrigin } from '@/api/grossanlassCommitments'
 import type { SandboxComboComponent, SandboxMaterialRow } from '@/views/dev/materialSandboxTypes'
 
 export type GaMaterialsTabId = 'uebersicht' | 'eigen' | 'leihweise' | 'fahrzeuge'
@@ -20,7 +21,7 @@ export type GaPreviewRow = SandboxMaterialRow & {
   returnFromIso?: string
   returnToIso?: string
   releasedForEinsatz?: boolean
-  origin?: 'loan' | 'buy' | 'buy_resale'
+  origin?: GrossanlassCommitmentOrigin
   sessionCreated?: boolean
   feinWish?: { label: string; ressort: string; fromIso: string; toIso: string }
   parkServices?: Array<{

@@ -10,7 +10,7 @@ import {
 } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
 import { normalizeDepartmentTimeHHMM } from '@/utils/activityPlanningFromDefaults'
 
-export type GaZusageOrigin = 'loan' | 'buy' | 'buy_resale'
+export type GaZusageOrigin = 'loan' | 'buy' | 'buy_resale' | 'own' | 'donation'
 export type GaParkServiceKind = 'clean' | 'grease' | 'other'
 
 export type GaPreviewParkService = {

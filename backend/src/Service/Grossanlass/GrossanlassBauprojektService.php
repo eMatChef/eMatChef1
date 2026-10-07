@@ -31,6 +31,7 @@ final class GrossanlassBauprojektService
         private GrossanlassPackService $packs,
         private GrossanlassProcurementService $procurement,
         private GrossanlassProcurementProgress $procurementProgress,
+        private GrossanlassMaterialProgressService $materialProgress,
     ) {}
 
     /**
@@ -497,6 +498,7 @@ final class GrossanlassBauprojektService
             'vehicles' => $this->serializeVehicleNeeds($group),
             'material' => $material,
             'direct_material' => $this->serializeDirectMaterial($group),
+            'material_progress' => $this->materialProgress->forDepartment($department, $group)['items'],
             'packs' => $place instanceof DepartmentGrossanlassPlace
                 ? $this->packs->listAtPlace($department, $place->getId())
                 : [],

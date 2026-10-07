@@ -38,6 +38,7 @@ class GrossanlassProcurementService
         private GrossanlassCostService $costService,
         private GrossanlassProcurementCategoryBootstrapService $categoryBootstrap,
         private GrossanlassCommitmentService $commitmentService,
+        private GrossanlassChargeMovementService $movements,
     ) {}
 
     /**
@@ -1505,29 +1506,28 @@ class GrossanlassProcurementService
             throw new \InvalidArgumentException('Position ist bereits vollständig erhalten');
         }
 
-        $links = $this->loadWishLinksForLine($line);
-        if ($links === []) {
-            if ($line->getSource() === ActivityGrossanlassProcurementLine::SOURCE_DIRECT && !empty($data['full'])) {
-                $line->setStatus(ActivityGrossanlassProcurementLine::STATUS_ERHALTEN);
-                $line->touchUpdatedAt();
-                $this->entityManager->flush();
-
-                return $this->lineToArray($line);
-            }
-            throw new \InvalidArgumentException('Keine Grundeingaben verknüpft');
+        // Physische Wahrheit ist die Bewegung an der Kauf-Charge der Bestellung.
+        $charge = $this->movements->buyChargeForLine($line);
+        if ($charge === null) {
+            throw new \InvalidArgumentException('Zur Bestellung gibt es keine Charge');
         }
 
+        $links = $this->loadWishLinksForLine($line);
+        $allocations = null;
         if (!empty($data['full'])) {
-            foreach ($links as $link) {
-                $link->setReceivedQuantity($link->getWishLine()->getQuantity());
-            }
+            $target = $charge->getQuantity();
         } else {
-            $allocations = is_array($data['allocations'] ?? null) ? $data['allocations'] : [];
+            if ($links === []) {
+                throw new \InvalidArgumentException('Keine Grundeingaben verknüpft');
+            }
             $byWishId = [];
+            $allocations = [];
             foreach ($links as $link) {
                 $byWishId[$link->getWishLineId()] = $link;
+                $allocations[$link->getWishLineId()] = $link->getReceivedQuantity();
             }
-            foreach ($allocations as $row) {
+            $rows = is_array($data['allocations'] ?? null) ? $data['allocations'] : [];
+            foreach ($rows as $row) {
                 if (!is_array($row)) {
                     continue;
                 }
@@ -1539,27 +1539,30 @@ class GrossanlassProcurementService
                 if ($qty < 0) {
                     throw new \InvalidArgumentException('Menge darf nicht negativ sein');
                 }
-                $wishQty = $byWishId[$wishId]->getWishLine()->getQuantity();
-                if ($qty > $wishQty) {
+                if ($qty > $byWishId[$wishId]->getWishLine()->getQuantity()) {
                     throw new \InvalidArgumentException('Verteilte Menge überschreitet Wunschmenge');
                 }
-                $byWishId[$wishId]->setReceivedQuantity($qty);
+                $allocations[$wishId] = $qty;
             }
+            $target = array_sum($allocations);
         }
 
-        $receivedSum = 0;
-        foreach ($links as $link) {
-            $receivedSum += $link->getReceivedQuantity();
-        }
-
-        if ($receivedSum >= $line->getQuantity()) {
-            $line->setStatus(ActivityGrossanlassProcurementLine::STATUS_ERHALTEN);
-        } elseif ($receivedSum > 0) {
-            $line->setStatus(ActivityGrossanlassProcurementLine::STATUS_TEILWEISE);
-        }
-
-        $line->touchUpdatedAt();
-        $this->entityManager->flush();
+        $this->entityManager->wrapInTransaction(function () use ($line, $charge, $target, $allocations, $user): void {
+            $this->movements->lockCommitment($charge);
+            $received = $this->movements->receivedQuantity($charge);
+            if ($target < $received) {
+                throw new \InvalidArgumentException(sprintf(
+                    'Bereits %d erhalten — Wareneingang lässt sich nicht verringern',
+                    $received,
+                ));
+            }
+            if ($target > $received) {
+                $this->movements->recordReceived($charge, $target - $received, $user, null, 'Erfasst in der Beschaffung');
+            }
+            $this->movements->syncLineReceived($line, $allocations);
+            $line->touchUpdatedAt();
+            $this->entityManager->flush();
+        });
 
         return $this->lineToArray($line);
     }
@@ -2692,7 +2695,7 @@ class GrossanlassProcurementService
             if (!$row instanceof DepartmentGrossanlassCommitment) {
                 continue;
             }
-            $from = trim((string) ($row->getItemDetails()['from_line_id'] ?? ''));
+            $from = (string) $row->getProcurementLineId();
             if ($from === '') {
                 continue;
             }

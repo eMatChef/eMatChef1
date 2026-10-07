@@ -5,6 +5,8 @@ describe('gaHomePath', () => {
   it('maps department roles to their default home', () => {
     expect(gaHomeKind('mw')).toBe('dashboard')
     expect(gaHomeKind('cmw')).toBe('dashboard')
+    expect(gaHomeKind('lw')).toBe('dashboard')
+    expect(gaHomeKind('clw')).toBe('dashboard')
     expect(gaHomeKind('dc')).toBe('dashboard')
     expect(gaHomeKind('komm')).toBe('mailbox')
     expect(gaHomeKind('spon')).toBe('mailbox')

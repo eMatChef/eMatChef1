@@ -181,6 +181,8 @@ class CreateRoleUsersCommand extends Command
             ['email' => DemoAccounts::email('ga-ok'), 'first' => 'GA', 'last' => 'OK-Leitung', 'nick' => 'GA-OK', 'role' => DepartmentRole::DEPCHEF],
             ['email' => DemoAccounts::email('ga-komm'), 'first' => 'GA', 'last' => 'Kommunikation', 'nick' => 'GA-Komm', 'role' => DepartmentRole::KOMMUNIKATION],
             ['email' => DemoAccounts::email('ga-spon'), 'first' => 'GA', 'last' => 'Sponsoring', 'nick' => 'GA-Spon', 'role' => DepartmentRole::SPONSORING],
+            ['email' => DemoAccounts::email('ga-lw'), 'first' => 'GA', 'last' => 'Logistikwart', 'nick' => 'GA-LW', 'role' => DepartmentRole::LOGISTIKWART],
+            ['email' => DemoAccounts::email('ga-clw'), 'first' => 'GA', 'last' => 'Co-Logistikwart', 'nick' => 'GA-CLW', 'role' => DepartmentRole::CO_LOGISTIKWART],
             ['email' => DemoAccounts::email('ga-bereich'), 'first' => 'GA', 'last' => 'Bereichsleitung', 'nick' => 'GA-BL', 'role' => DepartmentRole::BEREICHSLEITUNG],
             ['email' => DemoAccounts::email('ga-helfer'), 'first' => 'GA', 'last' => 'Helfer', 'nick' => 'GA-Helfer', 'role' => DepartmentRole::USER],
         ];
