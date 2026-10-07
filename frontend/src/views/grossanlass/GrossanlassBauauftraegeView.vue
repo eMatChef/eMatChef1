@@ -3,32 +3,43 @@
     <div class="ga-bauauftraege__subtabs">
       <v-tabs v-model="listMode" class="materials-view-tabs" color="primary">
         <v-tab value="mine">{{ t('grossanlass.planung.bauListMine') }}</v-tab>
+        <v-tab v-if="isMaterialwart" value="all">{{ t('grossanlass.planung.bauListAll') }}</v-tab>
         <v-tab value="tree">{{ t('grossanlass.planung.bauListTree') }}</v-tab>
       </v-tabs>
+      <v-switch
+        v-if="isMaterialwart && listMode === 'tree'"
+        v-model="treeAllRessorts"
+        class="ga-bauauftraege__tree-switch"
+        color="primary"
+        density="compact"
+        hide-details
+        inset
+        :label="t('grossanlass.planung.bauTreeAllRessorts')"
+      />
       <EButton
         v-if="canAdd"
         variant="primary"
         size="small"
         @click="openCreate"
       >
-        {{ t('grossanlass.materialUebersicht.addBauauftrag') }}
+        {{ t('grossanlass.material.addBauauftrag') }}
       </EButton>
     </div>
 
     <ELoadingState v-if="loading" variant="inline" :message="t('common.loading')" />
 
     <EEmptyState
-      v-else-if="listMode === 'mine' ? !projectRows.length : !sections.length"
+      v-else-if="listMode === 'tree' ? !sections.length : !projectRows.length"
       icon="mdi-hammer-wrench"
-      :title="t('grossanlass.materialUebersicht.emptyBauauftraegeTitle')"
-      :description="t('grossanlass.materialUebersicht.emptyBauauftraegeText')"
+      :title="t('grossanlass.material.emptyBauauftraegeTitle')"
+      :description="t('grossanlass.material.emptyBauauftraegeText')"
     >
       <template v-if="canAdd" #actions>
-        <EButton @click="openCreate">{{ t('grossanlass.materialUebersicht.addBauauftrag') }}</EButton>
+        <EButton @click="openCreate">{{ t('grossanlass.material.addBauauftrag') }}</EButton>
       </template>
     </EEmptyState>
 
-    <ul v-else-if="listMode === 'mine'" class="ga-bauauftraege__list">
+    <ul v-else-if="listMode !== 'tree'" class="ga-bauauftraege__list">
       <li v-for="project in projectRows" :key="project.id" @click="openProject(project)">
         <span class="ga-bauauftraege__name">{{ project.name }}</span>
         <span v-if="parentPath(project)" class="ga-bauauftraege__path">{{ parentPath(project) }}</span>
@@ -56,7 +67,7 @@
 
     <EDialog
       v-model="showCreate"
-      :title="t('grossanlass.materialUebersicht.addBauauftragTitle')"
+      :title="t('grossanlass.material.addBauauftragTitle')"
       max-width="640"
       :retain-focus="false"
     >
@@ -70,7 +81,7 @@
         <ESelect
           v-model="createForm.parent_id"
           :items="parentItems"
-          :label="t('grossanlass.materialUebersicht.bauauftragBereichLabel')"
+          :label="t('grossanlass.material.bauauftragBereichLabel')"
           hide-details
         />
         <GaBuildMetaFields
@@ -123,7 +134,7 @@ import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { gaCanSetBuildStatus } from '@/utils/grossanlassAccess'
+import { gaCanManagePlanung, gaCanSetBuildStatus } from '@/utils/grossanlassAccess'
 import { useToast } from '@/composables/useToast'
 import { useGrossanlassRessortScope } from '@/composables/useGrossanlassRessortScope'
 import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
@@ -169,7 +180,12 @@ watchGrossanlassBuildPeriods(departmentId)
 const groups = ref<GrossanlassGroup[]>([])
 const loading = ref(true)
 const openIds = ref<string[]>([])
-const listMode = ref<'mine' | 'tree'>('mine')
+/** MW/CMW starten mit dem Überblick «Alle Aufträge», die übrigen Rollen mit «Meine Aufträge». */
+const listMode = ref<'mine' | 'all' | 'tree'>(
+  gaCanManagePlanung(authStore.currentDepartmentRole) ? 'all' : 'mine',
+)
+/** MW/CMW: Ressortbaum standardmässig nur eigenes Ressort, Umschalter für alle Ressorts. */
+const treeAllRessorts = ref(false)
 const showCreate = ref(false)
 const showProject = ref(false)
 const { panelRef: bauprojektPanelRef, requestClose: closeBauprojekt } = useBauprojektPanelClose(showProject)
@@ -191,15 +207,30 @@ const createForm = ref({
 const {
   canCreateChild,
   isInAssignedRessortBranch,
+  isInOwnAssignedBranch,
 } = useGrossanlassRessortScope(groups)
 
+const isMaterialwart = computed(() => gaCanManagePlanung(authStore.currentDepartmentRole))
+
+/** Alles, was die Rolle sehen darf (MW/CMW: alle Ressorts). */
 const visibleGroups = computed(() =>
   groups.value.filter((group) => isInAssignedRessortBranch(group)),
 )
 
+/** «Meine Aufträge» und Standard-Baum: MW/CMW nur eigenes Ressort, übrige Rollen wie bisher. */
+const scopedGroups = computed(() =>
+  isMaterialwart.value
+    ? groups.value.filter((group) => isInOwnAssignedBranch(group))
+    : visibleGroups.value,
+)
+
+const treeGroups = computed(() =>
+  isMaterialwart.value && treeAllRessorts.value ? visibleGroups.value : scopedGroups.value,
+)
+
 function kindLabel(group: GrossanlassGroup): string {
   if (group.node_type === 'bauprojekt') return t('grossanlass.planung.ressorts.kindBauprojekt')
-  if (group.node_type === 'unterressort') return t('grossanlass.materialUebersicht.bauauftragBereichLabel')
+  if (group.node_type === 'unterressort') return t('grossanlass.material.bauauftragBereichLabel')
   return t('grossanlass.planung.ressorts.kindRessort')
 }
 
@@ -214,13 +245,13 @@ function toSection(node: NestedTreeNode<GrossanlassGroup>): GaBauauftragSection 
 }
 
 const sections = computed(() =>
-  nestTreeWithLevel(visibleGroups.value)
+  nestTreeWithLevel(treeGroups.value)
     .filter((node) => node.node_type !== 'bauprojekt')
     .map(toSection),
 )
 
 const projectRows = computed(() =>
-  visibleGroups.value
+  (listMode.value === 'all' ? visibleGroups.value : scopedGroups.value)
     .filter((group) => group.node_type === 'bauprojekt')
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name, 'de')),
@@ -336,7 +367,7 @@ async function submitCreate() {
     })
     await refresh()
     showCreate.value = false
-    toast.success(t('grossanlass.materialUebersicht.bauauftragCreated'))
+    toast.success(t('grossanlass.material.bauauftragCreated'))
     openProject(groups.value.find((row) => row.id === created.id) ?? created)
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
@@ -389,6 +420,9 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
   width: fit-content;
   max-width: 100%;
+}
+.ga-bauauftraege__tree-switch {
+  flex: 0 0 auto;
 }
 .ga-bauauftraege__tree {
   border-radius: 10px;

@@ -3,7 +3,7 @@
     <p class="book-hint">{{ stepHint }}</p>
 
     <template v-if="step === 'pick'">
-      <div class="book-toggle" role="tablist" :aria-label="t('grossanlass.materialUebersicht.bookScope')">
+      <div class="book-toggle" role="tablist" :aria-label="t('grossanlass.material.bookScope')">
         <button
           type="button"
           role="tab"
@@ -12,7 +12,7 @@
           :class="{ 'book-toggle__btn--on': scope === 'single' }"
           @click="setScope('single')"
         >
-          {{ t('grossanlass.materialUebersicht.bookScopeSingle') }}
+          {{ t('grossanlass.material.bookScopeSingle') }}
         </button>
         <button
           type="button"
@@ -22,12 +22,12 @@
           :class="{ 'book-toggle__btn--on': scope === 'project' }"
           @click="setScope('project')"
         >
-          {{ t('grossanlass.materialUebersicht.bookScopeProject') }}
+          {{ t('grossanlass.material.bookScopeProject') }}
         </button>
       </div>
 
       <template v-if="scope === 'single'">
-        <div class="book-toggle book-toggle--sub" role="tablist" :aria-label="t('grossanlass.materialUebersicht.sourceGroup')">
+        <div class="book-toggle book-toggle--sub" role="tablist" :aria-label="t('grossanlass.material.sourceGroup')">
           <button
             type="button"
             role="tab"
@@ -36,7 +36,7 @@
             :class="{ 'book-toggle__btn--on': source === 'own' }"
             @click="setSource('own')"
           >
-            {{ t('grossanlass.materialUebersicht.sourceOwn') }}
+            {{ t('grossanlass.material.sourceOwn') }}
           </button>
           <button
             type="button"
@@ -46,7 +46,7 @@
             :class="{ 'book-toggle__btn--on': source === 'wish' }"
             @click="setSource('wish')"
           >
-            {{ t('grossanlass.materialUebersicht.sourceWish') }}
+            {{ t('grossanlass.material.sourceWish') }}
           </button>
         </div>
 
@@ -58,8 +58,8 @@
           item-title="title"
           item-value="value"
           item-subtitle="subtitle"
-          :label="t('grossanlass.materialUebersicht.objectSearchLabel')"
-          :placeholder="t('grossanlass.materialUebersicht.objectSearchPlaceholder')"
+          :label="t('grossanlass.material.objectSearchLabel')"
+          :placeholder="t('grossanlass.material.objectSearchPlaceholder')"
           :menu-props="listMenuProps"
           :no-filter="false"
           clearable
@@ -74,8 +74,8 @@
           item-title="title"
           item-value="value"
           item-subtitle="subtitle"
-          :label="t('grossanlass.materialUebersicht.wishSearchLabel')"
-          :placeholder="t('grossanlass.materialUebersicht.wishSearchPlaceholder')"
+          :label="t('grossanlass.material.wishSearchLabel')"
+          :placeholder="t('grossanlass.material.wishSearchPlaceholder')"
           :menu-props="listMenuProps"
           :no-filter="false"
           clearable
@@ -90,8 +90,8 @@
           :items="projectItems"
           item-title="title"
           item-value="value"
-          :label="t('grossanlass.materialUebersicht.bookProjectLabel')"
-          :placeholder="t('grossanlass.materialUebersicht.bookProjectPlaceholder')"
+          :label="t('grossanlass.material.bookProjectLabel')"
+          :placeholder="t('grossanlass.material.bookProjectPlaceholder')"
           :menu-props="projectMenuProps"
           :no-filter="false"
           clearable
@@ -135,7 +135,7 @@
           </template>
         </EAutocomplete>
         <p v-if="projectId && projectWishes.length === 0" class="book-project-empty">
-          {{ t('grossanlass.materialUebersicht.bookProjectEmpty') }}
+          {{ t('grossanlass.material.bookProjectEmpty') }}
         </p>
         <ul v-else-if="projectWishes.length" class="book-project-list">
           <li
@@ -153,7 +153,7 @@
             <span v-else class="book-project-skip" />
             <div class="book-project-copy">
               <strong>{{ wish.qty }}× {{ wish.label }}</strong>
-              <span>{{ t('grossanlass.materialUebersicht.bookProjectWishWindow', { from: wish.fromLabel, to: wish.toLabel }) }}</span>
+              <span>{{ t('grossanlass.material.bookProjectWishWindow', { from: wish.fromLabel, to: wish.toLabel }) }}</span>
               <span v-if="wishWarn(wish)" class="book-project-warn">{{ wishWarn(wish) }}</span>
             </div>
             <EButton
@@ -163,10 +163,10 @@
               :loading="orderingId === wish.id"
               @click="orderWish(wish)"
             >
-              {{ t('grossanlass.materialUebersicht.actionOrder') }}
+              {{ t('grossanlass.material.actionOrder') }}
             </EButton>
             <span v-else-if="orderedIds.has(wish.id)" class="book-project-noted">
-              {{ t('grossanlass.materialUebersicht.orderNoted') }}
+              {{ t('grossanlass.material.orderNoted') }}
             </span>
           </li>
         </ul>
@@ -175,32 +175,32 @@
             v-model:start="fromDate"
             v-model:end="toDate"
             :department-id="departmentId"
-            :label="t('grossanlass.materialUebersicht.bookFieldPeriod')"
+            :label="t('grossanlass.material.bookFieldPeriod')"
             allow-past
           />
           <div class="book-times">
-            <ETimeField v-model="fromTime" :label="t('grossanlass.materialUebersicht.fieldFromTime')" />
-            <ETimeField v-model="toTime" :label="t('grossanlass.materialUebersicht.fieldToTime')" />
+            <ETimeField v-model="fromTime" :label="t('grossanlass.material.fieldFromTime')" />
+            <ETimeField v-model="toTime" :label="t('grossanlass.material.fieldToTime')" />
           </div>
-          <p class="book-project-period__hint">{{ t('grossanlass.materialUebersicht.bookProjectPeriodHint') }}</p>
+          <p class="book-project-period__hint">{{ t('grossanlass.material.bookProjectPeriodHint') }}</p>
         </div>
         <div v-if="projectId && selectedWishIds.length && showDeliveryToggle" class="book-delivery">
-          <p class="book-delivery__label">{{ t('grossanlass.materialUebersicht.deliveryLabel') }}</p>
+          <p class="book-delivery__label">{{ t('grossanlass.material.deliveryLabel') }}</p>
           <div class="book-delivery__row">
             <ECheckbox
               :model-value="delivery === 'trip'"
-              :label="t('grossanlass.materialUebersicht.deliveryTrip')"
+              :label="t('grossanlass.material.deliveryTrip')"
               hide-details
               @update:model-value="onDeliveryTrip"
             />
             <ECheckbox
               :model-value="delivery === 'pickup'"
-              :label="t('grossanlass.materialUebersicht.deliveryPickup')"
+              :label="t('grossanlass.material.deliveryPickup')"
               hide-details
               @update:model-value="onDeliveryPickup"
             />
           </div>
-          <p class="book-delivery__hint">{{ t('grossanlass.materialUebersicht.deliveryHint') }}</p>
+          <p class="book-delivery__hint">{{ t('grossanlass.material.deliveryHint') }}</p>
         </div>
         <EAutocomplete
           v-if="scope === 'project' && needsDriver"
@@ -209,8 +209,8 @@
           :items="placeItems"
           item-title="title"
           item-value="value"
-          :label="t('grossanlass.materialUebersicht.destinationLabel')"
-          :placeholder="t('grossanlass.materialUebersicht.destinationPlaceholder')"
+          :label="t('grossanlass.material.destinationLabel')"
+          :placeholder="t('grossanlass.material.destinationPlaceholder')"
           :menu-props="listMenuProps"
           :no-filter="false"
           :disabled="placeSaving"
@@ -225,9 +225,9 @@
           item-title="title"
           item-value="value"
           item-subtitle="subtitle"
-          :label="t('grossanlass.materialUebersicht.chauffeurLabel')"
-          :placeholder="t('grossanlass.materialUebersicht.chauffeurPlaceholder')"
-          :hint="t('grossanlass.materialUebersicht.chauffeurHint')"
+          :label="t('grossanlass.material.chauffeurLabel')"
+          :placeholder="t('grossanlass.material.chauffeurPlaceholder')"
+          :hint="t('grossanlass.material.chauffeurHint')"
           persistent-hint
           :menu-props="listMenuProps"
           :no-filter="false"
@@ -239,25 +239,25 @@
           type="warning"
           variant="tonal"
           class="mt-3"
-          :text="t('grossanlass.materialUebersicht.chauffeurNoLicense')"
+          :text="t('grossanlass.material.chauffeurNoLicense')"
         />
         <v-alert
           v-if="scope === 'project' && projectSlotOutside"
           type="warning"
           variant="tonal"
           class="mt-3"
-          :text="t('grossanlass.materialUebersicht.bookOutsideWindow')"
+          :text="t('grossanlass.material.bookOutsideWindow')"
         />
       </template>
     </template>
 
     <template v-else-if="draft">
       <p v-if="draft.fromWish" class="book-from-wish">
-        {{ t('grossanlass.materialUebersicht.bookFromWishBadge') }}
+        {{ t('grossanlass.material.bookFromWishBadge') }}
       </p>
       <p class="book-object">
         <strong>{{ draft.objectName }}</strong>
-        <span>{{ t('grossanlass.materialUebersicht.qty', { n: draft.qty }) }} · {{ draft.ressort }}</span>
+        <span>{{ t('grossanlass.material.qty', { n: draft.qty }) }} · {{ draft.ressort }}</span>
       </p>
       <EAutocomplete
         v-model="groupId"
@@ -265,9 +265,9 @@
         :items="bereichItems"
         item-title="title"
         item-value="value"
-        :label="t('grossanlass.materialUebersicht.bookBereichLabel')"
-        :placeholder="t('grossanlass.materialUebersicht.bookBereichPlaceholder')"
-        :hint="t('grossanlass.materialUebersicht.bookBereichHint')"
+        :label="t('grossanlass.material.bookBereichLabel')"
+        :placeholder="t('grossanlass.material.bookBereichPlaceholder')"
+        :hint="t('grossanlass.material.bookBereichHint')"
         persistent-hint
         :menu-props="projectMenuProps"
         :no-filter="false"
@@ -304,12 +304,12 @@
         v-model:start="fromDate"
         v-model:end="toDate"
         :department-id="departmentId"
-        :label="t('grossanlass.materialUebersicht.bookFieldPeriod')"
+        :label="t('grossanlass.material.bookFieldPeriod')"
         allow-past
       />
       <div class="book-times">
-        <ETimeField v-model="fromTime" :label="t('grossanlass.materialUebersicht.fieldFromTime')" />
-        <ETimeField v-model="toTime" :label="t('grossanlass.materialUebersicht.fieldToTime')" />
+        <ETimeField v-model="fromTime" :label="t('grossanlass.material.fieldFromTime')" />
+        <ETimeField v-model="toTime" :label="t('grossanlass.material.fieldToTime')" />
       </div>
       <div v-if="draftFromIso && draftToIso && slotYmds.length" class="book-slots" :class="{ 'book-slots--stack': slotStacked }">
         <div v-if="slotStacked" class="book-slots__head">
@@ -340,22 +340,22 @@
         </div>
       </div>
       <div v-if="mode === 'einsatz' && showDeliveryToggle" class="book-delivery">
-        <p class="book-delivery__label">{{ t('grossanlass.materialUebersicht.deliveryLabel') }}</p>
+        <p class="book-delivery__label">{{ t('grossanlass.material.deliveryLabel') }}</p>
         <div class="book-delivery__row">
           <ECheckbox
             :model-value="delivery === 'trip'"
-            :label="t('grossanlass.materialUebersicht.deliveryTrip')"
+            :label="t('grossanlass.material.deliveryTrip')"
             hide-details
             @update:model-value="onDeliveryTrip"
           />
           <ECheckbox
             :model-value="delivery === 'pickup'"
-            :label="t('grossanlass.materialUebersicht.deliveryPickup')"
+            :label="t('grossanlass.material.deliveryPickup')"
             hide-details
             @update:model-value="onDeliveryPickup"
           />
         </div>
-        <p class="book-delivery__hint">{{ t('grossanlass.materialUebersicht.deliveryHint') }}</p>
+        <p class="book-delivery__hint">{{ t('grossanlass.material.deliveryHint') }}</p>
       </div>
       <EAutocomplete
         v-if="needsDriver"
@@ -364,8 +364,8 @@
         :items="placeItems"
         item-title="title"
         item-value="value"
-        :label="t('grossanlass.materialUebersicht.destinationLabel')"
-        :placeholder="t('grossanlass.materialUebersicht.destinationPlaceholder')"
+        :label="t('grossanlass.material.destinationLabel')"
+        :placeholder="t('grossanlass.material.destinationPlaceholder')"
         :menu-props="listMenuProps"
         :no-filter="false"
         :disabled="placeSaving"
@@ -377,8 +377,8 @@
             type="button"
             class="book-place-plus"
             :class="{ 'is-open': showPlaceCreate }"
-            :title="t('grossanlass.materialUebersicht.destinationAdd')"
-            :aria-label="t('grossanlass.materialUebersicht.destinationAdd')"
+            :title="t('grossanlass.material.destinationAdd')"
+            :aria-label="t('grossanlass.material.destinationAdd')"
             :aria-expanded="showPlaceCreate"
             :disabled="placeSaving"
             @mousedown.prevent
@@ -391,7 +391,7 @@
       <div v-if="needsDriver && showPlaceCreate" ref="placeCreateEl" class="book-place-create">
         <ETextField
           v-model="newPlaceName"
-          :label="t('grossanlass.materialUebersicht.destinationAddName')"
+          :label="t('grossanlass.material.destinationAddName')"
           :placeholder="t('grossanlass.einstellungen.placesName')"
           hide-details
           :disabled="placeSaving"
@@ -415,9 +415,9 @@
         item-title="title"
         item-value="value"
         item-subtitle="subtitle"
-        :label="t('grossanlass.materialUebersicht.chauffeurLabel')"
-        :placeholder="t('grossanlass.materialUebersicht.chauffeurPlaceholder')"
-        :hint="t('grossanlass.materialUebersicht.chauffeurHint')"
+        :label="t('grossanlass.material.chauffeurLabel')"
+        :placeholder="t('grossanlass.material.chauffeurPlaceholder')"
+        :hint="t('grossanlass.material.chauffeurHint')"
         persistent-hint
         :menu-props="listMenuProps"
         :no-filter="false"
@@ -429,35 +429,35 @@
         type="warning"
         variant="tonal"
         class="mt-3"
-        :text="t('grossanlass.materialUebersicht.chauffeurNoLicense')"
+        :text="t('grossanlass.material.chauffeurNoLicense')"
       />
       <v-alert
         v-if="slotIssuedLock && mode === 'einsatz'"
         type="warning"
         variant="tonal"
         class="mt-3"
-        :text="t('grossanlass.materialUebersicht.bookIssuedLock')"
+        :text="t('grossanlass.material.bookIssuedLock')"
       />
       <v-alert
         v-else-if="slotUnreleased && mode === 'einsatz'"
         type="warning"
         variant="tonal"
         class="mt-3"
-        :text="t('grossanlass.materialUebersicht.bookUnreleased')"
+        :text="t('grossanlass.material.bookUnreleased')"
       />
       <v-alert
         v-else-if="slotOutside && mode === 'einsatz'"
         type="warning"
         variant="tonal"
         class="mt-3"
-        :text="t('grossanlass.materialUebersicht.bookOutsideWindow')"
+        :text="t('grossanlass.material.bookOutsideWindow')"
       />
       <v-alert
         v-else-if="slotBusy && mode === 'einsatz'"
         type="warning"
         variant="tonal"
         class="mt-3"
-        :text="t('grossanlass.materialUebersicht.bookConflict')"
+        :text="t('grossanlass.material.bookConflict')"
       />
     </template>
 
@@ -633,29 +633,29 @@ const toast = useToast()
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
 const dialogTitle = computed(() => {
-  if (props.mode === 'order') return t('grossanlass.materialUebersicht.actionOrder')
-  if (scope.value === 'project') return t('grossanlass.materialUebersicht.bookProjectTitle')
+  if (props.mode === 'order') return t('grossanlass.material.actionOrder')
+  if (scope.value === 'project') return t('grossanlass.material.bookProjectTitle')
   return step.value === 'details'
-    ? t('grossanlass.materialUebersicht.bookDialogDetailsTitle')
-    : t('grossanlass.materialUebersicht.bookDialogTitle')
+    ? t('grossanlass.material.bookDialogDetailsTitle')
+    : t('grossanlass.material.bookDialogTitle')
 })
 
 const stepHint = computed(() => {
-  if (props.mode === 'order') return t('grossanlass.materialUebersicht.orderHint')
-  if (scope.value === 'project') return t('grossanlass.materialUebersicht.bookProjectHint')
+  if (props.mode === 'order') return t('grossanlass.material.orderHint')
+  if (scope.value === 'project') return t('grossanlass.material.bookProjectHint')
   return step.value === 'details'
-    ? t('grossanlass.materialUebersicht.detailsHint')
-    : t('grossanlass.materialUebersicht.bookDialogHint')
+    ? t('grossanlass.material.detailsHint')
+    : t('grossanlass.material.bookDialogHint')
 })
 
 const confirmLabel = computed(() => {
   if (props.mode === 'order' || (draft.value && !draft.value.objectId)) {
-    return t('grossanlass.materialUebersicht.orderConfirm')
+    return t('grossanlass.material.orderConfirm')
   }
   if (step.value === 'details' && (slotBusy.value || slotIssuedLock.value || slotUnreleased.value || slotOutside.value)) {
-    return t('grossanlass.materialUebersicht.bookNotifyMw')
+    return t('grossanlass.material.bookNotifyMw')
   }
-  return t('grossanlass.materialUebersicht.bookConfirm')
+  return t('grossanlass.material.bookConfirm')
 })
 
 const wishItems = computed(() =>
@@ -669,7 +669,7 @@ const wishItems = computed(() =>
 const freeItems = computed(() =>
   scopedPicks.value.map((item) => ({
     title: item.objectName,
-    subtitle: `${t('grossanlass.materialUebersicht.qty', { n: item.qty })} · ${item.ressort}`,
+    subtitle: `${t('grossanlass.material.qty', { n: item.qty })} · ${item.ressort}`,
     value: item.id,
   })),
 )
@@ -780,8 +780,8 @@ const slotHeading = computed(() => {
 })
 const slotLegend = computed(() =>
   slotBusy.value
-    ? t('grossanlass.materialUebersicht.slotLegendClash')
-    : t('grossanlass.materialUebersicht.slotLegendFree'),
+    ? t('grossanlass.material.slotLegendClash')
+    : t('grossanlass.material.slotLegendFree'),
 )
 
 const dayBookings = computed(() => {
@@ -856,7 +856,7 @@ function projectKindLabel(nodeType: string): string {
 function projectItemSubtitle(row: { nodeType: string; belowCount: number }): string {
   const kind = projectKindLabel(row.nodeType)
   const below = row.belowCount > 0
-    ? t('grossanlass.materialUebersicht.bookProjectWishBelow', row.belowCount)
+    ? t('grossanlass.material.bookProjectWishBelow', row.belowCount)
     : ''
   return [kind, below].filter(Boolean).join(' · ')
 }
@@ -865,7 +865,7 @@ const projectItems = computed(() =>
   buildBookProjectPickerItems(
     props.groups ?? [],
     scopedWishes.value,
-    t('grossanlass.materialUebersicht.bookProjectUnassigned'),
+    t('grossanlass.material.bookProjectUnassigned'),
   ),
 )
 
@@ -882,7 +882,7 @@ const projectWishes = computed(() => {
 })
 
 const projectConfirmLabel = computed(() =>
-  t('grossanlass.materialUebersicht.bookProjectConfirm', selectedWishIds.value.length),
+  t('grossanlass.material.bookProjectConfirm', selectedWishIds.value.length),
 )
 
 const projectSlotOutside = computed(() => {
@@ -1118,7 +1118,7 @@ async function createPlace() {
     showPlaceCreate.value = false
     placeMenuOpen.value = false
     emit('placeCreated', created)
-    toast.success(t('grossanlass.materialUebersicht.destinationAdded', { name: created.name }))
+    toast.success(t('grossanlass.material.destinationAdded', { name: created.name }))
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
     toast.error(err.response?.data?.error || t('grossanlass.einstellungen.placesAddError'))
@@ -1132,19 +1132,19 @@ function canBookWish(wish: GaPreviewWishTemplate): boolean {
 }
 
 function wishWarn(wish: GaPreviewWishTemplate): string {
-  if (!wish.objectId) return t('grossanlass.materialUebersicht.bookProjectNoStock')
+  if (!wish.objectId) return t('grossanlass.material.bookProjectNoStock')
   const resource = (props.resources ?? []).find((row) => row.id === wish.objectId)
   const { fromIso, toIso } = wishEinsatzIso(wish)
-  if (resource?.released === false) return t('grossanlass.materialUebersicht.bookProjectUnreleased')
+  if (resource?.released === false) return t('grossanlass.material.bookProjectUnreleased')
   if (isOutsidePresentWindow(resource, fromIso, toIso)) {
-    return t('grossanlass.materialUebersicht.bookProjectOutside')
+    return t('grossanlass.material.bookProjectOutside')
   }
   const fake: GaBookPreviewDraft = { ...wish, fromWish: true }
   if (isSlotConflict(props.rows ?? [], fake, fromIso, toIso)) {
-    return t('grossanlass.materialUebersicht.bookProjectConflict')
+    return t('grossanlass.material.bookProjectConflict')
   }
   if (isIssuedSlotLocked(props.rows ?? [], wish.objectId, fromIso, toIso)) {
-    return t('grossanlass.materialUebersicht.bookIssuedLock')
+    return t('grossanlass.material.bookIssuedLock')
   }
   return ''
 }

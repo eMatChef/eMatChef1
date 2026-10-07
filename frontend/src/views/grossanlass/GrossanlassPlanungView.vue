@@ -6,7 +6,7 @@
   >
     <template v-if="showAddTransport" #actions>
       <EButton variant="primary" size="small" @click="fahrauftragComposer.open()">
-        {{ t('grossanlass.materialUebersicht.addFahrauftrag') }}
+        {{ t('grossanlass.material.addFahrauftrag') }}
       </EButton>
     </template>
     <template #filters>
@@ -86,6 +86,7 @@ const departmentId = computed(() => {
 
 const tabItems = computed(() => [
   { id: 'wuensche', label: t('grossanlass.planung.tabWishes'), icon: 'mdi-lightbulb-on-outline' },
+  { id: 'auftraege', label: t('grossanlass.planung.tabAuftraege'), icon: 'mdi-clipboard-text-outline' },
   { id: 'bauauftraege', label: t('grossanlass.planung.tabBauauftraege'), icon: 'mdi-hammer-wrench' },
   { id: 'transporte', label: t('grossanlass.planung.tabTransporte'), icon: 'mdi-truck-fast-outline' },
   { id: 'belegung', label: t('grossanlass.planung.tabBelegung'), icon: 'mdi-calendar-range' },

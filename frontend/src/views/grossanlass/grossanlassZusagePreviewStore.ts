@@ -177,7 +177,7 @@ export function createArticleFromZusageDraft(draft: GaZusageCreateDraft, t: Tran
       kind: draft.firstServiceKind,
       fromIso: combineIso(draft.firstServiceDate, draft.firstServiceFromTime),
       toIso: combineIso(draft.firstServiceDate, draft.firstServiceToTime),
-      who: t('grossanlass.materialUebersicht.sampleWho3'),
+      who: t('grossanlass.material.sampleWho3'),
     })
   }
   state.extras.push(article)

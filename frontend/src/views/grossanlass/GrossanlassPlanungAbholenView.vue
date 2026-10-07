@@ -8,7 +8,7 @@
       <li v-for="row in rows" :key="row.id">
         <strong>{{ row.objectName }}</strong>
         <span>{{ row.who }} · {{ row.fromLabel }} – {{ row.toLabel }}</span>
-        <span>{{ t('grossanlass.materialUebersicht.qty', { n: row.qty }) }}</span>
+        <span>{{ t('grossanlass.material.qty', { n: row.qty }) }}</span>
       </li>
     </ul>
 

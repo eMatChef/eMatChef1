@@ -4,9 +4,9 @@
   </div>
   <PageShell
     v-else
-    class="grossanlass-material-uebersicht-shell"
-    :title="t('grossanlass.materialUebersicht.title')"
-    :subtitle="t('grossanlass.materialUebersicht.subtitle')"
+    class="grossanlass-material-shell"
+    :title="t('grossanlass.material.title')"
+    :subtitle="t('grossanlass.material.subtitle')"
   >
     <template #filters>
       <v-tabs
@@ -59,17 +59,18 @@ const isDetail = computed(() => route.name === 'GrossanlassMaterialsArtikel')
 
 const tabItems = computed(() => {
   const tabs = [
-    { id: 'bestand', label: t('grossanlass.materialUebersicht.tabBestand'), icon: 'mdi-warehouse' },
-    { id: 'wareneingang', label: t('grossanlass.materialUebersicht.tabWareneingang'), icon: 'mdi-truck-delivery-outline' },
-    { id: 'ausgabe', label: t('grossanlass.materialUebersicht.tabAusgabe'), icon: 'mdi-export-variant' },
-    { id: 'pack', label: t('grossanlass.materialUebersicht.tabPack'), icon: 'mdi-package-variant-closed' },
-    { id: 'retour', label: t('grossanlass.materialUebersicht.tabRetour'), icon: 'mdi-keyboard-return' },
+    { id: 'bestand', label: t('grossanlass.material.tabBestand'), icon: 'mdi-warehouse' },
+    { id: 'wareneingang', label: t('grossanlass.material.tabWareneingang'), icon: 'mdi-truck-delivery-outline' },
+    { id: 'ausgabe', label: t('grossanlass.material.tabAusgabe'), icon: 'mdi-export-variant' },
+    { id: 'pack', label: t('grossanlass.material.tabPack'), icon: 'mdi-package-variant-closed' },
+    { id: 'rueckbau', label: t('grossanlass.material.tabRueckbau'), icon: 'mdi-package-variant-remove' },
+    { id: 'weiterverkauf', label: t('grossanlass.material.tabWeiterverkauf'), icon: 'mdi-tag-multiple-outline' },
   ]
   if (gaCanOperateAusgabe(authStore.currentDepartmentRole)) return tabs
   return tabs.filter((tab) => tab.id !== 'ausgabe')
 })
 
-const activeTab = computed(() => (route.meta.materialUebersichtTab as string) || 'bestand')
+const activeTab = computed(() => (route.meta.materialTab as string) || 'bestand')
 
 function onTabChange(tab: unknown) {
   const id = departmentId.value
@@ -78,12 +79,12 @@ function onTabChange(tab: unknown) {
     void router.push(gaBestandListPath(id))
     return
   }
-  void router.push(`/${id}/material-uebersicht/${tab}`)
+  void router.push(`/${id}/material/${tab}`)
 }
 </script>
 
 <style scoped>
-.grossanlass-material-uebersicht-shell :deep(.page-shell__header) {
+.grossanlass-material-shell :deep(.page-shell__header) {
   margin-bottom: 16px;
 }
 .ga-uebersicht-detail-host {

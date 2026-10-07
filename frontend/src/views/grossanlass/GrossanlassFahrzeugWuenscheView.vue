@@ -48,7 +48,7 @@
               <th>{{ t('grossanlass.planung.ressorts.vehicleTask') }}</th>
               <th>{{ t('grossanlass.planung.ressorts.vehicleCategory') }}</th>
               <th>{{ t('grossanlass.planung.ressorts.vehicleWish') }}</th>
-              <th>{{ t('grossanlass.materialUebersicht.colWhen') }}</th>
+              <th>{{ t('grossanlass.material.colWhen') }}</th>
             </tr>
           </thead>
           <tbody>

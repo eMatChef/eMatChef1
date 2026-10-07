@@ -8,7 +8,7 @@
     <div class="ga-helper-assignment-row__head">
       <strong>{{ assignment.objectName }}</strong>
       <span class="ga-helper-bar__badge" :class="helperBarKindClass(assignment)">
-        {{ t(`grossanlass.materialUebersicht.status.${assignment.status}`) }}
+        {{ t(`grossanlass.material.status.${assignment.status}`) }}
       </span>
     </div>
     <span v-if="assignment.operable === false" class="ga-helper-assignment-row__readonly">

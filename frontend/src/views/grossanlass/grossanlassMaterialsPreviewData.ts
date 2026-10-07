@@ -48,18 +48,18 @@ function line(
 }
 
 export function createGrossanlassMaterialsPreview(t: Translate): GaPreviewRow[] {
-  const lager = t('grossanlass.materialUebersicht.statLager')
-  const usedUp = t('grossanlass.materialUebersicht.usedUp')
-  const resale = t('grossanlass.materialUebersicht.resold')
-  const bau = t('grossanlass.materialUebersicht.sampleRessortBau')
-  const technik = t('grossanlass.materialUebersicht.sampleRessortTechnik')
-  const wasser = t('grossanlass.materialUebersicht.sampleRessortWasser')
-  const verpflegung = t('grossanlass.materialUebersicht.sampleRessortVerpflegung')
+  const lager = t('grossanlass.material.statLager')
+  const usedUp = t('grossanlass.material.usedUp')
+  const resale = t('grossanlass.material.resold')
+  const bau = t('grossanlass.material.sampleRessortBau')
+  const technik = t('grossanlass.material.sampleRessortTechnik')
+  const wasser = t('grossanlass.material.sampleRessortWasser')
+  const verpflegung = t('grossanlass.material.sampleRessortVerpflegung')
 
   return [
     {
       id: 'geruest',
-      name: t('grossanlass.materialUebersicht.sampleGeruest'),
+      name: t('grossanlass.material.sampleGeruest'),
       barcode: 'GERUEST-01',
       is_combo: true,
       material_type: 'physical_combo',
@@ -73,13 +73,13 @@ export function createGrossanlassMaterialsPreview(t: Translate): GaPreviewRow[] 
       available: 8,
       components: [
         line('geruest-lager', lager, 8, 'pool', lager),
-        line('geruest-p1', t('grossanlass.materialUebersicht.sampleWho1'), 3, 'fixed', bau, t('grossanlass.materialUebersicht.sampleWhen1')),
-        line('geruest-p2', t('grossanlass.materialUebersicht.sampleWho2'), 1, 'fixed', technik, t('grossanlass.materialUebersicht.sampleWhen2')),
+        line('geruest-p1', t('grossanlass.material.sampleWho1'), 3, 'fixed', bau, t('grossanlass.material.sampleWhen1')),
+        line('geruest-p2', t('grossanlass.material.sampleWho2'), 1, 'fixed', technik, t('grossanlass.material.sampleWhen2')),
       ],
     },
     {
       id: 'kabel',
-      name: t('grossanlass.materialUebersicht.sampleKabel'),
+      name: t('grossanlass.material.sampleKabel'),
       barcode: 'KABEL-32A-004',
       is_combo: true,
       material_type: 'physical_combo',
@@ -93,12 +93,12 @@ export function createGrossanlassMaterialsPreview(t: Translate): GaPreviewRow[] 
       available: 4,
       components: [
         line('kabel-lager', lager, 4, 'pool', lager),
-        line('kabel-p3', t('grossanlass.materialUebersicht.sampleWho3'), 2, 'fixed', technik, t('grossanlass.materialUebersicht.sampleWhen3')),
+        line('kabel-p3', t('grossanlass.material.sampleWho3'), 2, 'fixed', technik, t('grossanlass.material.sampleWhen3')),
       ],
     },
     {
       id: 'folie',
-      name: t('grossanlass.materialUebersicht.sampleFolie'),
+      name: t('grossanlass.material.sampleFolie'),
       barcode: 'FOLIE-PE-200',
       is_combo: true,
       is_consumable: true,
@@ -113,13 +113,13 @@ export function createGrossanlassMaterialsPreview(t: Translate): GaPreviewRow[] 
       pack_unit: 'm',
       components: [
         line('folie-lager', lager, 20, 'pool', lager),
-        line('folie-cut1', usedUp, 120, 'fixed', wasser, t('grossanlass.materialUebersicht.sampleWhen4')),
-        line('folie-cut2', usedUp, 60, 'fixed', bau, t('grossanlass.materialUebersicht.sampleWhen1')),
+        line('folie-cut1', usedUp, 120, 'fixed', wasser, t('grossanlass.material.sampleWhen4')),
+        line('folie-cut2', usedUp, 60, 'fixed', bau, t('grossanlass.material.sampleWhen1')),
       ],
     },
     {
       id: 'zelt',
-      name: t('grossanlass.materialUebersicht.sampleZelt'),
+      name: t('grossanlass.material.sampleZelt'),
       barcode: 'ZELT-10X20-LEIH',
       is_combo: true,
       lifecycle: 'loan',
@@ -133,12 +133,12 @@ export function createGrossanlassMaterialsPreview(t: Translate): GaPreviewRow[] 
       repair_stock: 0,
       available: 0,
       components: [
-        line('zelt-out', t('grossanlass.materialUebersicht.sampleWho1'), 1, 'fixed', verpflegung, t('grossanlass.materialUebersicht.sampleWhen5')),
+        line('zelt-out', t('grossanlass.material.sampleWho1'), 1, 'fixed', verpflegung, t('grossanlass.material.sampleWhen5')),
       ],
     },
     {
       id: 'teleskop',
-      name: t('grossanlass.materialUebersicht.sampleTeleskop'),
+      name: t('grossanlass.material.sampleTeleskop'),
       barcode: 'TEL-MEIER-07',
       is_combo: true,
       lifecycle: 'loan',
@@ -152,12 +152,12 @@ export function createGrossanlassMaterialsPreview(t: Translate): GaPreviewRow[] 
       repair_stock: 0,
       available: 0,
       components: [
-        line('tel-out', t('grossanlass.materialUebersicht.sampleWho2'), 1, 'fixed', bau, t('grossanlass.materialUebersicht.sampleWhen2')),
+        line('tel-out', t('grossanlass.material.sampleWho2'), 1, 'fixed', bau, t('grossanlass.material.sampleWhen2')),
       ],
     },
     {
       id: 'paletten',
-      name: t('grossanlass.materialUebersicht.samplePaletten'),
+      name: t('grossanlass.material.samplePaletten'),
       barcode: 'PAL-EURO-40',
       is_combo: true,
       lifecycle: 'buy_resale',
@@ -170,8 +170,8 @@ export function createGrossanlassMaterialsPreview(t: Translate): GaPreviewRow[] 
       available: 18,
       components: [
         line('pal-lager', lager, 18, 'pool', lager),
-        line('pal-bau', t('grossanlass.materialUebersicht.sampleWho2'), 12, 'fixed', bau, t('grossanlass.materialUebersicht.sampleWhen2')),
-        line('pal-sale', resale, 10, 'fixed', t('grossanlass.materialUebersicht.sampleResalePlace'), t('grossanlass.materialUebersicht.sampleWhen6')),
+        line('pal-bau', t('grossanlass.material.sampleWho2'), 12, 'fixed', bau, t('grossanlass.material.sampleWhen2')),
+        line('pal-sale', resale, 10, 'fixed', t('grossanlass.material.sampleResalePlace'), t('grossanlass.material.sampleWhen6')),
       ],
     },
     {
@@ -192,7 +192,7 @@ export function createGrossanlassMaterialsPreview(t: Translate): GaPreviewRow[] 
       repair_stock: 0,
       available: 0,
       components: [
-        line('gator-out', t('grossanlass.materialUebersicht.sampleWho3'), 1, 'fixed', technik, t('grossanlass.materialUebersicht.sampleWhen3')),
+        line('gator-out', t('grossanlass.material.sampleWho3'), 1, 'fixed', technik, t('grossanlass.material.sampleWhen3')),
       ],
     },
     {
@@ -228,7 +228,7 @@ export function createGrossanlassMaterialsPreview(t: Translate): GaPreviewRow[] 
       available: 1,
       components: [
         line('trans-lager', lager, 1, 'pool', lager),
-        line('trans-sale', resale, 1, 'fixed', t('grossanlass.materialUebersicht.sampleResalePlace'), t('grossanlass.materialUebersicht.sampleWhen6')),
+        line('trans-sale', resale, 1, 'fixed', t('grossanlass.material.sampleResalePlace'), t('grossanlass.material.sampleWhen6')),
       ],
     },
   ]

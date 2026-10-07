@@ -1,5 +1,7 @@
 <template>
   <div class="ga-preview-page">
+    <GrossanlassPackenPlanner />
+    <h3 class="ga-pack-legacy-title">{{ t('grossanlass.packen.legacyTitle') }}</h3>
     <p class="ga-preview-intro">{{ t('grossanlass.chain.packIntro') }}</p>
     <section v-for="phase in phases" :key="phase.id" class="card">
       <h3>{{ t(`grossanlass.chain.packPhase.${phase.id}`) }}</h3>
@@ -51,7 +53,7 @@
           :loading="busyId === pack.id"
           @click="releasePack(pack.id)"
         >
-          {{ t('grossanlass.materialUebersicht.tripsRelease') }}
+          {{ t('grossanlass.material.tripsRelease') }}
         </EButton>
       </article>
     </section>
@@ -63,6 +65,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { EButton } from '@/components/form/base'
+import GrossanlassPackenPlanner from '@/views/grossanlass/packen/GrossanlassPackenPlanner.vue'
 import { useToast } from '@/composables/useToast'
 import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
 import {
@@ -144,7 +147,7 @@ async function releasePack(packId: string) {
   try {
     await releaseGrossanlassPack(departmentId.value, packId)
     await uebersicht.load()
-    toast.success(t('grossanlass.materialUebersicht.tripsReleasedToast'))
+    toast.success(t('grossanlass.material.tripsReleasedToast'))
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
     toast.error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError'))
@@ -156,6 +159,7 @@ async function releasePack(packId: string) {
 
 <style scoped>
 .ga-preview-page { padding: 4px 0 24px; }
+.ga-pack-legacy-title { margin: 24px 0 8px; font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: #475569; }
 .ga-preview-intro { margin: 0 0 16px; color: #64748b; font-size: 0.9rem; }
 .card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin-bottom: 12px; background: #fff; }
 .pack-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }

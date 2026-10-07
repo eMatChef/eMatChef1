@@ -159,10 +159,10 @@ export function gaCanSeeMailSettings(role: string | null | undefined): boolean {
 export const GA_UEBERSICHT_ROUTE_ROLES = ['matwart', 'mw', 'cmw', 'depchef', 'dc'] as const
 
 /** Router: Materialübersicht (MW/CMW/OK + Bereichsleitung). */
-export const GA_MATERIAL_UEBERSICHT_ROUTE_ROLES = [...GA_UEBERSICHT_ROUTE_ROLES, 'bl'] as const
+export const GA_MATERIAL_ROUTE_ROLES = [...GA_UEBERSICHT_ROUTE_ROLES, 'bl'] as const
 
 /** Router: Stammdaten-Materialien — Ansicht wie Materialübersicht, Schreiben bleibt MW/CMW. */
-export const GA_MATERIALS_ROUTE_ROLES = [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES] as const
+export const GA_MATERIALS_ROUTE_ROLES = [...GA_MATERIAL_ROUTE_ROLES] as const
 
 /** Router: Planung / Struktur / Freigabe. */
 export const GA_PLANUNG_ROUTE_ROLES = [...GA_UEBERSICHT_ROUTE_ROLES] as const
@@ -196,7 +196,7 @@ export function gaIsHelperHomeView(
   return gaIsGrossanlassHelper(role)
 }
 
-export function gaCanSeeMaterialUebersicht(
+export function gaCanSeeMaterial(
   role: string | null | undefined,
   _isBereichsleitung = false,
 ): boolean {

@@ -25,9 +25,9 @@ describe('gaHomePath', () => {
 
   it('treats nested overview/mailbox paths as role home', () => {
     expect(gaIsRoleHomePath('dep-1', 'dc', '/dep-1')).toBe(true)
-    expect(gaIsRoleHomePath('dep-1', 'dc', '/dep-1/material-uebersicht/einsaetze')).toBe(false)
+    expect(gaIsRoleHomePath('dep-1', 'dc', '/dep-1/material/einsaetze')).toBe(false)
     expect(gaIsRoleHomePath('dep-1', 'komm', '/dep-1/beschaffung/anfragen')).toBe(true)
-    expect(gaIsRoleHomePath('dep-1', 'mw', '/dep-1/material-uebersicht')).toBe(false)
+    expect(gaIsRoleHomePath('dep-1', 'mw', '/dep-1/material')).toBe(false)
     expect(gaIsRoleHomePath('dep-1', 'bl', '/dep-1')).toBe(true)
     expect(gaIsRoleHomePath('dep-1', 'u', '/dep-1/mein-ressort')).toBe(true)
     expect(gaIsRoleHomePath('dep-1', 'u', '/dep-1', { isBereichsleitung: true })).toBe(true)

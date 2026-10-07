@@ -470,7 +470,7 @@ Ist README §11: Lager / zugewiesen / draussen **ohne** Zeitachse. Soll: zugewie
 
 **Nicht** eigener Sidebar-Punkt «Einsätze» neben Materialien **und** Materialübersicht — drei Material-Einträge. **Nicht** Tab unter **Materialien** (das sind Stammdaten: Eigen / Leih / Fahrzeuge).
 
-**Soll:** ein operativer Menüpunkt **Materialübersicht** (`/material-uebersicht`), innen Tabs wie Planung/Beschaffung:
+**Soll:** ein operativer Menüpunkt **Materialübersicht** (`/material`), innen Tabs wie Planung/Beschaffung:
 
 | Tab | Inhalt |
 | --- | --- |

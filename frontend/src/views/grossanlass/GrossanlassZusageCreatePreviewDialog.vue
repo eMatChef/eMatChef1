@@ -117,8 +117,8 @@
       allow-past
     />
     <div class="zusage-grid">
-      <ETimeField v-model="presentFromTime" :label="t('grossanlass.materialUebersicht.fieldFromTime')" />
-      <ETimeField v-model="presentToTime" :label="t('grossanlass.materialUebersicht.fieldToTime')" />
+      <ETimeField v-model="presentFromTime" :label="t('grossanlass.material.fieldFromTime')" />
+      <ETimeField v-model="presentToTime" :label="t('grossanlass.material.fieldToTime')" />
     </div>
 
     <h3 class="zusage-section">{{ t('grossanlass.materials.zusage.sectionHandover') }}</h3>
@@ -488,12 +488,12 @@ async function submit() {
         departmentId.value,
         created,
         inboundMode.value === 'delivery'
-          ? t('grossanlass.materialUebersicht.wareneingang.deliveryWho', { partner: created.source })
-          : t('grossanlass.materialUebersicht.wareneingang.pickupWho', { partner: created.source }),
+          ? t('grossanlass.material.wareneingang.deliveryWho', { partner: created.source })
+          : t('grossanlass.material.wareneingang.pickupWho', { partner: created.source }),
         logisticsGroupId.value,
       )
     } catch {
-      toast.error(t('grossanlass.materialUebersicht.wareneingang.inboundCreateError'))
+      toast.error(t('grossanlass.material.wareneingang.inboundCreateError'))
     }
     toast.success(t('grossanlass.beschaffung.zusagen.createdToast'))
     open.value = false

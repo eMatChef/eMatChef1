@@ -150,11 +150,11 @@
           </router-link>
           <router-link
             v-if="canSeeUebersicht"
-            :to="materialUebersichtLink"
+            :to="materialLink"
             class="quick-link-card"
           >
             <v-icon icon="mdi-truck-delivery-outline" size="22" />
-            <span>{{ t('sidebar.materialUebersicht') }}</span>
+            <span>{{ t('sidebar.material') }}</span>
           </router-link>
           <router-link
             v-if="canManageProcurement"
@@ -210,13 +210,13 @@
       <section v-if="canManageProcurement" class="ga-dashboard__section">
         <div class="section-header">
           <h2 class="section-title">{{ t('grossanlass.dashboard.stockTitle') }}</h2>
-          <router-link :to="materialUebersichtLink" class="section-link">
+          <router-link :to="materialLink" class="section-link">
             {{ t('grossanlass.dashboard.stockAll') }}
           </router-link>
         </div>
 
         <div class="ga-dashboard__stats">
-          <router-link :to="materialUebersichtLink" class="stat-card stat-card--link">
+          <router-link :to="materialLink" class="stat-card stat-card--link">
             <span class="stat-card__value">{{ stock.lager }}</span>
             <span class="stat-card__label">{{ t('grossanlass.dashboard.previewStockLager') }}</span>
           </router-link>
@@ -345,9 +345,9 @@ const dashboardNettoDisplay = computed(() => {
     rahmen: formatChf(rahmen),
   })
 })
-const materialUebersichtLink = computed(() => `/${props.departmentId}/material-uebersicht`)
+const materialLink = computed(() => `/${props.departmentId}/material`)
 const konflikteLink = computed(() => `/${props.departmentId}/planung/konflikte`)
-const ausgabeLink = computed(() => `/${props.departmentId}/material-uebersicht/ausgabe`)
+const ausgabeLink = computed(() => `/${props.departmentId}/material/ausgabe`)
 const tripsLink = computed(() => `/${props.departmentId}/planung/transporte`)
 const tripOrderCount = computed(() =>
   (uebersicht.value?.einsaetze ?? []).filter(

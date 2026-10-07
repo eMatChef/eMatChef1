@@ -1,8 +1,19 @@
 <template>
   <div class="ga-fahrauftraege">
     <div class="ga-fahrauftraege__toolbar">
-      <p class="ga-fahrauftraege__intro">{{ t('grossanlass.materialUebersicht.fahrauftraegeIntro') }}</p>
+      <p class="ga-fahrauftraege__intro">{{ t('grossanlass.material.fahrauftraegeIntro') }}</p>
+      <v-switch
+        v-if="isMaterialwart"
+        v-model="showAllOrders"
+        class="ga-fahrauftraege__mode"
+        color="primary"
+        density="compact"
+        hide-details
+        inset
+        :label="showAllOrders ? t('grossanlass.planung.bauListAll') : t('grossanlass.planung.bauListMine')"
+      />
       <v-btn-toggle
+        v-else
         v-model="listMode"
         class="ga-fahrauftraege__mode"
         density="compact"
@@ -10,8 +21,8 @@
         variant="outlined"
         mandatory
       >
-        <v-btn value="upcoming" size="small">{{ t('grossanlass.materialUebersicht.fahrauftragFilterUpcoming') }}</v-btn>
-        <v-btn value="all" size="small">{{ t('grossanlass.materialUebersicht.fahrauftragFilterAll') }}</v-btn>
+        <v-btn value="upcoming" size="small">{{ t('grossanlass.material.fahrauftragFilterUpcoming') }}</v-btn>
+        <v-btn value="all" size="small">{{ t('grossanlass.material.fahrauftragFilterAll') }}</v-btn>
       </v-btn-toggle>
       <EButton
         v-if="canAdd"
@@ -19,7 +30,7 @@
         size="small"
         @click="openCreate"
       >
-        {{ t('grossanlass.materialUebersicht.addFahrauftrag') }}
+        {{ t('grossanlass.material.addFahrauftrag') }}
       </EButton>
     </div>
 
@@ -72,13 +83,13 @@
         :description="emptyText"
       >
         <template v-if="canAdd" #actions>
-          <EButton @click="openCreate">{{ t('grossanlass.materialUebersicht.addFahrauftrag') }}</EButton>
+          <EButton @click="openCreate">{{ t('grossanlass.material.addFahrauftrag') }}</EButton>
         </template>
       </EEmptyState>
 
       <template v-else>
         <section v-if="unassignedTrips.length" class="ga-fahrauftraege__loose">
-          <h3>{{ t('grossanlass.materialUebersicht.unassignedFahrauftraege') }}</h3>
+          <h3>{{ t('grossanlass.material.unassignedFahrauftraege') }}</h3>
           <GrossanlassFahrauftragList
             :rows="unassignedTrips"
             :busy-id="busyId"
@@ -162,7 +173,7 @@ import { useGrossanlassRessortScope } from '@/composables/useGrossanlassRessortS
 import { EButton } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
-import { gaCanOperateAusgabe, gaIsMaterialwart } from '@/utils/grossanlassAccess'
+import { gaCanManagePlanung, gaCanOperateAusgabe, gaIsMaterialwart } from '@/utils/grossanlassAccess'
 import { nestTreeWithLevel, type NestedTreeNode } from '@/utils/grossanlassGroupHierarchy'
 import { grossanlassGroupNodeKindKey } from '@/utils/grossanlassGroupNode'
 import { listGrossanlassVehicleNeeds, type GaBauprojektVehicleNeed } from '@/api/grossanlassBauprojekt'
@@ -205,6 +216,14 @@ const uebersicht = useGaUebersicht()
 const groups = ref<GrossanlassGroup[]>([])
 const vehicleNeeds = ref<Array<GaBauprojektVehicleNeed & { group_name: string }>>([])
 const listMode = ref<'upcoming' | 'all'>('upcoming')
+/** MW/CMW: Standard «Alle Aufträge» (Überblick), umschaltbar auf «Meine Aufträge» (eigenes Ressort / eigene Fahrten). */
+const scopeMode = ref<'mine' | 'all'>('all')
+const showAllOrders = computed({
+  get: () => scopeMode.value === 'all',
+  set: (value: boolean) => {
+    scopeMode.value = value ? 'all' : 'mine'
+  },
+})
 const subtab = ref<'liste' | 'kalender' | 'wuensche'>('liste')
 const groupsLoading = ref(true)
 const openIds = ref<string[]>([])
@@ -219,13 +238,19 @@ const selectedNeedId = ref<string | null>(null)
 const {
   canManageStruktur,
   isInAssignedRessortBranch,
+  isInOwnAssignedBranch,
 } = useGrossanlassRessortScope(groups)
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
 const visibleGroups = computed(() =>
   groups.value.filter((group) => isInAssignedRessortBranch(group)),
 )
-const visibleIds = computed(() => new Set(visibleGroups.value.map((group) => group.id)))
+const isMaterialwart = computed(() => gaCanManagePlanung(authStore.currentDepartmentRole))
+const mineOnly = computed(() => isMaterialwart.value && scopeMode.value === 'mine')
+const scopeGroups = computed(() =>
+  mineOnly.value ? groups.value.filter((group) => isInOwnAssignedBranch(group)) : visibleGroups.value,
+)
+const visibleIds = computed(() => new Set(scopeGroups.value.map((group) => group.id)))
 const orgGroups = computed(() => groupsToOrgGroups(groups.value))
 const cards = computed(() => uebersicht.data.value?.cards ?? [])
 const places = computed(() => uebersicht.data.value?.places ?? [])
@@ -293,7 +318,10 @@ const tripRows = computed(() =>
 
 const visibleTrips = computed(() =>
   tripRows.value.filter((row) => {
-    if (!row.groupId) return canManageStruktur.value
+    if (!row.groupId) {
+      return mineOnly.value ? row.chauffeurUserId === authStore.userId : canManageStruktur.value
+    }
+    if (mineOnly.value && row.chauffeurUserId === authStore.userId) return true
     return visibleIds.value.has(row.groupId)
   }),
 )
@@ -316,10 +344,14 @@ function tripStillAhead(row: GaPreviewEinsatz): boolean {
   return end.getTime() >= Date.now()
 }
 
+const scopedNeeds = computed(() =>
+  mineOnly.value ? vehicleNeeds.value.filter((need) => visibleIds.value.has(need.group_id)) : vehicleNeeds.value,
+)
+
 const shownNeeds = computed(() =>
   listMode.value === 'all'
-    ? vehicleNeeds.value
-    : vehicleNeeds.value.filter((need) => windowStillAhead(need.starts_at, need.duration_minutes)),
+    ? scopedNeeds.value
+    : scopedNeeds.value.filter((need) => windowStillAhead(need.starts_at, need.duration_minutes)),
 )
 
 const shownTrips = computed(() =>
@@ -383,7 +415,7 @@ function pruneSection(section: GaFahrauftragSection): GaFahrauftragSection | nul
 }
 
 const sections = computed(() =>
-  nestTreeWithLevel(visibleGroups.value)
+  nestTreeWithLevel(scopeGroups.value)
     .map(toSection)
     .map(pruneSection)
     .filter((section): section is GaFahrauftragSection => section !== null),
@@ -447,13 +479,13 @@ function onCalendarOpen(payload: { kind: 'bau' | 'fahrt'; id: string }) {
 const hasAnything = computed(() => visibleTrips.value.length > 0 || vehicleNeeds.value.length > 0)
 const emptyTitle = computed(() =>
   listMode.value === 'upcoming' && hasAnything.value
-    ? t('grossanlass.materialUebersicht.emptyUpcomingFahrauftraegeTitle')
-    : t('grossanlass.materialUebersicht.emptyFahrauftraegeTitle'),
+    ? t('grossanlass.material.emptyUpcomingFahrauftraegeTitle')
+    : t('grossanlass.material.emptyFahrauftraegeTitle'),
 )
 const emptyText = computed(() =>
   listMode.value === 'upcoming' && hasAnything.value
-    ? t('grossanlass.materialUebersicht.emptyUpcomingFahrauftraegeText')
-    : t('grossanlass.materialUebersicht.emptyFahrauftraegeText'),
+    ? t('grossanlass.material.emptyUpcomingFahrauftraegeText')
+    : t('grossanlass.material.emptyFahrauftraegeText'),
 )
 
 const chauffeurs = computed(() =>
@@ -461,8 +493,8 @@ const chauffeurs = computed(() =>
     value: card.user_id,
     title: card.name,
     subtitle: card.may_drive
-      ? t('grossanlass.materialUebersicht.chauffeurMayDrive')
-      : t('grossanlass.materialUebersicht.chauffeurNoLicenseShort'),
+      ? t('grossanlass.material.chauffeurMayDrive')
+      : t('grossanlass.material.chauffeurNoLicenseShort'),
     mayDrive: card.may_drive,
   })),
 )
@@ -539,12 +571,12 @@ async function onTogglePackedAssignment(assignment: GaHelperAssignment) {
 
 async function onReleaseTrip(row: GaPreviewEinsatz) {
   await withBusy(row.id, () => uebersicht.updateEinsatz(row.id, { trip_released: true }))
-  toast.success(t('grossanlass.materialUebersicht.tripsReleasedToast'))
+  toast.success(t('grossanlass.material.tripsReleasedToast'))
 }
 
 async function onIssueTrip(row: GaPreviewEinsatz) {
   await withBusy(row.id, () => uebersicht.issue(row.id, row.chauffeurUserId || undefined))
-  toast.success(t('grossanlass.materialUebersicht.tripsIssuedToast'))
+  toast.success(t('grossanlass.material.tripsIssuedToast'))
 }
 
 async function onConfirm(current: GaBookPreviewDraft) {
@@ -553,10 +585,10 @@ async function onConfirm(current: GaBookPreviewDraft) {
     await uebersicht.create(payloadFromDraft(current, kind))
     toast.success(
       kind === 'order'
-        ? t('grossanlass.materialUebersicht.orderNoted')
+        ? t('grossanlass.material.orderNoted')
         : current.hasConflict
-          ? t('grossanlass.materialUebersicht.mwNoteSent')
-          : t('grossanlass.materialUebersicht.fahrauftragCreated'),
+          ? t('grossanlass.material.mwNoteSent')
+          : t('grossanlass.material.fahrauftragCreated'),
     )
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
@@ -569,8 +601,8 @@ async function onConfirmMany(drafts: GaBookPreviewDraft[]) {
     await uebersicht.createMany(drafts.map((row) => payloadFromDraft(row, 'einsatz')))
     toast.success(
       drafts.some((row) => row.hasConflict)
-        ? t('grossanlass.materialUebersicht.mwNoteSent')
-        : t('grossanlass.materialUebersicht.bookSavedMany', { count: drafts.length }),
+        ? t('grossanlass.material.mwNoteSent')
+        : t('grossanlass.material.bookSavedMany', { count: drafts.length }),
     )
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
@@ -581,7 +613,7 @@ async function onConfirmMany(drafts: GaBookPreviewDraft[]) {
 async function onOrder(current: GaBookPreviewDraft) {
   try {
     await uebersicht.create(payloadFromDraft(current, 'order'))
-    toast.success(t('grossanlass.materialUebersicht.orderNoted'))
+    toast.success(t('grossanlass.material.orderNoted'))
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
     toast.error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError'))

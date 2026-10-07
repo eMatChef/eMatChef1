@@ -104,9 +104,9 @@ export function parkServiceLabel(kind: GaParkServiceKind, t: Translate, custom?:
 export function createGrossanlassZusageArticles(t: Translate): GaZusageArticle[] {
   const meier = t('grossanlass.materials.sourceMeier')
   const winterthur = t('grossanlass.materials.sourceWinterthur')
-  const bau = t('grossanlass.materialUebersicht.sampleRessortBau')
-  const sicherheit = t('grossanlass.materialUebersicht.sampleRessortSicherheit')
-  const mw = t('grossanlass.materialUebersicht.sampleWho3')
+  const bau = t('grossanlass.material.sampleRessortBau')
+  const sicherheit = t('grossanlass.material.sampleRessortSicherheit')
+  const mw = t('grossanlass.material.sampleWho3')
 
   return [
     {
@@ -154,7 +154,7 @@ export function createGrossanlassZusageArticles(t: Translate): GaZusageArticle[]
     },
     {
       id: 'zelt',
-      name: t('grossanlass.materialUebersicht.sampleZelt'),
+      name: t('grossanlass.material.sampleZelt'),
       barcode: 'ZELT-10X20-LEIH',
       family: 'material',
       origin: 'loan',
@@ -174,14 +174,14 @@ export function createGrossanlassZusageArticles(t: Translate): GaZusageArticle[]
       services: [],
       feinWish: {
         label: t('grossanlass.planung.feinPartner.wishZeltFit'),
-        ressort: t('grossanlass.materialUebersicht.sampleRessortVerpflegung'),
+        ressort: t('grossanlass.material.sampleRessortVerpflegung'),
         fromIso: '2027-07-16T07:00:00',
         toIso: '2027-07-18T20:00:00',
       },
     },
     {
       id: 'teleskop',
-      name: t('grossanlass.materialUebersicht.sampleTeleskop'),
+      name: t('grossanlass.material.sampleTeleskop'),
       barcode: 'TEL-MEIER-07',
       family: 'vehicle',
       origin: 'loan',
@@ -301,7 +301,7 @@ export function zusageOccupancyBars(
   t: Translate,
   locale = 'de-CH',
 ): GaPreviewEinsatz[] {
-  const mw = t('grossanlass.materialUebersicht.sampleWho3')
+  const mw = t('grossanlass.material.sampleWho3')
   const rows: GaPreviewEinsatz[] = []
   for (const article of articles) {
     if (article.handoverFromIso && article.handoverToIso) {

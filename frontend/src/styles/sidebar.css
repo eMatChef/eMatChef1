@@ -153,6 +153,24 @@
   opacity: 1;
 }
 
+.nav-group-label {
+  margin: 12px 16px 4px;
+  min-height: 14px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+  white-space: nowrap;
+}
+
+.nav-group-label--rail {
+  height: 1px;
+  min-height: 0;
+  margin: 8px 16px;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
 .nav-item--toggle {
   position: relative;
 }
