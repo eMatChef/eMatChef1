@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace App\Service\Auth;
 
 use App\Config\LanguageConfig;
+use App\Entity\ExternalIdentity;
 use App\Entity\Profile;
 use App\Entity\User;
+use App\Repository\ExternalIdentityRepository;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
 use App\Service\AuditLogger;
 use App\Service\UserEmailAliasService;
 use App\Util\IdGenerator;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
@@ -25,47 +28,89 @@ final class GoogleOAuthAccountService
         private readonly LanguageConfig $languageConfig,
         private readonly AuditLogger $auditLogger,
         private readonly UserEmailAliasService $emailAliases,
+        private readonly ExternalIdentityRepository $externalIdentityRepository,
     ) {}
 
     public function resolveOrCreate(GoogleOAuthUserInfo $info): User
     {
-        $user = $this->userRepository->findOneBy(['googleId' => $info->googleId]);
-        if ($user instanceof User) {
+        $provider = 'google';
+        $identity = $this->externalIdentityRepository->findOneByProviderAndExternalUserId($provider, $info->googleId);
+        if ($identity instanceof ExternalIdentity) {
+            $user = $identity->getUser();
+            $legacyUser = $this->userRepository->findOneBy(['googleId' => $info->googleId]);
+            if ($legacyUser instanceof User && $legacyUser->getId() !== $user->getId()) {
+                $this->auditLogger->log(
+                    'user',
+                    $user->getId(),
+                    'external_identity_google_id_conflict',
+                    null,
+                    $user,
+                    null,
+                    [
+                        'provider' => ['old' => null, 'new' => $provider],
+                        'external_user_id' => ['old' => null, 'new' => $info->googleId],
+                        'legacy_user_id' => ['old' => null, 'new' => $legacyUser->getId()],
+                    ]
+                );
+                throw new GoogleOAuthException('failed', 'Google account already linked to another user');
+            }
+
             $this->assertActive($user);
+            $this->ensureExternalIdentity($user, $provider, $info->googleId, $info->email);
             $this->ensureVerified($user);
-            $this->entityManager->flush();
+            $this->flushGoogleIdentity($provider, $info->googleId);
 
             return $user;
         }
 
-        $aliasUser = $this->emailAliases->findUserByEmail($info->email);
-        if ($aliasUser instanceof User && $aliasUser->getProfile()?->getEmail() !== $info->email) {
-            $this->assertActive($aliasUser);
-            if ($aliasUser->getGoogleId() !== null && $aliasUser->getGoogleId() !== $info->googleId) {
-                throw new GoogleOAuthException('failed', 'Email already linked to another Google account');
-            }
-            $aliasUser->setGoogleId($info->googleId);
-            $this->ensureVerified($aliasUser);
-            $this->entityManager->flush();
+        $user = $this->userRepository->findOneBy(['googleId' => $info->googleId]);
+        if ($user instanceof User) {
+            $this->assertActive($user);
+            $this->ensureExternalIdentity($user, $provider, $info->googleId, $info->email);
+            $this->ensureVerified($user);
+            $this->flushGoogleIdentity($provider, $info->googleId);
 
-            return $aliasUser;
+            return $user;
         }
 
         $profile = $this->profileRepository->findOneBy(['email' => $info->email]);
         if ($profile instanceof Profile) {
-            $user = $this->userRepository->findOneBy(['profileId' => $profile->getId()]);
-            if (!$user instanceof User) {
-                throw new GoogleOAuthException('failed', 'Profile without user');
+            $existingUser = $this->userRepository->findOneBy(['profileId' => $profile->getId()]);
+            if ($existingUser instanceof User) {
+                $this->auditLogger->log(
+                    'user',
+                    $existingUser->getId(),
+                    'external_identity_email_conflict',
+                    null,
+                    $existingUser,
+                    null,
+                    [
+                        'provider' => ['old' => null, 'new' => $provider],
+                        'external_user_id' => ['old' => null, 'new' => $info->googleId],
+                        'email' => ['old' => null, 'new' => $info->email],
+                    ]
+                );
+                throw new GoogleOAuthException('failed', 'Email already linked to another account');
             }
-            $this->assertActive($user);
-            if ($user->getGoogleId() !== null && $user->getGoogleId() !== $info->googleId) {
-                throw new GoogleOAuthException('failed', 'Email already linked to another Google account');
-            }
-            $user->setGoogleId($info->googleId);
-            $this->ensureVerified($user);
-            $this->entityManager->flush();
 
-            return $user;
+            throw new GoogleOAuthException('failed', 'Profile without user');
+        }
+        // Neuanlage nur, wenn die Adresse keinem Konto gehört (auch nicht als zusätzliche Adresse); kein Merge.
+        if ($this->emailAliases->isEmailTaken($info->email)) {
+            $this->auditLogger->log(
+                'user',
+                '',
+                'external_identity_email_conflict',
+                null,
+                null,
+                null,
+                [
+                    'provider' => ['old' => null, 'new' => $provider],
+                    'external_user_id' => ['old' => null, 'new' => $info->googleId],
+                    'email' => ['old' => null, 'new' => $info->email],
+                ]
+            );
+            throw new GoogleOAuthException('failed', 'Email already linked to another account');
         }
 
         $profile = new Profile();
@@ -87,6 +132,8 @@ final class GoogleOAuthAccountService
         $user->setEmailVerificationExpiresAt(null);
         $user->setPassword($this->passwordHasher->hashPassword($user, bin2hex(random_bytes(32))));
 
+        $this->ensureExternalIdentity($user, $provider, $info->googleId, $info->email);
+
         $this->entityManager->persist($profile);
         $this->entityManager->persist($user);
         $this->auditLogger->log(
@@ -103,9 +150,73 @@ final class GoogleOAuthAccountService
                 'email_verified' => ['old' => null, 'new' => true],
             ]
         );
-        $this->entityManager->flush();
+        $this->flushGoogleIdentity($provider, $info->googleId);
 
         return $user;
+    }
+
+    private function flushGoogleIdentity(string $provider, string $externalUserId): void
+    {
+        try {
+            $this->entityManager->flush();
+        } catch (UniqueConstraintViolationException $exception) {
+            $this->auditLogger->log(
+                'user',
+                '',
+                'external_identity_google_id_conflict',
+                null,
+                null,
+                null,
+                [
+                    'provider' => ['old' => null, 'new' => $provider],
+                    'external_user_id' => ['old' => null, 'new' => $externalUserId],
+                    'message' => ['old' => null, 'new' => 'unique constraint race condition during Google login'],
+                ]
+            );
+            throw new GoogleOAuthException('failed', 'Google account already linked to another user');
+        }
+    }
+
+    private function ensureExternalIdentity(User $user, string $provider, string $externalUserId, ?string $email): void
+    {
+        $identity = $this->externalIdentityRepository->findOneByProviderAndExternalUserId($provider, $externalUserId);
+        if ($identity instanceof ExternalIdentity) {
+            if ($identity->getUser()->getId() !== $user->getId()) {
+                $this->auditLogger->log(
+                    'user',
+                    $identity->getUser()->getId(),
+                    'external_identity_google_id_conflict',
+                    null,
+                    $identity->getUser(),
+                    null,
+                    [
+                        'provider' => ['old' => $provider, 'new' => $provider],
+                        'external_user_id' => ['old' => $externalUserId, 'new' => $externalUserId],
+                        'conflicting_user_id' => ['old' => null, 'new' => $user->getId()],
+                    ]
+                );
+                throw new GoogleOAuthException('failed', 'Google account already linked to another user');
+            }
+
+            $identity->setEmail($email);
+            $identity->setUpdatedAt(new \DateTime());
+
+            return;
+        }
+
+        if ($user->getGoogleId() !== null && $user->getGoogleId() !== $externalUserId) {
+            throw new GoogleOAuthException('failed', 'Google account already linked to another user');
+        }
+
+        $user->setGoogleId($externalUserId);
+        $newIdentity = new ExternalIdentity();
+        $newIdentity->setId(IdGenerator::generateUnique($this->entityManager, ExternalIdentity::class));
+        $newIdentity->setUser($user);
+        $newIdentity->setProvider($provider);
+        $newIdentity->setExternalUserId($externalUserId);
+        $newIdentity->setEmail($email);
+        $user->addExternalIdentity($newIdentity);
+        $this->entityManager->persist($newIdentity);
     }
 
     private function ensureVerified(User $user): void

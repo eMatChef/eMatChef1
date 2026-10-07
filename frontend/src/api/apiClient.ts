@@ -4,6 +4,23 @@ import { clearAuthStorage } from '@/utils/authStorage'
 import { shouldSkipLoginRedirect, loginRedirectUrl } from '@/api/unauthorizedRedirect'
 import { isOnboardingSandboxIncludeActive } from '@/api/onboardingSandboxFlag'
 
+/**
+ * Maschinenlesbare 403-Antworten der zentralen Admin-MFA-Sperre (Backend: AdminMfaGuard).
+ * - mfa_setup_required: Admin hat noch kein TOTP → Hinweis, kein Retry
+ * - mfa_required / step_up_required: Step-up-Dialog, danach die ursprüngliche Anfrage genau einmal wiederholen
+ */
+export type AdminMfaHandlers = {
+  /** true = Step-up erfolgreich */
+  stepUp: () => Promise<boolean>
+  setupRequired: (message?: string) => void
+}
+
+let adminMfaHandlers: AdminMfaHandlers | null = null
+
+export function setAdminMfaHandlers(handlers: AdminMfaHandlers | null) {
+  adminMfaHandlers = handlers
+}
+
 /** Handler für abgelaufene Session (401) – wird in main.ts registriert */
 let sessionExpiredHandler: (() => void | Promise<void>) | null = null
 let isHandlingSessionExpiry = false
@@ -254,6 +271,24 @@ apiClient.interceptors.response.use(
     }
 
     if (isSessionProbeUrl(requestUrl)) {
+      return Promise.reject(error)
+    }
+
+    const adminMfaCode = error?.response?.status === 403 ? error.response?.data?.error : null
+    if (
+      adminMfaHandlers &&
+      (adminMfaCode === 'mfa_setup_required' || adminMfaCode === 'mfa_required' || adminMfaCode === 'step_up_required') &&
+      !requestUrl.includes('/api/auth/step-up')
+    ) {
+      if (adminMfaCode === 'mfa_setup_required') {
+        adminMfaHandlers.setupRequired(error.response?.data?.message)
+        return Promise.reject(error)
+      }
+      // Genau ein Retry pro Anfrage: kein Loop, wenn das Backend nach erfolgreichem Step-up weiter ablehnt.
+      if (!originalRequest._stepUpRetried && (await adminMfaHandlers.stepUp())) {
+        originalRequest._stepUpRetried = true
+        return apiClient(originalRequest)
+      }
       return Promise.reject(error)
     }
 

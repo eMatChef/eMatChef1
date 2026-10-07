@@ -3,11 +3,10 @@
 namespace App\EventSubscriber;
 
 use App\Entity\User;
-use App\Entity\Membership;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
 use App\Service\Auth\CrossSubdomainAuthCookies;
-use App\Service\Grossanlass\GrossanlassDepartmentSerializer;
+use App\Service\Auth\SessionContextResolver;
 use App\Service\Supplier\SupplierCompanyAccessService;
 use Doctrine\ORM\EntityManagerInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Event\AuthenticationSuccessEvent;
@@ -27,6 +26,7 @@ class JwtAuthenticationSuccessSubscriber implements EventSubscriberInterface
         private UserRepository $userRepository,
         private CrossSubdomainAuthCookies $authCookies,
         private SupplierCompanyAccessService $supplierCompanyAccessService,
+        private SessionContextResolver $sessionContextResolver,
         private ?LoggerInterface $logger = null
     ) {}
 
@@ -106,67 +106,11 @@ class JwtAuthenticationSuccessSubscriber implements EventSubscriberInterface
                 'text_color' => $profile->getTextColor() ?? null
             ];
             
-            // Memberships laden (mit Department-Relation)
-            $memberships = $this->entityManager->getRepository(Membership::class)
-                ->createQueryBuilder('m')
-                ->innerJoin('m.department', 'd')
-                ->leftJoin('d.grossanlassConfig', 'gc')
-                ->addSelect('d', 'gc')
-                ->where('m.userId = :userId')
-                ->setParameter('userId', $user->getId())
-                ->getQuery()
-                ->getResult();
-
-            $departments = [];
-            $primaryDepartment = null;
-            $primaryOrganisationId = null;
-
-            foreach ($memberships as $m) {
-                $department = $m->getDepartment();
-                $deptSerialized = GrossanlassDepartmentSerializer::serializeDepartmentForMembership($department);
-                $deptData = [
-                    'id' => $deptSerialized['id'],
-                    'name' => $deptSerialized['name'],
-                    'organisation_id' => $deptSerialized['organisation_id'],
-                    'role' => $m->getRole(),
-                    'is_primary' => $m->getIsPrimary(),
-                    'is_grossanlass' => $deptSerialized['is_grossanlass'],
-                ];
-                if (isset($deptSerialized['grossanlass_config'])) {
-                    $deptData['grossanlass_config'] = $deptSerialized['grossanlass_config'];
-                }
-                $departments[] = $deptData;
-
-                // Primäres Department ermitteln
-                if ($m->getIsPrimary() || !$primaryDepartment) {
-                    $primaryDepartment = $deptData;
-                    $primaryOrganisationId = $department->getOrganisationId();
-                }
-            }
-
-            // Falls kein primäres Department, erstes nehmen
-            if (!$primaryDepartment && count($departments) > 0) {
-                $primaryDepartment = $departments[0];
-                $primaryOrganisationId = $departments[0]['organisation_id'];
-            }
-
-            $data['departments'] = $departments;
-            $data['primary_department'] = $primaryDepartment ? $primaryDepartment['id'] : null;
-
-            /**
-             * last_used_department: gespeicherte Präferenz nur zurückgeben, wenn Membership besteht.
-             * Sonst Fallback auf primary_department (oder null ohne Memberships).
-             */
-            $allowedIds = array_map(static fn (array $d): string => $d['id'], $departments);
-            $storedLastUsedId = $user->getLastUsedDepartmentId();
-            $lastUsedResolved = null;
-            if ($storedLastUsedId !== null && \in_array($storedLastUsedId, $allowedIds, true)) {
-                $lastUsedResolved = $storedLastUsedId;
-            } elseif ($primaryDepartment !== null) {
-                $lastUsedResolved = $primaryDepartment['id'];
-            }
-            $data['last_used_department'] = $lastUsedResolved;
-            $data['user']['last_used_department'] = $lastUsedResolved;
+            $context = $this->sessionContextResolver->resolve($user);
+            $data['departments'] = $context['departments'];
+            $data['primary_department'] = $context['primary_department'];
+            $data['last_used_department'] = $context['last_used_department'];
+            $data['user']['last_used_department'] = $context['last_used_department'];
 
             $supplierCompanies = $this->supplierCompanyAccessService->serializeCompaniesForUser($user);
             $lastUsedSupplierCompany = $this->supplierCompanyAccessService->resolveLastUsedSupplierCompanyId(

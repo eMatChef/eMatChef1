@@ -99,6 +99,14 @@ final class AdminCapabilityChecker
             return $scoped;
         }
 
+        // Nur Department-Wurzeln im Scope: Organisationszugriff = Organisationen dieser Wurzeln, nicht «alle».
+        // Unbekannte Wurzeln ergeben [] (kein Zugriff, fail closed).
+        $rootIds = AdminCapabilityRegistry::scopedDepartmentRootIds($caps);
+        if ($rootIds !== []) {
+            return $this->departmentScope->organisationIdsForDepartments($rootIds);
+        }
+
+        // Komplett leerer Scope = bewusst unbeschränkt (Standard einer Rolle ohne Einschränkung).
         return null;
     }
 

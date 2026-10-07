@@ -208,8 +208,67 @@ export function googleAuthStartUrl(redirectPath?: string | null): string {
   return absoluteApiUrl(`/api/auth/google${query ? `?${query}` : ''}`)
 }
 
-export async function login(email: string, password: string): Promise<LoginResponse> {
+export function midataAuthStartUrl(redirectPath?: string | null): string {
+  const params = new URLSearchParams()
+  if (redirectPath && redirectPath.startsWith('/') && !redirectPath.startsWith('//')) {
+    params.set('redirect', redirectPath)
+  }
+  const query = params.toString()
+  return absoluteApiUrl(`/api/auth/midata${query ? `?${query}` : ''}`)
+}
+
+export function midataLinkStartUrl(redirectPath?: string | null): string {
+  const params = new URLSearchParams()
+  if (redirectPath && redirectPath.startsWith('/') && !redirectPath.startsWith('//')) {
+    params.set('redirect', redirectPath)
+  }
+  const query = params.toString()
+  return absoluteApiUrl(`/api/auth/link/midata${query ? `?${query}` : ''}`)
+}
+
+/** Zweiter Login-Schritt nötig: aktives TOTP, noch keine Sitzung und keine Tokens. */
+export interface MfaChallengeResponse {
+  mfa_required: true
+  challenge: string
+  methods: MfaMethod[]
+  expires_in: number
+  /** Dauer des Geräte-Vertrauens in Tagen (30 für globale Admins, sonst 90) */
+  trust_days?: number
+}
+
+export type MfaMethod = 'totp' | 'recovery_code'
+
+export function isMfaChallenge(value: unknown): value is MfaChallengeResponse {
+  const v = value as Partial<MfaChallengeResponse> | null
+  return !!v && v.mfa_required === true && typeof v.challenge === 'string' && v.challenge.length > 0
+}
+
+export async function login(email: string, password: string): Promise<LoginResponse | MfaChallengeResponse> {
   const response = await apiClient.post<LoginResponse>('/api/auth/login_check', { email, password })
+  return parseLoginResponse(response)
+}
+
+/** Challenge + TOTP- oder Recovery-Code einlösen; Antwort wie ein normaler Login (Tokens als HttpOnly-Cookies). */
+export async function verifyMfa(
+  challenge: string,
+  method: MfaMethod,
+  code: string,
+  trustDevice = false,
+): Promise<LoginResponse> {
+  const response = await apiClient.post<LoginResponse>('/api/auth/mfa/verify', {
+    challenge,
+    method,
+    code,
+    ...(trustDevice ? { trust_device: true } : {}),
+  })
+  const parsed = parseLoginResponse(response)
+  if (isMfaChallenge(parsed)) {
+    throw new Error('Unerwartete MFA-Antwort')
+  }
+  return parsed
+}
+
+function parseLoginResponse(response: { data: unknown; status: number }): LoginResponse | MfaChallengeResponse {
   const raw: unknown = response.data
 
   if (typeof raw === 'string') {
@@ -234,6 +293,10 @@ export async function login(email: string, password: string): Promise<LoginRespo
     throw new Error(
       `Ungültige Login-Antwort (HTTP ${response.status}) — prüfe ob /api auf das Symfony-Backend zeigt.`
     )
+  }
+
+  if (isMfaChallenge(raw)) {
+    return raw
   }
 
   const body = raw as LoginResponse & { access_token?: string }

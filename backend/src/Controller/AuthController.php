@@ -7,18 +7,23 @@ use App\Entity\AdminJoinRequest;
 use App\Entity\Department;
 use App\Entity\DepartmentSetting;
 use App\Entity\JoinRequest;
-use App\Entity\Membership;
 use App\Entity\Organisation;
 use App\Entity\Profile;
 use App\Entity\User;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
-use App\Service\Grossanlass\GrossanlassDepartmentSerializer;
 use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\AuditLogger;
 use App\Service\Auth\CrossSubdomainAuthCookies;
+use App\Service\Auth\SessionContextResolver;
+use App\Service\Auth\UserSessionManager;
+use App\EventSubscriber\JwtSessionSubscriber;
+use App\Entity\RefreshToken;
+use App\Repository\UserSessionRepository;
+use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use App\Service\OrganisationUserPickerFilter;
 use App\Service\Supplier\SupplierCompanyAccessService;
+use App\Service\UserEmailAliasConflictException;
 use App\Service\UserEmailAliasService;
 use App\Service\TurnstileVerifier;
 use App\Service\JoinRequestManagerNotificationService;
@@ -65,6 +70,10 @@ class AuthController extends AbstractController
         private SupplierCompanyAccessService $supplierCompanyAccessService,
         private UserEmailAliasService $emailAliases,
         private LoggerInterface $logger,
+        private SessionContextResolver $sessionContextResolver,
+        private UserSessionManager $userSessionManager,
+        private UserSessionRepository $userSessionRepository,
+        private JWTTokenManagerInterface $jwtManager,
         #[Autowire('%kernel.secret%')]
         private string $appSecret,
     ) {}
@@ -80,18 +89,34 @@ class AuthController extends AbstractController
     }
 
     /**
-     * Logout – invalidiert Refresh-Token auf dem Server (da LogoutEvent bei security: false nicht ausgelöst wird)
+     * Logout – widerruft die aktuelle UserSession samt Refresh-Tokens (damit auch das ausgestellte JWT);
+     * eigener Endpoint, da LogoutEvent bei security: false nicht ausgelöst wird.
      */
     #[Route('/logout', name: 'logout', methods: ['POST'])]
     public function logout(Request $request): JsonResponse
     {
         $tokenString = $this->refreshTokenExtractor->getRefreshToken($request, 'refresh_token');
+        $refreshToken = null !== $tokenString ? $this->refreshTokenManager->get($tokenString) : null;
 
-        if (null !== $tokenString) {
-            $refreshToken = $this->refreshTokenManager->get($tokenString);
-            if (null !== $refreshToken) {
-                $this->refreshTokenManager->delete($refreshToken);
+        $session = $refreshToken instanceof RefreshToken ? $refreshToken->getSession() : null;
+        if ($session === null) {
+            // Refresh-Token fehlt/abgelaufen: Sitzung aus dem (gültigen) JWT-Cookie.
+            $jwt = (string) $request->cookies->get('BEARER', '');
+            if ($jwt !== '') {
+                try {
+                    $sid = $this->jwtManager->parse($jwt)[JwtSessionSubscriber::CLAIM] ?? null;
+                    $session = \is_string($sid) ? $this->userSessionRepository->findOneById($sid) : null;
+                } catch (\Throwable) {
+                    $session = null;
+                }
             }
+        }
+
+        if ($session !== null && !$session->isRevoked()) {
+            $this->userSessionManager->revokeSession($session, UserSessionManager::REASON_LOGOUT);
+        } elseif (null !== $refreshToken) {
+            // Legacy-Token ohne Sitzung
+            $this->refreshTokenManager->delete($refreshToken);
         }
 
         $response = new JsonResponse([
@@ -117,50 +142,8 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Profil nicht gefunden'], 404);
         }
 
-        $memberships = $this->entityManager->getRepository(Membership::class)
-            ->createQueryBuilder('m')
-            ->innerJoin('m.department', 'd')
-            ->leftJoin('d.grossanlassConfig', 'gc')
-            ->addSelect('d', 'gc')
-            ->where('m.userId = :userId')
-            ->setParameter('userId', $user->getId())
-            ->getQuery()
-            ->getResult();
-
-        $departments = [];
-        $primaryDepartment = null;
-        foreach ($memberships as $m) {
-            $department = $m->getDepartment();
-            $deptSerialized = GrossanlassDepartmentSerializer::serializeDepartmentForMembership($department);
-            $deptData = [
-                'id' => $deptSerialized['id'],
-                'name' => $deptSerialized['name'],
-                'organisation_id' => $deptSerialized['organisation_id'],
-                'role' => $m->getRole(),
-                'is_primary' => $m->getIsPrimary(),
-                'is_grossanlass' => $deptSerialized['is_grossanlass'],
-            ];
-            if (isset($deptSerialized['grossanlass_config'])) {
-                $deptData['grossanlass_config'] = $deptSerialized['grossanlass_config'];
-            }
-            $departments[] = $deptData;
-            if ($m->getIsPrimary() || !$primaryDepartment) {
-                $primaryDepartment = $deptData;
-            }
-        }
-
-        if (!$primaryDepartment && \count($departments) > 0) {
-            $primaryDepartment = $departments[0];
-        }
-
-        $allowedIds = array_map(static fn (array $d): string => $d['id'], $departments);
-        $storedLastUsedId = $user->getLastUsedDepartmentId();
-        $lastUsedResolved = null;
-        if ($storedLastUsedId !== null && \in_array($storedLastUsedId, $allowedIds, true)) {
-            $lastUsedResolved = $storedLastUsedId;
-        } elseif ($primaryDepartment !== null) {
-            $lastUsedResolved = $primaryDepartment['id'];
-        }
+        $context = $this->sessionContextResolver->resolve($user);
+        $lastUsedResolved = $context['last_used_department'];
 
         $capData = $this->adminCapabilityChecker->serializeForApi($user);
 
@@ -194,8 +177,8 @@ class AuthController extends AbstractController
                 'background_color' => $profile->getBackgroundColor() ?? null,
                 'text_color' => $profile->getTextColor() ?? null,
             ],
-            'departments' => $departments,
-            'primary_department' => $primaryDepartment ? $primaryDepartment['id'] : null,
+            'departments' => $context['departments'],
+            'primary_department' => $context['primary_department'],
             'last_used_department' => $lastUsedResolved,
             'supplier_companies' => $supplierCompanies,
             'last_used_supplier_company' => $lastUsedSupplierCompany,
@@ -597,6 +580,21 @@ class AuthController extends AbstractController
 
         $user = $this->userRepository->findOneBy(['emailVerificationToken' => $token]);
         if (!$user) {
+            // Bestätigung einer zusätzlichen E-Mail-Adresse
+            try {
+                $alias = $this->emailAliases->verifyByToken($token);
+            } catch (\DomainException $e) {
+                return new JsonResponse(['error' => 'Verifikationslink ist abgelaufen'], 410);
+            } catch (UserEmailAliasConflictException) {
+                return new JsonResponse(['error' => 'Diese E-Mail-Adresse ist bereits vergeben'], 409);
+            }
+            if ($alias !== null) {
+                return new JsonResponse([
+                    'success' => true,
+                    'message' => 'E-Mail-Adresse bestaetigt. Sie ist jetzt mit deinem Konto verknuepft.',
+                ]);
+            }
+
             return new JsonResponse(['error' => 'Ungueltiger Verifikationslink'], 400);
         }
 
@@ -699,12 +697,8 @@ class AuthController extends AbstractController
             return new JsonResponse(['success' => true, 'message' => $publicMessage]);
         }
 
-        $profile = $this->profileRepository->findOneBy(['email' => $email]);
-        if (!$profile) {
-            return new JsonResponse(['success' => true, 'message' => $publicMessage]);
-        }
-
-        $user = $this->userRepository->findOneBy(['profileId' => $profile->getId()]);
+        // Jede verifizierte Login-Adresse (Primary oder zusätzliche) startet den Reset; Code geht an die Primary.
+        $user = $this->emailAliases->findLoginUserByEmail($email);
         if (!$user) {
             return new JsonResponse(['success' => true, 'message' => $publicMessage]);
         }
@@ -736,7 +730,7 @@ class AuthController extends AbstractController
         $code = strtoupper(substr(bin2hex(random_bytes(3)), 0, 6));
         $expiresAt = (clone $now)->modify('+' . self::PASSWORD_RESET_CODE_TTL_MINUTES . ' minutes');
 
-        $user->setPasswordResetCodeHash($this->hashPasswordResetCode($email, $code));
+        $user->setPasswordResetCodeHash($this->hashPasswordResetCode($this->primaryEmail($user), $code));
         $user->setPasswordResetExpiresAt($expiresAt);
         $user->setPasswordResetLastRequestedAt(clone $now);
         $user->setPasswordResetAttemptCount(0);
@@ -771,12 +765,7 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Das Passwort muss mindestens 8 Zeichen lang sein'], 400);
         }
 
-        $profile = $this->profileRepository->findOneBy(['email' => $email]);
-        if (!$profile) {
-            return new JsonResponse(['error' => 'Code ungueltig oder abgelaufen'], 400);
-        }
-
-        $user = $this->userRepository->findOneBy(['profileId' => $profile->getId()]);
+        $user = $this->emailAliases->findLoginUserByEmail($email);
         if (!$user) {
             return new JsonResponse(['error' => 'Code ungueltig oder abgelaufen'], 400);
         }
@@ -801,7 +790,7 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Zu viele Fehlversuche. Bitte neuen Code anfordern.'], 429);
         }
 
-        $providedHash = $this->hashPasswordResetCode($email, $code);
+        $providedHash = $this->hashPasswordResetCode($this->primaryEmail($user), $code);
         if (!hash_equals($storedHash, $providedHash)) {
             $attempts = $user->getPasswordResetAttemptCount() + 1;
             $user->setPasswordResetAttemptCount($attempts);
@@ -834,12 +823,21 @@ class AuthController extends AbstractController
                 'source' => ['old' => null, 'new' => 'password_reset_code'],
             ]
         );
-        $this->entityManager->flush();
+        // Passwort und Widerruf aller Sitzungen (inkl. Refresh-Tokens, damit auch ausgestellter JWTs) atomar.
+        $this->entityManager->wrapInTransaction(function () use ($user): void {
+            $this->entityManager->flush();
+            $this->userSessionManager->revokeAllForUser($user, UserSessionManager::REASON_PASSWORD_RESET);
+        });
 
         return new JsonResponse([
             'success' => true,
             'message' => 'Passwort wurde erfolgreich zurueckgesetzt.'
         ]);
+    }
+
+    private function primaryEmail(User $user): string
+    {
+        return strtolower((string) ($user->getProfile()?->getEmail() ?? ''));
     }
 
     private function hashPasswordResetCode(string $email, string $code): string

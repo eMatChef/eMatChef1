@@ -14,19 +14,26 @@ use App\Entity\Organisation;
 use App\Entity\Profile;
 use App\Entity\User;
 use App\Service\Admin\AdminCapabilityChecker;
+use App\Service\Admin\AdminJoinRequestManagerScope;
+use App\Service\Support\UnassignedUserSupportQueue;
 use App\Service\AuditLogger;
 use App\Service\Mail\MailTemplateContentStore;
 use App\Service\OrganisationUserPickerFilter;
 use App\Service\DepartmentRoleLabelService;
 use App\Service\InboxMessageService;
 use App\Service\JoinRequestManagerNotificationService;
+use App\Service\Auth\DepartmentJoinFlowService;
+use App\Service\Auth\DepartmentJoinOutcome;
+use App\Service\Auth\DepartmentJoinOutcomeStatus;
+use App\Service\Auth\MiDataDepartmentOnboardingService;
+use App\Service\Auth\MiDataSupportedRoleCatalog;
+use App\Repository\ExternalStructureIdentityRepository;
 use App\Service\MembershipRoleCatalog;
 use App\Service\TurnstileVerifier;
 use App\Service\UserDepartmentInviteNotificationService;
 use App\Service\UserEmailAliasConflictException;
 use App\Service\UserEmailAliasService;
 use App\Service\VerificationEmailService;
-use App\Util\E2eSmokeUser;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -52,11 +59,16 @@ class JoinRequestController extends AbstractController
         private MailTemplateContentStore $mailTemplateContent,
         private UserDepartmentInviteNotificationService $userDepartmentInviteNotifications,
         private JoinRequestManagerNotificationService $joinRequestManagerNotifications,
+        private DepartmentJoinFlowService $departmentJoinFlow,
         private TurnstileVerifier $turnstileVerifier,
         private InboxMessageService $inboxMessages,
         private AdminCapabilityChecker $adminCapabilityChecker,
+        private AdminJoinRequestManagerScope $adminJoinRequestScope,
+        private UnassignedUserSupportQueue $unassignedUserQueue,
         private DepartmentRoleLabelService $departmentRoleLabelService,
         private UserEmailAliasService $emailAliases,
+        private MiDataDepartmentOnboardingService $miDataDepartmentOnboarding,
+        private ExternalStructureIdentityRepository $structureIdentities,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $frontendUrl
     )
     {
@@ -86,6 +98,42 @@ class JoinRequestController extends AbstractController
         $event->setAction($action);
         $event->setPayload($payload);
         $this->entityManager->persist($event);
+    }
+
+    private function joinOutcomeResponse(DepartmentJoinOutcome $outcome): JsonResponse
+    {
+        if ($outcome->status === DepartmentJoinOutcomeStatus::VERIFICATION_UNAVAILABLE) {
+            return new JsonResponse([
+                'code' => 'midata_verification_unavailable',
+                'error' => 'Die MiData-Mitgliedschaft konnte momentan nicht geprüft werden. Bitte versuche es später erneut.',
+            ], 503);
+        }
+        if ($outcome->status === DepartmentJoinOutcomeStatus::DEPARTMENT_NOT_FOUND) {
+            return new JsonResponse(['error' => 'Kein Department fuer diesen Join-Code gefunden'], 404);
+        }
+        if ($outcome->status === DepartmentJoinOutcomeStatus::ALREADY_MEMBER) {
+            return new JsonResponse(['error' => 'Sie sind bereits Mitglied dieses Departments'], 409);
+        }
+        if ($outcome->status === DepartmentJoinOutcomeStatus::REQUEST_ALREADY_PENDING) {
+            return new JsonResponse(['error' => 'Es existiert bereits eine offene Anfrage fuer dieses Department'], 409);
+        }
+
+        $department = $outcome->department;
+        $joinRequest = $outcome->joinRequest;
+        if (!$department instanceof Department || !$joinRequest instanceof JoinRequest) {
+            throw new \LogicException('Department join outcome is missing its persisted result');
+        }
+        $autoJoined = $outcome->status === DepartmentJoinOutcomeStatus::MEMBERSHIP_CONFIRMED;
+
+        return new JsonResponse([
+            'id' => $joinRequest->getId(),
+            'status' => $joinRequest->getStatus(),
+            'department_id' => $department->getId(),
+            'department_name' => $department->getName(),
+            'assigned_role' => $autoJoined ? 'u' : null,
+            'auto_joined' => $autoJoined,
+            'created_at' => $joinRequest->getCreatedAt()->format(\DateTimeInterface::ATOM),
+        ], 201);
     }
 
     #[Route('', name: 'create', methods: ['POST'])]
@@ -140,82 +188,12 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'Diese Rolle ist in diesem Department nicht erlaubt'], 400);
         }
 
-        $existingMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
-            'userId' => $currentUser->getId(),
-            'departmentId' => $department->getId(),
-        ]);
-        if ($existingMembership) {
-            return new JsonResponse(['error' => 'Sie sind bereits Mitglied dieses Departments'], 409);
-        }
-
-        $existingPending = $this->entityManager->getRepository(JoinRequest::class)->findOneBy([
-            'userId' => $currentUser->getId(),
-            'departmentId' => $department->getId(),
-            'status' => 'pending',
-        ]);
-        if ($existingPending) {
-            return new JsonResponse(['error' => 'Es existiert bereits eine offene Anfrage fuer dieses Department'], 409);
-        }
-
         $viaJoinCode = $departmentId === '' && $joinCode !== '';
-        $autoJoined = false;
-        $assignedRole = null;
+        $outcome = $viaJoinCode
+            ? $this->departmentJoinFlow->submitForDepartment($currentUser, $department, null, $message)
+            : $this->departmentJoinFlow->createManualRequest($currentUser, $department, $message);
 
-        if ($viaJoinCode) {
-            $profileEmail = strtolower(trim((string) ($currentUser->getProfile()?->getEmail() ?? '')));
-            $pendingInvite = $profileEmail !== ''
-                ? $this->findPendingInviteForEmail($department->getId(), $profileEmail)
-                : null;
-            if ($pendingInvite !== null) {
-                try {
-                    $this->applyDepartmentInviteMembership($currentUser, $department, $pendingInvite);
-                } catch (\RuntimeException $e) {
-                    return new JsonResponse(['error' => $e->getMessage()], 409);
-                }
-                $this->finalizeInviteAccepted($department, $pendingInvite, $currentUser);
-                $autoJoined = true;
-                $inviteRole = strtolower(trim((string) ($pendingInvite['role'] ?? 'u')));
-                $assignedRole = MembershipRoleCatalog::isAllowed($department, $inviteRole) ? $inviteRole : 'u';
-            } else {
-                $this->createMembershipForUser($currentUser, $department, 'u', $currentUser);
-                $autoJoined = true;
-                $assignedRole = 'u';
-            }
-        }
-
-        $joinRequest = new JoinRequest();
-        $joinRequest->setId(IdGenerator::generateUnique($this->entityManager, JoinRequest::class));
-        $joinRequest->setUser($currentUser);
-        $joinRequest->setDepartment($department);
-        $joinRequest->setMessage($message !== '' ? $message : null);
-        // Join-Code: sofort Mitglied. Abteilung per Suche / persoenliche Einladung: MW/DC-Freigabe.
-        if ($autoJoined) {
-            $joinRequest->setStatus('approved');
-            $joinRequest->setReviewedBy($currentUser);
-        } else {
-            $joinRequest->setStatus('pending');
-        }
-
-        $this->entityManager->persist($joinRequest);
-        $this->entityManager->flush();
-
-        if (!$autoJoined) {
-            try {
-                $this->joinRequestManagerNotifications->notifyJoinRequestCreated($joinRequest);
-            } catch (\Throwable) {
-                // Anfrage bleibt gueltig auch wenn Mail fehlschlaegt
-            }
-        }
-
-        return new JsonResponse([
-            'id' => $joinRequest->getId(),
-            'status' => $joinRequest->getStatus(),
-            'department_id' => $department->getId(),
-            'department_name' => $department->getName(),
-            'assigned_role' => $assignedRole,
-            'auto_joined' => $autoJoined,
-            'created_at' => $joinRequest->getCreatedAt()->format(\DateTimeInterface::ATOM),
-        ], 201);
+        return $this->joinOutcomeResponse($outcome);
     }
 
     #[Route('/admin-request', name: 'admin_request_create', methods: ['POST'])]
@@ -317,73 +295,22 @@ class JoinRequestController extends AbstractController
         $departmentId = trim((string) $request->query->get('department_id', ''));
         $isGlobalAdmin = $this->hasGlobalAdminRole($currentUser);
 
+        $managerScope = null;
         if (!$isGlobalAdmin) {
             if ($departmentId === '') {
                 return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
             }
-            $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
-                'userId' => $currentUser->getId(),
-                'departmentId' => $departmentId,
-            ]);
-            if (!$myMembership || !in_array($myMembership->getRole(), ['mw', 'dc'], true)) {
+            $managerScope = $this->adminJoinRequestScope->resolve(
+                $currentUser,
+                $departmentId,
+                AdminJoinRequestManagerScope::VIEW_ROLES,
+            );
+            if ($managerScope === null) {
                 return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
             }
         }
 
         $pendingStatus = 'pending';
-
-        // Auto-create support requests for users without any department membership.
-        $usersWithoutDepartment = $this->entityManager->getRepository(User::class)
-            ->createQueryBuilder('u')
-            ->leftJoin(Membership::class, 'm', 'WITH', 'm.userId = u.id')
-            ->leftJoin(
-                AdminJoinRequest::class,
-                'existing',
-                'WITH',
-                'existing.userId = u.id AND existing.status = :pendingStatus'
-            )
-            ->leftJoin(
-                JoinRequest::class,
-                'existingJoin',
-                'WITH',
-                'existingJoin.userId = u.id AND existingJoin.status = :pendingStatus'
-            )
-            ->where('m.userId IS NULL')
-            ->andWhere('existing.id IS NULL')
-            ->andWhere('existingJoin.id IS NULL')
-            ->andWhere('u.state = :activeState')
-            ->setParameter('pendingStatus', $pendingStatus)
-            ->setParameter('activeState', 'active')
-            ->setMaxResults(200)
-            ->getQuery()
-            ->getResult();
-
-        foreach ($usersWithoutDepartment as $userWithoutDepartment) {
-            if (!$userWithoutDepartment instanceof User) {
-                continue;
-            }
-            if ($userWithoutDepartment->hasSuperAdminProfile()) {
-                continue;
-            }
-            $profile = $userWithoutDepartment->getProfile();
-            if ($profile && E2eSmokeUser::isExcluded($profile->getEmail())) {
-                continue;
-            }
-
-            $autoRequest = new AdminJoinRequest();
-            $autoRequest->setId(IdGenerator::generateUnique($this->entityManager, AdminJoinRequest::class));
-            $autoRequest->setUser($userWithoutDepartment);
-            $autoRequest->setRequestedDepartmentName('Unbekannte Abteilung');
-            $autoRequest->setMessage('Automatisch erstellt: Benutzer ohne Department-Zuordnung.');
-            $autoRequest->setStatus($pendingStatus);
-            $this->entityManager->persist($autoRequest);
-            $this->logAdminJoinRequestEvent($autoRequest, $currentUser, 'auto_created', [
-                'requested_department_name' => 'Unbekannte Abteilung',
-            ]);
-        }
-        if (count($usersWithoutDepartment) > 0) {
-            $this->entityManager->flush();
-        }
 
         $qb = $this->entityManager->getRepository(AdminJoinRequest::class)
             ->createQueryBuilder('ajr')
@@ -394,6 +321,8 @@ class JoinRequestController extends AbstractController
             ->setParameter('status', $pendingStatus)
             ->orderBy('ajr.createdAt', 'ASC')
             ->setMaxResults(50);
+        // System-created requests are represented by the read-only "Benutzer ohne Zuordnung" queue below.
+        $this->unassignedUserQueue->excludeSystemRequests($qb, 'ajr');
 
         $isSuperAdmin = $this->adminCapabilityChecker->isSuperAdmin($currentUser);
         $managedOrgIds = null;
@@ -409,9 +338,11 @@ class JoinRequestController extends AbstractController
             }
         }
 
-        $requests = $qb->getQuery()->getResult();
+        if ($managerScope !== null) {
+            $this->adminJoinRequestScope->restrictQuery($qb, 'ajr', $managerScope);
+        }
 
-        $this->removeStaleAutoAdminRequestsForUsersWithPendingJoin($requests);
+        $requests = $qb->getQuery()->getResult();
 
         $result = [];
         foreach ($requests as $req) {
@@ -470,6 +401,13 @@ class JoinRequestController extends AbstractController
             }
         }
 
+        // The queue has no organisation or department, so only global admins see it (never mw/dc).
+        if ($isGlobalAdmin) {
+            foreach ($this->unassignedUserQueue->findUnassignedUsers() as $unassignedUser) {
+                $result[] = $this->serializeUnassignedUser($unassignedUser);
+            }
+        }
+
         usort($result, static fn (array $a, array $b): int => strcmp($a['created_at'], $b['created_at']));
 
         return new JsonResponse($result);
@@ -493,19 +431,29 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'Anfrage wurde bereits bearbeitet'], 409);
         }
 
+        return $this->performAdminRequestAssignment($adminRequest, $request, $currentUser);
+    }
+
+    private function performAdminRequestAssignment(AdminJoinRequest $adminRequest, Request $request, User $currentUser): JsonResponse
+    {
         $actingDepartmentId = trim((string) $request->query->get('department_id', ''));
         $isGlobalAdmin = $this->hasGlobalAdminRole($currentUser);
 
+        $managerScope = null;
         if (!$isGlobalAdmin) {
             if ($actingDepartmentId === '') {
                 return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
             }
-            $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
-                'userId' => $currentUser->getId(),
-                'departmentId' => $actingDepartmentId,
-            ]);
-            if (!$myMembership || $myMembership->getRole() !== 'mw') {
+            $managerScope = $this->adminJoinRequestScope->resolve(
+                $currentUser,
+                $actingDepartmentId,
+                AdminJoinRequestManagerScope::ASSIGN_ROLES,
+            );
+            if ($managerScope === null) {
                 return new JsonResponse(['error' => 'Nur Superadmin/OrgChef/SubOrgChef oder Abteilungsleiter (mw) darf eine Department-Zuordnung ausfuehren'], 403);
+            }
+            if (!$this->adminJoinRequestScope->contains($adminRequest, $managerScope)) {
+                return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
             }
         }
 
@@ -535,6 +483,12 @@ class JoinRequestController extends AbstractController
         if ($isGlobalAdmin && !$this->adminCapabilityChecker->canAccessDepartment($currentUser, $targetDepartmentId)) {
             return new JsonResponse(['error' => 'Keine Berechtigung für dieses Department'], 403);
         }
+        if ($managerScope !== null) {
+            $denial = $this->adminJoinRequestScope->assignmentDenial($managerScope, $targetDepartment, $requestedRole);
+            if ($denial !== null) {
+                return new JsonResponse(['error' => $denial['error']], $denial['status']);
+            }
+        }
 
         $hasMwOrDc = (int) $this->entityManager->createQuery(
             'SELECT COUNT(m.userId) FROM App\Entity\Membership m WHERE m.departmentId = :deptId AND (m.role = :mw OR m.role = :dc)'
@@ -545,7 +499,7 @@ class JoinRequestController extends AbstractController
 
         $assignedRole = $requestedRole;
         $roleForcedToMwWarning = null;
-        if (!$hasMwOrDc && $requestedRole === 'u') {
+        if ($isGlobalAdmin && !$hasMwOrDc && $requestedRole === 'u') {
             $assignedRole = 'mw';
             $roleForcedToMwWarning = 'Department hat keinen Materialchef (mw) oder Departmentchef (dc). User wurde automatisch als Materialchef (mw) zugeordnet.';
         }
@@ -637,15 +591,17 @@ class JoinRequestController extends AbstractController
         $departmentId = trim((string) $request->query->get('department_id', ''));
         $isGlobalAdmin = $this->hasGlobalAdminRole($currentUser);
 
+        $managerScope = null;
         if (!$isGlobalAdmin) {
             if ($departmentId === '') {
                 return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
             }
-            $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
-                'userId' => $currentUser->getId(),
-                'departmentId' => $departmentId,
-            ]);
-            if (!$myMembership || !in_array($myMembership->getRole(), ['mw', 'dc'], true)) {
+            $managerScope = $this->adminJoinRequestScope->resolve(
+                $currentUser,
+                $departmentId,
+                AdminJoinRequestManagerScope::VIEW_ROLES,
+            );
+            if ($managerScope === null) {
                 return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
             }
         }
@@ -673,6 +629,10 @@ class JoinRequestController extends AbstractController
             } else {
                 $qb->andWhere('ajr.requestedOrganisationId IS NULL');
             }
+        }
+
+        if ($managerScope !== null) {
+            $this->adminJoinRequestScope->restrictQuery($qb, 'ajr', $managerScope);
         }
 
         $requests = $qb->getQuery()->getResult();
@@ -724,16 +684,29 @@ class JoinRequestController extends AbstractController
         $departmentId = trim((string) $request->query->get('department_id', ''));
         $isGlobalAdmin = $this->hasGlobalAdminRole($currentUser);
 
+        $managerScope = null;
         if (!$isGlobalAdmin) {
             if ($departmentId === '') {
                 return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
             }
-            $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
-                'userId' => $currentUser->getId(),
-                'departmentId' => $departmentId,
-            ]);
-            if (!$myMembership || !in_array($myMembership->getRole(), ['mw', 'dc'], true)) {
+            $managerScope = $this->adminJoinRequestScope->resolve(
+                $currentUser,
+                $departmentId,
+                AdminJoinRequestManagerScope::VIEW_ROLES,
+            );
+            if ($managerScope === null) {
                 return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+            }
+        }
+
+        if ($managerScope !== null && !$this->adminJoinRequestScope->contains($adminRequest, $managerScope)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+        }
+        if ($isGlobalAdmin && !$this->adminCapabilityChecker->isSuperAdmin($currentUser)) {
+            $managedOrgIds = $this->getManagedOrganisationIds($currentUser);
+            $requestOrganisationId = $adminRequest->getRequestedOrganisationId();
+            if ($managedOrgIds !== null && $requestOrganisationId !== null && !in_array($requestOrganisationId, $managedOrgIds, true)) {
+                return new JsonResponse(['error' => 'Keine Berechtigung für diese Organisation'], 403);
             }
         }
 
@@ -750,6 +723,53 @@ class JoinRequestController extends AbstractController
 
         return new JsonResponse([
             'success' => true,
+            'status' => $adminRequest->getStatus(),
+        ]);
+    }
+
+    /**
+     * Explicit admin action on a "Benutzer ohne Zuordnung" queue entry: assign like a support request.
+     */
+    #[Route('/unassigned-users/{userId}/assign', name: 'unassigned_user_assign', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function assignUnassignedUser(string $userId, Request $request): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 403);
+        }
+        $unassignedUser = $this->resolveUnassignedQueueUser($currentUser, $userId);
+        if ($unassignedUser instanceof JsonResponse) {
+            return $unassignedUser;
+        }
+
+        // Persisted only together with a successful assignment.
+        $adminRequest = $this->unassignedUserQueue->claimSystemRequest($unassignedUser, $currentUser);
+
+        return $this->performAdminRequestAssignment($adminRequest, $request, $currentUser);
+    }
+
+    /**
+     * Explicit admin action: hide a queue entry permanently (stored as rejected support request).
+     */
+    #[Route('/unassigned-users/{userId}/dismiss', name: 'unassigned_user_dismiss', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function dismissUnassignedUser(string $userId): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 403);
+        }
+        $unassignedUser = $this->resolveUnassignedQueueUser($currentUser, $userId);
+        if ($unassignedUser instanceof JsonResponse) {
+            return $unassignedUser;
+        }
+
+        $adminRequest = $this->unassignedUserQueue->dismiss($unassignedUser, $currentUser);
+
+        return new JsonResponse([
+            'success' => true,
+            'id' => $adminRequest->getId(),
             'status' => $adminRequest->getStatus(),
         ]);
     }
@@ -800,6 +820,70 @@ class JoinRequestController extends AbstractController
         return new JsonResponse($result);
     }
 
+    /**
+     * Open verified MiData offers (Materialwart, Abteilungsleitung) and whether the search mode is needed (many candidates).
+     * Display data only: no external IDs or role classes are accepted from or sent to the browser.
+     */
+    #[Route('/midata-onboarding', name: 'midata_onboarding_offers', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function miDataOnboardingOffers(): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 403);
+        }
+
+        $result = [];
+        foreach ($this->miDataDepartmentOnboarding->listOpenOffers($currentUser) as $offer) {
+            $result[] = [
+                'id' => $offer->getId(),
+                'department_name' => $offer->getDepartmentName(),
+                'region_name' => $offer->getRegionName(),
+                'kantonalverband_name' => $offer->getKantonalverbandName(),
+                'role' => MiDataSupportedRoleCatalog::label($offer->getExternalRoleClass()) ?? 'materialwart',
+                'department_exists' => $this->structureIdentities->findOneByProviderAndExternalGroupId(
+                    'midata',
+                    $offer->getExternalDepartmentGroupId(),
+                ) !== null,
+                'expires_at' => $offer->getExpiresAt()->format(\DateTimeInterface::ATOM),
+            ];
+        }
+
+        return new JsonResponse([
+            'offers' => $result,
+            'search_required' => $this->miDataDepartmentOnboarding->isSearchRequired($currentUser),
+        ]);
+    }
+
+    /**
+     * Search in the current user's own unverified MiData candidates (search mode). A hit authorizes nothing;
+     * selecting it starts a fresh MiData login that verifies role and structure.
+     */
+    #[Route('/midata-onboarding/candidates', name: 'midata_onboarding_candidates', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function miDataOnboardingCandidates(Request $request): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 403);
+        }
+        $query = trim((string) $request->query->get('q', ''));
+        if (mb_strlen($query) < 2) {
+            return new JsonResponse([]);
+        }
+
+        $result = [];
+        foreach ($this->miDataDepartmentOnboarding->searchCandidates($currentUser, $query) as $candidate) {
+            $result[] = [
+                'id' => $candidate->getId(),
+                'department_name' => $candidate->getDisplayName(),
+                'role' => MiDataSupportedRoleCatalog::label($candidate->getExternalRoleClass()) ?? 'materialwart',
+            ];
+        }
+
+        return new JsonResponse($result);
+    }
+
     #[Route('/mine', name: 'mine', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]
     public function mine(): JsonResponse
@@ -830,7 +914,8 @@ class JoinRequestController extends AbstractController
                 'id' => $jr->getId(),
                 'request_kind' => 'department_join',
                 'status' => $jr->getStatus(),
-                'auto_joined' => $jr->getStatus() === 'approved' && $jr->getReviewedById() === $jr->getUserId(),
+                'auto_joined' => $jr->getStatus() === 'approved'
+                    && ($jr->getReviewedById() === null || $jr->getReviewedById() === $jr->getUserId()),
                 'department_id' => $jr->getDepartmentId(),
                 'department_name' => $dept?->getName(),
                 'organisation_name' => $dept?->getOrganisation()?->getName(),
@@ -845,7 +930,16 @@ class JoinRequestController extends AbstractController
             ['createdAt' => 'DESC'],
             20
         );
+        $hiddenSystemRequestIds = $this->unassignedUserQueue->hasVerifiedAlternative($currentUser)
+            ? $this->unassignedUserQueue->systemRequestIds(array_values(array_filter(
+                $adminRequests,
+                static fn (AdminJoinRequest $adminRequest): bool => $adminRequest->getStatus() === 'pending',
+            )))
+            : [];
         foreach ($adminRequests as $adminRequest) {
+            if (in_array($adminRequest->getId(), $hiddenSystemRequestIds, true)) {
+                continue;
+            }
             $displayStatus = $adminRequest->getStatus();
             if ($displayStatus === 'assigned') {
                 $displayStatus = 'approved';
@@ -1685,41 +1779,45 @@ class JoinRequestController extends AbstractController
         ];
     }
 
-    /**
-     * @param list<AdminJoinRequest> $adminRequests
-     */
-    private function removeStaleAutoAdminRequestsForUsersWithPendingJoin(array $adminRequests): void
+    private function resolveUnassignedQueueUser(User $currentUser, string $userId): User|JsonResponse
     {
-        $removed = false;
-        foreach ($adminRequests as $adminRequest) {
-            if (!$adminRequest instanceof AdminJoinRequest) {
-                continue;
-            }
-            if (!$this->isAutoUnknownAdminRequest($adminRequest)) {
-                continue;
-            }
-            $pendingJoin = $this->entityManager->getRepository(JoinRequest::class)->findOneBy([
-                'userId' => $adminRequest->getUserId(),
-                'status' => 'pending',
-            ]);
-            if ($pendingJoin instanceof JoinRequest) {
-                $this->entityManager->remove($adminRequest);
-                $removed = true;
-            }
+        if (!$this->hasGlobalAdminRole($currentUser)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
         }
-        if ($removed) {
-            $this->entityManager->flush();
+        $user = $this->entityManager->getRepository(User::class)->find($userId);
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Benutzer nicht gefunden'], 404);
         }
+        if (!$this->unassignedUserQueue->isUnassigned($user)) {
+            return new JsonResponse(['error' => 'Benutzer ist nicht mehr ohne Zuordnung'], 409);
+        }
+
+        return $user;
     }
 
-    private function isAutoUnknownAdminRequest(AdminJoinRequest $adminRequest): bool
+    /**
+     * Read-only queue entry; it has no AdminJoinRequest ID until an admin acts on it.
+     *
+     * @return array<string, mixed>
+     */
+    private function serializeUnassignedUser(User $user): array
     {
-        if ($adminRequest->getRequestedDepartmentName() !== 'Unbekannte Abteilung') {
-            return false;
-        }
-        $message = $adminRequest->getMessage() ?? '';
+        $profile = $user->getProfile();
 
-        return str_starts_with($message, 'Automatisch erstellt:');
+        return [
+            'id' => null,
+            'request_kind' => 'unassigned_user',
+            'user_id' => $user->getId(),
+            'name' => $profile ? $profile->getDisplayName() : 'Unbekannt',
+            'email' => $profile?->getEmail(),
+            'requested_department_name' => null,
+            'requested_affiliation' => null,
+            'requested_organisation_id' => null,
+            'requested_parent_department_name' => null,
+            'message' => null,
+            'status' => 'unassigned',
+            'created_at' => $user->getCreatedAt()->format(\DateTimeInterface::ATOM),
+        ];
     }
 
     /**
@@ -2366,30 +2464,6 @@ class JoinRequestController extends AbstractController
                 $knownKeys[$key] = true;
             }
         }
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function findPendingInviteForEmail(string $departmentId, string $email): ?array
-    {
-        $normalized = strtolower(trim($email));
-        if ($normalized === '') {
-            return null;
-        }
-        foreach ($this->readPendingInvites($departmentId) as $invite) {
-            if (!is_array($invite)) {
-                continue;
-            }
-            if (($invite['status'] ?? 'pending') !== 'pending') {
-                continue;
-            }
-            if (strtolower(trim((string) ($invite['email'] ?? ''))) === $normalized) {
-                return $invite;
-            }
-        }
-
-        return null;
     }
 
     private function findUserByEmail(string $email): ?User

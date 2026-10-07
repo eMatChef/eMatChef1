@@ -10,8 +10,12 @@ use App\Repository\UserRepository;
 use App\Service\Grossanlass\GrossanlassDepartmentSerializer;
 use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\Admin\AdminCapabilityRegistry;
+use App\Service\Admin\AdminUserEmailChangeRequester;
+use App\Service\Admin\AdminUserUpdateDeniedException;
+use App\Service\Admin\AdminUserUpdatePolicy;
 use App\Service\SystemScopeVisibility;
 use App\Service\AuditLogger;
+use App\Service\Auth\UserSessionManager;
 use App\Service\MembershipRoleCatalog;
 use App\Util\E2eSmokeUser;
 use Doctrine\ORM\EntityManagerInterface;
@@ -30,6 +34,9 @@ class UserController extends AbstractController
         private EntityManagerInterface $entityManager,
         private AuditLogger $auditLogger,
         private AdminCapabilityChecker $adminCapabilityChecker,
+        private AdminUserUpdatePolicy $adminUserUpdatePolicy,
+        private AdminUserEmailChangeRequester $adminUserEmailChangeRequester,
+        private UserSessionManager $userSessionManager,
     ) {}
 
     private function isGlobalAdmin(User $user): bool
@@ -77,6 +84,7 @@ class UserController extends AbstractController
             'last_name' => $profile->getLastName(),
             'nickname' => $profile->getNickname(),
             'email' => $profile->getEmail(),
+            'pending_email' => $user->getPendingEmail(),
             'state' => $user->getState(),
             'created_at' => $user->getCreatedAt()->format(\DateTimeInterface::ATOM),
             'memberships' => $membershipData,
@@ -319,20 +327,22 @@ class UserController extends AbstractController
             return new JsonResponse(['error' => 'Superadmin-Konten werden hier nicht verwaltet'], 403);
         }
 
-        $data = json_decode($request->getContent(), true) ?? [];
+        $data = json_decode($request->getContent(), true);
+        if (!\is_array($data)) {
+            $data = [];
+        }
         $profileChanges = [];
 
-        if (array_key_exists('email', $data)) {
-            $oldEmail = $profile->getEmail();
-            $email = trim((string) $data['email']);
-            if ($email === '') {
-                return new JsonResponse(['error' => 'E-Mail darf nicht leer sein'], 400);
-            }
-            $profile->setEmail($email);
-            if ($oldEmail !== $email) {
-                $profileChanges['email'] = ['old' => $oldEmail, 'new' => $email];
-            }
+        $existingTargetMemberships = $this->entityManager->getRepository(Membership::class)
+            ->findBy(['userId' => $id]);
+        try {
+            $this->adminUserUpdatePolicy->assertUpdateAllowed($currentUser, $user, $data, $existingTargetMemberships);
+        } catch (AdminUserUpdateDeniedException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], $e->statusCode);
         }
+
+        // Login-E-Mail nie direkt setzen: Änderung läuft über Pending + Bestätigungslink (am Ende, nach allen Prüfungen).
+        $requestedEmail = $this->adminUserUpdatePolicy->requestedEmailChange($user, $data);
 
         if (array_key_exists('first_name', $data)) {
             $oldFirstName = $profile->getFirstName();
@@ -358,6 +368,7 @@ class UserController extends AbstractController
                 $profileChanges['nickname'] = ['old' => $oldNickname, 'new' => $newNickname];
             }
         }
+        $previousState = $user->getState();
         if (array_key_exists('state', $data)) {
             $user->setState((string) $data['state']);
         }
@@ -566,11 +577,22 @@ class UserController extends AbstractController
             );
         }
 
+        if ($requestedEmail !== null) {
+            try {
+                $this->adminUserEmailChangeRequester->request($currentUser, $user, $requestedEmail);
+            } catch (AdminUserUpdateDeniedException $e) {
+                return new JsonResponse(['error' => $e->getMessage()], $e->statusCode);
+            }
+        }
+
         try {
             $this->entityManager->flush();
         } catch (UniqueConstraintViolationException) {
             return new JsonResponse(['error' => 'E-Mail ist bereits vergeben'], 409);
         }
+
+        // Deaktiviert: Sitzungen und Refresh-Tokens widerrufen; zusätzlich sperrt der UserChecker.
+        $this->userSessionManager->revokeAllIfDeactivated($user, $previousState);
 
         return $this->getAdminDetail($id);
     }

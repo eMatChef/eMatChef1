@@ -18,6 +18,7 @@ use App\Service\OrganisationUserPickerFilter;
 use App\Service\DepartmentDefaultCoachSyncService;
 use App\Service\DepartmentResetService;
 use App\Service\DepartmentRoleLabelService;
+use App\Service\MembershipNotificationEmailResolver;
 use App\Service\UserEmailAliasService;
 use App\Service\DevEnvironmentService;
 use App\Service\Grossanlass\GrossanlassDepartmentCreateService;
@@ -52,6 +53,7 @@ class DepartmentController extends AbstractController
         private DepartmentRoleLabelService $departmentRoleLabelService,
         private DepartmentDefaultCoachSyncService $departmentDefaultCoachSync,
         private UserEmailAliasService $emailAliases,
+        private MembershipNotificationEmailResolver $notificationEmails,
         #[Autowire('%kernel.secret%')]
         private string $appSecret,
     ) {}
@@ -874,7 +876,8 @@ class DepartmentController extends AbstractController
         $profile = $user->getProfile();
 
         $notificationEmailSent = false;
-        if ($profile && filter_var($profile->getEmail(), FILTER_VALIDATE_EMAIL)) {
+        $recipientEmail = $this->notificationEmails->effectiveEmail($membership);
+        if ($profile && filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
             $adderName = trim((string) ($currentUser->getProfile()?->getDisplayName() ?? ''));
             if ($adderName === '') {
                 $adderName = trim((string) ($currentUser->getProfile()?->getEmail() ?? ''));
@@ -884,7 +887,7 @@ class DepartmentController extends AbstractController
             }
             try {
                 $this->verificationEmailService->sendDepartmentMemberAddedEmail(
-                    $profile->getEmail(),
+                    $recipientEmail,
                     $profile->getDisplayName(),
                     $adderName,
                     $department->getName(),

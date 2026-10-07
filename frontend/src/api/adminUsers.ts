@@ -32,6 +32,8 @@ export interface AdminUserDetail {
   last_name: string | null
   nickname: string | null
   email: string
+  /** Neue Login-E-Mail, die noch per Link bestätigt werden muss. */
+  pending_email?: string | null
   state: string
   created_at: string
   memberships: AdminUserMembership[]

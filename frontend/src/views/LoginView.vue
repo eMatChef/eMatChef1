@@ -38,7 +38,45 @@
           {{ successMessage }}
         </v-alert>
 
-        <form v-if="mode === 'login'" class="login-form" @submit.prevent="handleSubmit">
+        <form v-if="authStore.pendingMfa" class="login-form" @submit.prevent="handleMfaSubmit">
+          <h2 class="login-mfa-title">{{ t('login.mfa.title') }}</h2>
+          <p class="login-mfa-hint">
+            {{ mfaMethod === 'totp' ? t('login.mfa.totpHint') : t('login.mfa.recoveryHint') }}
+          </p>
+          <ETextField
+            id="mfa-code"
+            v-model="mfaCode"
+            :label="mfaMethod === 'totp' ? t('login.mfa.codeLabel') : t('login.mfa.recoveryLabel')"
+            :inputmode="mfaMethod === 'totp' ? 'numeric' : 'text'"
+            autocomplete="one-time-code"
+            :disabled="isLoading"
+            autofocus
+          />
+          <ECheckbox
+            v-model="mfaTrustDevice"
+            :label="t('login.mfa.trustDevice')"
+            :disabled="isLoading"
+            hide-details
+            data-testid="trust-device"
+          />
+          <p class="login-mfa-hint login-mfa-hint--small">
+            {{ t('login.mfa.trustHint', { days: authStore.pendingMfa?.trustDays ?? 90 }) }}
+            {{ t('login.mfa.trustNote') }}
+          </p>
+          <EButton variant="primary" type="submit" block :loading="isLoading" :disabled="!mfaCode.trim()">
+            {{ t('login.mfa.submit') }}
+          </EButton>
+          <div class="login-mfa-links">
+            <EButton variant="text" size="small" type="button" :disabled="isLoading" @click="toggleMfaMethod">
+              {{ mfaMethod === 'totp' ? t('login.mfa.useRecovery') : t('login.mfa.useTotp') }}
+            </EButton>
+            <EButton variant="text" size="small" type="button" :disabled="isLoading" @click="cancelMfa">
+              {{ t('login.mfa.cancel') }}
+            </EButton>
+          </div>
+        </form>
+
+        <form v-else-if="mode === 'login'" class="login-form" @submit.prevent="handleSubmit">
           <v-alert
             v-if="claimingExistingAccount && inviteEmailLabel"
             type="info"
@@ -123,18 +161,39 @@
             <span class="login-or-divider__line" />
           </div>
 
-          <div class="social-login">
+          <div class="external-provider-grid">
             <button
-              v-for="provider in socialProviders"
-              :key="provider.id"
+              v-for="provider in externalLoginProviders"
+              :key="provider.key"
               type="button"
-              class="social-login-btn"
-              :disabled="isLoading"
-              :aria-label="t(provider.labelKey)"
-              :title="t(provider.labelKey)"
-              @click="onSocialLogin(provider.id)"
+              class="external-provider-card"
+              :class="[`external-provider-card--${provider.key}`, { 'external-provider-card--disabled': !provider.enabled }]"
+              :disabled="isLoading || !provider.enabled"
+              :aria-label="provider.enabled ? `${provider.label} · ${provider.organisation}` : t('login.socialSoon', { provider: provider.label })"
+              :title="provider.enabled ? `${provider.label} · ${provider.organisation}` : t('login.socialSoon', { provider: provider.label })"
+              @click="onExternalProviderLogin(provider.key)"
             >
-              <v-icon :icon="provider.icon" size="22" />
+              <span class="external-provider-card__logo">
+                <img :src="provider.icon" alt="" loading="lazy">
+              </span>
+              <span class="external-provider-card__label">{{ provider.label }}</span>
+              <span class="external-provider-card__organisation">{{ provider.organisation }}</span>
+              <span v-if="!provider.enabled" class="external-provider-card__status">
+                {{ t('login.socialSoon', { provider: provider.label }) }}
+              </span>
+            </button>
+            <button
+              type="button"
+              class="external-provider-card external-provider-card--google"
+              :disabled="isLoading"
+              :aria-label="t('login.socialGoogle')"
+              :title="t('login.socialGoogle')"
+              @click="onSocialLogin"
+            >
+              <span class="external-provider-card__logo">
+                <v-icon icon="mdi-google" size="30" />
+              </span>
+              <span class="external-provider-card__label">Google</span>
             </button>
           </div>
 
@@ -423,7 +482,14 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { confirmPasswordReset, googleAuthStartUrl, register as apiRegister, requestPasswordReset, resendVerification } from '@/api/auth'
+import {
+  confirmPasswordReset,
+  googleAuthStartUrl,
+  midataAuthStartUrl,
+  register as apiRegister,
+  requestPasswordReset,
+  resendVerification,
+} from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import { EButton, ECard, ECheckbox, EOtpInput, ESelect, ETextField } from '@/components/form/base'
@@ -438,6 +504,7 @@ import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicke
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n'
 import { consumeDemoLogin } from '@/utils/demoLogins'
 import { parseInternalRedirectPath } from '@/utils/appHomeRedirect'
+import { externalLoginProviders, type ExternalLoginProviderKey } from '@/config/externalLoginProviders'
 
 /** Site-Key nur wenn nicht bewusst per VITE_TURNSTILE_SKIP übersprungen (lokal testen) */
 const turnstileSiteKey = computed(() => {
@@ -504,9 +571,6 @@ const registerLoading = ref(false)
 const isRedirecting = ref(false) // Verhindert Doppelklick nach erfolgreichem Login
 const error = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
-const socialProviders = [
-  { id: 'google' as const, icon: 'mdi-google', labelKey: 'login.socialGoogle' },
-]
 const INVITE_REDIRECT_STORAGE_KEY = 'pending_invite_redirect'
 const isLoading = computed(() => authStore.loadingUser || registerLoading.value || isRedirecting.value)
 const RESEND_VERIFICATION_ERROR_MARKERS = ['bestaetig', 'confirm your email', 'verify your email', 'verif']
@@ -748,7 +812,7 @@ onMounted(() => {
   applyRegisterPrefillFromQuery()
   applyForgotPrefillFromQuery()
   applyDemoLoginPrefill()
-  void completeGoogleOAuthReturn()
+  void completeExternalOAuthReturn()
   window.addEventListener('emc-demo-login', applyDemoLoginPrefill)
 })
 
@@ -789,33 +853,58 @@ function clearMessages() {
   authStore.clearError()
 }
 
-function onSocialLogin(provider: 'google') {
-  if (provider !== 'google') return
+function onSocialLogin() {
   const redirect =
-    parseInternalRedirectPath(route.query.redirect) || getStoredInviteRedirect()
+    inviteRedirect.value || parseInternalRedirectPath(route.query.redirect) || getStoredInviteRedirect()
   isRedirecting.value = true
   window.location.assign(googleAuthStartUrl(redirect))
 }
 
-function oauthErrorMessage(reason: string): string {
-  const keys: Record<string, string> = {
-    not_configured: 'login.oauthNotConfigured',
-    denied: 'login.oauthDenied',
-    invalid_state: 'login.oauthInvalidState',
-    no_email: 'login.oauthNoEmail',
-    unverified_email: 'login.oauthUnverifiedEmail',
-    inactive: 'login.oauthInactive',
-    failed: 'login.oauthFailed',
-  }
-  return t(keys[reason] || 'login.oauthFailed')
+function onExternalProviderLogin(provider: ExternalLoginProviderKey) {
+  if (provider !== 'midata') return
+
+  const redirect =
+    inviteRedirect.value || parseInternalRedirectPath(route.query.redirect) || getStoredInviteRedirect()
+  isRedirecting.value = true
+  window.location.assign(midataAuthStartUrl(redirect))
 }
 
-async function completeGoogleOAuthReturn() {
+function oauthErrorMessage(reason: string, provider: string): string {
+  const prefix = provider === 'midata' ? 'login.midataOauth' : 'login.oauth'
+  const keys: Record<string, string> = {
+    not_configured: `${prefix}NotConfigured`,
+    denied: `${prefix}Denied`,
+    invalid_state: `${prefix}InvalidState`,
+    no_email: `${prefix}NoEmail`,
+    unverified_email: `${prefix}UnverifiedEmail`,
+    email_conflict: `${prefix}EmailConflict`,
+    link_conflict: `${prefix}LinkConflict`,
+    inactive: `${prefix}Inactive`,
+    failed: `${prefix}Failed`,
+  }
+  return t(keys[reason] || `${prefix}Failed`)
+}
+
+async function completeExternalOAuthReturn() {
   const oauth = typeof route.query.oauth === 'string' ? route.query.oauth : ''
   if (!oauth) return
+  const provider = typeof route.query.provider === 'string' ? route.query.provider : 'google'
   if (oauth === 'error') {
     const reason = typeof route.query.reason === 'string' ? route.query.reason : 'failed'
-    error.value = oauthErrorMessage(reason)
+    error.value = oauthErrorMessage(reason, provider)
+    return
+  }
+  if (oauth === 'mfa') {
+    // Challenge steht im URL-Fragment (nicht in Logs/Referer); sofort aus der Adresszeile entfernen.
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    const challenge = hashParams.get('challenge') || ''
+    const trustDays = Number.parseInt(hashParams.get('trust_days') || '', 10)
+    window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    if (challenge) {
+      authStore.beginMfa(challenge, trustDays === 30 || trustDays === 90 ? trustDays : 90)
+    } else {
+      error.value = t('login.mfa.failed')
+    }
     return
   }
   if (oauth !== 'ok') return
@@ -831,9 +920,9 @@ async function completeGoogleOAuthReturn() {
 }
 
 async function redirectAfterSuccessfulLogin() {
-  const routeRedirect = parseInternalRedirectPath(route.query.redirect)
+  const routeRedirect = parseInternalRedirectPath(route.query.redirect) || parseInternalRedirectPath(route.query.next)
   const storedInviteRedirect = getStoredInviteRedirect()
-  const redirectTarget = routeRedirect || storedInviteRedirect
+  const redirectTarget = inviteRedirect.value || routeRedirect || storedInviteRedirect
   if (redirectTarget) {
     localStorage.removeItem(INVITE_REDIRECT_STORAGE_KEY)
     await router.replace(redirectTarget)
@@ -1005,6 +1094,37 @@ function setMode(nextMode: 'login' | 'register' | 'forgot') {
     })
   }
   clearMessages()
+}
+
+const mfaMethod = ref<'totp' | 'recovery_code'>('totp')
+const mfaCode = ref('')
+const mfaTrustDevice = ref(false)
+
+function toggleMfaMethod() {
+  mfaMethod.value = mfaMethod.value === 'totp' ? 'recovery_code' : 'totp'
+  mfaCode.value = ''
+  clearMessages()
+}
+
+function cancelMfa() {
+  authStore.cancelMfa()
+  mfaMethod.value = 'totp'
+  mfaCode.value = ''
+  mfaTrustDevice.value = false
+  clearMessages()
+}
+
+async function handleMfaSubmit() {
+  clearMessages()
+  const ok = await authStore.completeMfa(mfaMethod.value, mfaCode.value, mfaTrustDevice.value)
+  mfaCode.value = ''
+  if (!ok) {
+    error.value = authStore.error || t('login.mfa.failed')
+    return
+  }
+  setLocale(authStore.profile?.language || 'de')
+  isRedirecting.value = true
+  await redirectAfterSuccessfulLogin()
 }
 
 async function handleSubmit() {
@@ -1232,6 +1352,31 @@ watch(
 </script>
 
 <style scoped>
+.login-mfa-title {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.login-mfa-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  opacity: 0.8;
+}
+
+.login-mfa-hint--small {
+  margin: 0.25rem 0 0.75rem;
+  font-size: 0.78rem;
+}
+
+.login-mfa-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
 .login-page {
   min-height: calc(100dvh - var(--emc-dev-system-bar-height, 0px));
   display: flex;
@@ -1433,43 +1578,107 @@ watch(
   line-height: 1;
 }
 
-.social-login {
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
+.external-provider-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
+  margin-bottom: 12px;
 }
 
-.social-login-btn {
-  display: inline-flex;
+.external-provider-card {
+  display: flex;
+  min-width: 0;
+  height: 144px;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
-  margin: 0;
-  padding: 0;
+  gap: 4px;
+  padding: 10px 6px;
   border: 1px solid #d1d5db;
   border-radius: 10px;
   background: #fff;
   color: #111827;
   cursor: pointer;
+  text-align: center;
 }
 
-.social-login-btn:hover:not(:disabled),
-.social-login-btn:focus-visible {
+.external-provider-card:hover:not(:disabled),
+.external-provider-card:focus-visible {
   border-color: #9ca3af;
-  background: #f3f4f6;
+  background: #f9fafb;
 }
 
-.social-login-btn:focus-visible {
+.external-provider-card:focus-visible {
   outline: 2px solid var(--color-primary, #059669);
   outline-offset: 2px;
 }
 
-.social-login-btn:disabled {
+.external-provider-card:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+}
+
+.external-provider-card--disabled {
+  color: #6b7280;
+  background: #f9fafb;
+}
+
+.external-provider-card--google .external-provider-card__logo {
+  color: #111827;
+}
+
+.external-provider-card__logo {
+  display: flex;
+  width: 100%;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2px;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.external-provider-card--midata .external-provider-card__logo {
+  background: #fff;
+}
+
+.external-provider-card--cevidb .external-provider-card__logo {
+  background: #fff;
+}
+
+.external-provider-card--cevidb .external-provider-card__logo img {
+  filter: grayscale(1);
+}
+
+.external-provider-card--jubladb .external-provider-card__logo {
+  background: #fff;
+}
+
+.external-provider-card__logo img {
+  display: block;
+  max-width: 92%;
+  max-height: 38px;
+  object-fit: contain;
+}
+
+.external-provider-card--jubladb .external-provider-card__logo img {
+  filter: grayscale(1);
+}
+
+.external-provider-card__label {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.external-provider-card__organisation {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.external-provider-card__status {
+  margin-top: 2px;
+  font-size: 9px;
+  line-height: 1.2;
 }
 
 .form-footer {
@@ -1489,6 +1698,16 @@ watch(
 
   .card-title {
     font-size: 36px;
+  }
+
+  .external-provider-grid {
+    gap: 6px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .external-provider-card {
+    height: 144px;
+    padding-inline: 4px;
   }
 }
 </style>

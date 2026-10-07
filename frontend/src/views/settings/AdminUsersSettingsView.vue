@@ -110,6 +110,9 @@
                 v-model="editForm.email"
                 :label="t('settings.adminUsers.fields.email')"
                 type="email"
+                :readonly="!isSuperAdminEditor"
+                :hint="emailFieldHint"
+                persistent-hint
                 hide-details="auto"
               />
               <ESelect
@@ -252,6 +255,9 @@ interface EditForm {
   last_name: string
   nickname: string
   email: string
+  /** Login-E-Mail beim Öffnen; Änderung nur per Bestätigungslink. */
+  original_email: string
+  pending_email: string | null
   state: string
   global_admin_role: GlobalAdminRole
   admin_capabilities: AdminCapabilities
@@ -316,6 +322,16 @@ const filteredUsers = computed(() => {
   return users.value.filter((user) => {
     return user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query)
   })
+})
+
+const emailFieldHint = computed(() => {
+  if (!editForm.value) return ''
+  if (editForm.value.pending_email) {
+    return t('settings.adminUsers.emailPendingHint', { email: editForm.value.pending_email })
+  }
+  return isSuperAdminEditor.value
+    ? t('settings.adminUsers.emailChangeVerificationHint')
+    : t('settings.adminUsers.emailReadOnlyHint')
 })
 
 const canSave = computed(() => {
@@ -407,6 +423,8 @@ async function openEditModal(userId: string) {
       last_name: detail.last_name || '',
       nickname: detail.nickname || '',
       email: detail.email,
+      original_email: detail.email,
+      pending_email: detail.pending_email ?? null,
       state: detail.state,
       global_admin_role: globalRole,
       admin_capabilities: cloneAdminCapabilities(
@@ -498,8 +516,14 @@ async function saveUser() {
           : undefined
     }
 
-    await updateAdminUser(editForm.value.user_id, payload)
-    toast.success(t('settings.adminUsers.toastUpdated'))
+    const emailChanged =
+      payload.email.toLowerCase() !== editForm.value.original_email.trim().toLowerCase()
+    const updated = await updateAdminUser(editForm.value.user_id, payload)
+    if (emailChanged && updated.pending_email) {
+      toast.success(t('settings.adminUsers.toastEmailVerificationSent', { email: updated.pending_email }))
+    } else {
+      toast.success(t('settings.adminUsers.toastUpdated'))
+    }
     closeEditModal()
     await loadUsers()
   } catch (err: any) {

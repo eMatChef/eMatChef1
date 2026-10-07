@@ -101,12 +101,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(name: 'google_id', type: 'string', length: 64, nullable: true, unique: true)]
     private ?string $googleId = null;
 
+    #[ORM\OneToMany(mappedBy: 'user', targetEntity: ExternalIdentity::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
+    private Collection $externalIdentities;
+
     public function __construct()
     {
         $this->createdAt = new \DateTime();
         $this->updatedAt = new \DateTime();
         $this->memberships = new ArrayCollection();
         $this->supplierMemberships = new ArrayCollection();
+        $this->externalIdentities = new ArrayCollection();
     }
 
     public function getId(): string
@@ -501,6 +505,33 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setGoogleId(?string $googleId): self
     {
         $this->googleId = $googleId;
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, ExternalIdentity>
+     */
+    public function getExternalIdentities(): Collection
+    {
+        return $this->externalIdentities;
+    }
+
+    public function addExternalIdentity(ExternalIdentity $externalIdentity): self
+    {
+        if (!$this->externalIdentities->contains($externalIdentity)) {
+            $this->externalIdentities->add($externalIdentity);
+            $externalIdentity->setUser($this);
+        }
+
+        return $this;
+    }
+
+    public function removeExternalIdentity(ExternalIdentity $externalIdentity): self
+    {
+        if ($this->externalIdentities->removeElement($externalIdentity)) {
+            $externalIdentity->setUser($this);
+        }
+
         return $this;
     }
 }

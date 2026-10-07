@@ -1,9 +1,11 @@
 <template>
   <v-app class="emc-app">
     <DevEnvironmentBanner />
+    <TotpRequiredNotice />
     <router-view />
     <GlobalToastContainer />
     <GlobalConfirmDialog />
+    <GlobalStepUpDialog />
     <PhysicalComboContainerWarningModal />
     <GlobalPromptDialog />
     <PrintJobDialog />
@@ -17,8 +19,10 @@ import { useAutoLogout } from '@/composables/useAutoLogout'
 import { syncDocumentHead } from '@/composables/usePageHead'
 import { usePageHeadStore } from '@/stores/pageHead'
 import DevEnvironmentBanner from '@/components/common/DevEnvironmentBanner.vue'
+import TotpRequiredNotice from '@/components/common/TotpRequiredNotice.vue'
 import GlobalToastContainer from '@/components/common/GlobalToastContainer.vue'
 import GlobalConfirmDialog from '@/components/common/GlobalConfirmDialog.vue'
+import GlobalStepUpDialog from '@/components/common/GlobalStepUpDialog.vue'
 import PhysicalComboContainerWarningModal from '@/components/common/PhysicalComboContainerWarningModal.vue'
 import GlobalPromptDialog from '@/components/common/GlobalPromptDialog.vue'
 import PrintJobDialog from '@/components/print/PrintJobDialog.vue'

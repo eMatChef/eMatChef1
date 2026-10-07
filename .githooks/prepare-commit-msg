@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Entfernt Cursor-/Agent-Attribution aus Commit-Messages, damit
-# cursoragent nicht in der GitHub-Contributors-Liste landet.
+# Normalisiert Commit-Messages: filtert automatisch erzeugte Metadaten-Trailer
+# (Co-Author-, Made-with- und Generated-by-Zeilen) heraus, damit nur
+# redaktionell gepflegte Angaben in der sichtbaren Historie und in der
+# Contributors-Liste landen. Normaler Message-Text bleibt unveraendert;
+# entfernt werden nur Zeilen, die als Trailer beginnen.
 #
 # Args von Git: $1 = path to commit message file, $2 = source, $3 = SHA
 set -euo pipefail
@@ -8,16 +11,22 @@ set -euo pipefail
 MSG_FILE="${1:-}"
 [[ -n "$MSG_FILE" && -f "$MSG_FILE" ]] || exit 0
 
-# Nur bearbeiten, wenn Cursor-Marker vorkommen
-if ! grep -qiE 'cursoragent@cursor\.com|Co-authored-by:.*Cursor|Made-with:[[:space:]]*Cursor' "$MSG_FILE"; then
+TOOLS='cursor|cursoragent|claude|anthropic|copilot|openai|chatgpt|codex|gemini'
+
+# Trailer-Zeilen (nur am Zeilenanfang), die auf ein Tool/Modell verweisen
+TRAILER_RE="^(Co-authored-by|Made-with|Generated-by|Generated[[:space:]]+(by|with))[:[:space:]].*(${TOOLS})"
+# Generische Marker ohne Tool-Namen: Co-Author "AI"/"LLM"/"GPT" als eigenes Wort
+GENERIC_RE='^Co-authored-by:.*([^[:alnum:]]|^)(AI|LLM|GPT)([^[:alnum:]]|$)'
+
+if ! grep -qiE "$TRAILER_RE" "$MSG_FILE" && ! grep -qE "$GENERIC_RE" "$MSG_FILE" \
+  && ! grep -qiE "noreply@anthropic\.com|cursoragent@cursor\.com" "$MSG_FILE"; then
   exit 0
 fi
 
 tmp="$(mktemp)"
-# shellcheck disable=SC2016
 grep -viE \
-  -e 'Co-authored-by:[[:space:]].*[Cc]ursor' \
+  -e "$TRAILER_RE" \
+  -e 'noreply@anthropic\.com' \
   -e 'cursoragent@cursor\.com' \
-  -e 'Made-with:[[:space:]]*Cursor' \
-  "$MSG_FILE" >"$tmp" || true
+  "$MSG_FILE" | grep -vE -e "$GENERIC_RE" >"$tmp" || true
 mv "$tmp" "$MSG_FILE"

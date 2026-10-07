@@ -5,7 +5,7 @@ export interface MyJoinRequest {
   id: string
   request_kind?: 'admin' | 'department_join'
   status: 'pending' | 'approved' | 'rejected' | 'assigned'
-  /** Join-Code: sofort beigetreten, keine Freigabe durch MW/DC nötig. */
+  /** Membership was created from a verified join, without a manager review. */
   auto_joined?: boolean
   department_id?: string | null
   department_name: string
@@ -154,18 +154,19 @@ export interface CreateJoinRequestResponse {
 }
 
 export interface PendingAdminJoinRequest {
-  id: string
-  request_kind?: 'admin' | 'department_join'
+  /** null bei berechneten Einträgen „Benutzer ohne Zuordnung“ (noch keine gespeicherte Anfrage) */
+  id: string | null
+  request_kind?: 'admin' | 'department_join' | 'unassigned_user'
   user_id: string
   name: string
   email?: string | null
-  requested_department_name: string
+  requested_department_name: string | null
   target_department_id?: string | null
   target_department_name?: string | null
   organisation_name?: string | null
   requested_affiliation?: string | null
   message?: string | null
-  status?: 'pending' | 'assigned' | 'rejected' | 'approved'
+  status?: 'pending' | 'assigned' | 'rejected' | 'approved' | 'unassigned'
   created_at: string
   updated_at?: string
   reviewed_by_name?: string | null
@@ -227,6 +228,46 @@ export async function createAdminJoinRequest(payload: {
 
 export async function getMyJoinRequests(): Promise<MyJoinRequest[]> {
   const { data } = await apiClient.get<MyJoinRequest[]>('/api/join-requests/mine')
+  return data
+}
+
+/** Fachliche MiData-Rolle (Materialwart → mw, Abteilungsleitung → dc); keine technische Rollenklasse. */
+export type MiDataMembershipRole = 'materialwart' | 'abteilungsleitung'
+
+/** MiData-bestätigte, noch einzurichtende Abteilung (nur Anzeige; Autorisierung erfolgt serverseitig). */
+export interface MiDataDepartmentOnboardingOffer {
+  id: string
+  department_name: string
+  /** Region-Ebenen von oben nach unten, für die Anzeige zusammengefasst */
+  region_name: string | null
+  kantonalverband_name: string
+  role: MiDataMembershipRole
+  department_exists: boolean
+  expires_at: string
+}
+
+/** Verifizierte Angebote; bei vielen MiData-Zugehörigkeiten zusätzlich der Suchmodus. */
+export interface MiDataDepartmentOnboardingStatus {
+  offers: MiDataDepartmentOnboardingOffer[]
+  search_required: boolean
+}
+
+/** Ungeprüfter Suchtreffer aus den eigenen MiData-Zugehörigkeiten; autorisiert nichts. */
+export interface MiDataMembershipCandidate {
+  id: string
+  department_name: string
+  role: MiDataMembershipRole
+}
+
+export async function getMiDataDepartmentOnboardingOffers(): Promise<MiDataDepartmentOnboardingStatus> {
+  const { data } = await apiClient.get<MiDataDepartmentOnboardingStatus>('/api/join-requests/midata-onboarding')
+  return data
+}
+
+export async function searchMiDataMembershipCandidates(query: string): Promise<MiDataMembershipCandidate[]> {
+  const { data } = await apiClient.get<MiDataMembershipCandidate[]>('/api/join-requests/midata-onboarding/candidates', {
+    params: { q: query }
+  })
   return data
 }
 
@@ -407,6 +448,27 @@ export async function assignAdminJoinRequest(
     { params: { department_id: departmentId } }
   )
   return data
+}
+
+/** Explizite Admin-Aktion auf einen Eintrag „Benutzer ohne Zuordnung“ (nur globale Support-Admins). */
+export async function assignUnassignedUser(
+  userId: string,
+  targetDepartmentId: string,
+  targetRole?: string
+): Promise<AssignAdminJoinRequestResponse> {
+  const { data } = await apiClient.post<AssignAdminJoinRequestResponse>(
+    `/api/join-requests/unassigned-users/${encodeURIComponent(userId)}/assign`,
+    {
+      target_department_id: targetDepartmentId,
+      target_role: targetRole || 'u'
+    }
+  )
+  return data
+}
+
+/** Blendet einen Eintrag „Benutzer ohne Zuordnung“ dauerhaft aus (gespeichert als abgelehnte Anfrage). */
+export async function dismissUnassignedUser(userId: string): Promise<void> {
+  await apiClient.post(`/api/join-requests/unassigned-users/${encodeURIComponent(userId)}/dismiss`)
 }
 
 export async function getAdminJoinRequestHistory(departmentId: string): Promise<PendingAdminJoinRequest[]> {

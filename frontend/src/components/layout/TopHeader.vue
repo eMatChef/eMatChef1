@@ -639,7 +639,9 @@
               </div>
             </details>
 
+            <ProfileSecurityEmailsAccordion :open="showEditProfileModal" :expanded="profileSecurityExpanded" />
             <ProfileDriveLicenseAccordion :open="showEditProfileModal" />
+            <ProfileMiDataMembershipsAccordion :open="showEditProfileModal" />
 
             <details
               class="profile-accordion"
@@ -781,6 +783,8 @@ import {
 import GlobalSearchInput from '../common/GlobalSearchInput.vue'
 import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
 import ProfileDriveLicenseAccordion from '@/components/layout/ProfileDriveLicenseAccordion.vue'
+import ProfileSecurityEmailsAccordion from '@/components/layout/ProfileSecurityEmailsAccordion.vue'
+import ProfileMiDataMembershipsAccordion from '@/components/layout/ProfileMiDataMembershipsAccordion.vue'
 import type { UserAvatarFields } from '@/utils/userAvatar'
 import {
   useDetailTabsStore,
@@ -1868,6 +1872,14 @@ function goAbteilungsmat() {
   void router.push({ name: 'GrossanlassAbteilungsmat', params: { departmentId: id } })
 }
 
+const profileSecurityExpanded = ref(false)
+
+/** Aus dem apiClient (mfa_setup_required): Profil öffnen, Bereich Sicherheit aufklappen. */
+function openProfileSecurity() {
+  profileSecurityExpanded.value = true
+  if (!showEditProfileModal.value) editProfile()
+}
+
 function editProfile() {
   const profile = authStore.profile
   profileForm.value = {
@@ -1920,6 +1932,7 @@ function activateLicense() {
 }
 
 function closeEditProfileModal() {
+  profileSecurityExpanded.value = false
   showEditProfileModal.value = false
   isEmailEditEnabled.value = false
   initialProfileFormSnapshot.value = ''
@@ -2238,12 +2251,14 @@ function startNotificationsPolling() {
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
+  window.addEventListener('emc-open-profile-security', openProfileSecurity)
   void loadDepartmentInvites()
   startNotificationsPolling()
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  window.removeEventListener('emc-open-profile-security', openProfileSecurity)
   if (notificationsPollTimer) {
     clearInterval(notificationsPollTimer)
     notificationsPollTimer = null

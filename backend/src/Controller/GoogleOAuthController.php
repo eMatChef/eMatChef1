@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Enum\AuthMethod;
 use App\Service\Auth\GoogleOAuthAccountService;
 use App\Service\Auth\GoogleOAuthClient;
 use App\Service\Auth\GoogleOAuthException;
 use App\Service\Auth\GoogleOAuthState;
+use App\Service\Auth\MfaChallengeService;
 use Lexik\Bundle\JWTAuthenticationBundle\Security\Http\Authentication\AuthenticationSuccessHandler;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -24,6 +26,7 @@ final class GoogleOAuthController extends AbstractController
         private readonly GoogleOAuthClient $googleOAuthClient,
         private readonly GoogleOAuthState $googleOAuthState,
         private readonly GoogleOAuthAccountService $googleOAuthAccountService,
+        private readonly MfaChallengeService $mfaChallenges,
         #[Autowire(service: 'lexik_jwt_authentication.handler.authentication_success')]
         private readonly AuthenticationSuccessHandler $authenticationSuccessHandler,
         #[Autowire('%env(bool:AUTH_COOKIE_SECURE)%')]
@@ -66,14 +69,28 @@ final class GoogleOAuthController extends AbstractController
             return $this->finishWithClearedState('error', 'invalid_state');
         }
 
+        $mfa = null;
         try {
             $info = $this->googleOAuthClient->fetchUserInfo($code);
             $user = $this->googleOAuthAccountService->resolveOrCreate($info);
-            $authResponse = $this->authenticationSuccessHandler->handleAuthenticationSuccess($user);
+            // Google liefert für diesen Login keinen belastbaren MFA-Nachweis: aktives eMatChef-TOTP wird verlangt.
+            $mfa = $this->mfaChallenges->issueIfRequired($user, AuthMethod::GOOGLE, false, $request);
+            $authResponse = $mfa === null ? $this->authenticationSuccessHandler->handleAuthenticationSuccess($user) : null;
         } catch (GoogleOAuthException $e) {
             return $this->finishWithClearedState('error', $e->reason);
         } catch (\Throwable) {
             return $this->finishWithClearedState('error', 'failed');
+        }
+
+        if ($mfa !== null) {
+            // Challenge im Fragment: erreicht weder Server-Logs noch Referer.
+            $next = $internalRedirect !== '' && !str_starts_with($internalRedirect, '/login') ? '&next=' . rawurlencode($internalRedirect) : '';
+            $trust = '&trust_days=' . $mfa['trust_days'];
+            $response = new RedirectResponse($this->frontendUrl('/login?oauth=mfa&provider=google' . $next . '#challenge=' . $mfa['challenge'] . $trust));
+            $response->headers->setCookie($this->stateCookie('', 1));
+            $response->headers->set('Cache-Control', 'no-store');
+
+            return $response;
         }
 
         $frontendPath = $internalRedirect !== '' ? $internalRedirect : '/login';

@@ -5,6 +5,7 @@ namespace App\Security;
 use App\Entity\User;
 use App\Repository\UserRepository;
 use App\Repository\ProfileRepository;
+use App\Service\UserEmailAliasService;
 use Symfony\Component\Security\Core\Exception\CustomUserMessageAuthenticationException;
 use Symfony\Component\Security\Core\Exception\UnsupportedUserException;
 use Symfony\Component\Security\Core\Exception\UserNotFoundException;
@@ -15,22 +16,17 @@ class UserProvider implements UserProviderInterface
 {
     public function __construct(
         private UserRepository $userRepository,
-        private ProfileRepository $profileRepository
+        private ProfileRepository $profileRepository,
+        private UserEmailAliasService $emailAliases,
     ) {}
 
     public function loadUserByIdentifier(string $identifier): UserInterface
     {
         // Fall 1: Ist es eine E-Mail? (enthält @)
         if (str_contains($identifier, '@')) {
-            // Login Flow: E-Mail → Profile → User
-            $profile = $this->profileRepository->findOneBy(['email' => $identifier]);
-            
-            if (!$profile) {
-                throw new UserNotFoundException(sprintf('User with email "%s" not found.', $identifier));
-            }
+            // Login Flow: Primary oder verifizierte, login-fähige zusätzliche Adresse → User
+            $user = $this->emailAliases->findLoginUserByEmail($identifier);
 
-            $user = $this->userRepository->findOneBy(['profileId' => $profile->getId()]);
-            
             if (!$user) {
                 throw new UserNotFoundException(sprintf('User with email "%s" not found.', $identifier));
             }

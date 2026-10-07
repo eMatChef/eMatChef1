@@ -2,6 +2,9 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import {
   login as apiLogin,
+  verifyMfa as apiVerifyMfa,
+  isMfaChallenge,
+  type MfaMethod,
   logout as apiLogout,
   loadSessionFromServer,
   loadUserMemberships,
@@ -238,6 +241,91 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function applyLoginResponse(response: LoginResponse): Promise<void> {
+    user.value = {
+      ...response.user,
+      last_used_department: response.last_used_department ?? response.user.last_used_department ?? null,
+      last_used_supplier_company:
+        response.last_used_supplier_company ?? response.user.last_used_supplier_company ?? null,
+    }
+    profile.value = normalizeProfile(response.profile)
+
+    if (response.departments && response.departments.length > 0) {
+      departments.value = response.departments.map((d) => ({
+        department_id: d.id,
+        role: d.role,
+        is_primary: d.is_primary,
+        department: {
+          id: d.id,
+          name: d.name,
+          organisation_id: d.organisation_id || '',
+          parent_id: d.parent_id ?? null,
+          is_grossanlass: d.is_grossanlass,
+          grossanlass_config: d.grossanlass_config,
+        },
+      }))
+
+      if (!response.profile?.roles?.includes('ROLE_SUPERADMIN')) {
+        const newActiveDeptId =
+          response.last_used_department ||
+          response.primary_department ||
+          response.departments[0]?.id ||
+          null
+        activeDepartmentId.value = newActiveDeptId
+        if (newActiveDeptId) localStorage.setItem('active_department_id', newActiveDeptId)
+      }
+    } else {
+      await loadDepartments()
+    }
+
+    applySupplierCompaniesFromSession(
+      response.supplier_companies,
+      response.last_used_supplier_company ?? response.user.last_used_supplier_company ?? null
+    )
+
+    resetSessionExpiredHandling()
+    lastSessionStartTime.value = Date.now()
+    localStorage.setItem('session_last_activity_at', String(Date.now()))
+    localStorage.removeItem('emat_logged_out_seen')
+  }
+
+  /** Offene MFA-Challenge (nur im Speicher): Login ist erst mit zweitem Faktor abgeschlossen. */
+  const pendingMfa = ref<{ challenge: string; expiresAt: number; trustDays: number } | null>(null)
+
+  /** Challenge aus einem externen Login (Google/MiData) übernehmen. */
+  function beginMfa(challenge: string, trustDays = 90, expiresInSeconds = 300): void {
+    error.value = null
+    pendingMfa.value = { challenge, expiresAt: Date.now() + expiresInSeconds * 1000, trustDays }
+  }
+
+  function cancelMfa(): void {
+    pendingMfa.value = null
+  }
+
+  async function completeMfa(method: MfaMethod, code: string, trustDevice = false): Promise<boolean> {
+    const pending = pendingMfa.value
+    if (!pending) return false
+    try {
+      loadingUser.value = true
+      error.value = null
+      const response = await apiVerifyMfa(pending.challenge, method, code.trim(), trustDevice)
+      pendingMfa.value = null
+      await applyLoginResponse(response)
+      return true
+    } catch (err: unknown) {
+      const e = err as { response?: { status?: number; data?: { error?: string; code?: string } } }
+      const code = e?.response?.data?.code
+      // Abgelaufene/verbrauchte Challenge: zurück zum normalen Login.
+      if (code === 'invalid_challenge' || code === 'inactive') {
+        pendingMfa.value = null
+      }
+      error.value = e?.response?.data?.error || 'Bestätigung fehlgeschlagen'
+      return false
+    } finally {
+      loadingUser.value = false
+    }
+  }
+
   async function login(email: string, password: string): Promise<boolean> {
     try {
       loadingUser.value = true
@@ -249,53 +337,17 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.removeItem('active_department_id')
       localStorage.removeItem('active_supplier_company_id')
 
-      const response: LoginResponse = await apiLogin(email, password)
-
-      user.value = {
-        ...response.user,
-        last_used_department: response.last_used_department ?? response.user.last_used_department ?? null,
-        last_used_supplier_company:
-          response.last_used_supplier_company ?? response.user.last_used_supplier_company ?? null,
-      }
-      profile.value = normalizeProfile(response.profile)
-
-      if (response.departments && response.departments.length > 0) {
-        departments.value = response.departments.map((d) => ({
-          department_id: d.id,
-          role: d.role,
-          is_primary: d.is_primary,
-          department: {
-            id: d.id,
-            name: d.name,
-            organisation_id: d.organisation_id || '',
-            parent_id: d.parent_id ?? null,
-            is_grossanlass: d.is_grossanlass,
-            grossanlass_config: d.grossanlass_config,
-          },
-        }))
-
-        if (!response.profile?.roles?.includes('ROLE_SUPERADMIN')) {
-          const newActiveDeptId =
-            response.last_used_department ||
-            response.primary_department ||
-            response.departments[0]?.id ||
-            null
-          activeDepartmentId.value = newActiveDeptId
-          if (newActiveDeptId) localStorage.setItem('active_department_id', newActiveDeptId)
+      const response = await apiLogin(email, password)
+      if (isMfaChallenge(response)) {
+        // Noch keine Sitzung: erst der zweite Faktor schliesst den Login ab.
+        pendingMfa.value = {
+          challenge: response.challenge,
+          expiresAt: Date.now() + response.expires_in * 1000,
+          trustDays: response.trust_days ?? 90,
         }
-      } else {
-        await loadDepartments()
+        return false
       }
-
-      applySupplierCompaniesFromSession(
-        response.supplier_companies,
-        response.last_used_supplier_company ?? response.user.last_used_supplier_company ?? null
-      )
-
-      resetSessionExpiredHandling()
-      lastSessionStartTime.value = Date.now()
-      localStorage.setItem('session_last_activity_at', String(Date.now()))
-      localStorage.removeItem('emat_logged_out_seen')
+      await applyLoginResponse(response)
       return true
     } catch (err: unknown) {
       console.error('Login failed:', err)
@@ -546,6 +598,10 @@ export const useAuthStore = defineStore('auth', () => {
     activeDepartmentName,
     departmentTimezone,
     login,
+    pendingMfa,
+    beginMfa,
+    cancelMfa,
+    completeMfa,
     logout,
     loadUserSession,
     loadUserSessionFromCookie,

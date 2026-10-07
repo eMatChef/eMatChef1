@@ -14,6 +14,10 @@ parameters:
     env(GOOGLE_OAUTH_CLIENT_ID): ''
     env(GOOGLE_OAUTH_CLIENT_SECRET): ''
     env(GOOGLE_OAUTH_REDIRECT_URI): ''
+    env(MIDATA_OAUTH_ISSUER): 'https://db.scout.ch'
+    env(MIDATA_OAUTH_CLIENT_ID): ''
+    env(MIDATA_OAUTH_CLIENT_SECRET): ''
+    env(MIDATA_OAUTH_REDIRECT_URI): ''
     env(GOOGLE_GMAIL_REDIRECT_URI): ''
     env(MICROSOFT_OAUTH_CLIENT_ID): ''
     env(MICROSOFT_OAUTH_CLIENT_SECRET): ''
@@ -54,3 +58,10 @@ services:
             $supportedLanguages: '%app.supported_languages%'
             $defaultLanguage: '%app.default_language%'
 
+    App\Service\Auth\HitobitoApiClient:
+        arguments:
+            $providerIssuers:
+                midata: '%env(MIDATA_OAUTH_ISSUER)%'
+
+    App\Service\JoinRequestNotifier:
+        alias: App\Service\JoinRequestManagerNotificationService

@@ -12,4 +12,20 @@ class ProfileRepository extends ServiceEntityRepository
     {
         parent::__construct($registry, Profile::class);
     }
+
+    /** Primary-Adresse ohne Rücksicht auf Groß-/Kleinschreibung (Altbestände sind nicht durchgehend normalisiert). */
+    public function findOneByEmailInsensitive(string $email): ?Profile
+    {
+        $email = strtolower(trim($email));
+        if ($email === '') {
+            return null;
+        }
+
+        return $this->createQueryBuilder('p')
+            ->where('LOWER(p.email) = :email')
+            ->setParameter('email', $email)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
 }

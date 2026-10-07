@@ -16,6 +16,7 @@ security:
             pattern: ^/api/token/refresh
             stateless: true
             provider: app_user_provider
+            user_checker: App\Security\UserChecker
             refresh_jwt:
                 check_path: /api/token/refresh
         
@@ -29,6 +30,11 @@ security:
             stateless: true
             security: false
 
+        midata_oauth:
+            pattern: ^/api/auth/midata
+            stateless: true
+            security: false
+
         microsoft_oauth:
             pattern: ^/api/auth/microsoft
             stateless: true
@@ -37,11 +43,12 @@ security:
         login:
             pattern: ^/api/auth/login_check
             stateless: true
+            user_checker: App\Security\UserChecker
             json_login:
                 check_path: /api/auth/login_check
                 username_path: email
                 password_path: password
-                success_handler: lexik_jwt_authentication.handler.authentication_success
+                success_handler: App\Security\LoginSuccessHandler
                 failure_handler: lexik_jwt_authentication.handler.authentication_failure
             login_throttling:
                 max_attempts: 5
@@ -69,6 +76,8 @@ security:
         api:
             pattern: ^/(api|media)
             stateless: true
+            # Account-State bei jedem JWT-Request prüfen (deaktivierte User sofort sperren).
+            user_checker: App\Security\UserChecker
             jwt: ~
 
     access_control:
@@ -81,7 +90,9 @@ security:
         - { path: ^/api/auth/password-reset/request, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/password-reset/confirm, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/logout, roles: PUBLIC_ACCESS }
+        - { path: ^/api/auth/mfa, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/google, roles: PUBLIC_ACCESS }
+        - { path: ^/api/auth/midata, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/microsoft, roles: PUBLIC_ACCESS }
         - { path: ^/api/token/refresh, roles: PUBLIC_ACCESS }
         - { path: ^/api/public, roles: PUBLIC_ACCESS }
