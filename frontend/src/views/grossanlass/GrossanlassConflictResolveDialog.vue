@@ -2,7 +2,7 @@
   <EDialog v-model="open" :title="title" :max-width="720" :retain-focus="false" scrollable>
     <p class="conflict-hint">{{ hint }}</p>
     <p v-if="stillClash" class="conflict-warn">{{ clashText }}</p>
-    <p v-else class="conflict-ok">{{ t('grossanlass.materialUebersicht.conflictResolveFits') }}</p>
+    <p v-else class="conflict-ok">{{ t('grossanlass.material.conflictResolveFits') }}</p>
 
     <div v-if="previewWindow" class="conflict-preview" aria-hidden="true">
       <div
@@ -32,29 +32,29 @@
       <h3>{{ draft.label }}</h3>
       <p class="conflict-row__meta">{{ draft.meta }}</p>
       <template v-if="draft.readonly">
-        <p class="conflict-row__fixed">{{ t('grossanlass.materialUebersicht.conflictResolveFirmFixed') }}</p>
+        <p class="conflict-row__fixed">{{ t('grossanlass.material.conflictResolveFirmFixed') }}</p>
       </template>
       <template v-else-if="draft.locked">
-        <p class="conflict-row__fixed">{{ t('grossanlass.materialUebersicht.conflictResolveIssued') }}</p>
+        <p class="conflict-row__fixed">{{ t('grossanlass.material.conflictResolveIssued') }}</p>
       </template>
       <template v-else>
         <EDateRangeField
           v-model:start="draft.fromDate"
           v-model:end="draft.toDate"
           :department-id="departmentId"
-          :label="t('grossanlass.materialUebersicht.bookFieldPeriod')"
+          :label="t('grossanlass.material.bookFieldPeriod')"
           allow-past
         />
         <div class="conflict-times">
-          <ETimeField v-model="draft.fromTime" :label="t('grossanlass.materialUebersicht.fieldFromTime')" />
-          <ETimeField v-model="draft.toTime" :label="t('grossanlass.materialUebersicht.fieldToTime')" />
+          <ETimeField v-model="draft.fromTime" :label="t('grossanlass.material.fieldFromTime')" />
+          <ETimeField v-model="draft.toTime" :label="t('grossanlass.material.fieldToTime')" />
         </div>
         <ETextField
           v-if="showQty"
           v-model="draft.qty"
           type="number"
           min="1"
-          :label="t('grossanlass.materialUebersicht.bookFieldQty')"
+          :label="t('grossanlass.material.bookFieldQty')"
           hide-details
         />
       </template>
@@ -131,22 +131,22 @@ const drafts = reactive<Draft[]>([])
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
 const title = computed(() =>
-  props.conflict?.title || t('grossanlass.materialUebersicht.conflictResolveTitle'),
+  props.conflict?.title || t('grossanlass.material.conflictResolveTitle'),
 )
 
 const hint = computed(() => {
   if (props.conflict?.kind === 'outside_window') {
-    return t('grossanlass.materialUebersicht.conflictResolveOutsideHint')
+    return t('grossanlass.material.conflictResolveOutsideHint')
   }
-  return t('grossanlass.materialUebersicht.conflictResolveHint')
+  return t('grossanlass.material.conflictResolveHint')
 })
 
 const showQty = computed(() => props.conflict?.kind === 'quantity_overbook')
 
 const saveLabel = computed(() =>
   editable.value.length > 1
-    ? t('grossanlass.materialUebersicht.conflictResolveSave')
-    : t('grossanlass.materialUebersicht.conflictResolveSaveOne'),
+    ? t('grossanlass.material.conflictResolveSave')
+    : t('grossanlass.material.conflictResolveSaveOne'),
 )
 
 function draftIso(draft: Draft): { from: string; to: string } {
@@ -187,12 +187,12 @@ const stillClash = computed(() => {
 
 const clashText = computed(() => {
   if (props.conflict?.kind === 'outside_window') {
-    return t('grossanlass.materialUebersicht.conflictResolveOutsideStill')
+    return t('grossanlass.material.conflictResolveOutsideStill')
   }
   if (props.conflict?.kind === 'quantity_overbook') {
-    return t('grossanlass.materialUebersicht.conflictResolveQtyStill')
+    return t('grossanlass.material.conflictResolveQtyStill')
   }
-  return t('grossanlass.materialUebersicht.conflictResolveStill')
+  return t('grossanlass.material.conflictResolveStill')
 })
 
 const previewWindow = computed(() => {
@@ -259,7 +259,7 @@ watch(
     ) {
       drafts.push({
         id: '',
-        label: t('grossanlass.materialUebersicht.conflictResolveFirmLane'),
+        label: t('grossanlass.material.conflictResolveFirmLane'),
         meta: '',
         fromDate: isoDatePart(props.presentFromIso),
         toDate: isoDatePart(props.presentToIso),
@@ -286,7 +286,7 @@ async function save() {
         ...(showQty.value ? { qty: Math.max(1, Number(draft.qty) || 1) } : {}),
       })
     }
-    toast.success(t('grossanlass.materialUebersicht.conflictResolveSaved'))
+    toast.success(t('grossanlass.material.conflictResolveSaved'))
     open.value = false
     emit('saved')
   } catch (e: unknown) {

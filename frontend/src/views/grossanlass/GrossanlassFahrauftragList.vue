@@ -1,7 +1,7 @@
 <template>
   <section class="ga-trips">
     <div v-if="showTitle" class="ga-trips__head">
-      <h3 class="ga-trips__title">{{ t('grossanlass.materialUebersicht.tripsTitle') }}</h3>
+      <h3 class="ga-trips__title">{{ t('grossanlass.material.tripsTitle') }}</h3>
       <span class="ga-trips__count">{{ rows.length }}</span>
     </div>
     <ul class="ga-trips__list">
@@ -14,23 +14,23 @@
       >
         <div class="ga-trips__meta">
           <strong>{{ row.objectName }}</strong>
-          <span>{{ t('grossanlass.materialUebersicht.qty', { n: row.qty }) }} · {{ helperOrgLabel(row) }}</span>
+          <span>{{ t('grossanlass.material.qty', { n: row.qty }) }} · {{ helperOrgLabel(row) }}</span>
           <span>{{ formatHelperWhenLabel(row.fromIso, row.toIso, locale) }}</span>
           <span v-if="row.who">{{ row.who }}</span>
         </div>
         <div class="ga-trips__flags">
-          <span v-if="row.packed" class="ga-trips__badge">{{ t('grossanlass.materialUebersicht.tripsPacked') }}</span>
+          <span v-if="row.packed" class="ga-trips__badge">{{ t('grossanlass.material.tripsPacked') }}</span>
           <span v-if="row.tripReleased" class="ga-trips__badge ga-trips__badge--ok">
-            {{ t('grossanlass.materialUebersicht.tripsReleased') }}
+            {{ t('grossanlass.material.tripsReleased') }}
           </span>
           <span v-if="row.place === 'out'" class="ga-trips__badge ga-trips__badge--out">
-            {{ t('grossanlass.materialUebersicht.tripsPlaceEmpty') }}
+            {{ t('grossanlass.material.tripsPlaceEmpty') }}
           </span>
           <span v-if="!row.destinationPlaceId" class="ga-trips__badge ga-trips__badge--warn">
-            {{ t('grossanlass.materialUebersicht.tripsNoDestination') }}
+            {{ t('grossanlass.material.tripsNoDestination') }}
           </span>
           <span v-if="row.status === 'issued'" class="ga-trips__badge">
-            {{ t('grossanlass.materialUebersicht.status.issued') }}
+            {{ t('grossanlass.material.status.issued') }}
           </span>
         </div>
         <div v-if="!readOnly" class="ga-trips__actions" @click.stop>
@@ -41,7 +41,7 @@
             :disabled="busyId === row.id"
             @click="$emit('toggle-packed', row)"
           >
-            {{ row.packed ? t('grossanlass.materialUebersicht.tripsUnpack') : t('grossanlass.materialUebersicht.tripsPack') }}
+            {{ row.packed ? t('grossanlass.material.tripsUnpack') : t('grossanlass.material.tripsPack') }}
           </EButton>
           <EButton
             v-if="!packOnly && row.packed && !row.tripReleased && row.status !== 'issued'"
@@ -50,7 +50,7 @@
             :disabled="busyId === row.id"
             @click="$emit('release', row)"
           >
-            {{ t('grossanlass.materialUebersicht.tripsRelease') }}
+            {{ t('grossanlass.material.tripsRelease') }}
           </EButton>
           <EButton
             v-if="!packOnly && row.tripReleased && row.status !== 'issued'"
@@ -59,7 +59,7 @@
             :disabled="busyId === row.id || !canStart(row)"
             @click="$emit('issue', row)"
           >
-            {{ t('grossanlass.materialUebersicht.tripsIssue') }}
+            {{ t('grossanlass.material.tripsIssue') }}
           </EButton>
         </div>
       </li>

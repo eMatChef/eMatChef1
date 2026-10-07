@@ -10,10 +10,10 @@ import {
 
 function t(key: string): string {
   const labels: Record<string, string> = {
-    'grossanlass.materialUebersicht.bookProjectUnassigned': 'Ohne Zuordnung',
-    'grossanlass.materialUebersicht.orgNoProject': 'Ohne Bauprojekt',
-    'grossanlass.materialUebersicht.ringFixed': 'Fixe Termine',
-    'grossanlass.materialUebersicht.usageWindowRow': 'Nutzungszeit',
+    'grossanlass.material.bookProjectUnassigned': 'Ohne Zuordnung',
+    'grossanlass.material.orgNoProject': 'Ohne Bauprojekt',
+    'grossanlass.material.ringFixed': 'Fixe Termine',
+    'grossanlass.material.usageWindowRow': 'Nutzungszeit',
     'grossanlass.planung.ressorts.buildStatus.planned': 'Geplant',
     'grossanlass.planung.ressorts.buildStatus.build': 'Aufbau',
     'grossanlass.planung.ressorts.buildStatus.use': 'In Nutzung',

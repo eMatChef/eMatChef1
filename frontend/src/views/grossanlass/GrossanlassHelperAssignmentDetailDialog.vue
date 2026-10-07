@@ -8,27 +8,27 @@
 
     <dl v-if="assignment" class="helper-assignment-dlg__meta">
       <div>
-        <dt>{{ t('grossanlass.materialUebersicht.colRessort') }}</dt>
+        <dt>{{ t('grossanlass.material.colRessort') }}</dt>
         <dd>{{ helperOrgLabel(assignment) }}</dd>
       </div>
       <div>
-        <dt>{{ t('grossanlass.materialUebersicht.colWhen') }}</dt>
+        <dt>{{ t('grossanlass.material.colWhen') }}</dt>
         <dd>{{ assignment.timeRangeLabel }}</dd>
       </div>
       <div v-if="showQuantity">
-        <dt>{{ t('grossanlass.materialUebersicht.bookFieldQty') }}</dt>
-        <dd>{{ t('grossanlass.materialUebersicht.qty', { n: assignment.qty }) }}</dd>
+        <dt>{{ t('grossanlass.material.bookFieldQty') }}</dt>
+        <dd>{{ t('grossanlass.material.qty', { n: assignment.qty }) }}</dd>
       </div>
       <div>
         <dt>{{ t('common.status') }}</dt>
         <dd>
           <span class="ga-helper-bar__badge" :class="helperBarKindClass(assignment)">
-            {{ t(`grossanlass.materialUebersicht.status.${assignment.status}`) }}
+            {{ t(`grossanlass.material.status.${assignment.status}`) }}
           </span>
         </dd>
       </div>
       <div v-if="assignment.who">
-        <dt>{{ t('grossanlass.materialUebersicht.colWho') }}</dt>
+        <dt>{{ t('grossanlass.material.colWho') }}</dt>
         <dd>{{ assignment.who }}</dd>
       </div>
       <div v-if="showDelivery">
@@ -36,11 +36,11 @@
         <dd>{{ deliveryLabel }}</dd>
       </div>
       <div v-if="assignment.destinationPlaceId || assignment.destinationPlaceName">
-        <dt>{{ t('grossanlass.materialUebersicht.destinationLabel') }}</dt>
+        <dt>{{ t('grossanlass.material.destinationLabel') }}</dt>
         <dd>{{ destinationLabel }}</dd>
       </div>
       <div v-if="assignment.taskKind === 'fahrauftrag' && chauffeurName">
-        <dt>{{ t('grossanlass.materialUebersicht.chauffeurLabel') }}</dt>
+        <dt>{{ t('grossanlass.material.chauffeurLabel') }}</dt>
         <dd>{{ chauffeurName }}</dd>
       </div>
       <div v-if="assignment.place">
@@ -64,19 +64,19 @@
 
     <div v-if="showTripFlags" class="helper-assignment-dlg__flags">
       <span v-if="assignment?.packed" class="helper-assignment-dlg__badge">
-        {{ t('grossanlass.materialUebersicht.tripsPacked') }}
+        {{ t('grossanlass.material.tripsPacked') }}
       </span>
       <span v-if="assignment?.tripReleased" class="helper-assignment-dlg__badge helper-assignment-dlg__badge--ok">
-        {{ t('grossanlass.materialUebersicht.tripsReleased') }}
+        {{ t('grossanlass.material.tripsReleased') }}
       </span>
       <span v-if="assignment?.status === 'issued'" class="helper-assignment-dlg__badge">
-        {{ t('grossanlass.materialUebersicht.status.issued') }}
+        {{ t('grossanlass.material.status.issued') }}
       </span>
       <span v-if="assignment?.delivery === 'trip' && !assignment?.tripReleased" class="helper-assignment-dlg__badge helper-assignment-dlg__badge--warn">
-        {{ t('grossanlass.materialUebersicht.tripsPendingRelease') }}
+        {{ t('grossanlass.material.tripsPendingRelease') }}
       </span>
       <span v-if="assignment?.delivery === 'trip' && !assignment?.destinationPlaceId" class="helper-assignment-dlg__badge helper-assignment-dlg__badge--warn">
-        {{ t('grossanlass.materialUebersicht.tripsNoDestination') }}
+        {{ t('grossanlass.material.tripsNoDestination') }}
       </span>
     </div>
 
@@ -93,8 +93,8 @@
       >
         {{
           assignment?.packed
-            ? t('grossanlass.materialUebersicht.tripsUnpack')
-            : t('grossanlass.materialUebersicht.tripsPack')
+            ? t('grossanlass.material.tripsUnpack')
+            : t('grossanlass.material.tripsPack')
         }}
       </EButton>
     </template>
@@ -170,7 +170,7 @@ const destinationLabel = computed(() => {
   if (!props.assignment) return '–'
   if (props.assignment.destinationPlaceName) return props.assignment.destinationPlaceName
   if (props.assignment.destinationPlaceId) return '–'
-  return t('grossanlass.materialUebersicht.tripsNoDestination')
+  return t('grossanlass.material.tripsNoDestination')
 })
 
 const materialPlaceLabel = computed(() => {

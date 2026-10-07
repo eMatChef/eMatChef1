@@ -268,7 +268,7 @@ const handoverTitle = computed(() =>
       from: formatGaIsoLabel(props.handoverFromIso, locale.value),
       to: formatGaIsoLabel(props.handoverToIso || props.handoverFromIso, locale.value),
     })
-    : t('grossanlass.materialUebersicht.status.handover'),
+    : t('grossanlass.material.status.handover'),
 )
 const returnTitle = computed(() =>
   props.returnFromIso
@@ -276,7 +276,7 @@ const returnTitle = computed(() =>
       from: formatGaIsoLabel(props.returnFromIso, locale.value),
       to: formatGaIsoLabel(props.returnToIso || props.returnFromIso, locale.value),
     })
-    : t('grossanlass.materialUebersicht.status.giveback'),
+    : t('grossanlass.material.status.giveback'),
 )
 </script>
 

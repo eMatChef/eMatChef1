@@ -33,44 +33,44 @@
       <ESearchField
         v-model="searchQuery"
         class="ga-gantt__search"
-        :label="t('grossanlass.materialUebersicht.searchPlaceholder')"
+        :label="t('grossanlass.material.searchPlaceholder')"
       />
       <ul class="ga-gantt__legend" aria-label="Einsatzstatus">
         <li>
           <span class="ga-gantt__legend-swatch ga-gantt__legend-swatch--fixed" />
-          {{ t('grossanlass.materialUebersicht.status.fixed') }}
+          {{ t('grossanlass.material.status.fixed') }}
         </li>
         <li>
           <span class="ga-gantt__legend-swatch ga-gantt__legend-swatch--planned" />
-          {{ t('grossanlass.materialUebersicht.status.planned') }}
+          {{ t('grossanlass.material.status.planned') }}
         </li>
         <li>
           <span class="ga-gantt__legend-swatch ga-gantt__legend-swatch--pending" />
-          {{ t('grossanlass.materialUebersicht.status.pending_approval') }}
+          {{ t('grossanlass.material.status.pending_approval') }}
         </li>
         <li>
           <span class="ga-gantt__legend-swatch ga-gantt__legend-swatch--issued" />
-          {{ t('grossanlass.materialUebersicht.status.issued') }}
+          {{ t('grossanlass.material.status.issued') }}
         </li>
         <li>
           <span class="ga-gantt__legend-swatch ga-gantt__legend-swatch--handover" />
-          {{ t('grossanlass.materialUebersicht.status.handover') }}
+          {{ t('grossanlass.material.status.handover') }}
         </li>
         <li>
           <span class="ga-gantt__legend-swatch ga-gantt__legend-swatch--giveback" />
-          {{ t('grossanlass.materialUebersicht.status.giveback') }}
+          {{ t('grossanlass.material.status.giveback') }}
         </li>
         <li>
           <span class="ga-gantt__legend-swatch ga-gantt__legend-swatch--service" />
-          {{ t('grossanlass.materialUebersicht.status.service') }}
+          {{ t('grossanlass.material.status.service') }}
         </li>
         <li>
           <span class="ga-gantt__legend-swatch ga-gantt__legend-swatch--away" />
-          {{ t('grossanlass.materialUebersicht.status.away') }}
+          {{ t('grossanlass.material.status.away') }}
         </li>
         <li>
           <span class="ga-gantt__legend-swatch ga-gantt__legend-swatch--unreleased" />
-          {{ t('grossanlass.materialUebersicht.status.unreleased') }}
+          {{ t('grossanlass.material.status.unreleased') }}
         </li>
       </ul>
     </div>
@@ -85,7 +85,7 @@
           <button
             type="button"
             class="ga-gantt__axis-nav-btn"
-            :aria-label="t('grossanlass.materialUebersicht.jumpDays', { n: 10 })"
+            :aria-label="t('grossanlass.material.jumpDays', { n: 10 })"
             @click="shiftByDays(-10)"
           >
             &lt;&lt;
@@ -93,7 +93,7 @@
           <button
             type="button"
             class="ga-gantt__axis-nav-btn"
-            :aria-label="t('grossanlass.materialUebersicht.jumpDays', { n: 2 })"
+            :aria-label="t('grossanlass.material.jumpDays', { n: 2 })"
             @click="shiftByDays(-2)"
           >
             &lt;
@@ -103,7 +103,7 @@
           v-else
           type="button"
           class="ga-gantt__axis-nav"
-          :aria-label="t('grossanlass.materialUebersicht.prevPeriod')"
+          :aria-label="t('grossanlass.material.prevPeriod')"
           @click="shift(-1)"
         >
           <v-icon icon="mdi-chevron-left" size="18" />
@@ -121,7 +121,7 @@
           <button
             type="button"
             class="ga-gantt__axis-nav-btn"
-            :aria-label="t('grossanlass.materialUebersicht.jumpDays', { n: 2 })"
+            :aria-label="t('grossanlass.material.jumpDays', { n: 2 })"
             @click="shiftByDays(2)"
           >
             &gt;
@@ -129,7 +129,7 @@
           <button
             type="button"
             class="ga-gantt__axis-nav-btn"
-            :aria-label="t('grossanlass.materialUebersicht.jumpDays', { n: 10 })"
+            :aria-label="t('grossanlass.material.jumpDays', { n: 10 })"
             @click="shiftByDays(10)"
           >
             &gt;&gt;
@@ -139,7 +139,7 @@
           v-else
           type="button"
           class="ga-gantt__axis-nav"
-          :aria-label="t('grossanlass.materialUebersicht.nextPeriod')"
+          :aria-label="t('grossanlass.material.nextPeriod')"
           @click="shift(1)"
         >
           <v-icon icon="mdi-chevron-right" size="18" />
@@ -147,7 +147,7 @@
       </div>
       <div v-if="headerFixedBookings.length" class="ga-gantt__fixed" :style="axisChromeStyle">
         <div class="ga-gantt__fixed-name">
-          {{ t('grossanlass.materialUebersicht.ringFixed') }}
+          {{ t('grossanlass.material.ringFixed') }}
         </div>
         <span class="ga-gantt__axis-nav ga-gantt__axis-nav--spacer" aria-hidden="true" />
         <div class="ga-gantt__fixed-track" :style="{ minHeight: '28px' }">
@@ -181,8 +181,8 @@
               v-if="canEditBooking(booking)"
               type="button"
               class="ga-gantt__bar-edit"
-              :aria-label="t('grossanlass.materialUebersicht.editEinsatz')"
-              :title="t('grossanlass.materialUebersicht.editEinsatz')"
+              :aria-label="t('grossanlass.material.editEinsatz')"
+              :title="t('grossanlass.material.editEinsatz')"
               @click.stop="openEinsatz(booking, { id: 'fixed', stayMode: 'stay' }, true)"
             >
               <v-icon icon="mdi-cog" size="14" />
@@ -198,8 +198,8 @@
       v-if="searchQuery.trim() && !hasFilteredRows"
       variant="search"
       compact
-      :title="t('grossanlass.materialUebersicht.emptySearchTitle')"
-      :description="t('grossanlass.materialUebersicht.emptySearchText', { q: searchQuery.trim() })"
+      :title="t('grossanlass.material.emptySearchTitle')"
+      :description="t('grossanlass.material.emptySearchText', { q: searchQuery.trim() })"
     />
     <div v-else-if="displayRings.length" class="ga-gantt__body" :style="gridTemplateStyle">
         <template v-for="ring in displayRings" :key="ring.id">
@@ -379,16 +379,16 @@
                       {{ booking.ressort }}<template v-if="booking.bauprojekt && booking.bauprojekt !== booking.ressort"> · {{ booking.bauprojekt }}</template>
                     </span>
                     <span>{{ booking.fromLabel }} – {{ booking.toLabel }}</span>
-                    <span v-if="booking.kind === 'quantity'">{{ t('grossanlass.materialUebersicht.qty', { n: booking.qty }) }}</span>
+                    <span v-if="booking.kind === 'quantity'">{{ t('grossanlass.material.qty', { n: booking.qty }) }}</span>
                     <span v-if="!isUsageWindowEinsatz(booking)">{{ stayLabel(row.resource.stayMode) }} · {{ statusLabel(booking) }}</span>
                     <span
                       v-if="einsatzBarKind(booking) === 'handover' || einsatzBarKind(booking) === 'giveback'"
                       class="ga-gantt-bar-tip__conflict"
                     >
-                      {{ t('grossanlass.materialUebersicht.occupancyFixedHint') }}
+                      {{ t('grossanlass.material.occupancyFixedHint') }}
                     </span>
                     <span v-if="einsatzBarKind(booking) === 'pending_approval'" class="ga-gantt-bar-tip__conflict">
-                      {{ t('grossanlass.materialUebersicht.pendingMwHint') }}
+                      {{ t('grossanlass.material.pendingMwHint') }}
                     </span>
                   </div>
                 </VTooltip>
@@ -396,8 +396,8 @@
                   v-if="canEditBooking(booking)"
                   type="button"
                   class="ga-gantt__bar-edit"
-                  :aria-label="t('grossanlass.materialUebersicht.editEinsatz')"
-                  :title="t('grossanlass.materialUebersicht.editEinsatz')"
+                  :aria-label="t('grossanlass.material.editEinsatz')"
+                  :title="t('grossanlass.material.editEinsatz')"
                   @click.stop="openEinsatz(booking, row.resource, true)"
                 >
                   <v-icon icon="mdi-cog" size="14" />
@@ -549,9 +549,9 @@ function changeDayZoom(delta: number) {
 }
 
 const scales = computed(() => [
-  { id: 'month' as const, label: t('grossanlass.materialUebersicht.scaleMonth') },
-  { id: 'week' as const, label: t('grossanlass.materialUebersicht.scaleWeek') },
-  { id: 'day' as const, label: t('grossanlass.materialUebersicht.scaleDay') },
+  { id: 'month' as const, label: t('grossanlass.material.scaleMonth') },
+  { id: 'week' as const, label: t('grossanlass.material.scaleWeek') },
+  { id: 'day' as const, label: t('grossanlass.material.scaleDay') },
 ])
 
 const preview = computed(() => createGrossanlassEinsatzPreview(tr))
@@ -1171,19 +1171,19 @@ function kindLabel(resource: { kind: GaEinsatzKind; stock: number; stayMode: GaE
   }
   const stay = stayLabel(resource.stayMode)
   if (resource.kind === 'quantity') {
-    return `${t('grossanlass.materialUebersicht.kindQuantity')} · ${t('grossanlass.materialUebersicht.stockQty', { n: resource.stock })} · ${stay}`
+    return `${t('grossanlass.material.kindQuantity')} · ${t('grossanlass.material.stockQty', { n: resource.stock })} · ${stay}`
   }
-  return `${t('grossanlass.materialUebersicht.kindUnique')} · ${stay}`
+  return `${t('grossanlass.material.kindUnique')} · ${stay}`
 }
 
 function stayLabel(mode: GaEinsatzStayMode): string {
   return mode === 'return'
-    ? t('grossanlass.materialUebersicht.stayReturn')
-    : t('grossanlass.materialUebersicht.stayUntilEnd')
+    ? t('grossanlass.material.stayReturn')
+    : t('grossanlass.material.stayUntilEnd')
 }
 
 function statusLabel(booking: GaPreviewEinsatz): string {
-  return t(`grossanlass.materialUebersicht.status.${einsatzBarKind(booking)}`)
+  return t(`grossanlass.material.status.${einsatzBarKind(booking)}`)
 }
 
 function presenceShades(resource: GaEinsatzCategoryBlock['resources'][number]): GaPresenceShade[] {
@@ -1340,7 +1340,7 @@ function barTitle(booking: GaPreviewEinsatz): string {
   const who = booking.who ? ` · ${booking.who}` : ''
   const base = `${booking.objectName}${who} · ${booking.ressort} · ${booking.fromLabel} – ${booking.toLabel}`
   if (role === 'handover' || role === 'giveback') {
-    return `${base} · ${t('grossanlass.materialUebersicht.occupancyFixedHint')}`
+    return `${base} · ${t('grossanlass.material.occupancyFixedHint')}`
   }
   return base
 }

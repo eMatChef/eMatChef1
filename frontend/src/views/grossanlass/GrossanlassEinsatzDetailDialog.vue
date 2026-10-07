@@ -4,11 +4,11 @@
 
     <dl v-if="booking" class="einsatz-dlg__meta">
       <div>
-        <dt>{{ t('grossanlass.materialUebersicht.colWho') }}</dt>
+        <dt>{{ t('grossanlass.material.colWho') }}</dt>
         <dd>{{ booking.who || '–' }}</dd>
       </div>
       <div>
-        <dt>{{ t('grossanlass.materialUebersicht.colRessort') }}</dt>
+        <dt>{{ t('grossanlass.material.colRessort') }}</dt>
         <dd>
           {{ booking.ressort || '–' }}
           <template v-if="booking.bauprojekt && booking.bauprojekt !== booking.ressort"> · {{ booking.bauprojekt }}</template>
@@ -19,7 +19,7 @@
         <dd>{{ booking.description }}</dd>
       </div>
       <div>
-        <dt>{{ t('grossanlass.materialUebersicht.colWhen') }}</dt>
+        <dt>{{ t('grossanlass.material.colWhen') }}</dt>
         <dd>{{ booking.fromLabel }} – {{ booking.toLabel }}</dd>
       </div>
       <div>
@@ -40,12 +40,12 @@
         v-model:start="fromDate"
         v-model:end="toDate"
         :department-id="departmentId"
-        :label="t('grossanlass.materialUebersicht.bookFieldPeriod')"
+        :label="t('grossanlass.material.bookFieldPeriod')"
         allow-past
       />
       <div class="einsatz-dlg__times">
-        <ETimeField v-model="fromTime" :label="t('grossanlass.materialUebersicht.fieldFromTime')" />
-        <ETimeField v-model="toTime" :label="t('grossanlass.materialUebersicht.fieldToTime')" />
+        <ETimeField v-model="fromTime" :label="t('grossanlass.material.fieldFromTime')" />
+        <ETimeField v-model="toTime" :label="t('grossanlass.material.fieldToTime')" />
       </div>
       <ETextarea
         v-if="isTask"
@@ -61,7 +61,7 @@
         v-model="qty"
         type="number"
         min="1"
-        :label="t('grossanlass.materialUebersicht.bookFieldQty')"
+        :label="t('grossanlass.material.bookFieldQty')"
         hide-details
       />
     </template>
@@ -76,7 +76,7 @@
         size="small"
         @click="goTasks"
       >
-        {{ t('grossanlass.materialUebersicht.einsatzDialogTasks') }}
+        {{ t('grossanlass.material.einsatzDialogTasks') }}
       </EButton>
       <EButton
         v-if="showAgreements"
@@ -84,7 +84,7 @@
         size="small"
         @click="goAgreements"
       >
-        {{ t('grossanlass.materialUebersicht.einsatzDialogAgreements') }}
+        {{ t('grossanlass.material.einsatzDialogAgreements') }}
       </EButton>
       <EButton
         v-if="editable && !editing"
@@ -92,7 +92,7 @@
         size="small"
         @click="editing = true"
       >
-        {{ t('grossanlass.materialUebersicht.einsatzDialogEdit') }}
+        {{ t('grossanlass.material.einsatzDialogEdit') }}
       </EButton>
       <EButton
         v-if="editing"
@@ -102,7 +102,7 @@
         :loading="saving"
         @click="save"
       >
-        {{ t('grossanlass.materialUebersicht.conflictResolveSaveOne') }}
+        {{ t('grossanlass.material.conflictResolveSaveOne') }}
       </EButton>
     </template>
   </EDialog>
@@ -157,16 +157,16 @@ const showTasks = computed(() => {
   return !showAgreements.value
 })
 const title = computed(() =>
-  props.booking?.objectName || t('grossanlass.materialUebersicht.einsatzDialogTitle'),
+  props.booking?.objectName || t('grossanlass.material.einsatzDialogTitle'),
 )
 const statusText = computed(() =>
-  t(`grossanlass.materialUebersicht.status.${kind.value}`),
+  t(`grossanlass.material.status.${kind.value}`),
 )
 const stayText = computed(() => {
   if (!props.stayMode) return ''
   return props.stayMode === 'return'
-    ? t('grossanlass.materialUebersicht.stayReturn')
-    : t('grossanlass.materialUebersicht.stayUntilEnd')
+    ? t('grossanlass.material.stayReturn')
+    : t('grossanlass.material.stayUntilEnd')
 })
 
 const isTask = computed(() => props.booking?.source === 'task' && Boolean(props.booking.groupId))
@@ -183,15 +183,15 @@ const editable = computed(() => {
 
 const hint = computed(() => {
   if (!props.booking) return ''
-  if (kind.value === 'fixed') return t('grossanlass.materialUebersicht.einsatzDialogFixedHint')
+  if (kind.value === 'fixed') return t('grossanlass.material.einsatzDialogFixedHint')
   if (kind.value === 'handover' || kind.value === 'giveback' || kind.value === 'service') {
-    return t('grossanlass.materialUebersicht.occupancyFixedHint')
+    return t('grossanlass.material.occupancyFixedHint')
   }
   if (props.booking.status === 'issued' || props.booking.status === 'returned') {
-    return t('grossanlass.materialUebersicht.conflictResolveIssued')
+    return t('grossanlass.material.conflictResolveIssued')
   }
-  if (editable.value) return t('grossanlass.materialUebersicht.einsatzDialogHint')
-  if (kind.value === 'pending_approval') return t('grossanlass.materialUebersicht.pendingMwHint')
+  if (editable.value) return t('grossanlass.material.einsatzDialogHint')
+  if (kind.value === 'pending_approval') return t('grossanlass.material.pendingMwHint')
   return ''
 })
 
@@ -260,7 +260,7 @@ async function save() {
           : {}),
       })
     }
-    toast.success(t('grossanlass.materialUebersicht.einsatzDialogSaved'))
+    toast.success(t('grossanlass.material.einsatzDialogSaved'))
     open.value = false
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }

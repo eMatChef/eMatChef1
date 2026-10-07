@@ -129,9 +129,9 @@
             <v-icon icon="mdi-calendar-clock" size="22" />
             <span>{{ t('sidebar.planung') }}</span>
           </router-link>
-          <router-link :to="materialUebersichtLink" class="quick-link-card">
+          <router-link :to="materialLink" class="quick-link-card">
             <v-icon icon="mdi-truck-delivery-outline" size="22" />
-            <span>{{ t('sidebar.materialUebersicht') }}</span>
+            <span>{{ t('sidebar.material') }}</span>
           </router-link>
           <router-link v-if="showAnlassLinks" :to="kostenLink" class="quick-link-card">
             <v-icon icon="mdi-cash-multiple" size="22" />
@@ -218,7 +218,7 @@ const tripsLink = computed(() => `/${props.departmentId}/planung/transporte`)
 const konflikteLink = computed(() => `/${props.departmentId}/planung/konflikte`)
 const ressortsLink = computed(() => `/${props.departmentId}/einstellungen/ressorts`)
 const planungLink = computed(() => `/${props.departmentId}/planung`)
-const materialUebersichtLink = computed(() => `/${props.departmentId}/material-uebersicht`)
+const materialLink = computed(() => `/${props.departmentId}/material`)
 const meinRessortLink = computed(() => `/${props.departmentId}/mein-ressort`)
 const kostenLink = computed(() => `/${props.departmentId}/kosten`)
 const teilnehmerLink = computed(() => `/${props.departmentId}/einstellungen/teilnehmer`)
@@ -288,13 +288,13 @@ function placeName(row: GaUebersichtEinsatz): string {
 }
 
 function rowMeta(row: GaUebersichtEinsatz): string {
-  const status = t(`grossanlass.materialUebersicht.status.${row.status}`)
+  const status = t(`grossanlass.material.status.${row.status}`)
   const parts = [row.ressort, placeName(row), status].filter(Boolean)
   return parts.join(' · ')
 }
 
 function tripMeta(row: GaUebersichtEinsatz): string {
-  const status = t(`grossanlass.materialUebersicht.status.${row.status}`)
+  const status = t(`grossanlass.material.status.${row.status}`)
   const dest = placeName(row)
   const parts = [row.ressort, dest, status].filter(Boolean)
   return parts.join(' · ')

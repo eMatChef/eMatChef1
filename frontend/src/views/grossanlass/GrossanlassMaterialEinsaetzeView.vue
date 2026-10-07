@@ -1,7 +1,7 @@
 <template>
   <div class="ga-preview-page">
     <section v-if="pendingRows.length && canApproveEinsatz" class="ga-approval-queue">
-      <h3>{{ t('grossanlass.materialUebersicht.approvalQueueTitle') }}</h3>
+      <h3>{{ t('grossanlass.material.approvalQueueTitle') }}</h3>
       <ul>
         <li v-for="row in pendingRows" :key="row.id">
           <span>
@@ -14,7 +14,7 @@
             :loading="busyTripId === row.id"
             @click="onApproveEinsatz(row)"
           >
-            {{ t('grossanlass.materialUebersicht.approveEinsatz') }}
+            {{ t('grossanlass.material.approveEinsatz') }}
           </EButton>
         </li>
       </ul>
@@ -76,8 +76,8 @@
     />
     <EEmptyState
       v-else
-      :title="t('grossanlass.materialUebersicht.emptyEinsaetzeTitle')"
-      :description="t('grossanlass.materialUebersicht.emptyEinsaetzeText')"
+      :title="t('grossanlass.material.emptyEinsaetzeTitle')"
+      :description="t('grossanlass.material.emptyEinsaetzeText')"
     />
 
     <GrossanlassEinsatzBookPreviewDialog
@@ -227,8 +227,8 @@ const chauffeurs = computed(() =>
     value: card.user_id,
     title: card.name,
     subtitle: card.may_drive
-      ? t('grossanlass.materialUebersicht.chauffeurMayDrive')
-      : t('grossanlass.materialUebersicht.chauffeurNoLicenseShort'),
+      ? t('grossanlass.material.chauffeurMayDrive')
+      : t('grossanlass.material.chauffeurNoLicenseShort'),
     mayDrive: card.may_drive,
   })),
 )
@@ -430,9 +430,9 @@ async function onConfirm(current: GaBookPreviewDraft) {
     revealEinsatz(current.fromIso, current.objectId)
     toast.success(
       kind === 'order'
-        ? t('grossanlass.materialUebersicht.orderNoted')
+        ? t('grossanlass.material.orderNoted')
         : current.hasConflict
-          ? t('grossanlass.materialUebersicht.mwNoteSent')
+          ? t('grossanlass.material.mwNoteSent')
           : t('grossanlass.beschaffung.zusagen.createdToast'),
     )
   } catch (e: unknown) {
@@ -448,8 +448,8 @@ async function onConfirmMany(drafts: GaBookPreviewDraft[]) {
     const noted = drafts.some((row) => row.hasConflict)
     toast.success(
       noted
-        ? t('grossanlass.materialUebersicht.mwNoteSent')
-        : t('grossanlass.materialUebersicht.bookSavedMany', { count: drafts.length }),
+        ? t('grossanlass.material.mwNoteSent')
+        : t('grossanlass.material.bookSavedMany', { count: drafts.length }),
     )
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
@@ -460,7 +460,7 @@ async function onConfirmMany(drafts: GaBookPreviewDraft[]) {
 async function onOrder(current: GaBookPreviewDraft) {
   try {
     await uebersicht.create(payloadFromDraft(current, 'order'))
-    toast.success(t('grossanlass.materialUebersicht.orderNoted'))
+    toast.success(t('grossanlass.material.orderNoted'))
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
     toast.error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError'))
@@ -481,7 +481,7 @@ async function withTrip(row: GaPreviewEinsatz, fn: () => Promise<void>) {
 
 async function onApproveEinsatz(row: GaPreviewEinsatz) {
   await withTrip(row, () => uebersicht.updateEinsatz(row.id, { status: 'planned' }))
-  toast.success(t('grossanlass.materialUebersicht.approveEinsatzToast'))
+  toast.success(t('grossanlass.material.approveEinsatzToast'))
 }
 </script>
 

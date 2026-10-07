@@ -25,7 +25,7 @@ export function gaHomePath(
   const id = departmentId.replace(/^\/+|\/+$/g, '')
   switch (gaHomeKind(role, options)) {
     case 'uebersicht':
-      return `/${id}/material-uebersicht`
+      return `/${id}/material`
     case 'mailbox':
       return `/${id}/beschaffung/anfragen`
     case 'mein-bereich':
@@ -46,7 +46,7 @@ export function gaIsRoleHomePath(
   const p = (path.split('?')[0] || '').replace(/\/$/, '') || '/'
   switch (gaHomeKind(role, options)) {
     case 'uebersicht':
-      return p.includes(`/${id}/material-uebersicht`)
+      return p.includes(`/${id}/material`)
     case 'mailbox':
       return p.includes(`/${id}/beschaffung/anfragen`)
     case 'mein-bereich':

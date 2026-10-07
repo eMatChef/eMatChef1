@@ -545,8 +545,8 @@
         allow-past
       />
       <div class="window-grid">
-        <ETimeField v-model="presentFromTime" :label="t('grossanlass.materialUebersicht.fieldFromTime')" />
-        <ETimeField v-model="presentToTime" :label="t('grossanlass.materialUebersicht.fieldToTime')" />
+        <ETimeField v-model="presentFromTime" :label="t('grossanlass.material.fieldFromTime')" />
+        <ETimeField v-model="presentToTime" :label="t('grossanlass.material.fieldToTime')" />
       </div>
       <h3 class="window-section">{{ t('grossanlass.materials.zusage.sectionHandover') }}</h3>
       <EDateField
@@ -842,9 +842,9 @@ const sortItems = computed(() => [
 ])
 
 const alignScales = computed(() => [
-  { id: 'day' as const, label: t('grossanlass.materialUebersicht.scaleDay') },
-  { id: 'week' as const, label: t('grossanlass.materialUebersicht.scaleWeek') },
-  { id: 'month' as const, label: t('grossanlass.materialUebersicht.scaleMonth') },
+  { id: 'day' as const, label: t('grossanlass.material.scaleDay') },
+  { id: 'week' as const, label: t('grossanlass.material.scaleWeek') },
+  { id: 'month' as const, label: t('grossanlass.material.scaleMonth') },
 ])
 
 function deltaOf(article: GrossanlassCommitment): 'wide' | 'fit' | 'none' {
@@ -1657,13 +1657,13 @@ async function saveWindow() {
           departmentId.value,
           row,
           inboundMode.value === 'delivery'
-            ? t('grossanlass.materialUebersicht.wareneingang.deliveryWho', { partner: row.source })
-            : t('grossanlass.materialUebersicht.wareneingang.pickupWho', { partner: row.source }),
+            ? t('grossanlass.material.wareneingang.deliveryWho', { partner: row.source })
+            : t('grossanlass.material.wareneingang.pickupWho', { partner: row.source }),
           logisticsGroupId.value,
         ))
       } catch {
         inboundNext.push(row)
-        toast.error(t('grossanlass.materialUebersicht.wareneingang.inboundCreateError'))
+        toast.error(t('grossanlass.material.wareneingang.inboundCreateError'))
       }
     }
     const inboundById = new Map(inboundNext.map((row) => [row.id, row]))

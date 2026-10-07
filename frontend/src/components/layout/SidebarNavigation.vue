@@ -144,6 +144,148 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.activities') }}</span>
       </router-link>
 
+      <!-- Grossanlass MW/CMW: gruppierte Master-Sicht (Anlass, Material, Logistik, Betrieb, Finanzen, Kommunikation) -->
+      <template v-if="useGroupedGaNav && !isPendingAssignmentRoute">
+      <div class="nav-group-label" :class="{ 'nav-group-label--rail': !showNavLabels }">
+        <span v-if="showNavLabels">{{ t('sidebar.group.anlass') }}</span>
+      </div>
+      <router-link
+        v-if="true"
+        :to="getLink('/mein-ressort')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('mein-ressort') }"
+        :title="t('sidebar.ressortsHint')"
+      >
+        <v-icon icon="mdi-home-group" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.ressorts') }}</span>
+      </router-link>
+      <router-link
+        v-if="showGrossanlassPlanungMenu"
+        :to="getLink('/planung')"
+        class="nav-item"
+        :class="{ active: isPlanungNavActive }"
+        :title="t('sidebar.planungHint')"
+      >
+        <v-icon icon="mdi-calendar-clock" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.planung') }}</span>
+      </router-link>
+      <router-link
+        v-if="showGrossanlassUebersichtMenu"
+        :to="getLink('/helferpool')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('helferpool') }"
+        :title="t('sidebar.helferpoolHint')"
+      >
+        <v-icon icon="mdi-account-group-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.helferpool') }}</span>
+      </router-link>
+      <router-link
+        v-if="true"
+        :to="getLink('/tasks')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('tasks') }"
+        :title="tasksNavTitle"
+      >
+        <v-icon icon="mdi-clipboard-list" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.tasks') }}</span>
+      </router-link>
+      <div class="nav-group-label" :class="{ 'nav-group-label--rail': !showNavLabels }">
+        <span v-if="showNavLabels">{{ t('sidebar.group.material') }}</span>
+      </div>
+      <router-link
+        v-if="showGrossanlassBeschaffungMenu"
+        :to="grossanlassBeschaffungLink"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('beschaffung') }"
+        :title="t('sidebar.beschaffungHint')"
+      >
+        <v-icon icon="mdi-cart-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.beschaffung') }}</span>
+      </router-link>
+      <router-link
+        v-if="showGrossanlassUebersichtMenu"
+        :to="getLink('/material')"
+        class="nav-item"
+        :class="{ active: isGrossanlassMaterialNavActive }"
+        :title="t('sidebar.materialHint')"
+      >
+        <v-icon icon="mdi-package-variant" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.material') }}</span>
+      </router-link>
+      <div class="nav-group-label" :class="{ 'nav-group-label--rail': !showNavLabels }">
+        <span v-if="showNavLabels">{{ t('sidebar.group.logistik') }}</span>
+      </div>
+      <router-link
+        v-if="showGrossanlassLogistikMenu"
+        :to="getLink('/logistik')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('logistik') }"
+        :title="t('sidebar.logistikHint')"
+      >
+        <v-icon icon="mdi-truck-fast-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.logistik') }}</span>
+      </router-link>
+      <router-link
+        v-if="showGrossanlassMaterialsMenu"
+        :to="getLink('/fahrzeuge')"
+        class="nav-item"
+        :class="{ active: isGrossanlassFahrzeugeNavActive }"
+        :title="t('sidebar.fahrzeugeHint')"
+      >
+        <v-icon icon="mdi-truck-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.fahrzeuge') }}</span>
+      </router-link>
+      <div class="nav-group-label" :class="{ 'nav-group-label--rail': !showNavLabels }">
+        <span v-if="showNavLabels">{{ t('sidebar.group.betrieb') }}</span>
+      </div>
+      <router-link
+        v-if="showGrossanlassWorkshopMenu"
+        :to="getLink('/werkstatt')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('werkstatt') }"
+        :title="t('sidebar.grossanlassWorkshopHint')"
+      >
+        <v-icon icon="mdi-wrench" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.workshop') }}</span>
+      </router-link>
+      <div class="nav-group-label" :class="{ 'nav-group-label--rail': !showNavLabels }">
+        <span v-if="showNavLabels">{{ t('sidebar.group.finanzen') }}</span>
+      </div>
+      <router-link
+        v-if="showGrossanlassKostenMenu"
+        :to="getLink('/kosten')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('kosten') }"
+        :title="t('sidebar.kostenHint')"
+      >
+        <v-icon icon="mdi-cash-multiple" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.kosten') }}</span>
+      </router-link>
+      <div class="nav-group-label" :class="{ 'nav-group-label--rail': !showNavLabels }">
+        <span v-if="showNavLabels">{{ t('sidebar.group.kommunikation') }}</span>
+      </div>
+      <router-link
+        v-if="true"
+        :to="getLink('/notifications')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('notifications') }"
+      >
+        <v-icon icon="mdi-bell-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.nachrichten') }}</span>
+      </router-link>
+      <router-link
+        v-if="showGrossanlassUebersichtMenu"
+        :to="getLink('/displays')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('displays') }"
+        :title="t('sidebar.displaysHint')"
+      >
+        <v-icon icon="mdi-television" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.displays') }}</span>
+      </router-link>
+      </template>
+
+      <template v-if="!useGroupedGaNav">
       <!-- Grossanlass: Einstellungen (Ressorts, Bauprojekte, Stammdaten) -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && !isUserRole && !isBereichsleitung"
@@ -242,13 +384,13 @@
       <!-- Materialübersicht: Bestand, Wareneingang, was weg ist -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassUebersichtSidebarLink"
-        :to="getLink('/material-uebersicht')"
+        :to="getLink('/material')"
         class="nav-item"
-        :class="{ active: isGrossanlassMaterialUebersichtNavActive }"
-        :title="t('sidebar.materialUebersichtHint')"
+        :class="{ active: isGrossanlassMaterialNavActive }"
+        :title="t('sidebar.materialHint')"
       >
         <v-icon icon="mdi-truck-delivery-outline" class="nav-icon nav-icon--mdi" size="20" />
-        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.materialUebersicht') }}</span>
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.material') }}</span>
       </router-link>
 
       <!-- Werkstatt (Grossanlass): eigene Fälle, nicht Pfadi-workshop_ticket -->
@@ -267,6 +409,8 @@
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassBeschaffungMenu"
         class="nav-divider"
       />
+      </template>
+
 
       <!-- Materialien -->
       <router-link
@@ -305,7 +449,7 @@
 
       <!-- Aufgaben -->
       <router-link
-        v-if="!isPendingAssignmentRoute && showGrossanlassHelperNav ? showGrossanlassHelperSidebarLinks : showDeptContextSidebarLinks"
+        v-if="!isPendingAssignmentRoute && !useGroupedGaNav && (showGrossanlassHelperNav ? showGrossanlassHelperSidebarLinks : showDeptContextSidebarLinks)"
         :to="getLink('/tasks')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('tasks') }"
@@ -326,7 +470,7 @@
 
       <!-- Nachrichtenzentrale (unter Aufgaben) -->
       <router-link
-        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks && !showGrossanlassHelperNav"
+        v-if="!isPendingAssignmentRoute && !useGroupedGaNav && showDeptContextSidebarLinks && !showGrossanlassHelperNav"
         :to="getLink('/notifications')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('notifications') }"
@@ -338,7 +482,7 @@
 
       <!-- Horizontaler Balken (Divider) -->
       <div
-        v-if="!isPendingAssignmentRoute && (showStandardDeptSidebarLinks || (isGrossanlassDept && showDeptContextSidebarLinks))"
+        v-if="!isPendingAssignmentRoute && !useGroupedGaNav && (showStandardDeptSidebarLinks || (isGrossanlassDept && showDeptContextSidebarLinks))"
         class="nav-divider"
       />
 
@@ -375,15 +519,18 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.supplierShop') }}</span>
       </router-link>
 
-      <router-link
-        v-if="!isPendingAssignmentRoute && showDevSandboxLink"
-        :to="getLink('/dev/ui-playground')"
-        class="nav-item"
-        :class="{ active: isDevPlaygroundNavActive }"
-      >
-        <v-icon icon="mdi-flask-outline" class="nav-icon nav-icon--mdi" size="20" />
-        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.devUiPlayground') }}</span>
-      </router-link>
+      <template v-if="useGroupedGaNav && !isPendingAssignmentRoute">
+        <div class="nav-divider" />
+        <router-link
+          :to="getLink('/einstellungen')"
+          class="nav-item"
+          :class="{ active: isGrossanlassEinstellungenNavActive }"
+          :title="grossanlassEinstellungenNavTitle"
+        >
+          <v-icon icon="mdi-tune" class="nav-icon nav-icon--mdi" size="20" />
+          <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.grossanlassVerwalten') }}</span>
+        </router-link>
+      </template>
 
       <router-link
         v-if="!isPendingAssignmentRoute && (showGrossanlassHelperNav ? showGrossanlassHelperSidebarLinks : showDeptContextSidebarLinks)"
@@ -394,6 +541,16 @@
       >
         <v-icon icon="mdi-cog-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.settings') }}</span>
+      </router-link>
+
+      <router-link
+        v-if="!isPendingAssignmentRoute && showDevSandboxLink"
+        :to="getLink('/dev/ui-playground')"
+        class="nav-item"
+        :class="{ active: isDevPlaygroundNavActive }"
+      >
+        <v-icon icon="mdi-flask-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.devUiPlayground') }}</span>
       </router-link>
 
       <router-link
@@ -429,9 +586,10 @@ import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import { isDepartmentBasicMemberRole, useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import {
+  gaCanManagePlanung,
   gaCanManageProcurement,
   gaCanSeeAnlassOverview,
-  gaCanSeeMaterialUebersicht,
+  gaCanSeeMaterial,
   gaCanWorkMailbox,
   gaIsBereichsleitung,
   gaIsGrossanlassHelper,
@@ -739,7 +897,7 @@ const mainDashboardNavLabel = computed(() => {
     case 'mailbox':
       return t('sidebar.anfragen')
     case 'uebersicht':
-      return t('sidebar.materialUebersicht')
+      return t('sidebar.material')
     default:
       return t('sidebar.dashboard')
   }
@@ -819,10 +977,22 @@ const isPlanungNavActive = computed(() => {
   return path.includes('/planung')
 })
 
+/** MW/CMW: gruppierte Master-Navigation; übrige GA-Rollen behalten vorerst die bisherige Sidebar. */
+const useGroupedGaNav = computed(
+  () =>
+    isGrossanlassDept.value
+    && showDeptContextSidebarLinks.value
+    && !isSuperAdmin.value
+    && gaCanManagePlanung(authStore.currentDepartmentRole),
+)
+
+/** Logistik-Shell: gleiche Rollen wie bisherige Transport-/Beschaffungssicht, keine neuen Rechte. */
+const showGrossanlassLogistikMenu = computed(() => showGrossanlassUebersichtMenu.value)
+
 const isGrossanlassFahrzeugeNavActive = computed(() => route.path.includes('/fahrzeuge'))
 
-const isGrossanlassMaterialUebersichtNavActive = computed(() =>
-  route.path.includes('/material-uebersicht'),
+const isGrossanlassMaterialNavActive = computed(() =>
+  /\/material(\/|$)/.test(route.path),
 )
 
 /** Phase 1 Grossanlass: nur Dashboard, Konfiguration (+ Sandbox in Dev) — Ressorts/Planung, Aufgaben, Nachrichten */
@@ -911,7 +1081,7 @@ const showGrossanlassMaterialsMenu = computed(
 
 const showGrossanlassUebersichtMenu = computed(() => {
   if (isSuperAdmin.value || !isGrossanlassDept.value) return false
-  return gaCanSeeMaterialUebersicht(authStore.currentDepartmentRole, isBereichsleitung.value)
+  return gaCanSeeMaterial(authStore.currentDepartmentRole, isBereichsleitung.value)
 })
 
 const showGrossanlassAnfragenSidebarLink = computed(

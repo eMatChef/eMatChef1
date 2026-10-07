@@ -40,7 +40,7 @@
         </li>
       </ul>
       <p v-else-if="!section.children.length" class="ga-bau-branch__empty">
-        {{ t('grossanlass.materialUebersicht.noBauauftragYet') }}
+        {{ t('grossanlass.material.noBauauftragYet') }}
       </p>
       <v-expansion-panels
         v-if="section.children.length"

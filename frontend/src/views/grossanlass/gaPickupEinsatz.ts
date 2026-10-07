@@ -59,6 +59,19 @@ export async function ensureInboundEinsatz(
   const mode = inboundMode(article)
   if (mode === 'pickup' && article.item_details?.pickup_einsatz_id) return article
   if (mode === 'delivery' && article.item_details?.delivery_einsatz_id) return article
+  // Ein Ankunftstermin = ein Einsatz: beim Wechsel Abholen/Lieferung den vorhandenen weiterverwenden.
+  const existingId = article.item_details?.pickup_einsatz_id || article.item_details?.delivery_einsatz_id
+  if (existingId && departmentId) {
+    return updateGrossanlassCommitment(departmentId, article.id, {
+      item_details: {
+        ...article.item_details,
+        inbound_mode: mode,
+        ...(mode === 'pickup'
+          ? { pickup_einsatz_id: existingId }
+          : { delivery_einsatz_id: existingId }),
+      },
+    })
+  }
   const slot = inboundWindow(article)
   if (!slot || !departmentId) return article
 

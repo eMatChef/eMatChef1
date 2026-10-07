@@ -1,6 +1,6 @@
 <template>
   <div class="ga-preview-page">
-    <p class="ga-preview-intro">{{ t('grossanlass.materialUebersicht.konflikteIntro') }}</p>
+    <p class="ga-preview-intro">{{ t('grossanlass.material.konflikteIntro') }}</p>
 
     <div v-if="conflicts.length" class="ga-conflicts">
       <article
@@ -16,16 +16,16 @@
           <p class="ga-conflict-card__text">{{ conflict.text }}</p>
           <EButton variant="primary" size="small" @click="openConflict(conflict)">
             {{ conflict.einsatz_ids.length > 1
-              ? t('grossanlass.materialUebersicht.conflictResolveBoth')
-              : t('grossanlass.materialUebersicht.conflictResolveOne') }}
+              ? t('grossanlass.material.conflictResolveBoth')
+              : t('grossanlass.material.conflictResolveOne') }}
           </EButton>
         </div>
       </article>
     </div>
     <EEmptyState
       v-else
-      :title="t('grossanlass.materialUebersicht.emptyConflictsTitle')"
-      :description="t('grossanlass.materialUebersicht.emptyConflictsText')"
+      :title="t('grossanlass.material.emptyConflictsTitle')"
+      :description="t('grossanlass.material.emptyConflictsText')"
     />
 
     <GrossanlassEinsatzPreviewPanel v-if="conflictRows.length" :rows="conflictRows" />

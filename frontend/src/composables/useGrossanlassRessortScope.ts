@@ -82,6 +82,11 @@ export function useGrossanlassRessortScope(groups: Ref<GrossanlassGroup[]>) {
     return sharedIntoVisibleIds().has(group.id)
   }
 
+  /** Nur eigene Zuordnung (+ Nachfahren, hineingeteilte Äste) — unabhängig von Verwaltungsrechten. */
+  function isInOwnAssignedBranch(group: GrossanlassGroup): boolean {
+    return assignedVisibleIds().has(group.id) || sharedIntoVisibleIds().has(group.id)
+  }
+
   function isSharedIntoGroup(child: GrossanlassGroup, host: GrossanlassGroup): boolean {
     return (child.shared_with ?? []).some((share) => share.target_group_id === host.id)
   }
@@ -150,6 +155,7 @@ export function useGrossanlassRessortScope(groups: Ref<GrossanlassGroup[]>) {
     isLeaderOfGroupOrAncestor,
     isMemberInRessortBranch,
     isInAssignedRessortBranch,
+    isInOwnAssignedBranch,
     isSharedIntoGroup,
     canShareGroup,
     isBereichsleitung,

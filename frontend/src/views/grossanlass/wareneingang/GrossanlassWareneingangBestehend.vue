@@ -1,6 +1,6 @@
 <template>
   <div class="ga-inbound">
-    <p class="tab-intro">{{ t('grossanlass.materialUebersicht.wareneingang.intro') }}</p>
+    <p class="tab-intro">{{ t('grossanlass.material.wareneingang.intro') }}</p>
 
     <div class="inbound-toolbar">
       <EButton
@@ -29,8 +29,8 @@
       v-else-if="visibleRows.length === 0"
       variant="default"
       icon="mdi-truck-delivery-outline"
-      :title="t('grossanlass.materialUebersicht.wareneingang.emptyTitle')"
-      :description="t('grossanlass.materialUebersicht.wareneingang.emptyDescription')"
+      :title="t('grossanlass.material.wareneingang.emptyTitle')"
+      :description="t('grossanlass.material.wareneingang.emptyDescription')"
     />
 
     <ul v-else class="inbound-list">
@@ -38,12 +38,12 @@
         <div class="inbound-card__head">
           <div>
             <strong>{{ row.name }}</strong>
-            <span class="inbound-qty">{{ t('grossanlass.materialUebersicht.wareneingang.orderedQty', { n: orderedQty(row) }) }}</span>
+            <span class="inbound-qty">{{ t('grossanlass.material.wareneingang.orderedQty', { n: orderedQty(row) }) }}</span>
             <span
               v-if="row.quantity !== orderedQty(row)"
               class="inbound-qty inbound-qty--sub"
             >
-              {{ t('grossanlass.materialUebersicht.wareneingang.thisDelivery', { n: row.quantity }) }}
+              {{ t('grossanlass.material.wareneingang.thisDelivery', { n: row.quantity }) }}
             </span>
           </div>
           <span class="combo-type-badge" :class="row.origin === 'loan' ? 'virtual_combo' : 'physical_combo'">
@@ -52,7 +52,7 @@
         </div>
         <p class="inbound-meta">
           {{ row.source }}
-          · {{ t(`grossanlass.materialUebersicht.wareneingang.mode.${inboundMode(row)}`) }}
+          · {{ t(`grossanlass.material.wareneingang.mode.${inboundMode(row)}`) }}
           · {{ expectedLabel(row) }}
         </p>
         <p v-if="row.item_details?.order_ref" class="inbound-meta">
@@ -61,13 +61,13 @@
         <div class="inbound-check">
           <ECheckbox
             :model-value="Boolean(row.item_details?.qty_checked)"
-            :label="t('grossanlass.materialUebersicht.wareneingang.orderedCheck', { n: orderedQty(row) })"
+            :label="t('grossanlass.material.wareneingang.orderedCheck', { n: orderedQty(row) })"
             hide-details
             :disabled="busyId === row.id"
             @update:model-value="toggleQtyChecked(row, Boolean($event))"
           />
           <p class="inbound-progress" :class="`inbound-progress--${inboundState(row)}`">
-            {{ t('grossanlass.materialUebersicht.wareneingang.receivedProgress', {
+            {{ t('grossanlass.material.wareneingang.receivedProgress', {
               received: receivedQty(row),
               expected: row.quantity,
               missing: missingQty(row),
@@ -80,7 +80,7 @@
             type="number"
             min="1"
             :max="missingQty(row)"
-            :label="t('grossanlass.materialUebersicht.wareneingang.receiveQty')"
+            :label="t('grossanlass.material.wareneingang.receiveQty')"
             hide-details
             density="compact"
           />
@@ -89,14 +89,14 @@
             :items="placeItems"
             item-title="title"
             item-value="value"
-            :label="t('grossanlass.materialUebersicht.wareneingang.receivePlace')"
+            :label="t('grossanlass.material.wareneingang.receivePlace')"
             clearable
             hide-details
             density="compact"
           />
           <ETextField
             v-model="receiveNote[row.id]"
-            :label="t('grossanlass.materialUebersicht.wareneingang.receiveNote')"
+            :label="t('grossanlass.material.wareneingang.receiveNote')"
             hide-details
             density="compact"
           />
@@ -106,7 +106,7 @@
             :loading="busyId === row.id"
             @click="receive(row)"
           >
-            {{ t('grossanlass.materialUebersicht.wareneingang.receiveSubmit') }}
+            {{ t('grossanlass.material.wareneingang.receiveSubmit') }}
           </EButton>
         </div>
         <div class="inbound-docs">
@@ -117,7 +117,7 @@
             rel="noopener"
             class="inbound-pdf"
           >
-            {{ t('grossanlass.materialUebersicht.wareneingang.openPdf') }}
+            {{ t('grossanlass.material.wareneingang.openPdf') }}
           </a>
           <EButton
             v-else-if="isBuyOrder(row) && orderLineOf(row)"
@@ -125,10 +125,10 @@
             size="small"
             @click="openOrder(row)"
           >
-            {{ t('grossanlass.materialUebersicht.wareneingang.openOrder') }}
+            {{ t('grossanlass.material.wareneingang.openOrder') }}
           </EButton>
           <EButton variant="text" size="small" @click="openHistory(row)">
-            {{ t('grossanlass.materialUebersicht.wareneingang.openHistory') }}
+            {{ t('grossanlass.material.wareneingang.openHistory') }}
           </EButton>
         </div>
         <div class="inbound-qr">
@@ -140,10 +140,10 @@
             :image-label="row.name"
             :image-entity-id="row.id"
           />
-          <span class="inbound-code">{{ row.barcode || t('grossanlass.materialUebersicht.wareneingang.noQr') }}</span>
+          <span class="inbound-code">{{ row.barcode || t('grossanlass.material.wareneingang.noQr') }}</span>
         </div>
         <div v-if="needsOf(row).length" class="inbound-need">
-          <strong>{{ t('grossanlass.materialUebersicht.wareneingang.needTitle') }}</strong>
+          <strong>{{ t('grossanlass.material.wareneingang.needTitle') }}</strong>
           <ul>
             <li v-for="need in needsOf(row)" :key="need.id">
               {{ need.text }}
@@ -161,10 +161,10 @@
             @click="onInboundAction(row)"
           >
             {{ inboundEinsatzId(row)
-              ? t('grossanlass.materialUebersicht.wareneingang.openInboundEinsatz')
+              ? t('grossanlass.material.wareneingang.openInboundEinsatz')
               : inboundMode(row) === 'delivery'
-                ? t('grossanlass.materialUebersicht.wareneingang.createDeliveryEinsatz')
-                : t('grossanlass.materialUebersicht.wareneingang.createPickupEinsatz') }}
+                ? t('grossanlass.material.wareneingang.createDeliveryEinsatz')
+                : t('grossanlass.material.wareneingang.createPickupEinsatz') }}
           </EButton>
           <EButton
             variant="text"
@@ -173,8 +173,8 @@
             @click="toggleMode(row)"
           >
             {{ inboundMode(row) === 'delivery'
-              ? t('grossanlass.materialUebersicht.wareneingang.setPickup')
-              : t('grossanlass.materialUebersicht.wareneingang.setDelivery') }}
+              ? t('grossanlass.material.wareneingang.setPickup')
+              : t('grossanlass.material.wareneingang.setDelivery') }}
           </EButton>
           <span v-if="inboundState(row) === 'complete'" class="inbound-here">{{ t('grossanlass.materials.chargeFlag.here') }}</span>
           <EButton variant="text" size="small" @click="openArticle(row)">
@@ -249,16 +249,16 @@ const placeItems = computed(() => {
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
 const rangeChips = computed(() => [
-  { id: 'today' as const, label: t('grossanlass.materialUebersicht.wareneingang.rangeToday') },
-  { id: 'week' as const, label: t('grossanlass.materialUebersicht.wareneingang.rangeWeek') },
-  { id: 'expected' as const, label: t('grossanlass.materialUebersicht.wareneingang.rangeExpected') },
-  { id: 'here' as const, label: t('grossanlass.materialUebersicht.wareneingang.rangeHere') },
+  { id: 'today' as const, label: t('grossanlass.material.wareneingang.rangeToday') },
+  { id: 'week' as const, label: t('grossanlass.material.wareneingang.rangeWeek') },
+  { id: 'expected' as const, label: t('grossanlass.material.wareneingang.rangeExpected') },
+  { id: 'here' as const, label: t('grossanlass.material.wareneingang.rangeHere') },
 ])
 
 const modeChips = computed(() => [
-  { id: 'all' as const, label: t('grossanlass.materialUebersicht.wareneingang.modeAll') },
-  { id: 'pickup' as const, label: t('grossanlass.materialUebersicht.wareneingang.mode.pickup') },
-  { id: 'delivery' as const, label: t('grossanlass.materialUebersicht.wareneingang.mode.delivery') },
+  { id: 'all' as const, label: t('grossanlass.material.wareneingang.modeAll') },
+  { id: 'pickup' as const, label: t('grossanlass.material.wareneingang.mode.pickup') },
+  { id: 'delivery' as const, label: t('grossanlass.material.wareneingang.mode.delivery') },
 ])
 
 function todayKey(): string {
@@ -327,7 +327,7 @@ function orderPdfUrl(row: GrossanlassCommitment): string | null {
 
 function expectedLabel(row: GrossanlassCommitment): string {
   const iso = expectedAtIso(row)
-  if (!iso) return t('grossanlass.materialUebersicht.wareneingang.noDate')
+  if (!iso) return t('grossanlass.material.wareneingang.noDate')
   return formatGaIsoLabel(iso, locale.value)
 }
 
@@ -344,11 +344,11 @@ function needsOf(row: GrossanlassCommitment): NeedLink[] {
     if (einsatz.status === 'returned') continue
     out.push({
       id: `e-${einsatz.id}`,
-      text: t('grossanlass.materialUebersicht.wareneingang.needEinsatz', {
+      text: t('grossanlass.material.wareneingang.needEinsatz', {
         who: einsatz.ressort || einsatz.who,
         n: einsatz.qty,
       }),
-      action: t('grossanlass.materialUebersicht.wareneingang.openEinsatz'),
+      action: t('grossanlass.material.wareneingang.openEinsatz'),
       to: `/${departmentId.value}/planung/belegung`,
     })
   }
@@ -356,12 +356,12 @@ function needsOf(row: GrossanlassCommitment): NeedLink[] {
     if (!ids.has(pack.id) || pack.packed) continue
     out.push({
       id: `p-${pack.id}`,
-      text: t('grossanlass.materialUebersicht.wareneingang.needPack', {
+      text: t('grossanlass.material.wareneingang.needPack', {
         name: pack.name,
         n: pack.qty,
       }),
-      action: t('grossanlass.materialUebersicht.wareneingang.openPack'),
-      to: `/${departmentId.value}/material-uebersicht/pack`,
+      action: t('grossanlass.material.wareneingang.openPack'),
+      to: `/${departmentId.value}/material/pack`,
     })
   }
   return out
@@ -467,20 +467,20 @@ async function createInbound(row: GrossanlassCommitment) {
       id,
       latest,
       mode === 'delivery'
-        ? t('grossanlass.materialUebersicht.wareneingang.deliveryWho', { partner: latest.source })
-        : t('grossanlass.materialUebersicht.wareneingang.pickupWho', { partner: latest.source }),
+        ? t('grossanlass.material.wareneingang.deliveryWho', { partner: latest.source })
+        : t('grossanlass.material.wareneingang.pickupWho', { partner: latest.source }),
     )
     catalog.upsert(updated)
     if (inboundEinsatzId(updated)) {
       toast.success(
         mode === 'delivery'
-          ? t('grossanlass.materialUebersicht.wareneingang.deliveryCreated')
-          : t('grossanlass.materialUebersicht.wareneingang.pickupCreated'),
+          ? t('grossanlass.material.wareneingang.deliveryCreated')
+          : t('grossanlass.material.wareneingang.pickupCreated'),
       )
     }
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
-    toast.error(err.response?.data?.error || t('grossanlass.materialUebersicht.wareneingang.inboundCreateError'))
+    toast.error(err.response?.data?.error || t('grossanlass.material.wareneingang.inboundCreateError'))
   } finally {
     busyId.value = null
   }
@@ -492,7 +492,7 @@ async function receive(row: GrossanlassCommitment) {
   const raw = receiveQty.value[row.id]
   const quantity = Number(raw === undefined || raw === '' ? missingQty(row) : raw)
   if (!Number.isInteger(quantity) || quantity <= 0) {
-    toast.error(t('grossanlass.materialUebersicht.wareneingang.receiveQtyInvalid'))
+    toast.error(t('grossanlass.material.wareneingang.receiveQtyInvalid'))
     return
   }
   busyId.value = row.id
@@ -507,8 +507,8 @@ async function receive(row: GrossanlassCommitment) {
     receiveNote.value[row.id] = ''
     toast.success(
       result.inbound.state === 'complete'
-        ? t('grossanlass.materialUebersicht.wareneingang.markedHere')
-        : t('grossanlass.materialUebersicht.wareneingang.receivedPartial', {
+        ? t('grossanlass.material.wareneingang.markedHere')
+        : t('grossanlass.material.wareneingang.receivedPartial', {
           received: result.inbound.received,
           expected: result.inbound.expected,
         }),

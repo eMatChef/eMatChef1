@@ -147,18 +147,18 @@ export function createGrossanlassEinsatzPreview(t: Translate): {
   einsaetze: GaPreviewEinsatz[]
   conflicts: GaPreviewConflict[]
 } {
-  const bau = t('grossanlass.materialUebersicht.sampleRessortBau')
-  const technik = t('grossanlass.materialUebersicht.sampleRessortTechnik')
-  const wasser = t('grossanlass.materialUebersicht.sampleRessortWasser')
-  const verpflegung = t('grossanlass.materialUebersicht.sampleRessortVerpflegung')
-  const sicherheit = t('grossanlass.materialUebersicht.sampleRessortSicherheit')
+  const bau = t('grossanlass.material.sampleRessortBau')
+  const technik = t('grossanlass.material.sampleRessortTechnik')
+  const wasser = t('grossanlass.material.sampleRessortWasser')
+  const verpflegung = t('grossanlass.material.sampleRessortVerpflegung')
+  const sicherheit = t('grossanlass.material.sampleRessortSicherheit')
   const gator = t('grossanlass.materials.sampleGator')
-  const geruest = t('grossanlass.materialUebersicht.sampleGeruest')
-  const zelt = t('grossanlass.materialUebersicht.sampleZelt')
-  const teleskop = t('grossanlass.materialUebersicht.sampleTeleskop')
-  const kabel = t('grossanlass.materialUebersicht.sampleKabel')
-  const akkuschrauber = t('grossanlass.materialUebersicht.sampleAkkuschrauber')
-  const folie = t('grossanlass.materialUebersicht.sampleFolie')
+  const geruest = t('grossanlass.material.sampleGeruest')
+  const zelt = t('grossanlass.material.sampleZelt')
+  const teleskop = t('grossanlass.material.sampleTeleskop')
+  const kabel = t('grossanlass.material.sampleKabel')
+  const akkuschrauber = t('grossanlass.material.sampleAkkuschrauber')
+  const folie = t('grossanlass.material.sampleFolie')
 
   const einsaetze: GaPreviewEinsatz[] = [
     {
@@ -170,12 +170,12 @@ export function createGrossanlassEinsatzPreview(t: Translate): {
       stock: 1,
       fromIso: '2027-07-16T08:00:00',
       toIso: '2027-07-16T18:00:00',
-      fromLabel: t('grossanlass.materialUebersicht.slotFriMorning'),
-      toLabel: t('grossanlass.materialUebersicht.slotFriEvening'),
+      fromLabel: t('grossanlass.material.slotFriMorning'),
+      toLabel: t('grossanlass.material.slotFriEvening'),
       ressort: bau,
-      bauprojekt: t('grossanlass.materialUebersicht.sampleProjektBuehne'),
+      bauprojekt: t('grossanlass.material.sampleProjektBuehne'),
       status: 'planned',
-      who: t('grossanlass.materialUebersicht.sampleWho1'),
+      who: t('grossanlass.material.sampleWho1'),
     },
     {
       id: 'gator-sicherheit',
@@ -186,11 +186,11 @@ export function createGrossanlassEinsatzPreview(t: Translate): {
       stock: 1,
       fromIso: '2027-07-17T10:00:00',
       toIso: '2027-07-17T14:00:00',
-      fromLabel: t('grossanlass.materialUebersicht.slotSatMorning'),
-      toLabel: t('grossanlass.materialUebersicht.slotSatAfternoon'),
+      fromLabel: t('grossanlass.material.slotSatMorning'),
+      toLabel: t('grossanlass.material.slotSatAfternoon'),
       ressort: sicherheit,
       status: 'pending_approval',
-      who: t('grossanlass.materialUebersicht.sampleWho3'),
+      who: t('grossanlass.material.sampleWho3'),
       conflictId: 'gator-sa',
     },
     {
@@ -202,12 +202,12 @@ export function createGrossanlassEinsatzPreview(t: Translate): {
       stock: 1,
       fromIso: '2027-07-17T10:00:00',
       toIso: '2027-07-17T14:00:00',
-      fromLabel: t('grossanlass.materialUebersicht.slotSatMorning'),
-      toLabel: t('grossanlass.materialUebersicht.slotSatAfternoon'),
+      fromLabel: t('grossanlass.material.slotSatMorning'),
+      toLabel: t('grossanlass.material.slotSatAfternoon'),
       ressort: bau,
-      bauprojekt: t('grossanlass.materialUebersicht.sampleProjektBuehne'),
+      bauprojekt: t('grossanlass.material.sampleProjektBuehne'),
       status: 'pending_approval',
-      who: t('grossanlass.materialUebersicht.sampleWho2'),
+      who: t('grossanlass.material.sampleWho2'),
       conflictId: 'gator-sa',
     },
     {
@@ -219,12 +219,12 @@ export function createGrossanlassEinsatzPreview(t: Translate): {
       stock: 12,
       fromIso: '2027-07-16T08:00:00',
       toIso: '2027-07-18T16:00:00',
-      fromLabel: t('grossanlass.materialUebersicht.slotFriMorning'),
-      toLabel: t('grossanlass.materialUebersicht.slotSunAfternoon'),
+      fromLabel: t('grossanlass.material.slotFriMorning'),
+      toLabel: t('grossanlass.material.slotSunAfternoon'),
       ressort: bau,
-      bauprojekt: t('grossanlass.materialUebersicht.sampleProjektBuehne'),
+      bauprojekt: t('grossanlass.material.sampleProjektBuehne'),
       status: 'pending_approval',
-      who: t('grossanlass.materialUebersicht.sampleWho1'),
+      who: t('grossanlass.material.sampleWho1'),
       conflictId: 'geruest-qty',
     },
     {
@@ -236,11 +236,11 @@ export function createGrossanlassEinsatzPreview(t: Translate): {
       stock: 12,
       fromIso: '2027-07-16T14:00:00',
       toIso: '2027-07-17T20:00:00',
-      fromLabel: t('grossanlass.materialUebersicht.slotFriAfternoon'),
-      toLabel: t('grossanlass.materialUebersicht.slotSatEvening'),
+      fromLabel: t('grossanlass.material.slotFriAfternoon'),
+      toLabel: t('grossanlass.material.slotSatEvening'),
       ressort: technik,
       status: 'pending_approval',
-      who: t('grossanlass.materialUebersicht.sampleWho2'),
+      who: t('grossanlass.material.sampleWho2'),
       conflictId: 'geruest-qty',
     },
     {
@@ -252,11 +252,11 @@ export function createGrossanlassEinsatzPreview(t: Translate): {
       stock: 1,
       fromIso: '2027-07-16T07:00:00',
       toIso: '2027-07-18T20:00:00',
-      fromLabel: t('grossanlass.materialUebersicht.slotFriMorning'),
-      toLabel: t('grossanlass.materialUebersicht.slotSunEvening'),
+      fromLabel: t('grossanlass.material.slotFriMorning'),
+      toLabel: t('grossanlass.material.slotSunEvening'),
       ressort: verpflegung,
       status: 'issued',
-      who: t('grossanlass.materialUebersicht.sampleWho1'),
+      who: t('grossanlass.material.sampleWho1'),
     },
     {
       id: 'teleskop-bau',
@@ -267,12 +267,12 @@ export function createGrossanlassEinsatzPreview(t: Translate): {
       stock: 1,
       fromIso: '2027-07-16T09:00:00',
       toIso: '2027-07-17T18:00:00',
-      fromLabel: t('grossanlass.materialUebersicht.slotFriMorning'),
-      toLabel: t('grossanlass.materialUebersicht.slotSatEvening'),
+      fromLabel: t('grossanlass.material.slotFriMorning'),
+      toLabel: t('grossanlass.material.slotSatEvening'),
       ressort: bau,
-      bauprojekt: t('grossanlass.materialUebersicht.sampleProjektWasser'),
+      bauprojekt: t('grossanlass.material.sampleProjektWasser'),
       status: 'issued',
-      who: t('grossanlass.materialUebersicht.sampleWho2'),
+      who: t('grossanlass.material.sampleWho2'),
     },
     {
       id: 'kabel-technik',
@@ -283,11 +283,11 @@ export function createGrossanlassEinsatzPreview(t: Translate): {
       stock: 6,
       fromIso: '2027-07-17T08:00:00',
       toIso: '2027-07-18T12:00:00',
-      fromLabel: t('grossanlass.materialUebersicht.slotSatMorning'),
-      toLabel: t('grossanlass.materialUebersicht.slotSunNoon'),
+      fromLabel: t('grossanlass.material.slotSatMorning'),
+      toLabel: t('grossanlass.material.slotSunNoon'),
       ressort: technik,
       status: 'planned',
-      who: t('grossanlass.materialUebersicht.sampleWho3'),
+      who: t('grossanlass.material.sampleWho3'),
     },
     {
       id: 'kabel-wasser',
@@ -298,11 +298,11 @@ export function createGrossanlassEinsatzPreview(t: Translate): {
       stock: 6,
       fromIso: '2027-07-16T10:00:00',
       toIso: '2027-07-16T16:00:00',
-      fromLabel: t('grossanlass.materialUebersicht.slotFriMorning'),
-      toLabel: t('grossanlass.materialUebersicht.slotFriEvening'),
+      fromLabel: t('grossanlass.material.slotFriMorning'),
+      toLabel: t('grossanlass.material.slotFriEvening'),
       ressort: wasser,
       status: 'returned',
-      who: t('grossanlass.materialUebersicht.sampleWho1'),
+      who: t('grossanlass.material.sampleWho1'),
     },
     {
       id: 'akku-bau',
@@ -313,12 +313,12 @@ export function createGrossanlassEinsatzPreview(t: Translate): {
       stock: 4,
       fromIso: '2027-07-16T08:00:00',
       toIso: '2027-07-16T16:00:00',
-      fromLabel: t('grossanlass.materialUebersicht.slotFriMorning'),
-      toLabel: t('grossanlass.materialUebersicht.slotFriEvening'),
+      fromLabel: t('grossanlass.material.slotFriMorning'),
+      toLabel: t('grossanlass.material.slotFriEvening'),
       ressort: bau,
-      bauprojekt: t('grossanlass.materialUebersicht.sampleProjektBuehne'),
+      bauprojekt: t('grossanlass.material.sampleProjektBuehne'),
       status: 'returned',
-      who: t('grossanlass.materialUebersicht.sampleWho1'),
+      who: t('grossanlass.material.sampleWho1'),
     },
     {
       id: 'akku-technik',
@@ -329,11 +329,11 @@ export function createGrossanlassEinsatzPreview(t: Translate): {
       stock: 4,
       fromIso: '2027-07-17T09:00:00',
       toIso: '2027-07-17T12:00:00',
-      fromLabel: t('grossanlass.materialUebersicht.slotSatMorning'),
-      toLabel: t('grossanlass.materialUebersicht.slotSatNoon'),
+      fromLabel: t('grossanlass.material.slotSatMorning'),
+      toLabel: t('grossanlass.material.slotSatNoon'),
       ressort: technik,
       status: 'planned',
-      who: t('grossanlass.materialUebersicht.sampleWho3'),
+      who: t('grossanlass.material.sampleWho3'),
     },
     {
       id: 'folie-bau',
@@ -344,12 +344,12 @@ export function createGrossanlassEinsatzPreview(t: Translate): {
       stock: 200,
       fromIso: '2027-07-16T08:00:00',
       toIso: '2027-07-18T20:00:00',
-      fromLabel: t('grossanlass.materialUebersicht.slotFriMorning'),
-      toLabel: t('grossanlass.materialUebersicht.slotSunEvening'),
+      fromLabel: t('grossanlass.material.slotFriMorning'),
+      toLabel: t('grossanlass.material.slotSunEvening'),
       ressort: bau,
-      bauprojekt: t('grossanlass.materialUebersicht.sampleProjektBuehne'),
+      bauprojekt: t('grossanlass.material.sampleProjektBuehne'),
       status: 'issued',
-      who: t('grossanlass.materialUebersicht.sampleWho2'),
+      who: t('grossanlass.material.sampleWho2'),
     },
   ]
 
@@ -360,8 +360,8 @@ export function createGrossanlassEinsatzPreview(t: Translate): {
       objectId: 'gator',
       objectName: gator,
       einsatzIds: ['gator-sicherheit', 'gator-bau-sa'],
-      title: t('grossanlass.materialUebersicht.conflictUniqueTitle', { name: gator }),
-      text: t('grossanlass.materialUebersicht.conflictUniqueText', {
+      title: t('grossanlass.material.conflictUniqueTitle', { name: gator }),
+      text: t('grossanlass.material.conflictUniqueText', {
         name: gator,
         a: sicherheit,
         b: bau,
@@ -373,8 +373,8 @@ export function createGrossanlassEinsatzPreview(t: Translate): {
       objectId: 'geruest',
       objectName: geruest,
       einsatzIds: ['geruest-bau', 'geruest-technik'],
-      title: t('grossanlass.materialUebersicht.conflictQtyTitle', { name: geruest }),
-      text: t('grossanlass.materialUebersicht.conflictQtyText', {
+      title: t('grossanlass.material.conflictQtyTitle', { name: geruest }),
+      text: t('grossanlass.material.conflictQtyText', {
         name: geruest,
         used: 14,
         stock: 12,
@@ -413,13 +413,13 @@ export type GaPreviewWishTemplate = {
 }
 
 export function createGrossanlassWishBookingTemplates(t: Translate): GaPreviewWishTemplate[] {
-  const bau = t('grossanlass.materialUebersicht.sampleRessortBau')
-  const technik = t('grossanlass.materialUebersicht.sampleRessortTechnik')
-  const sicherheit = t('grossanlass.materialUebersicht.sampleRessortSicherheit')
+  const bau = t('grossanlass.material.sampleRessortBau')
+  const technik = t('grossanlass.material.sampleRessortTechnik')
+  const sicherheit = t('grossanlass.material.sampleRessortSicherheit')
   return [
     {
       id: 'wish-gator',
-      label: t('grossanlass.materialUebersicht.wishGator'),
+      label: t('grossanlass.material.wishGator'),
       objectId: 'gator',
       objectName: t('grossanlass.materials.sampleGator'),
       kind: 'unique',
@@ -427,32 +427,32 @@ export function createGrossanlassWishBookingTemplates(t: Translate): GaPreviewWi
       stock: 1,
       fromIso: '2027-07-17T10:00:00',
       toIso: '2027-07-17T14:00:00',
-      fromLabel: t('grossanlass.materialUebersicht.slotSatMorning'),
-      toLabel: t('grossanlass.materialUebersicht.slotSatAfternoon'),
+      fromLabel: t('grossanlass.material.slotSatMorning'),
+      toLabel: t('grossanlass.material.slotSatAfternoon'),
       ressort: sicherheit,
-      who: t('grossanlass.materialUebersicht.sampleWho3'),
+      who: t('grossanlass.material.sampleWho3'),
       hasConflict: true,
     },
     {
       id: 'wish-drill',
-      label: t('grossanlass.materialUebersicht.wishDrill'),
+      label: t('grossanlass.material.wishDrill'),
       objectId: 'akkuschrauber',
-      objectName: t('grossanlass.materialUebersicht.sampleAkkuschrauber'),
+      objectName: t('grossanlass.material.sampleAkkuschrauber'),
       kind: 'unique',
       qty: 2,
       stock: 4,
       fromIso: '2027-07-16T08:00:00',
       toIso: '2027-07-16T18:00:00',
-      fromLabel: t('grossanlass.materialUebersicht.slotFriMorning'),
-      toLabel: t('grossanlass.materialUebersicht.slotFriEvening'),
+      fromLabel: t('grossanlass.material.slotFriMorning'),
+      toLabel: t('grossanlass.material.slotFriEvening'),
       ressort: bau,
-      bauprojekt: t('grossanlass.materialUebersicht.sampleProjektBuehne'),
-      who: t('grossanlass.materialUebersicht.sampleWho1'),
+      bauprojekt: t('grossanlass.material.sampleProjektBuehne'),
+      who: t('grossanlass.material.sampleWho1'),
       hasConflict: false,
     },
     {
       id: 'wish-trailer',
-      label: t('grossanlass.materialUebersicht.wishTrailer'),
+      label: t('grossanlass.material.wishTrailer'),
       objectId: 'anhaenger',
       objectName: t('grossanlass.materials.sampleTrailer'),
       kind: 'unique',
@@ -460,18 +460,18 @@ export function createGrossanlassWishBookingTemplates(t: Translate): GaPreviewWi
       stock: 1,
       fromIso: '2027-07-18T08:00:00',
       toIso: '2027-07-18T12:00:00',
-      fromLabel: t('grossanlass.materialUebersicht.slotSunMorning'),
-      toLabel: t('grossanlass.materialUebersicht.slotSunNoon'),
+      fromLabel: t('grossanlass.material.slotSunMorning'),
+      toLabel: t('grossanlass.material.slotSunNoon'),
       ressort: technik,
-      who: t('grossanlass.materialUebersicht.sampleWho2'),
+      who: t('grossanlass.material.sampleWho2'),
       hasConflict: false,
     },
   ]
 }
 
 export function createGrossanlassFreePickTemplates(t: Translate): GaPreviewWishTemplate[] {
-  const bau = t('grossanlass.materialUebersicht.sampleRessortBau')
-  const who = t('grossanlass.materialUebersicht.sampleWho1')
+  const bau = t('grossanlass.material.sampleRessortBau')
+  const who = t('grossanlass.material.sampleWho1')
   return createGrossanlassEinsatzResources(t).map((resource) => ({
     id: `pick-${resource.id}`,
     label: resource.name,
@@ -482,8 +482,8 @@ export function createGrossanlassFreePickTemplates(t: Translate): GaPreviewWishT
     stock: resource.stock,
     fromIso: '2027-07-16T08:00:00',
     toIso: '2027-07-16T18:00:00',
-    fromLabel: t('grossanlass.materialUebersicht.slotFriMorning'),
-    toLabel: t('grossanlass.materialUebersicht.slotFriEvening'),
+    fromLabel: t('grossanlass.material.slotFriMorning'),
+    toLabel: t('grossanlass.material.slotFriEvening'),
     ressort: bau,
     who,
     hasConflict: false,
@@ -514,7 +514,7 @@ export function resourceToPickTemplate(
   resource: GaEinsatzResource,
   t: Translate,
 ): GaPreviewWishTemplate {
-  const bau = t('grossanlass.materialUebersicht.sampleRessortBau')
+  const bau = t('grossanlass.material.sampleRessortBau')
   return {
     id: `pick-${resource.id}`,
     label: resource.name,
@@ -525,10 +525,10 @@ export function resourceToPickTemplate(
     stock: resource.stock,
     fromIso: '2027-07-16T08:00:00',
     toIso: '2027-07-16T18:00:00',
-    fromLabel: t('grossanlass.materialUebersicht.slotFriMorning'),
-    toLabel: t('grossanlass.materialUebersicht.slotFriEvening'),
+    fromLabel: t('grossanlass.material.slotFriMorning'),
+    toLabel: t('grossanlass.material.slotFriEvening'),
     ressort: bau,
-    who: t('grossanlass.materialUebersicht.sampleWho1'),
+    who: t('grossanlass.material.sampleWho1'),
     hasConflict: false,
   }
 }
@@ -546,7 +546,7 @@ export function createGrossanlassEinsatzResources(t: Translate): GaEinsatzResour
     },
     {
       id: 'teleskop',
-      name: t('grossanlass.materialUebersicht.sampleTeleskop'),
+      name: t('grossanlass.material.sampleTeleskop'),
       family: 'vehicle',
       stayMode: 'return',
       categoryId: 'fahrzeuge',
@@ -564,7 +564,7 @@ export function createGrossanlassEinsatzResources(t: Translate): GaEinsatzResour
     },
     {
       id: 'akkuschrauber',
-      name: t('grossanlass.materialUebersicht.sampleAkkuschrauber'),
+      name: t('grossanlass.material.sampleAkkuschrauber'),
       family: 'material',
       stayMode: 'return',
       categoryId: 'werkzeug',
@@ -573,7 +573,7 @@ export function createGrossanlassEinsatzResources(t: Translate): GaEinsatzResour
     },
     {
       id: 'kabel',
-      name: t('grossanlass.materialUebersicht.sampleKabel'),
+      name: t('grossanlass.material.sampleKabel'),
       family: 'material',
       stayMode: 'return',
       categoryId: 'elektro',
@@ -582,7 +582,7 @@ export function createGrossanlassEinsatzResources(t: Translate): GaEinsatzResour
     },
     {
       id: 'geruest',
-      name: t('grossanlass.materialUebersicht.sampleGeruest'),
+      name: t('grossanlass.material.sampleGeruest'),
       family: 'material',
       stayMode: 'stay',
       categoryId: 'infra',
@@ -591,7 +591,7 @@ export function createGrossanlassEinsatzResources(t: Translate): GaEinsatzResour
     },
     {
       id: 'zelt',
-      name: t('grossanlass.materialUebersicht.sampleZelt'),
+      name: t('grossanlass.material.sampleZelt'),
       family: 'material',
       stayMode: 'stay',
       categoryId: 'infra',
@@ -600,7 +600,7 @@ export function createGrossanlassEinsatzResources(t: Translate): GaEinsatzResour
     },
     {
       id: 'folie',
-      name: t('grossanlass.materialUebersicht.sampleFolie'),
+      name: t('grossanlass.material.sampleFolie'),
       family: 'material',
       stayMode: 'stay',
       categoryId: 'verbrauch',
@@ -611,7 +611,7 @@ export function createGrossanlassEinsatzResources(t: Translate): GaEinsatzResour
 }
 
 export function categoryLabel(categoryId: string, t: Translate): string {
-  return t(`grossanlass.materialUebersicht.cat.${categoryId}`)
+  return t(`grossanlass.material.cat.${categoryId}`)
 }
 
 export function resourceRingId(resource: GaEinsatzResource): GaEinsatzResourceRingId {
@@ -621,11 +621,11 @@ export function resourceRingId(resource: GaEinsatzResource): GaEinsatzResourceRi
 }
 
 export function resourceRingLabel(ringId: GaEinsatzRingId, t: Translate): string {
-  if (ringId === 'fleet') return t('grossanlass.materialUebersicht.ringFleet')
-  if (ringId === 'tools') return t('grossanlass.materialUebersicht.ringTools')
-  if (ringId === 'fixed') return t('grossanlass.materialUebersicht.ringFixed')
-  if (ringId === 'org') return t('grossanlass.materialUebersicht.ringOrg')
-  return t('grossanlass.materialUebersicht.ringConsumable')
+  if (ringId === 'fleet') return t('grossanlass.material.ringFleet')
+  if (ringId === 'tools') return t('grossanlass.material.ringTools')
+  if (ringId === 'fixed') return t('grossanlass.material.ringFixed')
+  if (ringId === 'org') return t('grossanlass.material.ringOrg')
+  return t('grossanlass.material.ringConsumable')
 }
 
 function resourceBlockKey(resource: GaEinsatzResource): string {
@@ -677,7 +677,7 @@ function orgUsageResource(
   const booking: GaPreviewEinsatz = {
     id: `usage-${group.id}`,
     objectId: `usage-${group.id}`,
-    objectName: t('grossanlass.materialUebersicht.usageWindowRow'),
+    objectName: t('grossanlass.material.usageWindowRow'),
     kind: 'unique',
     qty: 1,
     stock: 1,
@@ -692,7 +692,7 @@ function orgUsageResource(
   }
   return {
     id: `org:${ringKey}:usage`,
-    name: t('grossanlass.materialUebersicht.usageWindowRow'),
+    name: t('grossanlass.material.usageWindowRow'),
     family: 'material',
     stayMode: 'stay',
     categoryId: 'infra',
@@ -776,7 +776,7 @@ export function buildFixedDateCalendarRing(
   t: Translate,
 ): GaEinsatzRingBlock | null {
   if (!periods.length) return null
-  const ringLabel = t('grossanlass.materialUebersicht.ringFixed')
+  const ringLabel = t('grossanlass.material.ringFixed')
   const resources = periods.map((period) => {
     const booking: GaPreviewEinsatz = {
       id: `fixed-${period.id}`,
@@ -848,8 +848,8 @@ export function buildOrgCalendarRings(
   groups: GaEinsatzOrgGroup[] = [],
 ): GaEinsatzRingBlock[] {
   const orgBookings = bookings.filter(isOrgEinsatz)
-  const unassigned = t('grossanlass.materialUebersicht.bookProjectUnassigned')
-  const noProject = t('grossanlass.materialUebersicht.orgNoProject')
+  const unassigned = t('grossanlass.material.bookProjectUnassigned')
+  const noProject = t('grossanlass.material.orgNoProject')
   const byId = new Map(groups.map((group) => [group.id, group]))
 
   type Bucket = {
@@ -987,7 +987,7 @@ export function buildOrgCalendarRings(
           id: `org:${bucket.id}::usage`,
           ringId: 'org',
           ringLabel: bucket.label,
-          label: t('grossanlass.materialUebersicht.usageWindowRow'),
+          label: t('grossanlass.material.usageWindowRow'),
           resources: [usage],
         })
       }

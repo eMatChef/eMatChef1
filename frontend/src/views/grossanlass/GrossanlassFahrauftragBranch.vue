@@ -43,7 +43,7 @@
         @open="emit('open', $event)"
       />
       <p v-else-if="!section.children.length && !section.vehicles.length" class="ga-fahr-branch__empty">
-        {{ t('grossanlass.materialUebersicht.noFahrauftragYet') }}
+        {{ t('grossanlass.material.noFahrauftragYet') }}
       </p>
       <v-expansion-panels
         v-if="section.children.length"

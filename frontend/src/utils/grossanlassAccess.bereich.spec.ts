@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   gaCanApproveEinsatz,
-  gaCanSeeMaterialUebersicht,
+  gaCanSeeMaterial,
   gaDeptRoleSkipsGroupFlags,
   gaDeptStageBadge,
   gaIsBereichsleitung,
@@ -38,10 +38,10 @@ describe('ga Bereichsleitung access', () => {
   })
 
   it('opens material overview for OK and Bereichsleitung', () => {
-    expect(gaCanSeeMaterialUebersicht('dc')).toBe(true)
-    expect(gaCanSeeMaterialUebersicht('bl')).toBe(true)
-    expect(gaCanSeeMaterialUebersicht('u', true)).toBe(false)
-    expect(gaCanSeeMaterialUebersicht('u', false)).toBe(false)
+    expect(gaCanSeeMaterial('dc')).toBe(true)
+    expect(gaCanSeeMaterial('bl')).toBe(true)
+    expect(gaCanSeeMaterial('u', true)).toBe(false)
+    expect(gaCanSeeMaterial('u', false)).toBe(false)
   })
 
   it('lets OK approve einsätze; BL submits for approval', () => {

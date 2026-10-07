@@ -31,7 +31,7 @@
             who: wish.who || wish.ressort,
           }) }}
         </p>
-        <p class="wish-meta">{{ wish.ressort }} · {{ t('grossanlass.materialUebersicht.qty', { n: wish.qty }) }}</p>
+        <p class="wish-meta">{{ wish.ressort }} · {{ t('grossanlass.material.qty', { n: wish.qty }) }}</p>
         <p class="wish-meta" :class="{ 'wish-meta--need': true, 'wish-meta--unset': needUnset(wish) }">
           {{ needUnset(wish)
             ? t('grossanlass.materials.detailWishNeedUnset')
@@ -62,8 +62,8 @@
           :show-markers="true"
           :allow-past="true"
           preset-mode="fixed-periods"
-          :label-from="t('grossanlass.materialUebersicht.fieldFromTime')"
-          :label-to="t('grossanlass.materialUebersicht.fieldToTime')"
+          :label-from="t('grossanlass.material.fieldFromTime')"
+          :label-to="t('grossanlass.material.fieldToTime')"
         />
 
         <div class="wish-card__actions">
@@ -76,7 +76,7 @@
             {{ t('grossanlass.materials.detailWishSave') }}
           </EButton>
           <EButton variant="secondary" size="small" @click="$emit('book', wish.id)">
-            {{ t('grossanlass.materialUebersicht.bookFromWish') }}
+            {{ t('grossanlass.material.bookFromWish') }}
           </EButton>
         </div>
       </li>

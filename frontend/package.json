@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc && vite build",
-    "typecheck": "vue-tsc --noEmit",
+    "build": "npm run typecheck && vite build",
+    "typecheck": "node --max-old-space-size=4096 node_modules/vue-tsc/bin/vue-tsc.js --noEmit",
     "lint": "eslint .",
     "lint:ci": "eslint . --max-warnings 2000",
     "preview": "vite preview",

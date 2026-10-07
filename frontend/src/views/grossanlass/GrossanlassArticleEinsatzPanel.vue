@@ -28,15 +28,15 @@
       <li v-for="row in rows" :key="row.id" class="einsatz-card">
         <div class="einsatz-card__head">
           <strong>{{ row.ressort || row.objectName }}</strong>
-          <span class="einsatz-status">{{ t(`grossanlass.materialUebersicht.status.${row.status}`) }}</span>
+          <span class="einsatz-status">{{ t(`grossanlass.material.status.${row.status}`) }}</span>
         </div>
         <p>{{ row.fromLabel }} – {{ row.toLabel }}</p>
-        <p v-if="row.qty" class="einsatz-meta">{{ t('grossanlass.materialUebersicht.qty', { n: row.qty }) }}</p>
+        <p v-if="row.qty" class="einsatz-meta">{{ t('grossanlass.material.qty', { n: row.qty }) }}</p>
         <p v-if="row.delivery === 'trip'" class="einsatz-meta">
-          {{ t('grossanlass.materialUebersicht.deliveryTrip') }}
+          {{ t('grossanlass.material.deliveryTrip') }}
         </p>
         <p v-else-if="row.delivery === 'pickup'" class="einsatz-meta">
-          {{ t('grossanlass.materialUebersicht.deliveryPickup') }}
+          {{ t('grossanlass.material.deliveryPickup') }}
         </p>
       </li>
     </ul>

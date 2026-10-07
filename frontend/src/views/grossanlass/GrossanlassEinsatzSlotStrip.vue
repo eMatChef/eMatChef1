@@ -88,8 +88,8 @@ const dayTitle = computed(() => {
 
 const legend = computed(() =>
   props.clash
-    ? t('grossanlass.materialUebersicht.slotLegendClash')
-    : t('grossanlass.materialUebersicht.slotLegendFree'),
+    ? t('grossanlass.material.slotLegendClash')
+    : t('grossanlass.material.slotLegendFree'),
 )
 
 const busyBars = computed(() => {
@@ -116,7 +116,7 @@ const pickStyle = computed(() => {
 })
 
 const pickTitle = computed(() =>
-  t('grossanlass.materialUebersicht.slotPickTitle', { name: props.objectName }),
+  t('grossanlass.material.slotPickTitle', { name: props.objectName }),
 )
 
 function showHour(label: string): boolean {

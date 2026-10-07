@@ -601,7 +601,7 @@ import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useAuthStore } from '@/stores/auth'
-import { gaCanSeeAnlassOverview, gaCanSeeMaterialUebersicht } from '@/utils/grossanlassAccess'
+import { gaCanSeeAnlassOverview, gaCanSeeMaterial } from '@/utils/grossanlassAccess'
 import { formatUserNicknameFirstNameLastName } from '@/utils/userAvatar'
 import { getStockUnitLabel } from '@/utils/materialStockUnit'
 import {
@@ -1903,7 +1903,7 @@ function bookEinsatz(wishId?: string) {
   if (placeId) query.place = placeId
   if (wishId) query.wish = wishId
   const role = authStore.currentDepartmentRole || ''
-  const name = gaCanSeeMaterialUebersicht(role)
+  const name = gaCanSeeMaterial(role)
     ? 'GrossanlassPlanungBelegung'
     : 'GrossanlassMeinRessort'
   void router.push({ name, params: { departmentId: props.departmentId }, query })

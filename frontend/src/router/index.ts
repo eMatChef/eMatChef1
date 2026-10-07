@@ -32,11 +32,12 @@ import {
 import {
   gaCanManageDepartmentUsers,
   gaCanSeeAnlassOverview,
+  gaIsGrossanlassHelper,
   gaIsMailboxOnly,
   GA_HELPER_ROUTE_ROLES,
   GA_MAILBOX_ROUTE_ROLES,
   GA_MAIL_SETTINGS_ROUTE_ROLES,
-  GA_MATERIAL_UEBERSICHT_ROUTE_ROLES,
+  GA_MATERIAL_ROUTE_ROLES,
   GA_MATERIALS_ROUTE_ROLES,
   GA_PLANUNG_ROUTE_ROLES,
   GA_PROCUREMENT_ROUTE_ROLES,
@@ -166,6 +167,33 @@ function devicesModeHostGuard(
 }
 
 const routes: RouteRecordRaw[] = [
+  {
+    path: '/display-demo/:screenId',
+    name: 'GrossanlassDisplayDemo',
+    component: () => import('@/views/grossanlass/displays/GrossanlassDisplayScreen.vue'),
+    meta: {
+      requiresAuth: false,
+      ...routeHead('grossanlassDisplayDemo'),
+    },
+  },
+  {
+    path: '/qr-demo/material',
+    name: 'QrMaterialDemo',
+    component: () => import('@/views/public/QrMaterialDemoView.vue'),
+    meta: {
+      requiresAuth: false,
+      ...routeHead('qrMaterialDemo'),
+    },
+  },
+  {
+    path: '/qr-demo/material/:offerId',
+    name: 'QrMaterialDemoDetail',
+    component: () => import('@/views/public/QrMaterialDemoView.vue'),
+    meta: {
+      requiresAuth: false,
+      ...routeHead('qrMaterialDemo'),
+    },
+  },
   {
     path: '/i/m/:matCode/b/:batchCode',
     name: 'PublicLookupMaterialBatch',
@@ -867,7 +895,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/grossanlass/GrossanlassFahrzeugWuenscheView.vue'),
         meta: {
           requiresGrossanlassDepartment: true,
-          requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
+          requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
           ...routeHead('grossanlassRoundDetail'),
         },
       },
@@ -877,7 +905,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/grossanlass/GrossanlassRoundDetailView.vue'),
         meta: {
           requiresGrossanlassDepartment: true,
-          requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
+          requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
           ...routeHead('grossanlassRoundDetail'),
         },
       },
@@ -896,7 +924,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/grossanlass/GrossanlassPlanungView.vue'),
         meta: {
           requiresGrossanlassDepartment: true,
-          requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
+          requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
           ...routeHead('grossanlassPlanung'),
         },
         children: [
@@ -911,9 +939,20 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/grossanlass/GrossanlassPlanungRoundsPane.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
+              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
               planungTab: 'wuensche',
               ...routeHead('grossanlassPlanungWuensche'),
+            },
+          },
+          {
+            path: 'auftraege',
+            name: 'GrossanlassPlanungAuftraege',
+            component: () => import('@/views/grossanlass/auftraege/GrossanlassAuftraegeView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+              planungTab: 'auftraege',
+              ...routeHead('grossanlassPlanungAuftraege'),
             },
           },
           {
@@ -922,7 +961,7 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/grossanlass/GrossanlassBauauftraegeView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
+              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
               planungTab: 'bauauftraege',
               ...routeHead('grossanlassPlanungBauauftraege'),
             },
@@ -933,7 +972,7 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/grossanlass/GrossanlassFahrauftraegeView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
+              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
               planungTab: 'transporte',
               ...routeHead('grossanlassPlanungTransporte'),
             },
@@ -952,10 +991,10 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'belegung',
             name: 'GrossanlassPlanungBelegung',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialUebersichtEinsaetzeView.vue'),
+            component: () => import('@/views/grossanlass/GrossanlassMaterialEinsaetzeView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
+              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
               planungTab: 'belegung',
               ...routeHead('grossanlassPlanungBelegung'),
             },
@@ -978,10 +1017,10 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'konflikte',
             name: 'GrossanlassPlanungKonflikte',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialUebersichtKonflikteView.vue'),
+            component: () => import('@/views/grossanlass/GrossanlassMaterialKonflikteView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
+              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
               planungTab: 'konflikte',
               ...routeHead('grossanlassPlanungKonflikte'),
             },
@@ -1223,7 +1262,7 @@ const routes: RouteRecordRaw[] = [
           },
           {
             path: 'erhalten',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/material-uebersicht/wareneingang` }),
+            redirect: (to) => ({ path: `/${to.params.departmentId}/material/wareneingang` }),
           },
         ],
       },
@@ -1277,42 +1316,42 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'materialien',
         redirect: (to) => ({
-          path: `/${to.params.departmentId}/material-uebersicht/bestand`,
+          path: `/${to.params.departmentId}/material/bestand`,
           query: to.query,
         }),
       },
       {
         path: 'materialien/uebersicht',
         redirect: (to) => ({
-          path: `/${to.params.departmentId}/material-uebersicht/bestand`,
+          path: `/${to.params.departmentId}/material/bestand`,
           query: to.query,
         }),
       },
       {
         path: 'materialien/eigen',
         redirect: (to) => ({
-          path: `/${to.params.departmentId}/material-uebersicht/bestand/eigen`,
+          path: `/${to.params.departmentId}/material/bestand/eigen`,
           query: to.query,
         }),
       },
       {
         path: 'materialien/leihweise',
         redirect: (to) => ({
-          path: `/${to.params.departmentId}/material-uebersicht/bestand/leihweise`,
+          path: `/${to.params.departmentId}/material/bestand/leihweise`,
           query: to.query,
         }),
       },
       {
         path: 'materialien/gaeste',
         redirect: (to) => ({
-          path: `/${to.params.departmentId}/material-uebersicht/bestand/gaeste`,
+          path: `/${to.params.departmentId}/material/bestand/gaeste`,
           query: to.query,
         }),
       },
       {
         path: 'materialien/js',
         redirect: (to) => ({
-          path: `/${to.params.departmentId}/material-uebersicht/bestand/js`,
+          path: `/${to.params.departmentId}/material/bestand/js`,
           query: to.query,
         }),
       },
@@ -1323,46 +1362,53 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'materialien/artikel/:itemId',
         redirect: (to) => ({
-          path: `/${to.params.departmentId}/material-uebersicht/artikel/${to.params.itemId}`,
+          path: `/${to.params.departmentId}/material/artikel/${to.params.itemId}`,
           query: to.query,
         }),
       },
       {
-        path: 'material-uebersicht',
-        component: () => import('@/views/grossanlass/GrossanlassMaterialUebersichtView.vue'),
+        path: 'material/:rest(.*)*',
+        redirect: (to) => {
+          const rest = Array.isArray(to.params.rest) ? to.params.rest.join('/') : String(to.params.rest || '')
+          return { path: `/${to.params.departmentId}/material${rest ? `/${rest}` : ''}`, query: to.query, hash: to.hash }
+        },
+      },
+      {
+        path: 'material',
+        component: () => import('@/views/grossanlass/GrossanlassMaterialView.vue'),
         meta: {
           requiresGrossanlassDepartment: true,
-          requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
-          ...routeHead('grossanlassMaterialUebersicht'),
+          requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+          ...routeHead('grossanlassMaterial'),
         },
         children: [
           {
             path: '',
             redirect: (to) => ({
-              path: `/${to.params.departmentId}/material-uebersicht/bestand`,
+              path: `/${to.params.departmentId}/material/bestand`,
               query: to.query,
             }),
           },
           {
             path: 'bestand',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialUebersichtBestandView.vue'),
+            component: () => import('@/views/grossanlass/GrossanlassMaterialBestandView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
-              materialUebersichtTab: 'bestand',
-              ...routeHead('grossanlassMaterialUebersicht'),
+              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+              materialTab: 'bestand',
+              ...routeHead('grossanlassMaterial'),
             },
             children: [
               {
                 path: '',
-                name: 'GrossanlassMaterialUebersicht',
-                component: () => import('@/views/grossanlass/GrossanlassMaterialUebersichtBestandAllesView.vue'),
+                name: 'GrossanlassMaterial',
+                component: () => import('@/views/grossanlass/GrossanlassMaterialBestandAllesView.vue'),
                 meta: {
                   requiresGrossanlassDepartment: true,
-                  requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
-                  materialUebersichtTab: 'bestand',
+                  requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+                  materialTab: 'bestand',
                   bestandSubTab: 'alles',
-                  ...routeHead('grossanlassMaterialUebersicht'),
+                  ...routeHead('grossanlassMaterial'),
                 },
               },
               {
@@ -1371,8 +1417,8 @@ const routes: RouteRecordRaw[] = [
                 component: () => import('@/views/grossanlass/GrossanlassMaterialsTab.vue'),
                 meta: {
                   requiresGrossanlassDepartment: true,
-                  requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
-                  materialUebersichtTab: 'bestand',
+                  requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+                  materialTab: 'bestand',
                   materialsTab: 'eigen',
                   bestandSubTab: 'eigen',
                   ...routeHead('grossanlassMaterials'),
@@ -1384,8 +1430,8 @@ const routes: RouteRecordRaw[] = [
                 component: () => import('@/views/grossanlass/GrossanlassMaterialsTab.vue'),
                 meta: {
                   requiresGrossanlassDepartment: true,
-                  requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
-                  materialUebersichtTab: 'bestand',
+                  requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+                  materialTab: 'bestand',
                   materialsTab: 'leihweise',
                   bestandSubTab: 'leihweise',
                   ...routeHead('grossanlassMaterialsLeihweise'),
@@ -1397,8 +1443,8 @@ const routes: RouteRecordRaw[] = [
                 component: () => import('@/views/grossanlass/GrossanlassMaterialsGaesteView.vue'),
                 meta: {
                   requiresGrossanlassDepartment: true,
-                  requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
-                  materialUebersichtTab: 'bestand',
+                  requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+                  materialTab: 'bestand',
                   materialsTab: 'gaeste',
                   bestandSubTab: 'gaeste',
                   ...routeHead('grossanlassMaterialsGaeste'),
@@ -1410,8 +1456,8 @@ const routes: RouteRecordRaw[] = [
                 component: () => import('@/views/grossanlass/GrossanlassMaterialsJsView.vue'),
                 meta: {
                   requiresGrossanlassDepartment: true,
-                  requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
-                  materialUebersichtTab: 'bestand',
+                  requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+                  materialTab: 'bestand',
                   materialsTab: 'js',
                   bestandSubTab: 'js',
                   ...routeHead('grossanlassMaterialsJs'),
@@ -1425,7 +1471,7 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/grossanlass/GrossanlassMaterialsPreviewDetail.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
+              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
               materialsTab: 'detail',
               ...routeHead('grossanlassMaterialsArtikel'),
             },
@@ -1461,13 +1507,13 @@ const routes: RouteRecordRaw[] = [
           },
           {
             path: 'wareneingang',
-            name: 'GrossanlassMaterialUebersichtWareneingang',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialUebersichtWareneingangView.vue'),
+            name: 'GrossanlassMaterialWareneingang',
+            component: () => import('@/views/grossanlass/GrossanlassMaterialWareneingangView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
-              materialUebersichtTab: 'wareneingang',
-              ...routeHead('grossanlassMaterialUebersichtWareneingang'),
+              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+              materialTab: 'wareneingang',
+              ...routeHead('grossanlassMaterialWareneingang'),
             },
           },
           {
@@ -1479,35 +1525,96 @@ const routes: RouteRecordRaw[] = [
           },
           {
             path: 'ausgabe',
-            name: 'GrossanlassMaterialUebersichtAusgabe',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialUebersichtAusgabeView.vue'),
+            name: 'GrossanlassMaterialAusgabe',
+            component: () => import('@/views/grossanlass/GrossanlassMaterialAusgabeView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
               requiredRoles: [...GA_PROCUREMENT_ROUTE_ROLES],
-              materialUebersichtTab: 'ausgabe',
-              ...routeHead('grossanlassMaterialUebersichtAusgabe'),
+              materialTab: 'ausgabe',
+              ...routeHead('grossanlassMaterialAusgabe'),
             },
           },
           {
             path: 'pack',
-            name: 'GrossanlassMaterialUebersichtPack',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialUebersichtPackView.vue'),
+            name: 'GrossanlassMaterialPack',
+            component: () => import('@/views/grossanlass/GrossanlassMaterialPackView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
-              materialUebersichtTab: 'pack',
-              ...routeHead('grossanlassMaterialUebersichtPack'),
+              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+              materialTab: 'pack',
+              ...routeHead('grossanlassMaterialPack'),
+            },
+          },
+          {
+            path: 'weiterverkauf',
+            name: 'GrossanlassMaterialWeiterverkauf',
+            component: () => import('@/views/grossanlass/weiterverkauf/GrossanlassMaterialWeiterverkaufView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+              materialTab: 'weiterverkauf',
+              ...routeHead('grossanlassMaterialWeiterverkauf'),
+            },
+          },
+          {
+            path: 'rueckbau',
+            name: 'GrossanlassMaterialRueckbau',
+            component: () => import('@/views/grossanlass/GrossanlassMaterialRueckbauView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+              materialTab: 'rueckbau',
+              ...routeHead('grossanlassMaterialRueckbau'),
             },
           },
           {
             path: 'retour',
-            name: 'GrossanlassMaterialUebersichtRetour',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialUebersichtRetourView.vue'),
+            redirect: (to) => ({ path: `/${to.params.departmentId}/material/rueckbau`, query: to.query }),
+          },
+        ],
+      },
+      {
+        path: 'displays',
+        name: 'GrossanlassDisplays',
+        component: () => import('@/views/grossanlass/displays/GrossanlassDisplaysView.vue'),
+        meta: {
+          requiresGrossanlassDepartment: true,
+          requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+          ...routeHead('grossanlassDisplays'),
+        },
+      },
+      {
+        path: 'helferpool',
+        name: 'GrossanlassHelferpool',
+        component: () => import('@/views/grossanlass/helferpool/GrossanlassHelferpoolView.vue'),
+        meta: {
+          requiresGrossanlassDepartment: true,
+          requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+          ...routeHead('grossanlassHelferpool'),
+        },
+      },
+      {
+        path: 'logistik',
+        component: () => import('@/views/grossanlass/GrossanlassLogistikView.vue'),
+        meta: {
+          requiresGrossanlassDepartment: true,
+          requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
+          denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+          ...routeHead('grossanlassLogistik'),
+        },
+        children: [
+          {
+            path: '',
+            name: 'GrossanlassLogistik',
+            redirect: (to) => ({ path: `/${to.params.departmentId}/logistik/disposition` }),
+          },
+          {
+            path: 'disposition',
+            name: 'GrossanlassLogistikDisposition',
+            component: () => import('@/views/grossanlass/logistik/GrossanlassDispositionView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
-              materialUebersichtTab: 'retour',
-              ...routeHead('grossanlassMaterialUebersichtRetour'),
+              ...routeHead('grossanlassLogistikDisposition'),
             },
           },
         ],
@@ -1706,7 +1813,7 @@ const routes: RouteRecordRaw[] = [
           const authStore = useAuthStore()
           const deptId = String(to.params.departmentId || '')
           if (deptId && authStore.isDepartmentGrossanlass(deptId)) {
-            return { path: `/${deptId}/material-uebersicht` }
+            return { path: `/${deptId}/material` }
           }
         },
         children: [
@@ -1871,11 +1978,36 @@ const routes: RouteRecordRaw[] = [
         path: 'tasks',
         name: 'Tasks',
         component: () => import('@/views/TasksShellView.vue'),
-        redirect: { name: 'TasksGeneral' },
+        redirect: (to) => {
+          const authStore = useAuthStore()
+          const deptId = String(to.params.departmentId || '')
+          if (deptId && authStore.isDepartmentGrossanlass(deptId)) {
+            return { name: gaIsGrossanlassHelper(authStore.currentDepartmentRole) ? 'TasksGaMine' : 'TasksGaMaster' }
+          }
+          return { name: 'TasksGeneral' }
+        },
         meta: {
           ...routeHead('tasks'),
         },
         children: [
+          {
+            path: 'aufgaben',
+            name: 'TasksGaMaster',
+            component: () => import('@/views/grossanlass/aufgaben/GrossanlassAufgabenMasterView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              ...routeHead('tasksGaMaster'),
+            },
+          },
+          {
+            path: 'meine',
+            name: 'TasksGaMine',
+            component: () => import('@/views/grossanlass/aufgaben/GrossanlassMeineAufgabenView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              ...routeHead('tasksGaMine'),
+            },
+          },
           {
             path: 'allgemein',
             name: 'TasksGeneral',

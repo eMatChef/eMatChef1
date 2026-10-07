@@ -107,18 +107,18 @@ const previewRows = computed(() => assignments.value)
 
 const intro = computed(() =>
   kind.value === 'fahrauftrag'
-    ? t('grossanlass.materialUebersicht.fahrauftraegeIntro')
-    : t('grossanlass.materialUebersicht.bauauftraegeIntro'),
+    ? t('grossanlass.material.fahrauftraegeIntro')
+    : t('grossanlass.material.bauauftraegeIntro'),
 )
 const emptyTitle = computed(() =>
   kind.value === 'fahrauftrag'
-    ? t('grossanlass.materialUebersicht.emptyFahrauftraegeTitle')
-    : t('grossanlass.materialUebersicht.emptyBauauftraegeTitle'),
+    ? t('grossanlass.material.emptyFahrauftraegeTitle')
+    : t('grossanlass.material.emptyBauauftraegeTitle'),
 )
 const emptyText = computed(() =>
   kind.value === 'fahrauftrag'
-    ? t('grossanlass.materialUebersicht.emptyFahrauftraegeText')
-    : t('grossanlass.materialUebersicht.emptyBauauftraegeText'),
+    ? t('grossanlass.material.emptyFahrauftraegeText')
+    : t('grossanlass.material.emptyBauauftraegeText'),
 )
 const emptyIcon = computed(() =>
   kind.value === 'fahrauftrag' ? 'mdi-truck-delivery-outline' : 'mdi-hammer-wrench',
@@ -169,12 +169,12 @@ async function onTogglePackedAssignment(assignment: GaHelperAssignment) {
 
 async function onReleaseTrip(row: GaPreviewEinsatz) {
   await withBusy(row.id, () => uebersicht.updateEinsatz(row.id, { trip_released: true }))
-  toast.success(t('grossanlass.materialUebersicht.tripsReleasedToast'))
+  toast.success(t('grossanlass.material.tripsReleasedToast'))
 }
 
 async function onIssueTrip(row: GaPreviewEinsatz) {
   await withBusy(row.id, () => uebersicht.issue(row.id, row.chauffeurUserId || undefined))
-  toast.success(t('grossanlass.materialUebersicht.tripsIssuedToast'))
+  toast.success(t('grossanlass.material.tripsIssuedToast'))
 }
 
 onMounted(() => {

@@ -45,20 +45,61 @@ Quelle: Code Stand 1. Oktober 2026 (Entities, Controller, Sidebar, Routen). Kein
 
 Grossanlass-Dept: kein Pfadi-`/activities`, kein Pfadi-`/accounting`. Sichtbarkeit hängt von der Rolle ab ([rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md)).
 
+**Materialwart-Sicht (MW/CMW, Zielbild der Navigation):** gruppierte Sidebar. Die übrigen Rollen behalten vorerst die flache Sidebar unten.
+
+| Gruppe | Menü | Route | Hinweis |
+| --- | --- | --- | --- |
+| – | Dashboard | `/{deptId}` | Home der Rolle |
+| Anlass | Ressorts | `/{deptId}/mein-ressort` | bestehende Seite «Mein Ressort», beim MW alle Ressorts |
+| Anlass | Planung | `/{deptId}/planung` | inkl. Transporte (bleibt) |
+| Anlass | Aufgaben | `/{deptId}/tasks` | zentrale Ausführungssicht, vorerst für alle Rollen gleich sichtbar (Rollen-Sichten folgen). **UI-Prototyp mit Demo-Daten** (`tasks/aufgaben` MW-Master, `tasks/meine` Helfer mobil). Bestehende Tabs Allgemein, Inventur und Drucken bleiben. Planung zeigt, was wann geplant ist, Aufgaben zeigt, was jemand konkret erledigen muss |
+| Material | Beschaffung | `/{deptId}/beschaffung` | |
+| Material | Material | `/{deptId}/material` | bisher «Materialübersicht», nur umbenannt |
+| Logistik | Logistik | `/{deptId}/logistik/disposition` | **UI-Prototyp mit Demo-Daten:** Leitstand für alle Transportbedarfe (Beschaffung, Planung, Packen, Ressort, Retour, Werkstatt), Disponieren in Touren mit Stopps, Live-Fälle. Keine eigenen Rechte |
+| Logistik | Fahrzeuge | `/{deptId}/fahrzeuge` | |
+| Betrieb | Werkstatt | `/{deptId}/werkstatt` | eigenständig: betrifft Material und Fahrzeuge |
+| Finanzen | Kosten | `/{deptId}/kosten` | |
+| Kommunikation | Nachrichten | `/{deptId}/notifications` | |
+| unten | Grossanlass verwalten | `/{deptId}/einstellungen` | bisher «Einstellungen» |
+| unten | Konfiguration | `/{deptId}/settings` | |
+| unten | UI Sandbox | `/{deptId}/dev/ui-playground` | nur Development |
+
+Weitere Rollen (flache Sidebar, Ist):
+
 | Menü | Route | Wer (kurz) |
 | --- | --- | --- |
 | Dashboard | `/{deptId}` | je Home der Rolle |
 | Mein Ressort | `/{deptId}/mein-ressort` | Bereich im Baum |
 | Meine Einsätze | `/{deptId}/meine-einsaetze` | Helfer |
 | Planung | `/{deptId}/planung` | wer die Anlass-Übersicht sieht |
-| Beschaffung | `/{deptId}/beschaffung` | MW/CMW; Delegierte mit `can_procure` landen auf Offerten |
-| Anfragen | `/{deptId}/beschaffung/anfragen` | Komm/Spon als eigener Sidebar-Punkt; MW/CMW über Beschaffung |
-| Kosten | `/{deptId}/kosten` | Anlass-Übersicht (MW/CMW/OK-Leitung) |
+| Beschaffung | `/{deptId}/beschaffung` | Delegierte mit `can_procure` landen auf Offerten |
+| Anfragen | `/{deptId}/beschaffung/anfragen` | Komm/Spon als eigener Sidebar-Punkt |
+| Kosten | `/{deptId}/kosten` | Anlass-Übersicht (OK-Leitung) |
 | Fahrzeuge | `/{deptId}/fahrzeuge` | Beschaffung oder Bereichsleitung |
-| Materialübersicht | `/{deptId}/material-uebersicht` | Material-Übersicht der Rolle |
-| Werkstatt | `/{deptId}/werkstatt` | wer Beschaffung verwaltet (MW/CMW) |
+| Materialübersicht | `/{deptId}/material` | Material-Übersicht der Rolle |
+| Werkstatt | `/{deptId}/werkstatt` | wer Beschaffung verwaltet |
+
+Logistik → Disposition ist der operative Leitstand, Planung → Transporte bleibt die Vorausplanung. Die Gruppierung für die übrigen Rollen folgt in weiteren Schritten. Logistik ist derzeit nur Shell (Rollen wie Übersicht, ohne Basisrollen); Planung → Transporte bleibt unverändert bestehen.
 
 Planung-Tabs: Wünsche, Bauaufträge, Transporte, Belegung, Konflikte. Darunter Stammdaten, Ressorts, Standorte, Kategorien, Anfragen-E-Mail, Struktur, Freigabe.
+
+**Material → Wareneingang und Pack (UI-Stand):** Wareneingang ist ein schneller MW-Ablauf (Ware finden oder scannen, Menge einbuchen, Annahmeort, direkt «Label drucken», Restmenge bleibt sichtbar). Pack geht vom Bedarf pro Ressort/Bauprojekt aus (Packbar, Teilweise packbar, Wartet auf Material, Fertig) und erlaubt Teilpacken als eigene Palette mit Nummer, Ziel, Inhalt, QR-Label und «Fahrauftrag absenden». **UI-Prototyp:** Der Bedarfs-Planer, das Label und «Fahrauftrag absenden» laufen mit lokalen Demo-Daten (`views/grossanlass/packen/`). Der bestehende Pack-Bereich bleibt darunter. Planung → Transporte bleibt für die Vorausplanung, Packen → Fahrauftrag ist für spontane operative Transporte; Logistik übernimmt später Disposition und Durchführung.
+
+**Material → Rückbau (UI-Stand):** Der frühere Tab «Rückgabe Firma» heisst jetzt «Rückbau» (`/{deptId}/material/rueckbau`, `/material/retour` leitet um). Nach dem Einsatz entscheidet der MW pro Position und Bauprojekt den Verbleib: Lager, Weiterverwenden, Weiterverkauf, Rückgabe Firma, Entsorgung oder bei Schäden Werkstatt. Der vorgesehene Verbleib kann später aus Beschaffung/Offerte kommen (Kauf → Lager, Kauf → Weiterverkauf, Leihe → Rückgabe Firma, Verbrauch → Entsorgung). Die bestehende Rückgabe-Firma-Tabelle bleibt im Filter «Rückgabe» als «Laufende Rückgaben». **UI-Prototyp:** Positionen, Rückgabepack, Verkaufsliste, Vorschau für qr.ematchef.ch und Entsorgung laufen mit lokalen Demo-Daten (`views/grossanlass/rueckbau/`), ohne Shop und ohne Backend. Kreislauf: Beschaffung/Offerte → vorgesehener Verbleib → Einsatz → Rückbau → Verbleib → ggf. Disposition → abgeschlossen.
+
+**Material → Weiterverkauf (UI-Stand):** Eigener Tab (`/{deptId}/material/weiterverkauf`) mit Angebote, Anfragen & Reservierungen und Verkauft. Angebote haben Menge, Preis, Zustand, Beschreibung, Bild-Platzhalter, «verfügbar ab», Abholort und Sichtbarkeit (nur eMatChef-Abteilungen oder öffentlich), dazu veröffentlichen und pausieren; pro Angebot stehen verfügbar, reserviert, verkauft und die Herkunft aus dem Rückbau. Anfragen lassen sich ablehnen, reservieren und die Übergabe vorbereiten (Selbstabholung oder Transport an die Disposition). Der Verbleib «Weiterverkauf» im Rückbau legt ein Angebot als Entwurf an. **UI-Prototyp:** Die Demo-Seite im Stil von qr.ematchef.ch ist direkt aufrufbar unter `/qr-demo/material` (Detail `/qr-demo/material/:offerId`), ohne App-Sidebar, mit Suche, Filtern, Auswahl und Interesse-Anmeldung. Beim Reservieren gibt es drei Wege: «Mit eMatChef anmelden» (Demo-Login, eigene Abteilung, normaler Abteilungs-Transfer), «eMatChef für unsere Abteilung einrichten» (Anfrage bleibt bestehen, Demo-Onboarding, danach Verknüpfung mit der neuen Abteilung) und «Ohne eMatChef anfragen» (Formular mit Name, Organisation, E-Mail, optional Telefon, Menge, Bemerkung). Die MW-Verwaltung unterscheidet eMatChef-Abteilung, «eMatChef wird eingerichtet» und externer Interessent. Bei externem Verkauf endet der Ablauf nach bestätigter Übergabe, bei Abteilungen folgt die Materialübernahme beim Käufer-MW (noch nicht gebaut, nur als Hinweis). Für Angebote «nur Abteilungen» ist ein (Demo-)Login oder die Einrichtung nötig. Der Button «Zur Verwaltung» erscheint nur in Test- und Dev-Umgebungen. Es gibt keinen Shop, keine Zahlung und kein Backend (`views/grossanlass/weiterverkauf/`).
+
+**Weiterverkauf ist nicht nur Überschuss:** Material und Geräte dürfen bewusst gekauft, im Anlass benutzt und danach gebraucht weiterverkauft werden (z. B. 4 Akkuschrauber kaufen, alle 4 einsetzen, alle 4 verkaufen). Deshalb wird nicht «gekauft minus benötigt» gerechnet; das Angebot trennt **1. Verwendung während des Anlasses** (gekaufte und verwendete Menge) von **2. geplantem Verbleib nach dem Anlass** (geplante Verkaufsmenge, die der ganzen gekauften Menge entsprechen darf, voraussichtlich verfügbar ab, erwarteter Zustand: neuwertig / gebraucht / Gebrauchsspuren möglich / nach Einsatz zu prüfen, optionaler Preis, frühzeitig veröffentlichen ja/nein). Phasen: geplant → wird eingesetzt → nach Rückbau bestätigt. Vor dem Rückbau zeigt die öffentliche Seite «Wird aktuell eingesetzt», «Voraussichtlich verfügbar ab …», «Gebraucht / Gebrauchsspuren möglich» und «Endgültiger Zustand und Menge werden nach Einsatz bestätigt». Beim Rückbau wird der tatsächliche Zustand je Menge bestätigt (gut, Gebrauchsspuren, beschädigt, nicht mehr verkaufbar, Werkstatt); verkaufbar sind gut und Gebrauchsspuren. Die geplante Menge wird mit der verkaufbaren abgeglichen, bestehende Reservierungen bleiben sichtbar, bei Abweichung oder zu vielen Reservierungen erscheint eine Warnung. Es gibt eine einzige Weiterverkaufslogik (`gaVerkaufMock.ts`), der Rückbau nutzt sie.
+
+**Helferpool (UI-Stand):** Neue Seite `/{deptId}/helferpool` (Gruppe Anlass) mit den Ansichten Helfer, Zeitplan und Fähigkeiten für MW, LW und Bereichsleitung. Sie zeigt pro Person Verfügbarkeit (mehrere Zeitfenster), Fähigkeiten, Führerausweise separat, Bemerkung, Zuteilungen und den Status frei / teilweise belegt / belegt / nicht verfügbar. Filter: Zeitraum, Ressort/Bereich, Fähigkeit, Führerausweis, Verfügbarkeit, Abteilung. Ein Detail-Drawer zeigt Verfügbarkeit, Fähigkeiten, Zuteilungen und freie Zeitfenster. Ein Aufgaben-Bedarf («4 Helfer Holzbau, 04.11. 08:00–12:00») zeigt die fachlich und zeitlich passenden Personen und erlaubt «Helfer zuteilen». **UI-Prototyp:** Zuteilungen kommen aus der Aufgaben-Demo (Verantwortliche) und der Disposition-Demo (Fahrer), «Helfer zuteilen» nutzt dieselbe Aufgaben-Logik, daher erscheint die Zuteilung beim Helfer und beim Auftrag. Keine automatische Optimierung, kein Backend (`views/grossanlass/helferpool/`).
+
+**Material → Ausgabe (UI-Stand):** Die Ausgabe ist der schnelle Lagerschalter mit den Ansichten Ausgabe, Offen bei Personen und Verlauf. Ablauf: Empfänger per Benutzerkarte/QR oder Suche, optional Bauauftrag/Ressort oder «kein Auftrag», Material per Scan oder Suche, Menge mit +/−, bestätigen; danach ist der Schalter sofort bereit für den nächsten Scan. Verbrauchsmaterial wird nur ausgegeben, rückgabepflichtiges Material merkt Person und Auftrag und erscheint unter «Offen bei Personen» (Rückgabe buchen, an andere Person übergeben, anderem Auftrag zuordnen, überfällig markiert). Bei gewähltem Bauauftrag zeigt die Schnellausgabe geplant, ausgegeben und noch benötigt; zusätzliche Artikel bleiben möglich. Warnungen: Bestand nicht ausreichend, bereits gepackt, bereits ausgeliehen, defekt/Werkstatt, Rückgabe überfällig, unbekannter Artikel. Ausgabe ist nicht Packen: gepacktes Material ist nicht frei ausgebbar. **UI-Prototyp:** Der Schalter läuft mit lokalen Demo-Daten (`views/grossanlass/ausgabe/`); die bestehenden geplanten Ausgaben mit den echten Benutzerkarten bleiben darunter erhalten.
+
+**Planung → Aufträge (UI-Stand):** Neuer Tab `/{deptId}/planung/auftraege` mit der gemeinsamen Auftragsansicht Alle | Aufträge | Bauaufträge. Der Typ steht in Listen und Karten als Badge «Auftrag» bzw. «Bauauftrag». «Auftrag erstellen» bietet «Normaler Auftrag» (Titel/Beschreibung, Ressort/Bereich, Zeitraum, Standort optional, Verantwortliche, Helferbedarf mit Fähigkeiten, Materialbedarf, Werkzeug/Fahrzeuge, Transportbedarf, Aufgaben, Status) und «Bauauftrag» mit denselben Feldern plus Bauprojekt, konkretem Bau-/Einsatzort, Aufbauzeitraum, Maschinen/Fahrzeugen, Material- und Baufortschritt sowie Rückbauzeitraum und -informationen. Beide Typen sind in den Demos mit Aufgaben, Helferpool, Pack, Ausgabe und Logistik verknüpfbar; Fortschritt und Helferbestand ergeben sich aus den verknüpften Aufgaben und dem Packen, beim Erstellen entstehen die Aufgaben in der Aufgaben-Demo. Der bestehende Tab «Bauaufträge» (echte Daten) bleibt unverändert. **Zeiten:** frühester Start, Deadline, gewünschter und geplanter Zeitraum; beim Bauauftrag zusätzlich Aufbauzeitfenster, «fertig bis» und Rückbauzeitfenster (mit Hinweis bei Überschreitung). **Ressourcenanforderungen:** pro Auftrag mehrere Bedarfe (Kran, Stapler, Maschine, Fahrzeug/Anhänger, Spezialwerkzeug, Helfer/Fähigkeit) mit Dauer, frühestens ab, spätestens bis, Wunschfenster, flexibel ja/nein, Anzahl, Bemerkung und Status Bedarf / Vorschlag / eingeplant. Ein simulierter Planungsvorschlag (z. B. «Kran bereits bei Bühne Nord 04.11. 08:00–10:00, Vorschlag Bar West 04.11. 10:30–12:30») bietet «Vorschlag übernehmen», «Andere Zeit» (mit Prüfung gegen Fenster, Dauer, Belegung und Abhängigkeit) und «Noch offen lassen»; es gibt keine automatische Optimierung. **Abhängigkeiten:** Aufgaben dürfen optional von anderen abhängen (z. B. Material geliefert → Holzkonstruktion → Kranarbeit → Dachmontage → Elektrik → fertig); die UI zeigt, was auf was wartet. Die Anforderungen liegen in einer gemeinsamen Struktur (`views/grossanlass/ressourcen/`), die die Disposition schon heute schreibgeschützt anzeigt: Planung zeigt, wann die Ressource sinnvoll wäre, die Logistik übernimmt den konkreten Einsatz. **UI-Prototyp:** lokaler Demo-State (`views/grossanlass/auftraege/`). Die Abbildung auf bestehende Backend-Entities wird erst beim API-Abgleich entschieden.
+
+**Früher Weiterverkauf aus Beschaffung (UI-Stand):** Der Verbleib nach dem Anlass wird schon bei Offerte, Absprache oder Kauf festgehalten («Aus Beschaffung planen» im Weiterverkauf): eigenes Lager, anderes Projekt/Weiterverwenden, Weiterverkaufen, Verbrauch/Entsorgung oder noch offen. Bei «Weiterverkaufen» kommen geplante Verkaufsmenge (darf der ganzen Kaufmenge entsprechen), voraussichtlich verfügbar ab, erwarteter Zustand, optionaler Preis, optionaler Abholort und «bereits jetzt veröffentlichen» dazu. Das Angebot unterscheidet geplant, reserviert, nach Rückbau tatsächlich verfügbar und verkauft/übergeben; schon während des Anlasses dürfen andere Departments und Externe reservieren. Beim Rückbau werden Menge und Zustand bestätigt, bereits reserviertes Material wird sichtbar und kann direkt für die Käufer bereitgestellt werden, statt wieder eingelagert zu werden. Es gibt weiterhin nur eine Weiterverkaufslogik (`gaVerkaufMock.ts`).
+
+**Displays und Leitstände (UI-Stand):** Konfiguration unter `/{deptId}/displays` (Name, Typ, Standort, optional Ressort/Bereich/Bauprojekt-Filter, simulierte Rotation), TV-Ansicht unter `/display-demo/:screenId` (ohne App-Sidebar, Vollbild, grosse Schrift). Typen: Material-Leitstand (Übersicht, Packen, Fehlmaterial, Bereit/Transport, Wareneingang; FEHLT ≠ vorhanden nicht gepackt ≠ gepackt wartet auf Transport ≠ vor Ort; Ursache bei Fehlmaterial: bestellt, Abholung geplant, noch nicht beschafft, teilweise, verspätet, Termin unbekannt), Logistik-Leitstand (Transporte, Fahrten, Touren, Fahrer/Fahrzeuge, ETA, Verspätungen, Probleme, Kran/Stapler und andere Ressourcen), Projektkarte (grün/orange/rot je Projekt, Detail mit Fortschritt, Deadline, aktueller Aufgabe, Helfern, Material, Packs, Transporten, Ressourcen, Blockaden) und Gesamt-Leitstand. Alle Displays lesen denselben Demo-State wie die normalen Seiten; Aktionen dort erscheinen sofort im Live-/Aktivitäten-Feed und prominent als kurzes Banner. Fahrten haben drei Zustände: kein Tracking (Status, Startzeit, ETA), ETA-Simulation (geschätzter Fortschritt auf der Route) und Live-GPS (nur als zukünftiger Zustand, nicht implementiert). Es gibt keine WebSockets, kein SSE und kein GPS.
 
 Beschaffung-Tabs: Bedarf, Anfragen, Offerten, Zusagen, Bestellungen. Der frühere Tab **Erhalten** leitet auf Materialübersicht → **Wareneingang** um.
 
@@ -129,7 +170,7 @@ Postfach: gemeinsames Konto, Label-Wurzel `eMatChef`, Anbieter-Feld `gmail` (Def
 
 Mail-Adressen: `user_email_alias` (weitere Adressen am User) und `membership.notification_email` (Empfängeradresse dieser Department-Mitgliedschaft). Die Gmail-Öffnen-URL einer Anfrage bezieht sich auf das Department der Anfrage.
 
-Wareneingang (**IST**, mengenbasiert): Liefertermin an Bestellung und Offerte (Lieferzeit in Tagen). Route `/{deptId}/material-uebersicht/wareneingang` bucht Teil- oder Restmengen pro Charge als Bewegung `received` (Menge, Annahmeort, Notiz, Person, Zeitpunkt); erhaltene Menge und Fehlmenge werden berechnet, Überlieferung wird abgelehnt. `POST …/lines/{id}/received` bucht über dieselbe Charge-Bewegung; erhaltene Mengen je Wunsch und Positionsstatus werden daraus abgeleitet. Abhol-/Liefer-Einsatz an der Charge (`pickup_einsatz_id` / `delivery_einsatz_id`) ist noch kein Fahrauftrag. Details: [materialfluss.md §5–6, §14](./materialfluss.md#6-wareneingang-ist-mengenbasiert).
+Wareneingang (**IST**, mengenbasiert): Liefertermin an Bestellung und Offerte (Lieferzeit in Tagen). Route `/{deptId}/material/wareneingang` bucht Teil- oder Restmengen pro Charge als Bewegung `received` (Menge, Annahmeort, Notiz, Person, Zeitpunkt); erhaltene Menge und Fehlmenge werden berechnet, Überlieferung wird abgelehnt. `POST …/lines/{id}/received` bucht über dieselbe Charge-Bewegung; erhaltene Mengen je Wunsch und Positionsstatus werden daraus abgeleitet. Abhol-/Liefer-Einsatz an der Charge (`pickup_einsatz_id` / `delivery_einsatz_id`) ist noch kein Fahrauftrag. Details: [materialfluss.md §5–6, §14](./materialfluss.md#6-wareneingang-ist-mengenbasiert).
 
 Kosten-Ledger (Einkauf, Miete, Leih, Weiterverkauf, Zahler): [kosten.md](./kosten.md), Phasen K1–K6 umgesetzt. API `…/beschaffung/costs` und `…/budgets`.
 
@@ -442,7 +483,7 @@ Implementierung: `[SidebarNavigation.vue](../../frontend/src/components/layout/S
 | 1   | **Dashboard**     | `mdi-view-grid`              | `/{deptId}`                     | immer                                       |
 | 2   | **Planung**       | `mdi-clipboard-text-outline` | `/{deptId}/planung`             | ab Phase 2                                  |
 | 3   | **Fahrzeuge**     | `mdi-truck-outline`          | `/{deptId}/fahrzeuge`           | **Ist** — kein eigener Punkt «Materialien»; Bestand liegt in der Materialübersicht |
-| 4   | Materialübersicht | `mdi-truck-delivery-outline` | `/{deptId}/material-uebersicht` | **Ist** — Bestand, Wareneingang, Ausgabe, Pack, Retour. Einsätze/Konflikte unter Planung |
+| 4   | Materialübersicht | `mdi-truck-delivery-outline` | `/{deptId}/material` | **Ist** — Bestand, Wareneingang, Ausgabe, Pack, Retour. Einsätze/Konflikte unter Planung |
 | 5   | **Beschaffung**   | `mdi-cart-outline`           | `/{deptId}/beschaffung`         | **Ist** — Inhalt [§0.5](#05-beschaffung-anfragen-wareneingang-kosten), keine Shell |
 | —   | *Divider*         |                              |                                 |                                             |
 | 6   | **Aufgaben**      | `mdi-clipboard-list`         | `/{deptId}/tasks`               | ab Phase 2 (Runden-Inbox, MW-Tasks)         |
@@ -487,7 +528,7 @@ Aktivitäten, **Pfadi-Buchhaltung** (`/accounting` — voller Tab-Stack), Werkst
 | `**/planung`**             | `GrossanlassPlanungView`     | **2a** | Tabs + `EEmptyState`                      |
 | `/beschaffung`             | `GrossanlassBeschaffungView` | **Ist** | Tabs Bedarf, Anfragen, Offerten, Zusagen, Bestellungen. Historisch war das eine leere Shell ohne API |
 | `/planung/rounds/:roundId` | `GrossanlassRoundDetailView` | 4      | Wunschformular                            |
-| `/material-uebersicht`     | `GrossanlassMaterialUebersichtView` | **Ist** | Bestand, Wareneingang, Ausgabe, Pack, Retour [§0.1](#01-navigation) |
+| `/material`     | `GrossanlassMaterialView` | **Ist** | Bestand, Wareneingang, Ausgabe, Pack, Retour [§0.1](#01-navigation) |
 | `/materials`               | Redirect auf Materialübersicht | **Ist** | kein eigener Stammdaten-Menüpunkt |
 
 
@@ -629,7 +670,7 @@ Abhängigkeit: **PR4** (`activity_grossanlass_wish_line`) → dann Bedarf aus W�
 | **Anfragen**     | Ist: Firmen, Kanal, angefragte Positionen, Gmail — [§0.5](#05-beschaffung-anfragen-wareneingang-kosten) |
 | **Offerten**     | Ist: 1..n Angebote inkl. Logistikweg |
 | **Bestellungen** | Status «bestellt», Betrag, Bestelldatum, Rechnungsreferenz, Liefertermin |
-| **Wareneingang** | nicht dieser Tab. Route `material-uebersicht/wareneingang`; API `POST …/lines/{id}/received` |
+| **Wareneingang** | nicht dieser Tab. Route `material/wareneingang`; API `POST …/lines/{id}/received` |
 
 
 **Status** pro Position (Kanban): `bedarf` → `offerte_eingeholt` → `budgetiert` → `bestellt` → `teilweise_erhalten` → `erhalten`.
@@ -1138,7 +1179,7 @@ Das frühere Zielmodell `material_usage_grant` ist **nicht gebaut und wird nicht
 
 ## 11. Materialübersicht & Ausgabe
 
-**Ist, nicht mehr «später».** Route: `/:deptId/material-uebersicht`. Tabs [§0.1](#01-navigation). Wareneingang ersetzt den früheren Beschaffung-Tab «Erhalten».
+**Ist, nicht mehr «später».** Route: `/:deptId/material`. Tabs [§0.1](#01-navigation). Wareneingang ersetzt den früheren Beschaffung-Tab «Erhalten».
 
 ### 11.1 Status pro Position
 
@@ -1419,7 +1460,7 @@ Berechtigungen: [§17](#17-berechtigungs-matrix).
 
 ### Backend (Ziel)
 
-`GrossanlassAccessService`: `canUserCreateGrossanlassDepartment`, `canUserManagePlanung`, `canUserViewMaterialUebersichtScope`, `canUserRespondToParticipantInvite` — Wiederverwendung `canInvitedDepartmentMwAssignGroup`, `canUserSeeInvitedActivityInList`.
+`GrossanlassAccessService`: `canUserCreateGrossanlassDepartment`, `canUserManagePlanung`, `canUserViewMaterialScope`, `canUserRespondToParticipantInvite` — Wiederverwendung `canInvitedDepartmentMwAssignGroup`, `canUserSeeInvitedActivityInList`.
 
 ---
 

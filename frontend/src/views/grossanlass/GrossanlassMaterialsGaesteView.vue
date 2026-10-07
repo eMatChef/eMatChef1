@@ -355,8 +355,8 @@ const chauffeurs = computed(() =>
     value: card.user_id,
     title: card.name,
     subtitle: card.may_drive
-      ? t('grossanlass.materialUebersicht.chauffeurMayDrive')
-      : t('grossanlass.materialUebersicht.chauffeurNoLicenseShort'),
+      ? t('grossanlass.material.chauffeurMayDrive')
+      : t('grossanlass.material.chauffeurNoLicenseShort'),
     mayDrive: card.may_drive,
   })),
 )

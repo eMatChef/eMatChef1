@@ -37,7 +37,7 @@ const departmentId = computed(() => {
 })
 
 const subTabs = computed(() => [
-  { id: 'alles', label: t('grossanlass.materialUebersicht.tabAlles') },
+  { id: 'alles', label: t('grossanlass.material.tabAlles') },
   { id: 'eigen', label: t('grossanlass.materials.tabEigen') },
   { id: 'leihweise', label: t('grossanlass.materials.tabLeihweise') },
   { id: 'gaeste', label: t('grossanlass.materials.tabGaeste') },

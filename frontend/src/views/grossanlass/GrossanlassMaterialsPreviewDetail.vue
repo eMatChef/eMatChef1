@@ -301,8 +301,8 @@ const chauffeurs = computed(() =>
     value: card.user_id,
     title: card.name,
     subtitle: card.may_drive
-      ? t('grossanlass.materialUebersicht.chauffeurMayDrive')
-      : t('grossanlass.materialUebersicht.chauffeurNoLicenseShort'),
+      ? t('grossanlass.material.chauffeurMayDrive')
+      : t('grossanlass.material.chauffeurNoLicenseShort'),
     mayDrive: card.may_drive,
   })),
 )
@@ -485,7 +485,7 @@ async function onBookConfirm(current: GaBookPreviewDraft) {
     })
     toast.success(
       current.hasConflict
-        ? t('grossanlass.materialUebersicht.mwNoteSent')
+        ? t('grossanlass.material.mwNoteSent')
         : t('grossanlass.beschaffung.zusagen.createdToast'),
     )
   } catch (e: unknown) {

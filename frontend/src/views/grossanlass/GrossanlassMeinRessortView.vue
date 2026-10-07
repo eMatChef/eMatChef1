@@ -23,7 +23,7 @@
         :title="t('grossanlass.meinRessort.emptyTitle')"
         :description="emptyDescription"
       >
-        <template v-if="canCreateRoot()" #actions>
+        <template v-if="canCreateRoot() && !isOwnBranchOnly" #actions>
           <EButton @click="openCreateRoot">{{ t('grossanlass.planung.ressorts.addAction') }}</EButton>
         </template>
       </EEmptyState>
@@ -67,7 +67,7 @@
         <ul>
           <li v-for="row in pendingEinsaetze" :key="row.id">
             <strong>{{ row.object_name }}</strong>
-            · {{ row.ressort }} · {{ t(`grossanlass.materialUebersicht.status.${row.status}`) }}
+            · {{ row.ressort }} · {{ t(`grossanlass.material.status.${row.status}`) }}
           </li>
         </ul>
       </section>
@@ -382,7 +382,7 @@ import ActivityVenueOverviewBlock from '@/components/activities/ActivityVenueOve
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useAuthStore } from '@/stores/auth'
-import { gaCanApproveEinsatz, gaCanSetBuildStatus, gaIsHelperHomeView } from '@/utils/grossanlassAccess'
+import { gaCanApproveEinsatz, gaCanManagePlanung, gaCanSetBuildStatus, gaIsHelperHomeView } from '@/utils/grossanlassAccess'
 import {
   packBauprojektWindow,
   unpackBauprojektWindow,
@@ -495,6 +495,7 @@ const {
   canShareGroup,
   canManageStruktur,
   isBereichsleitung,
+  isInOwnAssignedBranch,
 } = useGrossanlassRessortScope(groupsRef)
 
 const showCreateProject = ref(false)
@@ -893,6 +894,7 @@ const pageSubtitle = computed(() => {
 
 const emptyDescription = computed(() => {
   if (isHelperHomeView.value) return t('grossanlass.meinRessort.emptyDescriptionHelper')
+  if (isOwnBranchOnly.value) return t('grossanlass.meinRessort.emptyDescriptionMw')
   if (canManageStruktur.value) return t('grossanlass.meinRessort.emptyDescriptionOk')
   return t('grossanlass.meinRessort.emptyDescription')
 })
@@ -964,8 +966,13 @@ async function onTogglePackedAssignment(assignment: GaHelperAssignment) {
   }
 }
 
+/** MW/CMW: «Mein Ressort» zeigt nur die eigene Zuordnung; die Gesamtstruktur liegt unter «Grossanlass verwalten». */
+const isOwnBranchOnly = computed(() => gaCanManagePlanung(authStore.currentDepartmentRole))
+
 const myGroupsTree = computed(() =>
-  flattenGrossanlassGroupsFiltered(groups.value, (g) => isInAssignedRessortBranch(g)),
+  flattenGrossanlassGroupsFiltered(groups.value, (g) =>
+    isOwnBranchOnly.value ? isInOwnAssignedBranch(g) : isInAssignedRessortBranch(g),
+  ),
 )
 
 const helperMemberGroups = computed(() => {
@@ -1314,8 +1321,8 @@ const submitChauffeurs = computed(() =>
     value: card.user_id,
     title: card.name,
     subtitle: card.may_drive
-      ? t('grossanlass.materialUebersicht.chauffeurMayDrive')
-      : t('grossanlass.materialUebersicht.chauffeurNoLicenseShort'),
+      ? t('grossanlass.material.chauffeurMayDrive')
+      : t('grossanlass.material.chauffeurNoLicenseShort'),
     mayDrive: card.may_drive,
   })),
 )
@@ -1450,7 +1457,7 @@ async function onSubmitEinsatz(current: GaBookPreviewDraft) {
     submitBoard.value = await getGrossanlassSubmitBoard(departmentId.value)
     toast.success(
       current.asOrder
-        ? t('grossanlass.materialUebersicht.orderNoted')
+        ? t('grossanlass.material.orderNoted')
         : t('grossanlass.meinRessort.submitOk'),
     )
   } catch (e: unknown) {
@@ -1479,7 +1486,7 @@ async function onSubmitMany(drafts: GaBookPreviewDraft[]) {
       })
     }
     submitBoard.value = await getGrossanlassSubmitBoard(departmentId.value)
-    toast.success(t('grossanlass.materialUebersicht.bookSavedMany', { count: drafts.length }))
+    toast.success(t('grossanlass.material.bookSavedMany', { count: drafts.length }))
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
     toast.error(err.response?.data?.error || t('grossanlass.meinRessort.errorLoad'))

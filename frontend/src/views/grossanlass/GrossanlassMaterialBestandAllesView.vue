@@ -1,6 +1,6 @@
 <template>
   <div class="ga-preview-page">
-    <p class="ga-preview-intro">{{ t('grossanlass.materialUebersicht.bestandAllesIntro') }}</p>
+    <p class="ga-preview-intro">{{ t('grossanlass.material.bestandAllesIntro') }}</p>
     <GrossanlassMaterialsPreviewTable tab="uebersicht" />
   </div>
 </template>
