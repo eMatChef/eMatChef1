@@ -7,6 +7,7 @@ use App\Service\Bootstrap\AddressScopeDefaults;
 use App\Service\Bootstrap\SuperadminBootstrapService;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
+use App\Util\DemoAccounts;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -42,14 +43,14 @@ class ImportOrgSubsetCommand extends Command
                 'ensure-superadmin',
                 null,
                 InputOption::VALUE_NONE,
-                'Legt superadmin@ematchef.ch an (oder aktualisiert Rollen/Membership)'
+                'Legt das Demo-Superadmin-Konto an (oder aktualisiert Rollen/Membership)'
             )
             ->addOption(
                 'superadmin-email',
                 null,
                 InputOption::VALUE_OPTIONAL,
                 'Superadmin E-Mail',
-                'superadmin@ematchef.ch'
+                DemoAccounts::email('superadmin')
             )
             ->addOption(
                 'superadmin-password',

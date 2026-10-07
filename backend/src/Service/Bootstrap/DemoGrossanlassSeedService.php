@@ -22,6 +22,7 @@ use App\Service\Grossanlass\GrossanlassDriveCategories;
 use App\Service\Grossanlass\GrossanlassPackService;
 use App\Service\Workshop\WorkshopSparePartsCategoryBootstrapService;
 use App\Util\GrossanlassIdGenerator;
+use App\Util\DemoAccounts;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -140,10 +141,10 @@ final class DemoGrossanlassSeedService
             return;
         }
 
-        $mw = $gaUsers['ga-mw@ematchef.ch'] ?? null;
-        $bereich = $gaUsers['ga-bereich@ematchef.ch'] ?? null;
-        $helfer = $gaUsers['ga-helfer@ematchef.ch'] ?? null;
-        $ok = $gaUsers['ga-ok@ematchef.ch'] ?? null;
+        $mw = $gaUsers[DemoAccounts::email('ga-mw')] ?? null;
+        $bereich = $gaUsers[DemoAccounts::email('ga-bereich')] ?? null;
+        $helfer = $gaUsers[DemoAccounts::email('ga-helfer')] ?? null;
+        $ok = $gaUsers[DemoAccounts::email('ga-ok')] ?? null;
 
         if (!$mw instanceof User || !$bereich instanceof User || !$helfer instanceof User) {
             return;
@@ -269,9 +270,9 @@ final class DemoGrossanlassSeedService
     public function ensureDemoRessort(Department $department, User $leader, User $member): Group
     {
         $this->ensureDemoScenario($department, [
-            'ga-mw@ematchef.ch' => $leader,
-            'ga-bereich@ematchef.ch' => $leader,
-            'ga-helfer@ematchef.ch' => $member,
+            DemoAccounts::email('ga-mw') => $leader,
+            DemoAccounts::email('ga-bereich') => $leader,
+            DemoAccounts::email('ga-helfer') => $member,
         ], $leader);
 
         $bauten = $this->entityManager->getRepository(Group::class)->findOneBy([

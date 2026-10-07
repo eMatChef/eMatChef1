@@ -228,6 +228,34 @@ class TotpService
         return true;
     }
 
+    /**
+     * Nur für Demo-/Test-Seeds (geschützte Dev-Commands): aktiviert TOTP mit einem festen, öffentlichen Test-Secret.
+     * Ist genau dieses Secret schon aktiv, bleibt alles unverändert (Reseed ändert weder Secret noch Recovery Codes).
+     *
+     * @return bool true, wenn TOTP neu gesetzt wurde
+     */
+    public function provisionFixedSecret(User $user, string $secret): bool
+    {
+        $totp = $this->find($user);
+        if ($totp?->isActive() === true && hash_equals($this->secretBox->decrypt((string) $totp->getSecretEncrypted()), $secret)) {
+            return false;
+        }
+        if (!$totp instanceof UserTotp) {
+            $totp = new UserTotp();
+            $totp->setId(IdGenerator::generateUnique($this->entityManager, UserTotp::class));
+            $totp->setUser($user);
+            $this->entityManager->persist($totp);
+        }
+
+        $this->entityManager->wrapInTransaction(function () use ($user, $totp, $secret): void {
+            $totp->startEnrollment($this->secretBox->encrypt($secret), new \DateTime(self::PENDING_TTL));
+            $totp->activatePending(0);
+            $this->replaceRecoveryCodes($user);
+        });
+
+        return true;
+    }
+
     public function remainingRecoveryCodes(User $user): int
     {
         return $this->entityManager->getRepository(UserRecoveryCode::class)->count(['user' => $user, 'usedAt' => null]);

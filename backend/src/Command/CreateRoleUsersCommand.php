@@ -11,9 +11,12 @@ use App\Entity\Profile;
 use App\Entity\Department;
 use App\Entity\Membership;
 use App\Enum\DepartmentRole;
+use App\Service\Auth\TotpService;
 use App\Service\Bootstrap\DevBootstrapContextService;
+use App\Service\DevEnvironmentService;
 use App\Service\Bootstrap\DemoGrossanlassSeedService;
 use App\Service\Bootstrap\DemoSupplierSeedService;
+use App\Util\DemoAccounts;
 use App\Util\DemoUserNames;
 use App\Util\E2eSmokeUser;
 use App\Util\IdGenerator;
@@ -32,7 +35,7 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 )]
 class CreateRoleUsersCommand extends Command
 {
-    /** Seed-/Banner-Passwort für alle Rollen-User (@ematchef.ch) */
+    /** Seed-Passwort für alle Demo-User (entspricht demo-accounts.json) */
     public const DEMO_PASSWORD = 'test!ematchef';
 
     public function __construct(
@@ -41,6 +44,8 @@ class CreateRoleUsersCommand extends Command
         private DevBootstrapContextService $bootstrapContext,
         private DemoSupplierSeedService $demoSupplierSeed,
         private DemoGrossanlassSeedService $demoGrossanlassSeed,
+        private DevEnvironmentService $devEnvironmentService,
+        private TotpService $totpService,
     ) {
         parent::__construct();
     }
@@ -51,7 +56,7 @@ class CreateRoleUsersCommand extends Command
             'skip-delete',
             null,
             InputOption::VALUE_NONE,
-            'Bestehende @ematchef.ch-User nicht löschen (nur anlegen/aktualisieren)',
+            'Bestehende Demo-User (@' . DemoAccounts::domain() . ') nicht löschen (nur anlegen/aktualisieren)',
         );
         $this->addOption(
             'with-ga-demo',
@@ -64,8 +69,16 @@ class CreateRoleUsersCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        
+
+        if (!$this->devEnvironmentService->isDevToolsEnabled()) {
+            $io->error('Dev-Tools sind deaktiviert (EMATCHEF_DEV_TOOLS / APP_ENV). Demo-Konten werden nur auf Development/Staging angelegt.');
+
+            return Command::FAILURE;
+        }
+
         $io->title('Erstelle Benutzer für alle Rollen');
+
+        $this->migrateLegacyDemoEmails($io);
 
         // Hole oder erstelle sichtbare Organisation und Department (kein GLOBALORG001 mehr)
         [$organisation, $department] = $this->bootstrapContext->findOrCreateOrganisationAndDepartment();
@@ -77,17 +90,17 @@ class CreateRoleUsersCommand extends Command
         $io->section('Lösche alte Test-User...');
         $allUsers = $this->em->getRepository(User::class)->findAll();
         $deletedCount = 0;
-        $superadminProfile = $this->em->getRepository(Profile::class)->findOneBy(['email' => 'superadmin@ematchef.ch']);
+        $superadminProfile = $this->em->getRepository(Profile::class)->findOneBy(['email' => DemoAccounts::email('superadmin')]);
         $superadminKeep = $superadminProfile
             ? $this->em->getRepository(User::class)->findOneBy(['profileId' => $superadminProfile->getId()])
             : null;
         foreach ($allUsers as $user) {
             $profile = $user->getProfile();
-            if (!$profile || !str_ends_with($profile->getEmail(), '@ematchef.ch')) {
+            if (!$profile || !(DemoAccounts::isDemoEmail($profile->getEmail()) || str_ends_with($profile->getEmail(), '@ematchef.ch'))) {
                 continue;
             }
             // Superadmin bleibt (created_by für GA-Runden u. a.)
-            if ($profile->getEmail() === 'superadmin@ematchef.ch') {
+            if ($profile->getEmail() === DemoAccounts::email('superadmin')) {
                 continue;
             }
             // E2E-Smoke bleibt erhalten (wird von app:ensure-e2e-user / app:dev-demo:reset gepflegt)
@@ -115,16 +128,16 @@ class CreateRoleUsersCommand extends Command
         // Erstelle einen Superadmin als Erstes (wird als createdBy verwendet)
         $io->section('Erstelle Superadmin...');
         $superadminUser = $this->createUser(
-            'superadmin@ematchef.ch',
-            DemoUserNames::firstNameForEmail('superadmin@ematchef.ch'),
+            DemoAccounts::email('superadmin'),
+            DemoUserNames::firstNameForEmail(DemoAccounts::email('superadmin')),
             DepartmentRole::SUPERADMIN->getLabel(),
-            DemoUserNames::firstNameForEmail('superadmin@ematchef.ch'),
+            DemoUserNames::firstNameForEmail(DemoAccounts::email('superadmin')),
             DepartmentRole::SUPERADMIN,
             $department,
             true
         );
         $this->em->flush();
-        $io->success('Superadmin erstellt: superadmin@ematchef.ch / ' . self::DEMO_PASSWORD);
+        $io->success('Superadmin erstellt: ' . DemoAccounts::email('superadmin') . ' / ' . self::DEMO_PASSWORD);
 
         // Erstelle für jede andere Rolle einen Benutzer
         $io->section('Erstelle Benutzer für alle Rollen...');
@@ -141,7 +154,7 @@ class CreateRoleUsersCommand extends Command
 
         foreach ($roles as $role) {
             $fullName = $role->getFullName();
-            $email = $fullName . '@ematchef.ch';
+            $email = DemoAccounts::email($role === DepartmentRole::ORGANISATIONSCHEF ? 'orgchef' : $fullName);
             $firstName = DemoUserNames::firstNameForEmail($email);
             $lastName = $role->getLabel();
             $nickname = $firstName;
@@ -163,13 +176,13 @@ class CreateRoleUsersCommand extends Command
         $io->success('Alle Rollen-Benutzer erfolgreich erstellt!');
 
         $gaSpecs = [
-            ['email' => 'ga-mw@ematchef.ch', 'first' => 'GA', 'last' => 'Materialchef', 'nick' => 'GA-MW', 'role' => DepartmentRole::MATWART],
-            ['email' => 'ga-cmw@ematchef.ch', 'first' => 'GA', 'last' => 'Co-Materialchef', 'nick' => 'GA-CMW', 'role' => DepartmentRole::CO_MATWART],
-            ['email' => 'ga-ok@ematchef.ch', 'first' => 'GA', 'last' => 'OK-Leitung', 'nick' => 'GA-OK', 'role' => DepartmentRole::DEPCHEF],
-            ['email' => 'ga-komm@ematchef.ch', 'first' => 'GA', 'last' => 'Kommunikation', 'nick' => 'GA-Komm', 'role' => DepartmentRole::KOMMUNIKATION],
-            ['email' => 'ga-spon@ematchef.ch', 'first' => 'GA', 'last' => 'Sponsoring', 'nick' => 'GA-Spon', 'role' => DepartmentRole::SPONSORING],
-            ['email' => 'ga-bereich@ematchef.ch', 'first' => 'GA', 'last' => 'Bereichsleitung', 'nick' => 'GA-BL', 'role' => DepartmentRole::BEREICHSLEITUNG],
-            ['email' => 'ga-helfer@ematchef.ch', 'first' => 'GA', 'last' => 'Helfer', 'nick' => 'GA-Helfer', 'role' => DepartmentRole::USER],
+            ['email' => DemoAccounts::email('ga-mw'), 'first' => 'GA', 'last' => 'Materialchef', 'nick' => 'GA-MW', 'role' => DepartmentRole::MATWART],
+            ['email' => DemoAccounts::email('ga-cmw'), 'first' => 'GA', 'last' => 'Co-Materialchef', 'nick' => 'GA-CMW', 'role' => DepartmentRole::CO_MATWART],
+            ['email' => DemoAccounts::email('ga-ok'), 'first' => 'GA', 'last' => 'OK-Leitung', 'nick' => 'GA-OK', 'role' => DepartmentRole::DEPCHEF],
+            ['email' => DemoAccounts::email('ga-komm'), 'first' => 'GA', 'last' => 'Kommunikation', 'nick' => 'GA-Komm', 'role' => DepartmentRole::KOMMUNIKATION],
+            ['email' => DemoAccounts::email('ga-spon'), 'first' => 'GA', 'last' => 'Sponsoring', 'nick' => 'GA-Spon', 'role' => DepartmentRole::SPONSORING],
+            ['email' => DemoAccounts::email('ga-bereich'), 'first' => 'GA', 'last' => 'Bereichsleitung', 'nick' => 'GA-BL', 'role' => DepartmentRole::BEREICHSLEITUNG],
+            ['email' => DemoAccounts::email('ga-helfer'), 'first' => 'GA', 'last' => 'Helfer', 'nick' => 'GA-Helfer', 'role' => DepartmentRole::USER],
         ];
 
         $io->section('Grossanlass-Rollen (Demo Grossanlass)…');
@@ -211,29 +224,54 @@ class CreateRoleUsersCommand extends Command
         $this->demoSupplierSeed->ensure($superadminUser);
         $io->success('Demo-Lieferant: ' . DemoSupplierSeedService::EMAIL . ' / ' . self::DEMO_PASSWORD);
 
-        $io->note([
-            'Alle Benutzer haben das Passwort: ' . self::DEMO_PASSWORD,
-            'Login-Emails:',
-            '  - superadmin@ematchef.ch (Superadmin)',
-            '  - organisationschef@ematchef.ch (Organisationschef)',
-            '  - suborgchef@ematchef.ch (Suborgchef)',
-            '  - matwart@ematchef.ch (Materialchef)',
-            '  - depchef@ematchef.ch (Departmentchef)',
-            '  - leader1@ematchef.ch (Leader 1)',
-            '  - leader2@ematchef.ch (Leader 2)',
-            '  - leader3@ematchef.ch (Leader 3)',
-            '  - user@ematchef.ch (User)',
-            '  - ga-mw@ematchef.ch (GA Materialchef)',
-            '  - ga-cmw@ematchef.ch (GA Co-Materialchef)',
-            '  - ga-ok@ematchef.ch (GA OK-Leitung)',
-            '  - ga-komm@ematchef.ch (GA Kommunikation)',
-            '  - ga-spon@ematchef.ch (GA Sponsoring)',
-            '  - ga-bereich@ematchef.ch (GA Bereichsleitung, Rolle bl, Stern am Demo-Ressort)',
-            '  - ga-helfer@ematchef.ch (GA Helfer, Mitglied am Demo-Ressort)',
-            '  - supplier@ematchef.ch (Lieferant / Testfirma, ohne Department)',
-        ]);
+        $this->provisionDemoTotp($io);
+
+        $io->note(array_merge(
+            ['Alle Benutzer haben das Passwort: ' . self::DEMO_PASSWORD, 'Login-Emails (Testdaten, siehe docs.ematchef.ch → Entwicklung → Testumgebung):'],
+            array_map(
+                static fn (array $a): string => sprintf('  - %s (%s)%s', $a['email'], $a['label'], isset($a['totpSecret']) ? ' + TOTP' : ''),
+                DemoAccounts::all(),
+            ),
+        ));
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Bestehende Dev-/Staging-Konten mit der früheren Adresse (`*@ematchef.ch`) auf die Demo-Domain umstellen,
+     * damit Daten und Memberships erhalten bleiben.
+     */
+    private function migrateLegacyDemoEmails(SymfonyStyle $io): void
+    {
+        foreach (DemoAccounts::all() as $account) {
+            $legacy = $this->em->getRepository(Profile::class)->findOneBy(['email' => $account['legacyEmail']]);
+            if (!$legacy instanceof Profile) {
+                continue;
+            }
+            if ($this->em->getRepository(Profile::class)->findOneBy(['email' => $account['email']]) instanceof Profile) {
+                continue;
+            }
+            $legacy->setEmail($account['email']);
+            $io->text(sprintf('↪ %s → %s', $account['legacyEmail'], $account['email']));
+        }
+        $this->em->flush();
+    }
+
+    /** Reproduzierbares Test-TOTP der Admin-Demo-Konten; unverändert, wenn schon gesetzt. */
+    private function provisionDemoTotp(SymfonyStyle $io): void
+    {
+        foreach (DemoAccounts::all() as $account) {
+            if (!isset($account['totpSecret'])) {
+                continue;
+            }
+            $profile = $this->em->getRepository(Profile::class)->findOneBy(['email' => $account['email']]);
+            $user = $profile instanceof Profile ? $this->em->getRepository(User::class)->findOneBy(['profileId' => $profile->getId()]) : null;
+            if (!$user instanceof User) {
+                continue;
+            }
+            $changed = $this->totpService->provisionFixedSecret($user, $account['totpSecret']);
+            $io->text(sprintf('%s TOTP %s', $changed ? '✓' : '=', $account['email']));
+        }
     }
 
     private function createUser(

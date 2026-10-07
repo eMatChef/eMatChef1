@@ -15,6 +15,7 @@ use App\Entity\User;
 use App\Service\Grossanlass\GrossanlassMaterialStage;
 use App\Service\Grossanlass\GrossanlassRoundFormService;
 use App\Util\GrossanlassIdGenerator;
+use App\Util\DemoAccounts;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -147,7 +148,7 @@ final class DemoGrossanlassEventJobsSeedService
 
     private function resolveActor(): User
     {
-        foreach (['ga-ok@ematchef.ch', 'ga-mw@ematchef.ch', 'superadmin@ematchef.ch'] as $email) {
+        foreach ([DemoAccounts::email('ga-ok'), DemoAccounts::email('ga-mw'), DemoAccounts::email('superadmin')] as $email) {
             $profile = $this->entityManager->getRepository(Profile::class)->findOneBy(['email' => $email]);
             if (!$profile instanceof Profile) {
                 continue;
