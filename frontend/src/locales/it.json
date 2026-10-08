@@ -281,6 +281,12 @@
       "manageDepartmentMaterial": "Gestisci il materiale della tua sezione",
       "editProfile": "Modifica profilo",
       "switchDepartment": "Cambia reparto",
+      "adminContexts": "Amministrazione",
+      "globalContext": "Amministrazione globale",
+      "globalContextHint": "Superadmin · intero sistema",
+      "managementAll": "Tutte le organizzazioni",
+      "managementHintOrg": "Capo organizzazione · ambito di gestione",
+      "managementHintSub": "Sottocapo organizzazione · ambito di gestione",
       "logout": "Esci"
     },
     "totpRequiredNotice": "L'autenticazione a due fattori è obbligatoria per il tuo ruolo di amministratore. Configurala in Profilo → Sicurezza, altrimenti le funzioni amministrative restano bloccate.",

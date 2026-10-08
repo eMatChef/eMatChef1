@@ -923,8 +923,12 @@ const homeLink = computed(() => {
   if (isPendingAssignmentRoute.value) return '/pending-assignment'
   return mainDashboardLink.value
 })
-// SA/ORG/SUB kommen ausschließlich aus profile.roles, nicht aus Department-Membership
-const isSuperAdmin = computed(() => authStore.userRoles.includes('ROLE_SUPERADMIN'))
+// SA/ORG/SUB kommen ausschließlich aus profile.roles, nicht aus Department-Membership.
+// «isSuperAdmin» gilt nur im globalen Systemkontext: Ein Superadmin, der ein Department als normales Mitglied
+// gewählt hat, sieht die Navigation dieses Departments (seine ausdrücklich zugewiesene Rolle).
+const isSuperAdmin = computed(
+  () => authStore.userRoles.includes('ROLE_SUPERADMIN') && authStore.isAdminContextActive
+)
 const canEditPublicWebsite = computed(
   () =>
     authStore.userRoles.includes('ROLE_SUPERADMIN') ||

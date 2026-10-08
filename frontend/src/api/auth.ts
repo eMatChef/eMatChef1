@@ -53,6 +53,26 @@ export interface PasswordResetConfirmResponse {
   message: string
 }
 
+/** Wählbarer Verwaltungsbereich (Wurzel-Department im Admin-Scope von Orgchef/Suborgchef). */
+export interface AdminContextScope {
+  department_id: string
+  name: string
+  organisation_id: string
+  parent_id: string | null
+}
+
+/**
+ * Verwaltungskontexte laut Backend: `global` = Superadmin (Systemkontext ohne Department),
+ * `scopes` = Verwaltungsbereiche von Orgchef/Suborgchef, `unrestricted` = ohne Scope-Einschränkung.
+ * Nur eine Auswahlhilfe; Berechtigungen prüft immer das Backend.
+ */
+export interface AdminContextsResponse {
+  global: boolean
+  role: 'superadmin' | 'org' | 'sub' | 'none'
+  unrestricted: boolean
+  scopes: AdminContextScope[]
+}
+
 export interface LoginResponse {
   token: string
   refresh_token?: string
@@ -97,6 +117,7 @@ export interface LoginResponse {
       main_activity_id?: string | null
     }
   }>
+  admin_contexts?: AdminContextsResponse
   primary_department: string | null
   last_used_department: string | null
   supplier_companies?: SupplierCompanySession[]
@@ -107,6 +128,7 @@ export interface ServerSessionResponse {
   user: LoginResponse['user']
   profile: LoginResponse['profile']
   departments: LoginResponse['departments']
+  admin_contexts?: AdminContextsResponse
   primary_department: string | null
   last_used_department: string | null
   supplier_companies?: SupplierCompanySession[]

@@ -391,6 +391,12 @@
       "manageDepartmentMaterial": "Gérer le matériel de ta section",
       "editProfile": "Modifier le profil",
       "switchDepartment": "Changer de département",
+      "adminContexts": "Administration",
+      "globalContext": "Administration globale",
+      "globalContextHint": "Superadmin · tout le système",
+      "managementAll": "Toutes les organisations",
+      "managementHintOrg": "Chef d’organisation · domaine de gestion",
+      "managementHintSub": "Sous-chef d’organisation · domaine de gestion",
       "logout": "Se déconnecter"
     },
     "totpRequiredNotice": "L'authentification à deux facteurs est obligatoire pour ton rôle d'administrateur. Configure-la sous Profil → Sécurité, sinon les fonctions d'administration restent bloquées.",

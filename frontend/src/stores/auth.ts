@@ -15,6 +15,7 @@ import {
   type UserResponse,
   type ProfileResponse,
   type UserDepartmentResponse,
+  type AdminContextsResponse,
 } from '@/api/auth'
 import { getGeneralSettings } from '@/api/departmentSettings'
 import { resetSessionExpiredHandling } from '@/api/apiClient'
@@ -28,6 +29,12 @@ import {
 } from '@/utils/adminCapabilities'
 import { markCrossSubdomainLogoutSeenFromCookie } from '@/utils/authCrossOrigin'
 import {
+  DEPARTMENT_CONTEXT_MARKER,
+  buildAdminContextOptions,
+  resolveInitialContext,
+  type AdminContextOption,
+} from '@/utils/adminContext'
+import {
   isActiveSupplierCompany,
   type SupplierCompanySession,
 } from '@/api/supplier'
@@ -39,6 +46,10 @@ export const useAuthStore = defineStore('auth', () => {
   const supplierCompanies = ref<SupplierCompanySession[]>([])
   const activeSupplierCompanyId = ref<string | null>(localStorage.getItem('active_supplier_company_id'))
   const activeDepartmentId = ref<string | null>(localStorage.getItem('active_department_id'))
+  /** Verwaltungskontexte laut Session (Auswahlhilfe; Rechte prüft das Backend). */
+  const adminContexts = ref<AdminContextsResponse | null>(null)
+  /** Aktiver Verwaltungskontext (`global` | `management:<id|all>`); null = Department-Kontext. */
+  const activeAdminContextKey = ref<string | null>(null)
   const loadingUser = ref(false)
   const error = ref<string | null>(null)
   const lastSessionStartTime = ref<number>(0)
@@ -89,6 +100,50 @@ export const useAuthStore = defineStore('auth', () => {
   })
 
   const userRoles = computed(() => profile.value?.roles || [])
+
+  const availableAdminContexts = computed<AdminContextOption[]>(() =>
+    buildAdminContextOptions(userRoles.value, adminContexts.value)
+  )
+  const activeAdminContext = computed<AdminContextOption | null>(() => {
+    if (activeDepartmentId.value) return null
+    return availableAdminContexts.value.find((option) => option.key === activeAdminContextKey.value) ?? null
+  })
+  /** true, solange statt eines Departments ein Verwaltungskontext aktiv ist (Superadmin global, Org-/Suborgchef Verwaltungsbereich). */
+  const isAdminContextActive = computed(() => activeAdminContext.value !== null)
+
+  function readStoredContext(): string | null {
+    try {
+      return localStorage.getItem('active_context')
+    } catch {
+      return null
+    }
+  }
+
+  function storeContext(value: string | null): void {
+    try {
+      if (value) localStorage.setItem('active_context', value)
+      else localStorage.removeItem('active_context')
+    } catch {
+      /* nur UI-Präferenz */
+    }
+  }
+
+  /** Setzt Department bzw. Verwaltungskontext nach Login/Session (Schlüssel nur UI-Präferenz, nie Berechtigung). */
+  function applyInitialContext(preferredDepartmentId: string | null): void {
+    const initial = resolveInitialContext({
+      isSuperAdmin: userRoles.value.includes('ROLE_SUPERADMIN'),
+      options: availableAdminContexts.value,
+      preferredDepartmentId,
+      storedContext: readStoredContext(),
+    })
+    activeAdminContextKey.value = initial.adminContextKey
+    activeDepartmentId.value = initial.activeDepartmentId
+    if (initial.activeDepartmentId) {
+      localStorage.setItem('active_department_id', initial.activeDepartmentId)
+    } else {
+      localStorage.removeItem('active_department_id')
+    }
+  }
   const globalAdminRole = computed<GlobalAdminRole | 'superadmin'>(() => {
     if (userRoles.value.includes('ROLE_SUPERADMIN')) return 'superadmin'
     const fromProfile = profile.value?.global_admin_role
@@ -223,22 +278,13 @@ export const useAuthStore = defineStore('auth', () => {
       session.last_used_supplier_company ?? session.user.last_used_supplier_company ?? null
     )
 
-    const isSuperAdmin = (session.profile?.roles || []).includes('ROLE_SUPERADMIN')
-    if (isSuperAdmin) {
-      activeDepartmentId.value = null
-      localStorage.removeItem('active_department_id')
-      return
-    }
-
-    const preferredDept =
+    adminContexts.value = session.admin_contexts ?? null
+    applyInitialContext(
       session.last_used_department ||
-      session.primary_department ||
-      session.departments?.[0]?.id ||
-      null
-    activeDepartmentId.value = preferredDept
-    if (preferredDept) {
-      localStorage.setItem('active_department_id', preferredDept)
-    }
+        session.primary_department ||
+        session.departments?.[0]?.id ||
+        null
+    )
   }
 
   async function applyLoginResponse(response: LoginResponse): Promise<void> {
@@ -250,6 +296,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
     profile.value = normalizeProfile(response.profile)
 
+    adminContexts.value = response.admin_contexts ?? null
     if (response.departments && response.departments.length > 0) {
       departments.value = response.departments.map((d) => ({
         department_id: d.id,
@@ -265,15 +312,16 @@ export const useAuthStore = defineStore('auth', () => {
         },
       }))
 
-      if (!response.profile?.roles?.includes('ROLE_SUPERADMIN')) {
-        const newActiveDeptId =
-          response.last_used_department ||
+      applyInitialContext(
+        response.last_used_department ||
           response.primary_department ||
           response.departments[0]?.id ||
           null
-        activeDepartmentId.value = newActiveDeptId
-        if (newActiveDeptId) localStorage.setItem('active_department_id', newActiveDeptId)
-      }
+      )
+    } else if (availableAdminContexts.value.length > 0) {
+      // Ohne Mitgliedschaft, aber mit Verwaltungskontext (Superadmin, Orgchef/Suborgchef): kein Wartebereich.
+      departments.value = []
+      applyInitialContext(null)
     } else {
       await loadDepartments()
     }
@@ -334,8 +382,11 @@ export const useAuthStore = defineStore('auth', () => {
       supplierCompanies.value = []
       activeDepartmentId.value = null
       activeSupplierCompanyId.value = null
+      adminContexts.value = null
+      activeAdminContextKey.value = null
       localStorage.removeItem('active_department_id')
       localStorage.removeItem('active_supplier_company_id')
+      localStorage.removeItem('active_context')
 
       const response = await apiLogin(email, password)
       if (isMfaChallenge(response)) {
@@ -389,6 +440,8 @@ export const useAuthStore = defineStore('auth', () => {
     departments.value = []
     supplierCompanies.value = []
     activeDepartmentId.value = null
+    adminContexts.value = null
+    activeAdminContextKey.value = null
     activeSupplierCompanyId.value = null
     lastSessionStartTime.value = 0
     clearAuthStorage()
@@ -480,7 +533,9 @@ export const useAuthStore = defineStore('auth', () => {
   async function setActiveDepartment(departmentId: string): Promise<void> {
     if (departments.value.find((d) => d.department_id === departmentId)) {
       activeDepartmentId.value = departmentId
+      activeAdminContextKey.value = null
       localStorage.setItem('active_department_id', departmentId)
+      storeContext(DEPARTMENT_CONTEXT_MARKER)
       await loadDepartmentTimezone()
       if (userId.value) {
         try {
@@ -490,6 +545,20 @@ export const useAuthStore = defineStore('auth', () => {
         }
       }
     }
+  }
+
+  /**
+   * Wechselt in einen Verwaltungskontext (Superadmin global, Orgchef/Suborgchef Verwaltungsbereich).
+   * Verlässt den Department-Kontext, ändert aber nie Mitgliedschaften oder Rollen.
+   */
+  function selectAdminContext(key: string): AdminContextOption | null {
+    const option = availableAdminContexts.value.find((candidate) => candidate.key === key)
+    if (!option) return null
+    activeAdminContextKey.value = option.key
+    activeDepartmentId.value = null
+    localStorage.removeItem('active_department_id')
+    storeContext(option.key)
+    return option
   }
 
   function setActiveSupplierCompany(companyId: string): void {
@@ -568,6 +637,10 @@ export const useAuthStore = defineStore('auth', () => {
     supplierCompanies,
     activeSupplierCompanyId,
     activeDepartmentId,
+    adminContexts,
+    availableAdminContexts,
+    activeAdminContext,
+    isAdminContextActive,
     loadingUser,
     error,
     isLoggedIn,
@@ -608,6 +681,7 @@ export const useAuthStore = defineStore('auth', () => {
     clearAuthState,
     loadDepartments,
     setActiveDepartment,
+    selectAdminContext,
     setActiveSupplierCompany,
     isSupplierCompanyAdmin,
     refreshAfterInviteAccepted,
