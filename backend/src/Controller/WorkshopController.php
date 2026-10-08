@@ -12,6 +12,7 @@ use App\Entity\ActivityIssueReport;
 use App\Entity\Department;
 use App\Entity\Membership;
 use App\Entity\User;
+use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\ActivityAccountingCostService;
 use App\Service\Media\MediaPhotoNormalizer;
 use App\Service\Public\PublicCodeService;
@@ -50,6 +51,7 @@ class WorkshopController extends AbstractController
         private WorkshopExternalCleaningService $externalCleaningService,
         private InventoryTaskLinkService $inventoryTaskLinkService,
         private ActivityWetDryingService $wetDrying,
+        private AdminCapabilityChecker $adminCapabilities,
     ) {}
 
     // ═══════════════════════════════════════════════
@@ -1453,7 +1455,7 @@ class WorkshopController extends AbstractController
 
     private function canUserManageWorkshopPublicCode(User $user, WorkshopTicket $ticket): bool
     {
-        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], $user->getRoles())) > 0) {
+        if ($this->adminCapabilities->canAdministerDepartment($user, $ticket->getDepartmentId())) {
             return true;
         }
 

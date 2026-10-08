@@ -183,6 +183,26 @@ final class AdminCapabilityChecker
     }
 
     /**
+     * Verwaltungszuständigkeit (nicht Mitgliedschaft): Superadmin überall, Orgchef/Suborgchef nur im Department-Baum
+     * ihres Scopes. Eine blosse Mitgliedschaft begründet hier keinen Zugriff, und die Verwaltungsrolle ersetzt keine
+     * operative Rolle: Aufrufer prüfen die Mitgliedschaftsrolle weiterhin selbst.
+     */
+    public function canAdministerDepartment(User $user, ?string $departmentId): bool
+    {
+        if ($departmentId === null || $departmentId === '') {
+            return false;
+        }
+        if ($this->isSuperAdmin($user)) {
+            return true;
+        }
+        if (!$this->hasGlobalAdminRole($user)) {
+            return false;
+        }
+
+        return $this->canAccessDepartment($user, $departmentId);
+    }
+
+    /**
      * @return list<string>
      */
     private function getMembershipDepartmentIds(User $user): array

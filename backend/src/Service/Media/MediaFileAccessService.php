@@ -14,6 +14,7 @@ use App\Entity\ActivityJsOrder;
 use App\Entity\Department;
 use App\Entity\Membership;
 use App\Entity\User;
+use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\ActivityAccessService;
 use App\Service\Grossanlass\GrossanlassAccessService;
 use App\Service\Issue\IssuePhotoAccessService;
@@ -37,6 +38,7 @@ class MediaFileAccessService
         private IssuePhotoAccessService $issuePhotoAccess,
         private ActivityAccessService $activityAccess,
         private GrossanlassAccessService $grossanlassAccess,
+        private AdminCapabilityChecker $adminCapabilities,
     ) {
     }
 
@@ -199,7 +201,7 @@ class MediaFileAccessService
 
     public function assertCanBrowseDepartmentMedia(User $user, string $departmentId): void
     {
-        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], $user->getRoles())) > 0) {
+        if ($this->adminCapabilities->canAdministerDepartment($user, $departmentId)) {
             return;
         }
 
@@ -217,7 +219,7 @@ class MediaFileAccessService
 
     private function assertAccountingMwOrDc(User $user, string $departmentId): void
     {
-        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], $user->getRoles())) > 0) {
+        if ($this->adminCapabilities->canAdministerDepartment($user, $departmentId)) {
             return;
         }
         $membership = $this->entityManager->getRepository(Membership::class)
