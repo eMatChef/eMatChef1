@@ -20,6 +20,7 @@ Nichts unter **SOLL** darf als vorhanden dargestellt werden. Wo diese Dokumente 
 | [README.md](./README.md) (diese Datei) | Ziele, Prinzipien, Architektur, Sicherheit/Sandbox, öffentliche QR-Funktionen, Entwicklung und Tests |
 | [BUSINESS-CLOCK.md](./BUSINESS-CLOCK.md) | Fachzeit vs. Systemzeit, Zeitreise, Zeitzonen, Sicherheitsgrenzen |
 | [SEED-KONZEPT.md](./SEED-KONZEPT.md) | Gemeinsame Seed-Bausteine, Isolation, Idempotenz, Reset, Zeitstrahl, Mengenbilanz, Szenario-Registry |
+| [LOKALE-MIGRATION.md](./LOKALE-MIGRATION.md) | Plan: lokale DB `mvdb` auf die neuen Seeds umstellen und Legacy-Demo-Departments entfernen (Inventur, Reihenfolge, Probelauf) |
 | [scenarios/DEPARTMENT.md](./scenarios/DEPARTMENT.md) | Szenario: normales Department (Materialverwaltung) |
 | [scenarios/GROSSANLASS.md](./scenarios/GROSSANLASS.md) | Szenario: Grossanlass, Ablauf und Implementierungsstand |
 | [DEMO-KONZEPT.md](./DEMO-KONZEPT.md) | Nur noch Einstieg mit Verweisen (alte Links bleiben gültig) |
