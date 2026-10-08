@@ -11,6 +11,10 @@ parameters:
     env(TURNSTILE_SKIP_VERIFY): '0'
     # 1 = Dev-Tools auf Develop-Droplet (DB-Reset etc.) trotz APP_ENV=prod
     env(EMATCHEF_DEV_TOOLS): '0'
+    # Umgebungsname für Demo-Seeds: local | develop | staging | production (leer = local nur auf Nicht-prod-Kernel; sonst Demo-Befehle gesperrt)
+    env(EMATCHEF_ENV_NAME): ''
+    # 1 = löschende Demo-Befehle auf Develop freigeben (nie auf Staging/Production wirksam)
+    env(EMATCHEF_DEMO_DESTRUCTIVE): '0'
     env(GOOGLE_OAUTH_CLIENT_ID): ''
     env(GOOGLE_OAUTH_CLIENT_SECRET): ''
     env(GOOGLE_OAUTH_REDIRECT_URI): ''

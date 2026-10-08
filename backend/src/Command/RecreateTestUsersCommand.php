@@ -2,7 +2,9 @@
 
 namespace App\Command;
 
+use App\Entity\Membership;
 use App\Entity\User;
+use App\Service\Demo\DemoEnvironmentGuard;
 use App\Entity\Profile;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -14,19 +16,38 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 #[AsCommand(
     name: 'app:recreate-test-users',
-    description: 'Löscht alte Test-User und erstellt sie neu mit hexadezimalen IDs'
+    description: 'Veraltet: Legacy-Testkonten neu anlegen. Gesperrt ohne Freigabe; Ersatz: app:create-role-users'
 )]
 class RecreateTestUsersCommand extends Command
 {
     public function __construct(
         private EntityManagerInterface $em,
-        private UserPasswordHasherInterface $passwordHasher
+        private UserPasswordHasherInterface $passwordHasher,
+        private DemoEnvironmentGuard $environmentGuard,
     ) {
         parent::__construct();
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
+        $denial = $this->environmentGuard->destructiveDenial();
+        if ($denial !== null) {
+            $output->writeln('<error>' . $denial . '</error>');
+
+            return Command::FAILURE;
+        }
+
+        // Vorabprüfung: Konten mit Mitgliedschaften sind nicht eindeutig Seed-eigen → nichts ändern.
+        foreach (['admin@ematchef.ch', 'manager@ematchef.ch', 'user@ematchef.ch'] as $email) {
+            $existing = $this->em->getRepository(Profile::class)->findOneBy(['email' => $email]);
+            $existingUser = $existing ? $this->em->getRepository(User::class)->findOneBy(['profileId' => $existing->getId()]) : null;
+            if ($existingUser && $this->em->getRepository(Membership::class)->findOneBy(['userId' => $existingUser->getId()])) {
+                $output->writeln(sprintf('<error>%s hat Mitgliedschaften (echtes Konto?). Abbruch ohne Änderung.</error>', $email));
+
+                return Command::FAILURE;
+            }
+        }
+
         $output->writeln('Lösche alte Test-User und erstelle sie neu...');
         $output->writeln('');
 

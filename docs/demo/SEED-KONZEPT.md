@@ -1,6 +1,6 @@
 # Seed-Konzept
 
-**Stand:** 8. Oktober 2026 (Architektur-Review; Code gelesen, **keine** Seeds, Resets, Migrationen oder DB-Zugriffe ausgeführt). Gemeinsame Bausteine und Regeln für alle Demo-Seeds. Szenario-spezifischer Inhalt: [scenarios/DEPARTMENT.md](./scenarios/DEPARTMENT.md), [scenarios/GROSSANLASS.md](./scenarios/GROSSANLASS.md). Übersicht: [README.md](./README.md). Marken **IST / TEILWEISE / SOLL / OFFEN** wie dort.
+**Stand:** 8. Oktober 2026 (Architektur-Review) und Phase 0 «Absichern» (umgesetzt, siehe §3.2). Code gelesen und Unit-Tests ausgeführt; **keine** Seeds, Resets, Migrationen oder DB-Zugriffe. Gemeinsame Bausteine und Regeln für alle Demo-Seeds. Szenario-spezifischer Inhalt: [scenarios/DEPARTMENT.md](./scenarios/DEPARTMENT.md), [scenarios/GROSSANLASS.md](./scenarios/GROSSANLASS.md). Übersicht: [README.md](./README.md). Marken **IST / TEILWEISE / SOLL / OFFEN** wie dort.
 
 **Lesehinweis:** §2–§4 beschreiben den Ist-Zustand und seine Probleme. §7 ist die empfohlene Soll-Architektur, §8 der Umgang mit bestehenden Commands und Daten, §9 die Umsetzungsphasen mit Tests, §10 die offenen Entscheidungen. Nichts in §7–§9 ist gebaut.
 
@@ -72,6 +72,8 @@ In `Service/Bootstrap/*`, `CreateRoleUsersCommand`, `DevDemoResetCommand` und `E
 
 ### 3.1 IST-Probleme
 
+**Status nach Phase 0 (siehe §3.2):** P1, P4, P7 (Teil), P8 und P12 (Teil) sind entschärft; P2/P3 sind für den Standardlauf umgangen, nicht an der Wurzel behoben. Die Tabelle beschreibt den Befund vom 8. Oktober 2026; die Spalte «Folge» gilt vor Phase 0.
+
 Befunde aus dem Code-Review vom 8. Oktober 2026. «Belegt» = im gelesenen Code nachvollzogen, nicht ausgeführt.
 
 | # | Problem | Beleg | Folge |
@@ -92,6 +94,27 @@ Befunde aus dem Code-Review vom 8. Oktober 2026. «Belegt» = im gelesenen Code 
 | P14 | **Zeitdrift der Demo-Uhr.** Der Offset wird einmal gesetzt; danach läuft die Demo-Fachzeit in Echtzeit weiter und überholt den Zeitstrahl (Anker E = Seed-Tag + 7 d). Ein unbeaufsichtigtes Develop-Demo «wandert» durch die Phasen. | `ensureDemoClock`, [business-clock.md](../grossanlass/business-clock.md) | Kein Fehler, aber für Vorführungen relevant: Clock-Reset ist nötig; gespeicherte Ist-Daten (Frage 1) passen nach Tagen nicht mehr zur Uhr. |
 | P15 | **Tests.** Es existiert nur `CreateRoleUsersCommandGuardTest` (Schranke) und `DemoAccountsTest`; kein Test für Idempotenz, Isolation, Wipe, Primär-Mitgliedschaft oder Mengenbilanz der Seeds. | `backend/tests/` | Regressionen in Seeds fallen erst manuell auf. |
 
+### 3.2 Phase 0: Absicherung (IST)
+
+Umgesetzt, ohne Registry und ohne Szenario-Migration. Klasse `Service/Demo/DemoEnvironmentGuard`.
+
+| Regel | Marke |
+| --- | --- |
+| Umgebung wird über `EMATCHEF_ENV_NAME` benannt (`local`, `develop`, `staging`, `production`). Auf einem prod-Kernel ist ein fehlender oder unbekannter Name **gesperrt**; `EMATCHEF_DEV_TOOLS=1` und `APP_ENV=prod` reichen nicht. Leerer Name ist nur auf einem Nicht-prod-Kernel `local`. | **IST** |
+| *Hinzufügende* Demo-Befehle (`app:create-role-users`, `app:dev-demo:reset`, `app:demo-grossanlass:event-jobs`): Dev-Tools aktiv, Name bekannt, nicht `production`. | **IST** |
+| *Löschende* Befehle (`app:demo-grossanlass:wipe`, `app:recreate-test-users`, `app:create-role-users --delete-demo-users`): zusätzlich nur `local`, oder `develop` mit `EMATCHEF_DEMO_DESTRUCTIVE=1`. **Staging und Production nie.** | **IST** |
+| `app:create-role-users` löscht standardmässig nichts. Löschen nur mit `--delete-demo-users` und nur Konten mit **exakter** Adresse aus `demo-accounts.json` (nicht Superadmin, Lieferant, E2E-Smoke). `*@ematchef.ch` und die Demo-Domain allein sind keine Ownership. `--skip-delete` ist veraltet und wirkungslos. | **IST** (P1) |
+| Rollen-User gehen nur an ein Department mit `demo_mode` (eindeutig, ohne Grossanlass), an ein per `--department=<id>` genanntes Demo-Department (`--mark-department-demo` markiert es ausdrücklich) oder an ein neu angelegtes Demo-Department in einer DB ganz ohne sichtbares Department. Sonst Abbruch. Nie «erstes sichtbares Department». | **IST** (P4) |
+| Neue Primär-Mitgliedschaft wird nur gesetzt, wenn der User nicht schon anderswo primär ist; fremde Mitgliedschaften werden nie geändert. | **IST** (Umgehung von P3; Ursache des Index unklar, E9) |
+| Umbenennung alter `*@ematchef.ch`-Konten (`migrateLegacyDemoEmails`) nur mit Freigabe für löschende Befehle. | **IST** |
+| `DemoGrossanlassSeedService::ensureDepartment` übernimmt kein gleichnamiges Department ohne `demo_mode`; `app:demo-grossanlass:event-jobs` schreibt nur in Departments mit `demo_mode` (`--mark-demo` ausdrücklich). | **IST** (P6, Teil) |
+| Wipe: nur `demo_mode`-Departments, eindeutiger Name, Bestätigung `--confirm=<Name>`, eine äussere Transaktion mit Rollback; Fehlerfälle enden mit Exit-Code 1. | **IST** (P7, Teil) |
+| `app:recreate-test-users`: gesperrt ohne Freigabe; bricht ab, wenn ein Zielkonto Mitgliedschaften hat. Weiterhin veraltet (Entfernen empfohlen, Phase 1/8). | **IST** (P8, Teil) |
+
+**Nicht Teil von Phase 0 (weiter SOLL / offen):** REST `resetDb`/`resetActivities` (weiterhin nur `isDevToolsEnabled`, E7), Szenario-Schlüssel, Ledger, Registry, vollständiger Reset, Löschlisten-Test (P13), `ensureEinsatz`-Überschreiben (P5), wurzelhafte Behebung von P2 (FK `updated_by`) und P3 (Index-Herkunft), Deployment-Sync.
+
+**Betrieb:** Auf Develop und Staging muss `EMATCHEF_ENV_NAME` gesetzt werden (Beispiele in `deploy/`); bis dahin sind die Demo-Befehle dort gesperrt (gewollt). Auf Develop mit bestehenden Departments braucht `app:create-role-users` einmalig `--department=<id>` (Demo-Department) oder `--mark-department-demo`.
+
 ## 4. Reset
 
 Daten neu und Zeit zurück sind getrennte Vorgänge (**IST**, Tabelle in [business-clock.md](../grossanlass/business-clock.md)):
@@ -99,9 +122,9 @@ Daten neu und Zeit zurück sind getrennte Vorgänge (**IST**, Tabelle in [busine
 | Vorgang | Wirkung |
 | --- | --- |
 | Header «Zurücksetzen» (`DELETE …/clock`) | nur Demo-Zeit, keine Daten |
-| `app:create-role-users --skip-delete [--with-ga-demo]` | aktualisiert Bestehendes, Uhr bleibt (Probleme P3, P5) |
+| `app:create-role-users [--with-ga-demo]` | aktualisiert Bestehendes, löscht nichts (seit Phase 0), Uhr bleibt (Problem P5) |
 | `app:demo-grossanlass:wipe` danach `app:create-role-users --with-ga-demo` | echter Reset inklusive Ausgangsuhr, nur Grossanlass (Probleme P7, P13) |
-| `app:dev-demo:reset` | nur Rollen-User, berührt Department und Demo-Zeit nicht (Probleme P1, P2) |
+| `app:dev-demo:reset` | nur Rollen-User anlegen/aktualisieren (seit Phase 0 ohne Löschen), berührt Department und Demo-Zeit nicht |
 
 **SOLL:** Ein Reset-Weg pro Szenario, ausfallsicher, nur im eigenen Demo-Department (§7.7).
 
@@ -284,7 +307,7 @@ Jede Phase ist eigenständig freigebbar und endet mit grünen Tests. Phasen 0 un
 
 | Phase | Inhalt | Tests |
 | --- | --- | --- |
-| **0 Absichern** | `app:recreate-test-users` absichern/entfernen (P8); Löschschleife in `app:create-role-users` auf Demo-Domain beschränken oder entfernen (P1); Bestätigung/`demo_mode`-Prüfung im Wipe. Kein neues Feature. | **T1** Guard-Tests je Command (Production-Konfiguration → Fehler, kein `persist`/`flush`), nach Muster `CreateRoleUsersCommandGuardTest`; **T0** Löschschleife trifft kein Konto ausserhalb `demo.ematchef.ch`. |
+| **0 Absichern (IST, umgesetzt)** | `app:recreate-test-users` abgesichert (P8); Löschschleife nur noch exakte Katalog-Adressen, opt-in (P1); Department-Ownership statt «erstes sichtbares» (P4); `demo_mode`-Prüfung, Bestätigung und Transaktion im Wipe (P7); `DemoEnvironmentGuard` (P12). Kein neues Feature. | Umgesetzt: `DemoEnvironmentGuardTest` (Matrix kernel × Name × Flag), `CreateRoleUsersCommandGuardTest`, `RecreateTestUsersCommandGuardTest`, `DemoSeedOwnershipTest` (Wipe, Department-Ownership, gleichnamiges Department), `DemoAccountsTest::testOnlyExactCatalogueEmailsAreSeedOwned`. |
 | **1 Gerüst** | `DemoScenarioInterface`, Registry, `SeedContext`, `demo_scenario_key` (Migration), Ledger (Migration), `app:demo:status`/`verify`, Umgebungsschalter (§7.9). Keine Daten. Primär-Mitgliedschaft und FK (P2/P3): Index-Herkunft klären, Mapping ↔ DB-Abweichung per Migration beheben, falls bestätigt. | **T1** Schalter-Matrix (production/staging/develop/local × Sync/Reset); Registry findet Szenarien per Tag; Migration up/down auf leerer DB; Schema-Test: Index/FK entsprechen Mapping. |
 | **2 Identity + Grossanlass Event** | Identity-Schritt (Konten, TOTP, Memberships, Primär-Regel); bestehendes `Demo Grossanlass` + Event-Jobs als Szenario `grossanlass-event` hinter dem Interface; `ensureEinsatz` ohne Überschreiben; Adoption der Alt-Tags ins Ledger. | **T2** Idempotenz: `sync` zweimal → identische Zeilenzahlen, keine Duplikate; **T4** Zustandserhalt: Einsatz-Status ändern, `sync`, Status bleibt; **T3** Isolation: andere Departments unverändert; **T10** Primär-Mitgliedschaft mit Vor-Zustand (User primär anderswo) → kein Fehler, nur eine Primäre; Wiederholung der beiden bekannten FK-/Primär-Fälle als Regressionstest. |
 | **3 Reset** | `reset` je Szenario (Variante A oder B nach Entscheid E1), Transaktion, Advisory Lock, `--confirm`, Tabellenliste mit Schema-Test; `app:demo:reset`. | **T5** jede Tabelle mit FK auf Department/Aktivität ist in der Löschliste (Schema-Introspektion); **T6** Abbruch mitten im Reset (injizierte Exception) → Rollback, Szenario unverändert; **T7** Reset von Szenario A lässt B, Konten und fremde Departments unberührt; Lock-Test (zweiter Lauf verweigert). |

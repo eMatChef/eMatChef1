@@ -25,10 +25,14 @@ final class DemoGrossanlassWipeService
      */
     public function wipeByName(string $name = DemoGrossanlassSeedService::DEPARTMENT_NAME): array
     {
-        $department = $this->entityManager->getRepository(Department::class)->findOneBy(['name' => $name]);
-        if (!$department instanceof Department) {
+        $matches = $this->entityManager->getRepository(Department::class)->findBy(['name' => $name]);
+        if ($matches === []) {
             throw new \InvalidArgumentException(sprintf('Department «%s» nicht gefunden.', $name));
         }
+        if (\count($matches) > 1) {
+            throw new \InvalidArgumentException(sprintf('Department-Name «%s» ist nicht eindeutig; Wipe abgebrochen.', $name));
+        }
+        $department = $matches[0];
 
         return $this->wipeDepartment($department->getId());
     }
@@ -48,11 +52,19 @@ final class DemoGrossanlassWipeService
             );
         }
 
+        if (!$department->isDemoMode()) {
+            // Ownership unklar: nie ein nicht markiertes Department löschen.
+            throw new \InvalidArgumentException(
+                sprintf('Department «%s» ist kein Demo-Department (demo_mode). Wipe abgebrochen.', $department->getName()),
+            );
+        }
+
         $departmentName = $department->getName();
 
         $conn = $this->entityManager->getConnection();
         $deleted = [];
 
+        $conn->beginTransaction();
         try {
             $deleted = array_merge($deleted, $this->deleteGrossanlassDomain($conn, $departmentId));
             $deleted = array_merge($deleted, $this->departmentReset->resetDepartment($departmentId));
@@ -82,6 +94,7 @@ final class DemoGrossanlassWipeService
                 [$departmentId],
             );
 
+            $conn->commit();
             $this->entityManager->clear();
 
             return [
@@ -90,6 +103,9 @@ final class DemoGrossanlassWipeService
                 'deleted' => $deleted,
             ];
         } catch (\Throwable $e) {
+            if ($conn->isTransactionActive()) {
+                $conn->rollBack();
+            }
             throw new \RuntimeException(
                 'Demo-Grossanlass-Wipe fehlgeschlagen: ' . $e->getMessage(),
                 0,

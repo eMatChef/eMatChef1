@@ -57,6 +57,25 @@ final class DemoAccounts
         return $email !== null && str_ends_with(strtolower(trim($email)), '@' . self::domain());
     }
 
+    /**
+     * Exakte Adresse eines Kontos aus demo-accounts.json (nur diese gelten als vom Seed besessen).
+     * Die Domain allein ist keine Ownership; `*@ematchef.ch` schon gar nicht.
+     */
+    public static function isSeedOwnedEmail(?string $email): bool
+    {
+        if ($email === null) {
+            return false;
+        }
+        $email = strtolower(trim($email));
+        foreach (self::all() as $account) {
+            if ($account['email'] === $email) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /** Fester Test-TOTP-Secret des Demo-Kontos oder null (nur superadmin/orgchef/suborgchef). */
     public static function totpSecretForEmail(string $email): ?string
     {

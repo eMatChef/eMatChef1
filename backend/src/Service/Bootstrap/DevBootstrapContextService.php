@@ -76,4 +76,69 @@ final class DevBootstrapContextService
 
         return [$organisation, $department];
     }
+
+    /**
+     * Department für Demo-Rollen-User mit eindeutiger Ownership (statt «erstes sichtbares Department»).
+     *
+     * - Mit `$departmentId`: muss `demo_mode` tragen, oder `$markDemo` markiert es ausdrücklich (Operator-Entscheid).
+     * - Ohne ID: genau ein Department mit `demo_mode` und ohne Grossanlass; bei keinem nur, wenn die DB
+     *   überhaupt kein sichtbares Department hat (dann wird ein neues Demo-Department angelegt).
+     * - Sonst Abbruch: Rollen-User mit bekanntem Passwort werden nie einem fremden Department zugeordnet.
+     *
+     * @return array{0: Organisation, 1: Department}
+     *
+     * @throws \RuntimeException wenn die Ownership nicht eindeutig ist
+     */
+    public function findOwnedDemoOrganisationAndDepartment(?string $departmentId = null, bool $markDemo = false): array
+    {
+        $repo = $this->entityManager->getRepository(Department::class);
+
+        if ($departmentId !== null && $departmentId !== '') {
+            $department = $repo->find($departmentId);
+            if (!$department instanceof Department) {
+                throw new \RuntimeException(sprintf('Department «%s» nicht gefunden.', $departmentId));
+            }
+            if (!$department->isDemoMode()) {
+                if (!$markDemo) {
+                    throw new \RuntimeException(sprintf(
+                        'Department «%s» ist kein Demo-Department (demo_mode). Mit --mark-department-demo ausdrücklich freigeben.',
+                        $department->getName(),
+                    ));
+                }
+                $department->setDemoMode(true);
+                $this->entityManager->flush();
+            }
+
+            return [$department->getOrganisation(), $department];
+        }
+
+        $demo = array_values(array_filter(
+            $repo->findBy(['demoMode' => true]),
+            static fn (Department $d): bool => !$d->isGrossanlass(),
+        ));
+        if (\count($demo) === 1) {
+            return [$demo[0]->getOrganisation(), $demo[0]];
+        }
+        if (\count($demo) > 1) {
+            throw new \RuntimeException('Mehrere Demo-Departments gefunden. Mit --department=<id> eindeutig wählen.');
+        }
+
+        $visible = array_filter(
+            $repo->findAll(),
+            static fn (Department $d): bool => SystemScopeVisibility::isDepartmentVisibleForAssignment($d),
+        );
+        if ($visible !== []) {
+            throw new \RuntimeException(
+                'Kein eindeutiges Demo-Department. Die Datenbank enthält bestehende Departments; Rollen-User werden keinem '
+                . 'davon automatisch zugeordnet. Mit --department=<id> [--mark-department-demo] ausdrücklich wählen.',
+            );
+        }
+
+        $organisation = $this->findOrCreateOrganisation();
+        $department = $this->findOrCreateDepartment($organisation);
+        $department->setDemoMode(true);
+        $this->entityManager->flush();
+
+        return [$organisation, $department];
+    }
 }

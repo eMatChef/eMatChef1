@@ -33,6 +33,8 @@ services:
       AUTH_COOKIE_DOMAIN: ".ematchef.ch"
       AUTH_COOKIE_SECURE: "1"
       EMATCHEF_DEV_TOOLS: "1"
+      # Staging: Demo-Konten anlegbar, löschende Demo-Befehle (Wipe, --delete-demo-users) immer gesperrt
+      EMATCHEF_ENV_NAME: "staging"
       CORS_ALLOW_ORIGIN: '^https://((app|qr|devices)\.staging\.ematchef\.ch|(staging|app-staging|qr-staging|devices-staging)\.ematchef\.ch)$'
       MAILER_DSN: "${MAILER_DSN:-null://null}"
       MAILER_FROM: "${MAILER_FROM:-noreply@ematchef.ch}"

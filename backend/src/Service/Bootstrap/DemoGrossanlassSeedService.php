@@ -83,6 +83,13 @@ final class DemoGrossanlassSeedService
             'organisationId' => $organisation->getId(),
             'name' => self::DEPARTMENT_NAME,
         ]);
+        if ($existing instanceof Department && !$existing->isDemoMode()) {
+            // Gleichnamiges Department ohne Demo-Markierung gehört nicht dem Seed: nicht übernehmen, nicht markieren.
+            throw new \RuntimeException(sprintf(
+                'Department «%s» existiert, ist aber nicht als Demo (demo_mode) markiert. Abbruch ohne Änderung.',
+                self::DEPARTMENT_NAME,
+            ));
+        }
         if ($existing instanceof Department && $existing->isGrossanlass()) {
             $this->ensureDemoClock($existing);
 

@@ -1,6 +1,6 @@
 # Dev-Demo Seeds
 
-Demo-Konten kommen aus `app:create-role-users` / `app:dev-demo:reset` (nur mit `EMATCHEF_DEV_TOOLS`, nie Production).
+Demo-Konten kommen aus `app:create-role-users` / `app:dev-demo:reset` (nur mit `EMATCHEF_DEV_TOOLS` **und** gesetztem `EMATCHEF_ENV_NAME` = `local`/`develop`/`staging`; nie Production). Die Commands löschen standardmässig nichts; Löschen (`--delete-demo-users`, Wipe) nur lokal oder auf Develop mit `EMATCHEF_DEMO_DESTRUCTIVE=1`, nie auf Staging/Production. Rollen-User gehen nur in ein Department mit `demo_mode` (`--department=<id> [--mark-department-demo]`). Siehe `docs/demo/SEED-KONZEPT.md` §3.2.
 Einzige Quelle ist [`demo-accounts.json`](./demo-accounts.json): Adressen `<rolle>@demo.ematchef.ch`, Passwort `test!ematchef`,
 fixe Test-TOTP-Secrets für `superadmin`, `orgchef`, `suborgchef` (Reseed ändert sie nicht). Dieselbe Datei erzeugt die Seite
 `docs.ematchef.ch → Anleitung → Entwicklung → Testumgebung` (Login, Rolle, QR, Setup-Key). Bestehende `*@ematchef.ch`-Konten werden beim Reseed umgestellt.
@@ -41,13 +41,13 @@ Infrastruktur
 
 ```bash
 # Demo-Grossanlass komplett löschen (Dev):
-php bin/console app:demo-grossanlass:wipe
+php bin/console app:demo-grossanlass:wipe --confirm='Demo Grossanlass'
 
 # Rollen-User ohne Demo-Grossanlass (Standard):
-php bin/console app:create-role-users --skip-delete
+php bin/console app:create-role-users
 
 # Demo-Szenario wieder anlegen (optional):
-php bin/console app:create-role-users --skip-delete --with-ga-demo
+php bin/console app:create-role-users --with-ga-demo
 
 # oder voller Dev-Reset:
 php bin/console app:dev-demo:reset --e2e-password='test!ematchef'
