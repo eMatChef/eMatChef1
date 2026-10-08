@@ -54,10 +54,11 @@ Ein Demo-Department ist ein `Department` mit `demo_mode = true` (**IST**, [BUSIN
 
 | Szenario | Dokument | Demo-Department heute | Stand |
 | --- | --- | --- | --- |
-| Normales Department (Materialverwaltung) | [DEPARTMENT.md](./scenarios/DEPARTMENT.md) | keines | **SOLL** |
-| Grossanlass | [GROSSANLASS.md](./scenarios/GROSSANLASS.md) | `Demo Grossanlass`, zusätzlich `Demo-Grossanlass-Event` | **IST** (schmal) |
+| Materialverwaltung (`materialverwaltung`) | [DEPARTMENT.md](./scenarios/DEPARTMENT.md) | keines | **SOLL** |
+| Grossanlass Event (`grossanlass-event`) | [GROSSANLASS.md](./scenarios/GROSSANLASS.md) | `Demo Grossanlass`, zusätzlich `Demo-Grossanlass-Event` (heute zwei Departments, schmal) | **IST** (schmal) / Zusammenführung **SOLL** |
+| Grossanlass Camp (`grossanlass-camp`) | [GROSSANLASS.md §8](./scenarios/GROSSANLASS.md#8-szenario-grossanlass-camp-soll) | keines | **SOLL** |
 
-Die Szenarien sind fachlich getrennt, verwenden aber dieselben bestehenden Domain-Strukturen und dieselbe Seed- und Zeit-Infrastruktur ([SEED-KONZEPT.md](./SEED-KONZEPT.md)). Weitere Szenarien (z. B. Lieferant, Werkstatt-Schwerpunkt) sind denkbar, aber nicht geplant.
+**SOLL (beschlossen):** Es gibt **drei voneinander unabhängige** Demo-Departments, je mit eigener BusinessClock, eigenem Ausgangspunkt, mehreren Prozesszuständen und unabhängigem Reset. Sie verwenden dieselben bestehenden Domain-Strukturen und dieselbe Seed- und Zeit-Infrastruktur ([SEED-KONZEPT.md](./SEED-KONZEPT.md)), aber keine gemeinsamen Datensätze und keine Abhängigkeit zwischen Szenarien. Weitere Szenarien (z. B. Lieferant, Werkstatt-Schwerpunkt) sind denkbar, aber nicht geplant.
 
 ## 3. Gemeinsame technische Architektur
 
@@ -67,9 +68,11 @@ Die Szenarien sind fachlich getrennt, verwenden aber dieselben bestehenden Domai
 | `BusinessClock` | **IST** | [BUSINESS-CLOCK.md](./BUSINESS-CLOCK.md); Migration der Zeitstellen bisher nur Grossanlass |
 | Zeitreise im Header (`ClockControl.vue`, `/api/departments/{id}/clock`) | **IST** | für jedes Department, nicht an Grossanlass gekoppelt |
 | Ausgangspunkt-Resolver (`ClockOriginResolverInterface`, Tag `app.clock_origin_resolver`) | **IST** (ein Resolver: Grossanlass) | weitere Resolver ohne neue Spalte möglich |
-| Seed-Services (`ensure*`-Muster) | **IST** (nur Grossanlass, Lieferant) | [SEED-KONZEPT.md](./SEED-KONZEPT.md) |
+| Seed-Services (`ensure*`-Muster) | **IST** (nur Grossanlass, Lieferant); bekannte Probleme P1–P15 | [SEED-KONZEPT.md §3.1](./SEED-KONZEPT.md#31-ist-probleme) |
 | Rollen-User, Demo-Konten | **IST** | `app:create-role-users`, `app:dev-demo:reset`, `demo-accounts.json` |
-| Gemeinsamer Szenario-Rahmen / Registry | **SOLL / OFFEN** | [SEED-KONZEPT.md §7](./SEED-KONZEPT.md#7-szenario-registry-soll) |
+| Gemeinsamer Szenario-Rahmen / Registry, Szenario-Schlüssel am Department, Ownership-Ledger | **SOLL** (Empfehlung, Freigabe offen) | [SEED-KONZEPT.md §7](./SEED-KONZEPT.md#7-szenario-registry-soll) |
+| Sync/Reset-Commands `app:demo:*`, Umgebungsschalter, Deployment-Sync (nur Develop) | **SOLL** | [SEED-KONZEPT.md §7.8–§7.9](./SEED-KONZEPT.md#78-command-struktur) |
+| Seed-Umsetzungsphasen und Tests | **SOLL** | [SEED-KONZEPT.md §9](./SEED-KONZEPT.md#9-umsetzungsphasen-mit-tests-soll) |
 | Side-Effect-Sandbox | **SOLL** | [§5](#5-demo-sicherheit-und-side-effect-sandbox) |
 
 ### Reale APIs und Domain-Services
@@ -140,8 +143,10 @@ Entwickelt wird vorerst nacheinander in **einer** lokalen Umgebung, `https://app
 
 ### Reihenfolge (SOLL)
 
-1. **Grossanlass** vollständig mit Backend/API verbinden, inklusive passender GA-Demodaten und möglicher Designverbesserungen ([GROSSANLASS.md](./scenarios/GROSSANLASS.md)). Sandbox (§5) vor der Vorführung von Anfrage-/Offerten-Versand.
-2. Danach **normale Departments** und deren Demo-Seeds ([DEPARTMENT.md](./scenarios/DEPARTMENT.md)), inklusive BusinessClock-Migration ausserhalb Grossanlass.
+0. **Seed-Absicherung und Gerüst** (Phasen 0–3 in [SEED-KONZEPT.md §9](./SEED-KONZEPT.md#9-umsetzungsphasen-mit-tests-soll)): gefährliche Altcommands absichern, Szenario-Registry, Reset, Umgebungsschalter.
+1. **Grossanlass Event** vollständig mit Backend/API verbinden, inklusive passender GA-Demodaten und möglicher Designverbesserungen ([GROSSANLASS.md](./scenarios/GROSSANLASS.md)). Sandbox (§5) vor der Vorführung von Anfrage-/Offerten-Versand.
+2. Danach **Materialverwaltung** ([DEPARTMENT.md](./scenarios/DEPARTMENT.md)), inklusive BusinessClock-Migration ausserhalb Grossanlass, und **Grossanlass Camp**. Beide sind voneinander unabhängig.
+3. **Develop-Deployment-Sync** (SEED-KONZEPT Phase 6) erst, wenn Sync idempotent und getestet ist.
 
 ### Tests
 
@@ -162,8 +167,9 @@ Die Fragen stehen am fachlich passenden Ort. Nummerierung unverändert gegenübe
 | # | Frage | Ort |
 | --- | --- | --- |
 | 1 | Gespeicherte Ist-Daten späterer Phasen vs. Uhr | [SEED-KONZEPT.md §5](./SEED-KONZEPT.md#5-zeitstrahl) |
-| 2 | Ein Grossanlass-Szenario oder zwei Departments | [GROSSANLASS.md](./scenarios/GROSSANLASS.md#7-offene-fragen) |
-| 3 | Seed-Mechanik: `ensure*`-Services oder Fixtures/Registry | [SEED-KONZEPT.md §7](./SEED-KONZEPT.md#7-szenario-registry-soll) |
+| 2 | ~~Ein Grossanlass-Szenario oder zwei Departments~~ **Entschieden (Zielbild):** zwei unabhängige Grossanlass-Szenarien, Event und Camp. Offen bleibt die Umsetzung für die bestehenden Departments (E4) | [GROSSANLASS.md](./scenarios/GROSSANLASS.md#7-offene-fragen) |
+| 3 | Seed-Mechanik: `ensure*`-Services oder Fixtures/Registry. **Empfehlung:** `ensure*` behalten, hinter gemeinsamem Szenario-Interface mit Registry; keine Doctrine-Fixtures. Freigabe offen | [SEED-KONZEPT.md §7](./SEED-KONZEPT.md#7-szenario-registry-soll) |
+| E1–E11 | Seed-Architektur: Reset-Variante, Camp-Domain, Ledger, Altbestand, Staging, Deployment-Fehlerverhalten, Index-Herkunft u. a. | [SEED-KONZEPT.md §10](./SEED-KONZEPT.md#10-offene-entscheidungen) |
 | 4 | Öffentliche Routen und Demo-Kontext | [§4](#4-öffentliche-und-qr-funktionen) |
 | 5 | Sandbox-Schnitt und Protokoll-Anzeige | [§5](#5-demo-sicherheit-und-side-effect-sandbox) |
 | 6 | Simulierte Gegenseite | [§5](#5-demo-sicherheit-und-side-effect-sandbox) |

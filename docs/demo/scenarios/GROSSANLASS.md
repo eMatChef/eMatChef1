@@ -1,6 +1,6 @@
-# Szenario: Grossanlass
+# Szenario: Grossanlass (Event und Camp)
 
-**Stand:** 8. Oktober 2026. Demo-Szenario für Grossanlässe (PFF, Kantonslager) mit End-to-End-Materialfluss und aktuellem Implementierungsstand. Gemeinsame Regeln: [../README.md](../README.md), [../SEED-KONZEPT.md](../SEED-KONZEPT.md), [../BUSINESS-CLOCK.md](../BUSINESS-CLOCK.md). Marken **IST / TEILWEISE / SOLL / OFFEN** wie dort.
+**Stand:** 8. Oktober 2026. Demo-Szenarien für Grossanlässe mit End-to-End-Materialfluss und aktuellem Implementierungsstand. **SOLL (beschlossen):** zwei unabhängige Szenarien, **Grossanlass Event** (`grossanlass-event`, PFF-inspiriert; §1–§7) und **Grossanlass Camp** (`grossanlass-camp`, §8), je mit eigenem Department, eigener BusinessClock und unabhängigem Reset ([../SEED-KONZEPT.md](../SEED-KONZEPT.md)). Soweit nicht anders vermerkt, beschreiben §1–§7 das Szenario **Event**. Gemeinsame Regeln: [../README.md](../README.md), [../SEED-KONZEPT.md](../SEED-KONZEPT.md), [../BUSINESS-CLOCK.md](../BUSINESS-CLOCK.md). Marken **IST / TEILWEISE / SOLL / OFFEN** wie dort.
 
 **Fachliche Quellen (nicht kopiert):** [../../grossanlass/README.md](../../grossanlass/README.md) (Ist-Stand), [materialfluss](../../grossanlass/materialfluss.md), [kosten](../../grossanlass/kosten.md), [rollen-postfach-fahrten](../../grossanlass/rollen-postfach-fahrten.md), [bauprojekt-ort-helfer](../../grossanlass/bauprojekt-ort-helfer.md), [business-clock](../../grossanlass/business-clock.md).
 
@@ -12,7 +12,7 @@ Das bestehende Grossanlass-UI ist das fachliche und visuelle Zielbild. Es wird b
 
 ## 2. Seed-Umfang und Stand
 
-**Zielumfang (SOLL):** Ressorts und Unterressorts · Benutzer, Rollen, Helfer · Aufträge und Bauaufträge · Bauprojekte · Materialbedarf · Lieferanten, Anfragen, Offerten, Zusagen, Bestellungen · Wareneingänge und Teillieferungen · Materialzuweisungen · Packaufträge und Paletten · QR-Labels · Transportbedarf, Fahrzeuge, Fahraufträge · Durchführung und Aufgaben · Rückbau und Retouren · Werkstatt, Entsorgung, Weiterverkauf · Kosten und Abschluss.
+**Zielumfang Event (SOLL):** Ressorts und Unterressorts · Benutzer, Rollen, Helfer · Aufträge und Bauaufträge · Bauprojekte · Materialbedarf · Lieferanten, Anfragen, Offerten, Zusagen, Bestellungen · Wareneingänge und Teillieferungen · Materialzuweisungen · Packaufträge und Paletten · QR-Labels · Transportbedarf, Fahrzeuge, Fahraufträge · Durchführung und Aufgaben · Rückbau und Retouren · Werkstatt, Entsorgung, Weiterverkauf · Kosten und Abschluss.
 
 | Baustein | Marke | Quelle |
 | --- | --- | --- |
@@ -87,7 +87,27 @@ Grossanlass-spezifisch: öffentliche Helfer-Karte (`/c/…`), Ort (`/i/p/…`), 
 
 ## 7. Offene Fragen
 
-- **Frage 2:** `Demo Grossanlass` (Rollen, Zusagen) und `Demo-Grossanlass-Event` (20 Bauaufträge) zu **einem** durchgängigen Szenario vereinen oder getrennt lassen?
+- ~~**Frage 2:** `Demo Grossanlass` und `Demo-Grossanlass-Event` vereinen oder getrennt lassen?~~ **Entschieden (Zielbild):** Event (Bauprojekte, Ressorts, Beschaffung, Wareneingang, Packen, Logistik, Rückbau, Weiterverkauf) und Camp (§8) sind zwei unabhängige Szenarien. Der inhaltliche Zuschnitt von Event entspricht der Vereinigung der beiden heutigen Departments. **OFFEN (E4):** Umsetzung für die bestehenden Departments (Zusammenführen, Datenmigration oder Legacy), siehe [../SEED-KONZEPT.md §8, §10](../SEED-KONZEPT.md#8-umgang-mit-bestehenden-commands-und-daten-soll).
+- **Seed-Befunde (IST), die Event betreffen:** `ensureEinsatz` setzt bei jedem Lauf Status und Packzustand zurück (P5); das Department wird über den Namen gefunden (P6); die Event-Jobs setzen die Rollen-User als Vorbedingung voraus und legen das Department nicht an (P9). Details: [../SEED-KONZEPT.md §3.1](../SEED-KONZEPT.md#31-ist-probleme).
+- **E2 (OFFEN):** Domain-Modell des Camp, siehe §8.
 - **Frage 7:** Backend-Lücken des Zielbilds: Disposition mit Teilmengen, Entsorgung/Verbrauch/Verlust, physische Verkaufsübergabe (`sold_handover`), externe Interessenten. Entitätsentwurf offen; muss auf den bestehenden Charge-Bewegungen aufbauen ([materialfluss §10, §14](../../grossanlass/materialfluss.md)).
 - **Frage 1 (gemeinsam):** Ist-Daten späterer Phasen vs. Uhr, siehe [../SEED-KONZEPT.md §5.3](../SEED-KONZEPT.md#53-offen-frage-1-ist-daten-vs-uhr).
 - **Fragen 5, 6 (gemeinsam):** Sandbox-Schnitt und simulierte Gegenseite (Lieferant antwortet, Interessent meldet sich), siehe [../README.md §5](../README.md#5-demo-sicherheit-und-side-effect-sandbox).
+
+## 8. Szenario Grossanlass Camp (SOLL)
+
+**Status: SOLL, nichts gebaut.** Es gibt heute weder Department noch Seed noch einen Ausgangspunkt dafür. Ob die benötigten Camp-Funktionen im Backend vorhanden sind, wurde **nicht** gegen den Code geprüft.
+
+| Bereich | Inhalt (Zielbild) | Backend-Stand |
+| --- | --- | --- |
+| Lagerinfrastruktur | Lagerplätze, Wasser/Strom/Sanitär, Orte mit QR | **OFFEN** (Orte `DepartmentGrossanlassPlace`, Ressort-Baum sind für Event vorhanden) |
+| Gruppen | Lagergruppen/Stufen mit Leitenden | **OFFEN** (`Group` mit Grossanlass-Bezug vorhanden) |
+| Zelte | Zeltmaterial, Zuteilung an Gruppen, Auf-/Abbau | **OFFEN** (als Material/Zusagen/Einsätze abbildbar? ungeprüft) |
+| Küche | Küchenmaterial, Verbrauch, Anlieferung | **OFFEN** (Verbrauchsmaterial; Küche als Ressort? ungeprüft) |
+| Materialverteilung | Zuweisung, Ausgabe an Gruppen | **IST** (Einsätze/Ausgabe, Backend vorhanden; UI teils Mock) |
+| Transporte | Fahrzeuge, Fahraufträge, Touren | **TEILWEISE** (siehe §4) |
+| Retouren | Rücknahme, Teilmengen, Fehlmengen | **TEILWEISE** (Teilmengen fehlen, [materialfluss §10](../../grossanlass/materialfluss.md)) |
+
+**Anforderungen (SOLL):** eigenes Demo-Department mit `demo_mode`, Szenario-Schlüssel `grossanlass-camp`, eigener Ausgangspunkt der Uhr (nicht derselbe wie Event), eigene Konten (keine Wiederverwendung der `ga-*`-Konten von Event, damit Reset und Primär-Mitgliedschaft unabhängig bleiben), mehrere Prozesszustände zum Ausgangspunkt (z. B. Zelte geliefert, Küche in Packarbeit, Transport geplant, Retoure offen), konsistente Mengen ([../SEED-KONZEPT.md §6](../SEED-KONZEPT.md#6-mengenbilanz-und-datenintegrität)). Verwendet dieselben Entities und Services wie Event; keine Camp-Parallelwelt.
+
+**OFFEN (E2):** Sind Camp und Event technisch zwei Grossanlass-Departments mit unterschiedlichem Inhalt (Empfehlung zur Prüfung, geringster Aufwand) oder braucht das Camp ein eigenes Profil? Vor Phase 5 ([../SEED-KONZEPT.md §9](../SEED-KONZEPT.md#9-umsetzungsphasen-mit-tests-soll)) ist eine Bestandsaufnahme der vorhandenen Camp-Funktionen nötig.

@@ -1,35 +1,96 @@
 # Seed-Konzept
 
-**Stand:** 8. Oktober 2026. Gemeinsame Bausteine und Regeln für alle Demo-Seeds. Szenario-spezifischer Inhalt: [scenarios/DEPARTMENT.md](./scenarios/DEPARTMENT.md), [scenarios/GROSSANLASS.md](./scenarios/GROSSANLASS.md). Übersicht: [README.md](./README.md). Marken **IST / TEILWEISE / SOLL / OFFEN** wie dort.
+**Stand:** 8. Oktober 2026 (Architektur-Review; Code gelesen, **keine** Seeds, Resets, Migrationen oder DB-Zugriffe ausgeführt). Gemeinsame Bausteine und Regeln für alle Demo-Seeds. Szenario-spezifischer Inhalt: [scenarios/DEPARTMENT.md](./scenarios/DEPARTMENT.md), [scenarios/GROSSANLASS.md](./scenarios/GROSSANLASS.md). Übersicht: [README.md](./README.md). Marken **IST / TEILWEISE / SOLL / OFFEN** wie dort.
+
+**Lesehinweis:** §2–§4 beschreiben den Ist-Zustand und seine Probleme. §7 ist die empfohlene Soll-Architektur, §8 der Umgang mit bestehenden Commands und Daten, §9 die Umsetzungsphasen mit Tests, §10 die offenen Entscheidungen. Nichts in §7–§9 ist gebaut.
 
 ## 1. Zweck
 
 Seeds erstellen zusammenhängende Szenarien mit realistischen Daten, Beziehungen, Mengen und Zuständen. Sie verwenden die bestehenden Domain-Strukturen (Entities, Services), keine zweite Schreibschicht.
 
-## 2. Bestehende Seed-Bausteine (IST)
+**Beschlossenes Zielbild (SOLL):** drei voneinander unabhängige Demo-Departments, jedes mit eigener BusinessClock, mehreren Prozesszuständen und unabhängigem Reset:
 
-| Baustein | Ort |
+| Szenario | Schlüssel (Vorschlag) | Inhalt |
+| --- | --- | --- |
+| Materialverwaltung | `materialverwaltung` | Lager, Gruppen, Benutzer, mindestens eine Aktivität je vorhandenem Typ, Materialbedarf, Packen, Ausgabe, Rückgabe, Inventur, Werkstatt. [scenarios/DEPARTMENT.md](./scenarios/DEPARTMENT.md) |
+| Grossanlass Event | `grossanlass-event` | Bauprojekte, Ressorts, Beschaffung, Wareneingang, Packen, Logistik, Rückbau, Weiterverkauf. [scenarios/GROSSANLASS.md](./scenarios/GROSSANLASS.md) |
+| Grossanlass Camp | `grossanlass-camp` | Lagerinfrastruktur, Gruppen, Zelte, Küche, Materialverteilung, Transporte, Retouren. [scenarios/GROSSANLASS.md](./scenarios/GROSSANLASS.md) |
+
+Gewünschtes Verhalten (SOLL, verbindlich für §7–§9):
+
+| Vorgang | Verhalten |
 | --- | --- |
-| Rollen-User und Demo-Konten | `app:create-role-users`, `app:dev-demo:reset`, `backend/data/seeds/dev-demo/demo-accounts.json`, [Seed-README](../../backend/data/seeds/dev-demo/README.md) |
-| Grossanlass-Szenario | `DemoGrossanlassSeedService` (`ensure*`-Methoden) |
-| Grossanlass-Event-Jobs | `DemoGrossanlassEventJobsSeedService`, `DemoGrossanlassEventJobsCommand` |
-| Demo-Lieferant | `DemoSupplierSeedService` |
-| Wipe | `DemoGrossanlassWipeService`, `app:demo-grossanlass:wipe` |
-| Initialdaten, Org-Subset | `CreateInitialDataCommand`, `ImportOrgSubsetCommand`, `backend/data/seeds/orgs/…` |
-| Demo-Uhr am Ausgangspunkt | `DemoGrossanlassSeedService::ensureDemoClock`, [business-clock.md](../grossanlass/business-clock.md) |
+| Develop-Deployment | fehlende Demo-Daten automatisch ergänzen, bestehende erhalten (**Sync**) |
+| Sync | idempotent, keine Duplikate, keine ungewollten Statusänderungen |
+| Reset | gezielt je Szenario, ausfallsicher, löscht keine fremden Daten |
+| Clock-Reset | nur Zeit |
+| Browser-Reload | nur Daten laden, nie schreiben |
+| Staging / Production | niemals automatische Demo-Resets; Develop mit `APP_ENV=prod` nur mit expliziter Freigabe |
+| Externe Wirkung | Demo-Seeds schreiben nichts nach aussen |
 
-Es gibt **keinen** gemeinsamen Szenario-Rahmen; die Muster sind in `DemoGrossanlassSeedService` implementiert.
+## 2. IST-Architektur
+
+### 2.1 Bausteine
+
+| Baustein | Ort | Was er tut |
+| --- | --- | --- |
+| `app:create-role-users [--skip-delete] [--with-ga-demo]` | `Command/CreateRoleUsersCommand` (475 Z.) | Löscht (ohne `--skip-delete`) Demo-User, legt Superadmin, 8 Rollen-User, 9 GA-User, Demo-Lieferant an, setzt Test-TOTP. Mit `--with-ga-demo` zusätzlich Department + Szenario. Alles in einem Command, ohne Transaktion. |
+| `app:dev-demo:reset [--e2e-password] [--skip-e2e]` | `Command/DevDemoResetCommand` | Ruft `app:create-role-users` **ohne Optionen** auf (also mit Löschen, ohne GA-Demo), danach `app:ensure-e2e-user`. Der Name «reset» ist irreführend: Department, Daten und Demo-Zeit werden nicht angefasst. |
+| `app:recreate-test-users` | `Command/RecreateTestUsersCommand` | Löscht und legt `admin@/manager@/user@ematchef.ch` (Passwort `test!ematchef`) neu an. Siehe P8. |
+| `DemoGrossanlassSeedService` | `Service/Bootstrap` (626 Z.) | `ensureDepartment` (Department `Demo Grossanlass`, `demo_mode`, Config, Kalender, Haupt-Aktivität), `ensureDemoScenario` (Ressort-Baum, Zuordnungen, Zusagen, Orte, Einsätze, Fahrkarte), `ensureTimeline`, `ensureDemoClock`. Muster `ensure*` = suchen, sonst anlegen. |
+| `DemoGrossanlassEventJobsSeedService` + `app:demo-grossanlass:event-jobs` | `Service/Bootstrap`, `Command/` | 20 Bauaufträge mit Material (Gruppen + Wünsche) in einem **bereits existierenden** Grossanlass-Department `Demo-Grossanlass-Event`. Legt das Department nicht an (`seedByName` wirft sonst), setzt kein `demo_mode`. Braucht User `ga-ok`/`ga-mw`/`superadmin` aus dem Rollen-User-Seed. |
+| `DemoSupplierSeedService` | `Service/Bootstrap` | Testfirma + `supplier@demo.ematchef.ch`; idempotent (`ensure*`). |
+| `DemoGrossanlassWipeService` + `app:demo-grossanlass:wipe [--name]` | `Service/Bootstrap`, `Command/` | Löscht ein Grossanlass-Department samt Fachdaten (rohe SQL-`DELETE`s, dann `DepartmentResetService::resetDepartment`, dann Department). |
+| `DepartmentResetService` | `Service/` | Allgemeiner Daten-Reset eines Departments (Aktivitäten, Material, Lager, Gruppen …); wird auch vom REST-Endpunkt `resetDb` (nur `isDevToolsEnabled`) genutzt. |
+| `DevBootstrapContextService` | `Service/Bootstrap` | Liefert «die erste sichtbare Organisation / das erste sichtbare Department» (sonst `Bootstrap Organisation/Department`). Hier landen die Rollen-User. |
+| `InboxDemoSeedService` | `Service/` | Musterdaten für die Nachrichtenzentrale; mit festen IDs `demo-um-001` …, kein Szenario-Bezug. |
+| `BusinessClock`, `ClockOriginResolverInterface`, `GrossanlassClockOriginResolver` | `Service/Clock`, `Service/Grossanlass` | Offset je Department; **ein** Resolver: Anlassbeginn − 5 Tage, 09:00, für jedes Grossanlass-Department mit Config. Details: [business-clock.md](../grossanlass/business-clock.md). |
+| `DemoAccounts`, `demo-accounts.json` | `Util/`, `backend/data/seeds/dev-demo/` | Einzige Quelle der Demo-Konten (Domain `demo.ematchef.ch`, Passwort, Test-TOTP). |
+| `DevEnvironmentService::isDevToolsEnabled()` | `Service/` | `Kernel ≠ prod` **oder** `EMATCHEF_DEV_TOOLS=1`. Einzige Schranke aller Seed-/Wipe-Commands (ausser `app:recreate-test-users`, siehe P8). |
+
+Es gibt **keinen** gemeinsamen Szenario-Rahmen, keine Registry, keinen Szenario-Schlüssel am Department und kein Protokoll, was ein Seed angelegt hat.
+
+### 2.2 Umgebung und Deployment (IST)
+
+- Develop **und** Staging laufen mit `APP_ENV=prod` und setzen beide `EMATCHEF_DEV_TOOLS=1` (`deploy/docker-compose.override.develop.example.yml`, `…staging.example.yml`, `deploy/*-droplet.env.example`). `isDevToolsEnabled()` kann sie daher **nicht unterscheiden**. Production setzt das Flag nicht (`…prod.example.yml`).
+- `cd-develop.yml` führt `deploy/prod-update.sh reset|up` aus: `git reset`, Container neu, Warten auf Backend-Entrypoint (Composer + `doctrine:migrations:migrate`), Cache-Warmup. **Kein Seed-Schritt.** Demo-Daten auf Develop entstehen heute nur durch manuell ausgeführte Commands.
+- `backend/docker-entrypoint.sh` läuft in **jeder** Umgebung bei jedem Backend-Start (Migrationen). Er ist deshalb kein geeigneter Ort für Seeds.
+- `MAILER_DSN` fällt auf `null://null` zurück; Develop/Staging nutzen laut [mail/README.md](../mail/README.md) Mailtrap.
+
+### 2.3 Externe Writes (IST, Code gelesen)
+
+In `Service/Bootstrap/*`, `CreateRoleUsersCommand`, `DevDemoResetCommand` und `EnsureE2eUserCommand` finden sich keine Aufrufe von Mailer, HTTP-Client, Gmail/Outlook/Hitobito, Geocoder oder Medien-Import. Die Seeds schreiben nur in die eigene DB. Das ist **nicht** durch eine Sperre abgesichert, sondern Zufall der aktuellen Implementierung; die Side-Effect-Sandbox ([README §5](./README.md#5-demo-sicherheit-und-side-effect-sandbox)) ist nicht gebaut. Seeds, die Domain-Services statt direkter Entity-Writes verwenden (SOLL, [README §1](./README.md#1-ziele-und-grundprinzipien)), können über diese Services externe Wirkung erben; deshalb braucht jeder Seed-Schritt einen Test «kein externer Aufruf» (§9).
 
 ## 3. Isolation und Idempotenz
 
 **Anforderungen an jeden Seed (SOLL):**
 
-- **Wiederholbar und möglichst idempotent.** Nochmaliges Ausführen legt nichts doppelt an. Vorbild (**IST**): `ensure*` suchen vor dem Anlegen.
-- **Department-isoliert.** Ein Seed arbeitet ausschliesslich im eigenen Demo-Department. Er darf andere Departments, Organisationen und Szenarien weder verändern noch löschen. Zuordnung über `demo_mode` und Seed-Tags, nie über den Department-Namen.
+- **Wiederholbar und idempotent.** Nochmaliges Ausführen legt nichts doppelt an und ändert keinen vom Benutzer fortgeschrittenen Zustand zurück. Vorbild für das Suchen vor dem Anlegen (**IST**): `ensure*`.
+- **Department-isoliert.** Ein Seed arbeitet ausschliesslich im eigenen Demo-Department. Er darf andere Departments, Organisationen und Szenarien weder verändern noch löschen. Zuordnung über `demo_mode` und einen Szenario-Schlüssel, nie über den Department-Namen.
 - **Verstellte Demo-Zeit bleibt.** Erneutes Seeden überschreibt einen gesetzten Offset nicht (**IST** für Grossanlass; für andere Szenarien **SOLL**).
 - **Reale Zeit in Audit-Spalten.** `created_at`/`updated_at` bleiben Systemzeit; fachliche Zeitstempel folgen dem Zeitstrahl.
 
-**Bekannter Mangel (IST):** Wiederholte Läufe von `app:create-role-users` über bestehende Demo-User scheitern ohne separate Fixes (FK `activity_grossanlass_wish_response.updated_by_user_id`; `uniq_membership_one_primary_per_user`). Siehe [business-clock.md](../grossanlass/business-clock.md). Idempotenz ist heute nicht durchgängig gegeben. Stand der Prüfung am 8. Oktober 2026 (Code gelesen, Seeds nicht ausgeführt): `CreateRoleUsersCommand` setzt beim Löschen nur `created_by`-Referenzen um (`reassignCreatedByReferences`), nicht `updated_by_user_id`; `createMembership`/`updateMembership` setzen `is_primary`, ohne eine andere Primär-Mitgliedschaft desselben Users zu lösen. Beide Probleme sind damit nicht behoben.
+### 3.1 IST-Probleme
+
+Befunde aus dem Code-Review vom 8. Oktober 2026. «Belegt» = im gelesenen Code nachvollzogen, nicht ausgeführt.
+
+| # | Problem | Beleg | Folge |
+| --- | --- | --- | --- |
+| P1 | **Löschen trifft auch echte Konten.** Die Löschschleife in `app:create-role-users` wählt jedes Profil mit Demo-Domain **oder** `str_ends_with($email, '@ematchef.ch')`. | `CreateRoleUsersCommand` Löschschleife | Auf Develop/Staging werden alle `*@ematchef.ch`-Konten (ausser Demo-Superadmin und E2E-Smoke) samt Memberships gelöscht, auch echte Testkonten des Teams. Die Legacy-Mail-Migration deckt nur die Konten aus `demo-accounts.json` ab. |
+| P2 | **FK `updated_by_user_id` (bekannter Fehler 1).** Die DB-Constraint `fk_grossanlass_wish_response_updated_by` wurde in `Version20260630120000` **ohne** `ON DELETE` angelegt (also NO ACTION), das Entity-Mapping sagt `onDelete: 'SET NULL'` (Abweichung Mapping ↔ DB). `reassignCreatedByReferences` setzt nur `created_by_user_id` von vier Entities um. | Migration Z. 148 ff.; `ActivityGrossanlassWishResponse` Z. 56; `reassignCreatedByReferences` | Löschen eines Users, der eine Wunsch-Antwort zuletzt bearbeitet hat, scheitert mit FK-Verletzung. Es gibt weitere `created_by`/`updated_by`-Spalten (z. B. `DepartmentCalendarPeriod`, `Activity`, `User.createdBy`), die nicht umgehängt werden; Vollständigkeit nicht geprüft. |
+| P3 | **Primär-Mitgliedschaft (bekannter Fehler 2).** `createMembership`/`updateMembership` setzen `is_primary` für das Ziel-Department, ohne eine bestehende Primär-Mitgliedschaft desselben Users zu lösen. Der Index `uniq_membership_one_primary_per_user` ist in **keiner Migration und keinem Entity-Mapping** im Repository definiert (Volltextsuche), existiert also nur in bestehenden Datenbanken. | `CreateRoleUsersCommand::createMembership/updateMembership`; Suche in `migrations/`, `src/` | Mit `--skip-delete` und einem User, der schon anderswo primär ist (altes oder fremdes Department), schlägt der Flush fehl. Schema-Drift: frische DBs (`bootstrap-empty-postgres.sh`, `schema:create`) haben den Index womöglich nicht und verhalten sich anders. **OFFEN:** Herkunft des Index klären. |
+| P4 | **Rollen-User landen in einem beliebigen Department.** `findOrCreateOrganisationAndDepartment` nimmt die erste für Zuweisung sichtbare Organisation und deren erstes sichtbares Department. | `DevBootstrapContextService` | Auf einer DB mit echten Departments werden Demo-Rollen-User (mit bekanntem Passwort) Mitglieder eines **echten** Departments. Reihenfolge ist nicht stabil. |
+| P5 | **Sync setzt Zustand zurück.** `ensureEinsatz` überschreibt bei jedem Lauf `status`, `delivery`, `qty`, Zeiten, `tripReleasedAt = null`, `packed = false` und ruft `ensureDefaultPack` auf. Der Seed-Zeitstrahl (`ensureTimeline`) nutzt dieselbe Funktion. | `DemoGrossanlassSeedService::ensureEinsatz` | Ein erneuter Seed macht Fortschritt der Demo (z. B. «ausgegeben» → «zurückgegeben», freigegebene Fahrt, gepackt) rückgängig. Ungewollte Statusänderung. |
+| P6 | **Seed-Identität steckt in Freitext.** Einsätze werden über `who LIKE '%[demo:v1:…]%'` gefunden, Event-Jobs über Gruppenname und `SEED_TAG` in Beschreibungen, Department über **Name** + Organisation. | `ensureEinsatz`, `ensureDepartment`, `EventJobs…::findBauten` | Wer das Feld bearbeitet oder das Department umbenennt, erzeugt beim nächsten Sync Duplikate oder ein zweites Department. Name als Schlüssel widerspricht [README §2](./README.md#2-demo-departments). `ensureDepartment` setzt `demo_mode` auf **jedes** gleichnamige Grossanlass-Department der Organisation. |
+| P7 | **Wipe ist nicht atomar und nicht auf Demo begrenzt.** `wipeDepartment` führt `deleteGrossanlassDomain` ohne Transaktion aus, danach `resetDepartment` (eigene Transaktion) und weitere `DELETE`s wieder ausserhalb. `wipeByName`/`--name` prüft nur `isGrossanlass()`, **nicht** `demo_mode`. | `DemoGrossanlassWipeService` | Abbruch mittendrin hinterlässt ein halb gelöschtes Department. `--name=<echtes Grossanlass-Dept>` löscht ein nicht-Demo-Department. Nur Grossanlass wipebar; normale Departments haben keinen Szenario-Wipe. Das Department wird gelöscht (neue ID, Memberships, `last_used_department`, öffentliche Links, QR-Codes verlieren Bezug). |
+| P8 | **`app:recreate-test-users` hat keine Schranke.** Der Constructor injiziert kein `DevEnvironmentService`; der Command läuft in jeder Umgebung. Er legt Konten auf der **echten** Domain `@ematchef.ch` mit dem öffentlich bekannten Passwort an und entfernt User per `remove` ohne FK-Behandlung. | `RecreateTestUsersCommand` | In Production ausführbar: bekannte Zugangsdaten auf der Produktivdomain. Zusätzlich kollidiert die Domain mit P1. |
+| P9 | **Kein Szenario-Rahmen, gemischte Zuständigkeiten.** User-Seed, Department-Seed, Lieferanten-Seed und TOTP laufen in einem Command; Event-Jobs setzen die Rollen-User als Vorbedingung voraus und laufen in einem separaten Command ohne Anlage des Departments. `DevDemoResetCommand` ruft Commands über `Application::find()->run()`. | siehe §2.1 | Szenarien sind nicht einzeln, nicht in definierter Reihenfolge und nicht unabhängig ausführbar. |
+| P10 | **Keine Transaktionen / Teilzustände.** `createUser` + `flush` pro Gruppe, `ensureDepartment` flusht mehrfach, `ensureDemoScenario` flusht an mehreren Stellen. Ein Fehler (P2, P3) hinterlässt ein Teilergebnis (z. B. gelöschte User, Superadmin neu, GA fehlt). | `CreateRoleUsersCommand`, Seed-Services | Nach einem Abbruch ist der Zustand nicht definiert; erneutes Ausführen kann am selben Fehler scheitern. |
+| P11 | **Passwort/Status werden bei jedem Lauf zurückgesetzt** (`createUser` für bestehende User: `setPassword`, `setState('active')`, `setEmailVerified`, Namen). | `CreateRoleUsersCommand::createUser` | Für Demo gewünscht; aber ohne Szenario-Bezug und auch für nicht-Demo-Konten mit Demo-Adresse wirksam. |
+| P12 | **Gating zu grob.** `isDevToolsEnabled()` gilt gleich für Develop und Staging (§2.2). Es gibt keine Unterscheidung «Sync erlaubt» / «Reset erlaubt». | `DevEnvironmentService`, Override-Beispiele | Auf Staging können Seed- und Wipe-Commands (und `resetDb`-Endpunkt für Department-Manager) laufen, sobald jemand sie aufruft. Für automatische Deployment-Schritte fehlt jede Schranke. |
+| P13 | **Wipe-Reihenfolge handgepflegt.** `deleteGrossanlassDomain` listet Tabellen von Hand; neue Grossanlass-Tabellen (Pack, Retouren, Weiterverkauf …) werden leicht vergessen und blockieren per FK den Department-Löschvorgang. | `DemoGrossanlassWipeService` | Wipe bricht (mit P7: halb gelöscht) oder lässt Waisen. Kein Test belegt Vollständigkeit. |
+| P14 | **Zeitdrift der Demo-Uhr.** Der Offset wird einmal gesetzt; danach läuft die Demo-Fachzeit in Echtzeit weiter und überholt den Zeitstrahl (Anker E = Seed-Tag + 7 d). Ein unbeaufsichtigtes Develop-Demo «wandert» durch die Phasen. | `ensureDemoClock`, [business-clock.md](../grossanlass/business-clock.md) | Kein Fehler, aber für Vorführungen relevant: Clock-Reset ist nötig; gespeicherte Ist-Daten (Frage 1) passen nach Tagen nicht mehr zur Uhr. |
+| P15 | **Tests.** Es existiert nur `CreateRoleUsersCommandGuardTest` (Schranke) und `DemoAccountsTest`; kein Test für Idempotenz, Isolation, Wipe, Primär-Mitgliedschaft oder Mengenbilanz der Seeds. | `backend/tests/` | Regressionen in Seeds fallen erst manuell auf. |
 
 ## 4. Reset
 
@@ -37,12 +98,12 @@ Daten neu und Zeit zurück sind getrennte Vorgänge (**IST**, Tabelle in [busine
 
 | Vorgang | Wirkung |
 | --- | --- |
-| Header «Zurücksetzen» | nur Demo-Zeit, keine Daten |
-| Seed erneut (`--skip-delete`) | aktualisiert Bestehendes, Uhr bleibt |
-| Wipe + Seed | echter Reset inklusive Ausgangsuhr (heute nur Grossanlass-Wipe) |
-| `app:dev-demo:reset` | nur Rollen-User, berührt Department und Demo-Zeit nicht |
+| Header «Zurücksetzen» (`DELETE …/clock`) | nur Demo-Zeit, keine Daten |
+| `app:create-role-users --skip-delete [--with-ga-demo]` | aktualisiert Bestehendes, Uhr bleibt (Probleme P3, P5) |
+| `app:demo-grossanlass:wipe` danach `app:create-role-users --with-ga-demo` | echter Reset inklusive Ausgangsuhr, nur Grossanlass (Probleme P7, P13) |
+| `app:dev-demo:reset` | nur Rollen-User, berührt Department und Demo-Zeit nicht (Probleme P1, P2) |
 
-**SOLL:** Ein Reset-Weg pro Szenario (Wipe nur des eigenen Demo-Departments), nicht szenariospezifisch zusammengebastelt.
+**SOLL:** Ein Reset-Weg pro Szenario, ausfallsicher, nur im eigenen Demo-Department (§7.7).
 
 ## 5. Zeitstrahl
 
@@ -72,6 +133,8 @@ Gespeicherte Ist-Daten späterer Phasen existieren schon, wenn die Uhr noch am A
 - (b) Der Seed liefert alle Phasen und Ansichten filtern nach `occurred_at ≤ BusinessClock::now()`. Das verletzt «Uhr verändert keine Zustände» nicht, braucht aber Filter in jeder Abfrage.
 - (c) Mehrere Ausgangspunkte (Snapshots).
 
+**Empfehlung (SOLL, nicht entschieden):** (a) als Standard. Mehrere «Prozesszustände» je Szenario (§1) entstehen durch **mehrere Vorgänge in unterschiedlichen Zuständen zum Ausgangspunkt** (ein Vorgang abgeschlossen, einer laufend, einer geplant), nicht durch Ist-Daten aus der Zukunft. (b) und (c) nur, wenn eine Vorführung explizit rückwärts reisen muss. Mit P14 verträglich: Der Seed ist am Ausgangspunkt konsistent; ein Clock-Reset stellt diese Konsistenz wieder her.
+
 ## 6. Mengenbilanz und Datenintegrität
 
 **SOLL:** Seeds sind in sich konsistent:
@@ -81,15 +144,171 @@ Gespeicherte Ist-Daten späterer Phasen existieren schon, wenn die Uhr noch am A
 - Invariante (Department): Bestand = Summe der Lagerbewegungen; ausgegebene Menge = zurückgegebene + offene Menge.
 - Beziehungen vollständig (keine verwaisten Referenzen), Rollen und Mitgliedschaften gültig, Eigentümer und Herkunft gesetzt.
 - Jeder `public_code` löst auf einen Demo-Datensatz auf.
-- Ein Test prüft diese Invarianten je Szenario.
+- Ein Test prüft diese Invarianten je Szenario (`verify()`, §7.2).
 
 ## 7. Szenario-Registry (SOLL)
 
-**Status: nicht gebaut.** Heute gibt es Einzel-Services pro Seed. Mögliche Zielarchitektur:
+**Status: nicht gebaut.** Dieser Abschnitt ist die empfohlene Soll-Architektur aus dem Review vom 8. Oktober 2026. Entscheidungen, die der Teamfreigabe bedürfen, stehen in §10.
 
-- Ein Szenario-Interface (Kennung, Seed-Tag, Anker, `ensure`, `wipe`, Ausgangspunkt-Resolver).
-- Eine Registry, die Szenarien findet (analog zu `app.clock_origin_resolver`) und über ein gemeinsames Command ausführt.
-- Gemeinsame Hilfen: Tagging, Department-Isolation, Zeitstrahl-Anker, Reset, Prüfung der Invarianten.
-- Bereich A (Grossanlass) und B (Department) nutzen denselben Rahmen.
+### 7.1 Bewertung der Optionen
 
-**OFFEN (Frage 3):** Seed-Mechanik: bestehende `ensure*`-Services beibehalten oder Doctrine-Fixtures/Szenario-Klassen mit Registry? Wunsch: ein gemeinsamer Rahmen für beide Bereiche. Diese Frage ist vor dem Ausbau von Bereich B zu entscheiden.
+| Frage | Empfehlung | Begründung |
+| --- | --- | --- |
+| Gemeinsame Szenario-Registry? | **Ja.** Ein Interface, eine per Tag gesammelte Registry (Muster `app.clock_origin_resolver`), ein gemeinsames Command. | Behebt P9 und P12; drei Szenarien mit gleichem Reset/Sync/Clock-Vertrag. Kein Framework nötig. |
+| `ensure*`-Services oder Doctrine-Fixtures? | **`ensure*`-Services behalten**, hinter dem Szenario-Interface gekapselt. Keine Doctrine-Fixtures. | Fixtures sind auf «Datenbank leeren und laden» ausgelegt (widerspricht Sync/Erhalt) und umgehen Domain-Services. Die bestehenden `ensure*`-Methoden werden in Idempotenz und Identität korrigiert, nicht ersetzt (Antwort auf Frage 3, Empfehlung). |
+| Stabile Seed-Identitäten? | **Ja, durch Szenario-Schlüssel am Department und Seed-Schlüssel je Datensatz** (§7.3). | Behebt P6; Name und Freitext sind keine Schlüssel. |
+| Ownership-Nachweis? | **Ja, Ledger-Tabelle** `demo_seed_record` für alles, was nicht per `department_id` zuordenbar ist (§7.4). | Erlaubt gezielten Reset und «keine fremden Daten löschen». |
+| Transaktionen? | **Eine Transaktion pro Szenario-Schritt**, Advisory Lock je Szenario (§7.5). | Behebt P7, P10. |
+| Command-Struktur? | **Ein `app:demo:*`-Namensraum**, alte Commands werden Aliasse oder entfallen (§7.8, §8). | Behebt P9. |
+| Deployment? | **Opt-in Sync-Schritt in `prod-update.sh`**, nur Develop, nie Reset (§7.9). | Behebt P12. |
+
+### 7.2 Szenario-Interface
+
+Skizze, kein Code. Ein Szenario ist eine Klasse mit Tag `app.demo_scenario`:
+
+| Mitglied | Aufgabe |
+| --- | --- |
+| `key()` | stabiler Schlüssel: `materialverwaltung`, `grossanlass-event`, `grossanlass-camp` |
+| `dependencies()` | Schlüssel anderer Szenarien oder gemeinsamer Bausteine (nur `identities`, siehe §7.6); keine Abhängigkeit zwischen Szenarien |
+| `sync(SeedContext)` | additiv und idempotent (§7.6) |
+| `reset(SeedContext)` | löscht den Inhalt dieses Szenarios (§7.7) |
+| `clockOrigin(Department)` | Ausgangspunkt der Uhr; ersetzt `GrossanlassClockOriginResolver` durch einen Registry-Resolver, der pro Schlüssel delegiert (Event und Camp können verschiedene Ausgangspunkte haben) |
+| `verify()` | prüft Mengenbilanz, Beziehungen, `public_code`-Auflösung (§6); ohne Schreibzugriff |
+
+`SeedContext` bündelt: Szenario-Department, EntityManager, Seed-Anker (Zeit), Akteur, `dryRun`-Flag, Ledger-Zugriff. Dry-Run (`--dry-run`) berechnet, was `sync` anlegen würde, und schreibt nichts.
+
+### 7.3 Stabile Identitäten
+
+| Ebene | Empfehlung |
+| --- | --- |
+| Department | neue nullable, eindeutige Spalte `department.demo_scenario_key` (Migration, Phase 1). `demo_mode = true` bleibt die Markierung für Zeit/Sicherheit; der Schlüssel ist der Zuordnungsanker für Sync und Reset. Abfrage nie über den Namen. Der Name darf geändert werden. |
+| Datensätze | Seed-Schlüssel `scenario_key:logischer_name` (z. B. `grossanlass-event:einsatz:aufbau-tische`), geführt im Ledger (§7.4), **nicht** als Freitext-Tag in `who`/Beschreibung. Bestehende `[demo:v1:…]`-Tags werden einmalig ins Ledger übernommen (Phase 2) und danach nicht mehr gelesen. |
+| Benutzer | feste E-Mail aus `demo-accounts.json` (bereits stabil). Neue Konten für Event/Camp/Materialverwaltung kommen in dieselbe Datei (Single Source, wird auch für docs.ematchef.ch genutzt). |
+| IDs | **Keine** deterministischen IDs aus dem Schlüssel (IDs sind 12-stellig und von `IdGenerator` verwaltet; Hash-Kollisionen und Sonderfälle vermeiden). Zuordnung läuft über das Ledger (Entscheidung E3, §10). |
+
+### 7.4 Ownership: Ledger
+
+Tabelle `demo_seed_record` (Vorschlag): `scenario_key`, `seed_key`, `entity_class`, `entity_id`, `department_id` (nullable), `created_at`; eindeutig über `(scenario_key, seed_key)`.
+
+- Wird vom Seed beim Anlegen geschrieben, nie von der Anwendung gelesen.
+- `sync` sucht über das Ledger, nicht über Freitext (P6). Existiert der Eintrag, aber die Entity wurde gelöscht, legt `sync` sie neu an (Ledger-Eintrag wird ersetzt).
+- `reset` löscht erst die per `department_id` zuordenbaren Inhalte, dann Ledger-Einträge, die auf nicht-Department-Objekte zeigen (z. B. Lieferanten-Testfirma).
+- Alles ausserhalb von Department und Ledger gilt als **fremd** und wird nie gelöscht.
+- Alternative ohne Ledger (nur `department_id`-Scope + Szenario-Schlüssel) ist für Departments ausreichend, reicht aber nicht für geteilte Objekte (Demo-User, Lieferant) und nicht für das Wiederfinden einzelner Seed-Vorgänge. Entscheidung E3.
+
+### 7.5 Transaktionen und Parallelität
+
+- `sync(scenario)` = **eine** DB-Transaktion (`Connection::transactional` um alle `flush`es des Szenarios; zwischenzeitliche `flush`es für ID-Abhängigkeiten sind innerhalb der Transaktion unkritisch). Bei Fehler Rollback, Szenario unverändert.
+- `reset(scenario)` = eine Transaktion für das Löschen (inklusive Nested-Reset von `DepartmentResetService`, der eine eigene `beginTransaction` nutzt; mit einer äusseren Transaktion nur zulässig, wenn DBAL-Nesting/Savepoints geprüft ist, siehe Test T6). Anschliessend **separat** `sync` in einer zweiten Transaktion. Stirbt der Prozess dazwischen, ist das Szenario leer, aber konsistent; erneutes `sync` stellt es her (sync ist idempotent).
+- **Advisory Lock** je `scenario_key` (`pg_try_advisory_lock`): verhindert, dass Deployment-Sync und manueller Reset gleichzeitig laufen. Wer den Lock nicht erhält, bricht mit klarer Meldung ab (kein Warten im Deployment).
+- Benutzer-Identitäten (§7.6) laufen in einer eigenen Transaktion vor den Szenarien.
+
+### 7.6 Sync-Semantik
+
+Regeln, die jedes Szenario einhält (Test T2–T4):
+
+1. **Anlegen, wenn Ledger-Eintrag oder Entity fehlt; sonst nicht anfassen.** Bestehende Entities werden **nicht** auf Seed-Werte zurückgesetzt. Ausnahmen sind eine feste Liste unveränderlicher Stammfelder (z. B. Name, Gruppenstruktur), nie Status, Mengen, Zeiten oder Zuweisungen. Behebt P5.
+2. **Ergänzen statt ersetzen.** Fehlt ein Kind-Datensatz (z. B. eine Position), wird nur dieser ergänzt.
+3. **Konsistenzprüfung vor dem Anlegen** abhängiger Daten (Mengenbilanz, §6); `sync` bricht ab, wenn der vorhandene Bestand die Invarianten verletzt, und meldet das, ohne zu «reparieren».
+4. **Zeit:** `demo_clock_offset_seconds` wird nur bei fehlendem Offset gesetzt (wie `ensureDemoClock` heute). Sync ändert nie die Uhr eines bestehenden Departments.
+5. **Benutzer (Identity-Schritt):** Konten aus `demo-accounts.json` werden angelegt oder aktualisiert (Passwort, Status), **nie gelöscht**. Memberships werden pro Szenario-Department gesetzt. Primär-Mitgliedschaft: ein User hat genau eine; `sync` löst eine andere Primär-Mitgliedschaft in derselben Transaktion nur, wenn sie ein Demo-Department betrifft, sonst bleibt sie und die neue Membership wird nicht primär (Behebt P3, ohne fremde Zuordnungen anzufassen).
+6. **Kein Schreiben ausserhalb des eigenen Departments** (ausser Identity- und Lieferanten-Schritt). Ein Test (T3) vergleicht vor/nach `sync` die Zeilenzahlen aller fremden Departments.
+7. **Keine Abhängigkeit zwischen Szenarien:** Event-Jobs brauchen nicht mehr die `ga-*`-User eines anderen Szenarios, sondern die Szenario-eigenen Konten (behebt P9).
+
+### 7.7 Reset-Semantik
+
+- **Geltungsbereich:** nur Departments mit `demo_mode = true` **und** passendem `demo_scenario_key`. `--name` entfällt (P7). Reset eines Departments ohne Schlüssel ist verboten.
+- **Variante A (empfohlen):** Inhalt löschen, **Department-Zeile behalten** (stabile ID für Memberships, öffentliche Links, QR-Codes, `last_used_department_id`), Ledger-Einträge des Szenarios entfernen, Uhr auf Ausgangspunkt, danach `sync`. Muss auch Config, Kalenderperiode und Haupt-Aktivität der Grossanlass-Departments neu aufbauen, die heute in `ensureDepartment` entstehen.
+- **Variante B:** Department löschen und neu anlegen (heutiges Verhalten). Einfacher, aber neue ID, Verlust von Memberships und Links, FK-Risiko (P13).
+- **Löschreihenfolge:** wird aus einer Tabellenliste mit FK-Reihenfolge erzeugt und per Test gegen das Schema geprüft (T5), nicht von Hand ergänzt. Neue Tabellen mit `department_id` oder FK auf Department/Aktivität lassen den Test fehlschlagen, bis sie eingetragen sind.
+- **Schutz:** Bestätigung per `--confirm=<scenario_key>` (nicht-interaktiv) oder interaktiv; Umgebungsfreigabe nach §7.9.
+- **Clock-Reset** (Header «Zurücksetzen», `DELETE …/clock`) bleibt davon getrennt und ändert nur den Offset (**IST**). **Browser-Reload** lädt nur Daten; kein Lesezugriff der Demo-Ansichten darf `sync` oder `reset` auslösen (T9).
+- **Reset eines Szenarios berührt weder andere Szenarien noch Benutzerkonten.** Konten werden nicht gelöscht, nur Memberships im zurückgesetzten Department (die Membership-Zeilen bleiben bei Variante A bestehen).
+
+### 7.8 Command-Struktur
+
+| Command | Aufgabe | Schranke |
+| --- | --- | --- |
+| `app:demo:sync [--scenario=<key>\|--all] [--dry-run]` | additiver Sync inklusive Identity-Schritt | Sync-Freigabe |
+| `app:demo:reset --scenario=<key> --confirm=<key>` | Reset eines Szenarios, danach Sync | Reset-Freigabe (strenger) |
+| `app:demo:verify [--scenario=<key>\|--all]` | `verify()` (nur lesend); für CI und Deploy-Prüfung | keine (nur lesend) |
+| `app:demo:status` | Liste der Szenarien: Department, Ledger-Umfang, Uhr (Offset/Ausgangspunkt) | keine (nur lesend) |
+
+Kein Command löscht ohne Szenario-Schlüssel. Alle Commands ausser `verify`/`status` prüfen die Freigabe (§7.9) **vor** der ersten Abfrage.
+
+### 7.9 Umgebungsschutz und Deployment-Integration
+
+**Problem:** `APP_ENV=prod` + `EMATCHEF_DEV_TOOLS=1` ist auf Develop und Staging identisch (P12). Es braucht eigene, explizite Schalter:
+
+| Schalter (Vorschlag) | Standard | Wirkung |
+| --- | --- | --- |
+| `EMATCHEF_DEMO_SYNC=1` | aus | erlaubt `app:demo:sync` (additiv). Nur auf Develop in der Compose-Umgebung gesetzt. |
+| `EMATCHEF_DEMO_RESET=1` | aus | erlaubt `app:demo:reset`. **Nie** in `prod-update.sh` oder CD gesetzt; nur manuell pro Sitzung (`docker compose exec -e EMATCHEF_DEMO_RESET=1 …`). |
+| `EMATCHEF_ENV_NAME` | leer | `develop`/`staging`/`production`/`local`; Reset und Sync verweigern bei `production`, unabhängig von allen anderen Flags. |
+
+- **Lokal** (`APP_ENV≠prod`): wie bisher über `isDevToolsEnabled()`, Reset mit `--confirm`. **Fail closed:** unbekannter oder leerer `EMATCHEF_ENV_NAME` auf einem prod-Kernel = verboten.
+- **Staging:** Sync nur manuell und nur mit gesetztem Schalter; **kein automatischer** Schritt, **nie** automatischer Reset (Vorgabe). Ob Staging überhaupt Demo-Daten tragen soll, ist offen (E5).
+- **Production:** beide Schalter nie gesetzt; `EMATCHEF_ENV_NAME=production` verbietet zusätzlich. Mindestens ein Test belegt, dass beide Commands in dieser Konfiguration mit Fehler und ohne DB-Zugriff enden (T1).
+- **Deployment (Develop):** neuer Schritt in `deploy/prod-update.sh` **nach** `wait_for_backend_ready` und Cache-Warmup, ausgeführt nur, wenn `EMATCHEF_DEMO_SYNC=1` im Backend-Container gesetzt ist (`docker compose exec -T backend php bin/console app:demo:sync --all --no-interaction --env=prod`). Dasselbe Skript wird von `cd-develop.yml`, `cd-staging.yml` und `cd-prod.yml` aufgerufen (nur `EMATCHEF_GIT_BRANCH` und Projektname unterscheiden sich). Der Schritt muss daher auf Staging und Production durch den fehlenden Schalter **und** `EMATCHEF_ENV_NAME` inaktiv bleiben; ein Skript-Test (T1) prüft das.
+  - **Fehlerverhalten:** ein fehlgeschlagener Sync darf das Deployment nicht fehlschlagen lassen (Demo-Daten sind nicht kritisch), muss aber im CD-Log sichtbar warnen und mit Exit-Code im Summary stehen (Entscheidung E6).
+  - **Nicht** im Docker-Entrypoint (läuft in jeder Umgebung bei jedem Start, vor App-Bereitschaft) und **nicht** im Request-Pfad.
+- **Der Sync-Schritt im Deployment enthält nie `reset`.** Ein erkannter Konflikt (Invariante verletzt, Lock belegt, Ledger/DB inkonsistent) endet mit Warnung, nicht mit Löschen.
+
+### 7.10 Keine externen Writes
+
+- Seeds laufen mit einem **Seed-Kontext-Flag**, das Mailer, Gmail/Outlook/Hitobito-Adapter, Geocoder und Medien-Import fail-closed sperrt (Teil der Sandbox, [README §5](./README.md#5-demo-sicherheit-und-side-effect-sandbox)). Bis die Sandbox existiert: Seeds rufen **ausschliesslich** Entities/Repositories und Domain-Services ohne externe Adapter auf; ein Test (T8) lässt `sync` mit Mock-Transport/HTTP-Client laufen und prüft, dass kein Aufruf erfolgt.
+- Neue Benutzer lösen keine Verifikations- oder Willkommensmail aus (`VerificationEmailService` ist Controller-Pfad; der Identity-Schritt setzt `emailVerified` direkt wie heute).
+
+## 8. Umgang mit bestehenden Commands und Daten (SOLL)
+
+| Baustein | Empfehlung |
+| --- | --- |
+| `app:create-role-users` | **Löschschleife entfernen** (P1, P2). Gelöscht wird nichts mehr. Logik zerlegt: Identity-Schritt (Konten, TOTP, Memberships), Lieferant, Szenarien. Für eine Übergangszeit dünner Alias auf `app:demo:sync --all` mit Deprecation-Hinweis; `--skip-delete` ist wirkungslos (immer an), `--with-ga-demo` entspricht `--scenario=grossanlass-event`. |
+| `app:dev-demo:reset` | Umbenennen oder Alias auf Identity-Sync + E2E-Smoke; Name und Hilfetext korrigieren (kein Reset). Ausgabe `*@ematchef.ch` auf `@demo.ematchef.ch` korrigieren. |
+| `app:recreate-test-users` | **Sofort absichern oder entfernen** (P8): mindestens `isDevToolsEnabled()` prüfen; Empfehlung entfernen, da `demo-accounts.json` die Konten abdeckt. Das ist eine Sicherheitskorrektur und nicht von der übrigen Architektur abhängig (Phase 0). |
+| `app:demo-grossanlass:wipe` | durch `app:demo:reset --scenario=…` ersetzen; `--name` entfällt. Bis dahin: Bestätigung und `demo_mode`-Prüfung ergänzen. |
+| `app:demo-grossanlass:event-jobs` | wird Teil von `grossanlass-event` (`sync`), legt das Department selbst an; eigener Command entfällt. |
+| `app:ensure-demo-supplier` | bleibt als Baustein im Identity-/Lieferanten-Schritt. |
+| `DemoGrossanlassSeedService` | wird `grossanlass-event`-Szenario; `ensureEinsatz` ohne Überschreiben von Status/Packzustand (P5); `ensureDepartment` über `demo_scenario_key` statt Name (P6). |
+| `DemoGrossanlassWipeService` | wird `reset` des Szenarios; Tabellenliste wird testgeprüft (P13); Transaktion (P7). |
+| `DepartmentResetService` | bleibt für den (devtools-geschützten) REST-Endpunkt und als Baustein des Szenario-Resets. Der Endpunkt `resetDb` ist **kein** Demo-Reset und sollte für Demo-Departments gesperrt oder auf den Szenario-Reset umgeleitet werden (OFFEN, E7). |
+| `DevBootstrapContextService` | der Materialverwaltungs-Seed legt sein **eigenes** Demo-Department an (`materialverwaltung`); die Rollen-User gehören dorthin, nicht ins «erste sichtbare Department» (P4). Für `app:ensure-e2e-user`/Superadmin-Bootstrap unverändert. |
+| `InboxDemoSeedService` | bleibt, wird dem passenden Szenario zugeordnet (OFFEN, E8). |
+| Bestehende Demo-Departments `Demo Grossanlass`, `Demo-Grossanlass-Event` | **nicht löschen.** Einmalige, idempotente Migration (Phase 2): `Demo Grossanlass` bekommt `demo_scenario_key = grossanlass-event` (behält ID, Memberships, Uhr); `Demo-Grossanlass-Event` (nur Event-Jobs) wird in dieses Department überführt oder bleibt als Legacy bis zur Freigabe (OFFEN, E4). |
+| Bestehende Rollen-User in einem Fremd-Department (P4) | **nicht automatisch umhängen.** Der Identity-Schritt legt die Memberships im Materialverwaltungs-Demo-Department an; alte Memberships werden in `app:demo:status` als «Altlast» gemeldet und manuell bereinigt. |
+| Bestehende Daten auf Develop | `sync` ergänzt nur; ohne Ledger-Eintrag gefundene, passende Daten (Tags `[demo:v1:…]`, Name) werden **einmalig adoptiert** (Ledger-Eintrag), nicht dupliziert und nicht verändert. |
+
+## 9. Umsetzungsphasen mit Tests (SOLL)
+
+Jede Phase ist eigenständig freigebbar und endet mit grünen Tests. Phasen 0 und 1 enthalten keine neuen Szenarien. Migrationen (Phase 1, 2) sind additiv und verändern keine bestehenden Migrationen (AGENTS.md).
+
+| Phase | Inhalt | Tests |
+| --- | --- | --- |
+| **0 Absichern** | `app:recreate-test-users` absichern/entfernen (P8); Löschschleife in `app:create-role-users` auf Demo-Domain beschränken oder entfernen (P1); Bestätigung/`demo_mode`-Prüfung im Wipe. Kein neues Feature. | **T1** Guard-Tests je Command (Production-Konfiguration → Fehler, kein `persist`/`flush`), nach Muster `CreateRoleUsersCommandGuardTest`; **T0** Löschschleife trifft kein Konto ausserhalb `demo.ematchef.ch`. |
+| **1 Gerüst** | `DemoScenarioInterface`, Registry, `SeedContext`, `demo_scenario_key` (Migration), Ledger (Migration), `app:demo:status`/`verify`, Umgebungsschalter (§7.9). Keine Daten. Primär-Mitgliedschaft und FK (P2/P3): Index-Herkunft klären, Mapping ↔ DB-Abweichung per Migration beheben, falls bestätigt. | **T1** Schalter-Matrix (production/staging/develop/local × Sync/Reset); Registry findet Szenarien per Tag; Migration up/down auf leerer DB; Schema-Test: Index/FK entsprechen Mapping. |
+| **2 Identity + Grossanlass Event** | Identity-Schritt (Konten, TOTP, Memberships, Primär-Regel); bestehendes `Demo Grossanlass` + Event-Jobs als Szenario `grossanlass-event` hinter dem Interface; `ensureEinsatz` ohne Überschreiben; Adoption der Alt-Tags ins Ledger. | **T2** Idempotenz: `sync` zweimal → identische Zeilenzahlen, keine Duplikate; **T4** Zustandserhalt: Einsatz-Status ändern, `sync`, Status bleibt; **T3** Isolation: andere Departments unverändert; **T10** Primär-Mitgliedschaft mit Vor-Zustand (User primär anderswo) → kein Fehler, nur eine Primäre; Wiederholung der beiden bekannten FK-/Primär-Fälle als Regressionstest. |
+| **3 Reset** | `reset` je Szenario (Variante A oder B nach Entscheid E1), Transaktion, Advisory Lock, `--confirm`, Tabellenliste mit Schema-Test; `app:demo:reset`. | **T5** jede Tabelle mit FK auf Department/Aktivität ist in der Löschliste (Schema-Introspektion); **T6** Abbruch mitten im Reset (injizierte Exception) → Rollback, Szenario unverändert; **T7** Reset von Szenario A lässt B, Konten und fremde Departments unberührt; Lock-Test (zweiter Lauf verweigert). |
+| **4 Materialverwaltung** | neues Szenario `materialverwaltung` (Lager, Gruppen, Konten, Aktivitäten je Typ, Bedarf, Packen, Ausgabe, Rückgabe, Inventur, Werkstatt) mit eigenem Clock-Resolver; Rollen-User wandern in dieses Department (P4). | **T2–T4** wie oben; **verify()** Mengenbilanz Department (§6); `public_code`-Auflösung; Test, dass die Uhr unabhängig von Event/Camp ist. |
+| **5 Grossanlass Camp** | neues Szenario `grossanlass-camp`; eigener Ausgangspunkt. Abhängig von Entscheid E2 (Domain-Modell Camp). | **T2–T4**, **verify()** Mengenbilanz Grossanlass (§6), Isolation zu Event. |
+| **6 Deployment** | Sync-Schritt in `prod-update.sh` hinter `EMATCHEF_DEMO_SYNC`; Log/Summary; Doku in `deploy/`/`docs/APP-ON-DROPLET.md`. | **T1** Skript-Test (Shell-Mock): Schritt läuft nur mit Schalter, nie mit `reset`; **T9** Browser-Reload/GET-Endpunkte schreiben nichts (Request-Test auf Clock- und Lese-Endpunkte); manuelle Develop-Abnahme (Deployment zweimal, Daten unverändert). |
+| **7 Sandbox** | Side-Effect-Sandbox ([README §5](./README.md#5-demo-sicherheit-und-side-effect-sandbox)), Seed-Kontext-Flag. | **T8** pro Adapter ein Test; Seeds mit gesperrten Adaptern laufen durch. |
+
+Reihenfolge begründet: 0 sofort (Sicherheit), 1 vor allen Szenarien, 2 vor 3, weil Reset die Identitäten und das Ledger voraussetzt. Phasen 4 und 5 sind unabhängig voneinander. Die in [README §6](./README.md#6-entwicklung-und-teststrategie) festgelegte Reihenfolge (Grossanlass zuerst) bleibt gültig: Phase 2 deckt Event.
+
+## 10. Offene Entscheidungen
+
+Nummerierung E1… ist neu (Seed-Architektur); Fragen 1–9 bleiben in [README §7](./README.md#7-offene-architekturfragen-übersicht).
+
+| # | Entscheidung | Empfehlung | Betrifft |
+| --- | --- | --- | --- |
+| E1 | Reset: Department-Zeile behalten (A) oder löschen und neu anlegen (B)? | A | §7.7 |
+| E2 | Domain-Modell **Camp**: dieselben Grossanlass-Entities (`is_grossanlass`, Zelte/Küche als Ressorts/Material) oder eigenes Profil? Welche Camp-Funktionen (Zelte, Küche) existieren im Backend heute? Nicht geprüft. | zuerst Bestandsaufnahme, dann Entscheid | [GROSSANLASS.md](./scenarios/GROSSANLASS.md) |
+| E3 | Ownership: Ledger-Tabelle, nur `department_id` + Schlüssel, oder deterministische IDs? | Ledger | §7.3, §7.4 |
+| E4 | Schicksal der bestehenden Departments `Demo Grossanlass` und `Demo-Grossanlass-Event`: zusammenführen in `grossanlass-event` (Empfehlung, entspricht dem Zielbild), Daten migrieren oder Legacy stehen lassen? (Beantwortet Frage 2 inhaltlich, Umsetzung offen.) | zusammenführen, Legacy bleibt bis Freigabe | §8 |
+| E5 | Soll **Staging** Demo-Daten tragen (nur manueller Sync) oder keine? | nur manuell, nie automatisch | §7.9 |
+| E6 | Deployment: Sync-Fehler nur warnen (Empfehlung) oder Deployment abbrechen? | warnen | §7.9 |
+| E7 | REST `resetDb`/`resetActivities` für Demo-Departments sperren oder umleiten? | sperren | §8 |
+| E8 | Zuordnung `InboxDemoSeedService` und weiterer Hilfs-Seeds zu Szenarien. | Materialverwaltung | §8 |
+| E9 | Herkunft von `uniq_membership_one_primary_per_user` (nirgends im Repo definiert) und der Abweichung `ON DELETE` bei `fk_grossanlass_wish_response_updated_by`; Behebung per Migration oder Mapping-Anpassung. | in Phase 1 klären | P2, P3 |
+| E10 | Mehrere Prozesszustände: Variante (a) «nur Ist-Daten bis Ausgangspunkt» (Frage 1). | (a) | §5.3 |
+| E11 | Aktivitätstypen für «mindestens eine Aktivität je Typ»: `activity.type` ist ein String ohne zentrale Aufzählung; Typen und Packprofile (`profileForActivityType`) müssen vor Phase 4 inventarisiert werden. | Inventar in Phase 4 | [DEPARTMENT.md](./scenarios/DEPARTMENT.md) |
