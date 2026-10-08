@@ -2,6 +2,7 @@
 
 namespace App\Service\Grossanlass;
 
+use App\Service\Clock\BusinessClock;
 use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassUserCard;
 use App\Entity\Group;
@@ -24,6 +25,7 @@ class GrossanlassUserCardService
         private GrossanlassUserCardDriveProofStorageService $proofStorage,
         private GrossanlassDriveLicenseService $licenses,
         private DepartmentRoleLabelService $roleLabels,
+        private BusinessClock $clock,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $appFrontendUrl,
         #[Autowire('%env(APP_PUBLIC_QR_URL)%')] private string $appPublicQrUrl,
     ) {
@@ -124,7 +126,7 @@ class GrossanlassUserCardService
         }
         $this->refreshMayDrive($card);
         if (!empty($data['print'])) {
-            $card->setCardPrintedAt(new \DateTime());
+            $card->setCardPrintedAt($this->clock->now($department));
         }
         $this->entityManager->flush();
 
@@ -205,7 +207,7 @@ class GrossanlassUserCardService
             throw new \RuntimeException('Keine Berechtigung für User-Karten');
         }
 
-        $now = new \DateTime();
+        $now = $this->clock->now($department);
         foreach ($this->listCards($department) as $row) {
             if ($row['printed']) {
                 continue;
@@ -249,7 +251,7 @@ class GrossanlassUserCardService
         }
         $card->setDriveProofKind(GrossanlassDriveCategories::PROOF_IN_PERSON);
         $card->setDriveVerified(true);
-        $card->setDriveVerifiedAt(new \DateTime());
+        $card->setDriveVerifiedAt($this->clock->now($card->getDepartmentId()));
         $card->setDriveVerifiedById($actor->getId());
     }
 
@@ -263,7 +265,7 @@ class GrossanlassUserCardService
         }
         $card->setDriveProofKind(GrossanlassDriveCategories::PROOF_DOCUMENT);
         $card->setDriveVerified(true);
-        $card->setDriveVerifiedAt(new \DateTime());
+        $card->setDriveVerifiedAt($this->clock->now($card->getDepartmentId()));
         $card->setDriveVerifiedById($actor->getId());
     }
 

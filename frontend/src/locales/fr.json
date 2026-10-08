@@ -343,6 +343,20 @@
     "extendSession": "Prolonger"
   },
   "layout": {
+    "clock": {
+      "title": "Heure métier (voyage dans le temps de la démo)",
+      "date": "Date",
+      "time": "Heure",
+      "apply": "Appliquer",
+      "minusHour": "−1 h",
+      "plusHour": "+1 h",
+      "minusDay": "−1 jour",
+      "plusDay": "+1 jour",
+      "reset": "Réinitialiser",
+      "modeDemo": "DÉMO",
+      "modeDev": "DEV",
+      "error": "Impossible de modifier l’heure"
+    },
     "onboardingResume": "Poursuivre l'intégration",
     "userFallback": "Utilisateur",
     "tabs": {

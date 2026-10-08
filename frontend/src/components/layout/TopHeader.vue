@@ -287,6 +287,9 @@
         </div>
       </div>
 
+      <!-- Department-Fachzeit (nur Demo/Dev, Server entscheidet über can_travel) -->
+      <ClockControl v-if="smAndUp" />
+
       <!-- User Menu -->
       <div class="user-menu-wrapper">
         <div
@@ -781,6 +784,7 @@ import {
 } from '../../api/publicFoundMessages'
 // @ts-ignore Vetur false positive in Vue 3 script-setup import
 import GlobalSearchInput from '../common/GlobalSearchInput.vue'
+import ClockControl from '@/components/layout/ClockControl.vue'
 import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
 import ProfileDriveLicenseAccordion from '@/components/layout/ProfileDriveLicenseAccordion.vue'
 import ProfileSecurityEmailsAccordion from '@/components/layout/ProfileSecurityEmailsAccordion.vue'

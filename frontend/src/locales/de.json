@@ -2324,6 +2324,20 @@
     }
   },
   "layout": {
+    "clock": {
+      "title": "Fachzeit (Demo-Zeitreise)",
+      "date": "Datum",
+      "time": "Uhrzeit",
+      "apply": "Übernehmen",
+      "minusHour": "−1 h",
+      "plusHour": "+1 h",
+      "minusDay": "−1 Tag",
+      "plusDay": "+1 Tag",
+      "reset": "Zurücksetzen",
+      "modeDemo": "DEMO",
+      "modeDev": "DEV",
+      "error": "Zeit konnte nicht geändert werden"
+    },
     "onboardingResume": "Onboarding fortsetzen",
     "subnavCollapse": "Menü einklappen (mehr Platz für Inhalt)",
     "subnavExpand": "Menü ausklappen",

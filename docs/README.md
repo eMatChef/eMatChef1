@@ -32,6 +32,7 @@ Neuer Chat: diese Datei lesen, dann höchstens die eine fachliche Datei zur Aufg
 | Accounting | [accounting.md](./accounting.md) |
 | Aktivitäten | [activities/README.md](./activities/README.md) |
 | Grossanlass | [grossanlass/README.md](./grossanlass/README.md) |
+| Demo-System (Ziele, Seeds, Zeitstrahl, Sandbox) | [demo/README.md](./demo/README.md) |
 | Material / Kombos / Vorlagen | [material/combos/README.md](./material/combos/README.md), [material/templates/README.md](./material/templates/README.md) |
 | Werkstatt | [workshop/README.md](./workshop/README.md) |
 | Nachrichten | [nachrichtenzentrale.md](./nachrichtenzentrale.md) |

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Service\Grossanlass;
 
+use App\Service\Clock\BusinessClock;
 use App\Entity\ActivityGrossanlassProcurementLine;
 use App\Entity\ActivityGrossanlassProcurementLineWish;
 use App\Entity\ActivityGrossanlassRound;
@@ -30,6 +31,7 @@ final class GrossanlassUebersichtService
         private GrossanlassPlaceService $places,
         private GroupHierarchyService $hierarchy,
         private GrossanlassProcurementService $procurement,
+        private BusinessClock $clock,
     ) {}
 
     /**
@@ -71,7 +73,7 @@ final class GrossanlassUebersichtService
             'einsaetze' => array_values(array_filter($serialized, fn (array $row) => $row['kind'] === DepartmentGrossanlassEinsatz::KIND_EINSATZ)),
             'orders' => array_values(array_filter($serialized, fn (array $row) => $row['kind'] === DepartmentGrossanlassEinsatz::KIND_ORDER)),
             'conflicts' => $conflicts,
-            'issues' => $this->issuesFrom($einsaetze),
+            'issues' => $this->issuesFrom($department, $einsaetze),
             'pack' => $this->packFrom($commitments),
             'returns' => $this->returnsFrom($commitments),
             'cards' => $this->cards->listCards($department),
@@ -444,7 +446,7 @@ final class GrossanlassUebersichtService
                 if ($row->getStatus() === DepartmentGrossanlassEinsatz::STATUS_PENDING) {
                     throw new \InvalidArgumentException('Einsatz ist noch nicht frei');
                 }
-                $row->setTripReleasedAt($row->getTripReleasedAt() ?? new \DateTime());
+                $row->setTripReleasedAt($row->getTripReleasedAt() ?? $this->clock->now($department));
                 $pack = $this->packs->ensureDefaultPack($row);
                 if (!$pack->isTripReleased()) {
                     $this->packs->releaseTrip($department, $user, $pack->getId());
@@ -709,10 +711,10 @@ final class GrossanlassUebersichtService
      * @param list<DepartmentGrossanlassEinsatz> $einsaetze
      * @return list<array<string, mixed>>
      */
-    private function issuesFrom(array $einsaetze): array
+    private function issuesFrom(Department $department, array $einsaetze): array
     {
-        $today = (new \DateTime('today'))->format('Y-m-d');
-        $tomorrow = (new \DateTime('tomorrow'))->format('Y-m-d');
+        $today = $this->clock->today($department)->format('Y-m-d');
+        $tomorrow = $this->clock->today($department)->modify('+1 day')->format('Y-m-d');
         $out = [];
         foreach ($einsaetze as $row) {
             if ($row->getKind() !== DepartmentGrossanlassEinsatz::KIND_EINSATZ) {

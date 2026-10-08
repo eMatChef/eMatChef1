@@ -2,6 +2,7 @@
 
 namespace App\Service\Grossanlass;
 
+use App\Service\Clock\BusinessClock;
 use App\Entity\Activity;
 use App\Entity\ActivityGrossanlassRound;
 use App\Entity\Department;
@@ -20,6 +21,7 @@ class GrossanlassPlanningRoundService
         private GrossanlassAccessService $access,
         private InboxMessageService $inboxMessages,
         private GrossanlassRoundFormService $formService,
+        private BusinessClock $clock,
     ) {}
 
     /**
@@ -130,7 +132,7 @@ class GrossanlassPlanningRoundService
         $round->setFormPurpose(ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH);
         $round->setMaterialStage(GrossanlassMaterialStage::GROB);
         $round->setStatus(ActivityGrossanlassRound::STATUS_OPEN);
-        $round->setOpenedAt(new \DateTime());
+        $round->setOpenedAt($this->clock->now($department));
         $round->setCreatedByUser($user);
 
         $this->entityManager->persist($round);
@@ -208,7 +210,7 @@ class GrossanlassPlanningRoundService
         }
 
         $round->setStatus(ActivityGrossanlassRound::STATUS_OPEN);
-        $round->setOpenedAt(new \DateTime());
+        $round->setOpenedAt($this->clock->now($department));
         $round->touchUpdatedAt();
         $this->entityManager->flush();
 
@@ -235,7 +237,7 @@ class GrossanlassPlanningRoundService
         }
 
         $round->setStatus(ActivityGrossanlassRound::STATUS_CLOSED);
-        $round->setClosedAt(new \DateTime());
+        $round->setClosedAt($this->clock->now($department));
         $round->touchUpdatedAt();
         $this->entityManager->flush();
 
@@ -266,7 +268,7 @@ class GrossanlassPlanningRoundService
 
     private function applyAutoSchedule(Department $department, Activity $activity): void
     {
-        $now = new \DateTime();
+        $now = $this->clock->now($department);
         $rounds = $this->entityManager->getRepository(ActivityGrossanlassRound::class)
             ->createQueryBuilder('r')
             ->where('r.activityId = :activityId')
@@ -294,7 +296,7 @@ class GrossanlassPlanningRoundService
                 && $round->getOpensAt() <= $now
             ) {
                 $round->setStatus(ActivityGrossanlassRound::STATUS_OPEN);
-                $round->setOpenedAt(new \DateTime());
+                $round->setOpenedAt($this->clock->now($department));
                 $round->touchUpdatedAt();
                 $changed = true;
                 $this->notifyRoundOpened($department, $round, null);
@@ -304,7 +306,7 @@ class GrossanlassPlanningRoundService
                 && $round->getClosesAt() <= $now
             ) {
                 $round->setStatus(ActivityGrossanlassRound::STATUS_CLOSED);
-                $round->setClosedAt(new \DateTime());
+                $round->setClosedAt($this->clock->now($department));
                 $round->touchUpdatedAt();
                 $changed = true;
             }

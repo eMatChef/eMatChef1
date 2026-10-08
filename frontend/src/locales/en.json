@@ -2195,6 +2195,20 @@
     }
   },
   "layout": {
+    "clock": {
+      "title": "Business time (demo time travel)",
+      "date": "Date",
+      "time": "Time",
+      "apply": "Apply",
+      "minusHour": "−1 h",
+      "plusHour": "+1 h",
+      "minusDay": "−1 day",
+      "plusDay": "+1 day",
+      "reset": "Reset",
+      "modeDemo": "DEMO",
+      "modeDev": "DEV",
+      "error": "Could not change the time"
+    },
     "onboardingResume": "Continue onboarding",
     "userFallback": "User",
     "tabs": {
