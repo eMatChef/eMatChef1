@@ -895,14 +895,13 @@ const departmentSwitchItems = computed(() =>
 const adminContextItems = computed(() =>
   authStore.availableAdminContexts.map((ctx) => ({
     key: ctx.key,
-    name:
-      ctx.kind === 'global'
-        ? t('layout.userMenu.globalContext')
-        : ctx.name || t('layout.userMenu.managementAll'),
+    name: ctx.kind === 'global' ? t('layout.userMenu.globalContext') : ctx.name || '',
     hint:
       ctx.role === 'superadmin'
         ? t('layout.userMenu.globalContextHint')
-        : t(ctx.role === 'org' ? 'layout.userMenu.managementHintOrg' : 'layout.userMenu.managementHintSub'),
+        : t(
+            `layout.userMenu.managementHint${ctx.role === 'org' ? 'Org' : 'Sub'}${ctx.kind === 'organisation' ? 'Organisation' : 'Department'}`,
+          ),
     isActive: authStore.activeAdminContext?.key === ctx.key,
   })),
 )

@@ -53,23 +53,26 @@ export interface PasswordResetConfirmResponse {
   message: string
 }
 
-/** Wählbarer Verwaltungsbereich (Wurzel-Department im Admin-Scope von Orgchef/Suborgchef). */
+/**
+ * Wählbarer Verwaltungsbereich von Orgchef/Suborgchef: eine ausdrücklich zugewiesene Organisation
+ * (`kind: 'organisation'`, `department_id` null) oder eine Department-Wurzel samt Unterbaum (`kind: 'department'`).
+ */
 export interface AdminContextScope {
-  department_id: string
-  name: string
+  kind: 'organisation' | 'department'
   organisation_id: string
+  department_id: string | null
+  name: string
   parent_id: string | null
 }
 
 /**
  * Verwaltungskontexte laut Backend: `global` = Superadmin (Systemkontext ohne Department),
- * `scopes` = Verwaltungsbereiche von Orgchef/Suborgchef, `unrestricted` = ohne Scope-Einschränkung.
+ * `scopes` = Zuweisungen von Orgchef/Suborgchef. Ohne Zuweisung ist die Liste leer (keine Verwaltungsrechte).
  * Nur eine Auswahlhilfe; Berechtigungen prüft immer das Backend.
  */
 export interface AdminContextsResponse {
   global: boolean
   role: 'superadmin' | 'org' | 'sub' | 'none'
-  unrestricted: boolean
   scopes: AdminContextScope[]
 }
 

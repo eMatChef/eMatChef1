@@ -5,28 +5,33 @@ import type { AdminContextsResponse } from '@/api/auth'
  *
  * Ein Verwaltungskontext ist keine Mitgliedschaft und vergibt keine operative Rolle (kein MW):
  *  - `global`: Superadmin-Systemkontext, kein Department.
- *  - `management:<departmentId>`: Verwaltungsbereich von Orgchef/Suborgchef (Wurzel-Department, Unterbaum inklusive).
- *  - `management:all`: Orgchef/Suborgchef ohne Scope-Einschränkung.
- * Die Auswahl ist nur Navigation; Zugriff und Rechte entscheidet immer das Backend.
+ *  - `organisation`: ausdrücklich zugewiesene Organisation von Orgchef/Suborgchef (alle Departments darin).
+ *  - `department`: ausdrücklich zugewiesene Department-Wurzel von Orgchef/Suborgchef (Unterbaum, nicht Parent/Geschwister).
+ * Ohne Zuweisung gibt es keinen Kontext. Die Auswahl ist nur Navigation; Zugriff und Rechte entscheidet immer das Backend.
  */
-export type AdminContextKind = 'global' | 'management'
+export type AdminContextKind = 'global' | 'organisation' | 'department'
 
 export interface AdminContextOption {
   key: string
   kind: AdminContextKind
   role: 'superadmin' | 'org' | 'sub'
-  /** Wurzel-Department des Verwaltungsbereichs; null bei global/unbeschränkt */
+  /** Wurzel-Department des Verwaltungsbereichs; null bei global/Organisation */
   departmentId: string | null
-  name: string | null
   organisationId: string | null
+  name: string | null
 }
 
 export const GLOBAL_CONTEXT_KEY = 'global'
 /** Marker für «zuletzt im Department-Kontext» (neben den Schlüsseln der Verwaltungskontexte). */
 export const DEPARTMENT_CONTEXT_MARKER = 'department'
 
-export function managementContextKey(departmentId: string | null): string {
-  return `management:${departmentId ?? 'all'}`
+/** Schlüssel sind absichtlich verschieden von Department-IDs und vom Marker `department`. */
+export function organisationContextKey(organisationId: string): string {
+  return `admin-org:${organisationId}`
+}
+
+export function departmentContextKey(departmentId: string): string {
+  return `admin-dept:${departmentId}`
 }
 
 export function buildAdminContextOptions(
@@ -35,7 +40,7 @@ export function buildAdminContextOptions(
 ): AdminContextOption[] {
   if (profileRoles.includes('ROLE_SUPERADMIN')) {
     return [
-      { key: GLOBAL_CONTEXT_KEY, kind: 'global', role: 'superadmin', departmentId: null, name: null, organisationId: null },
+      { key: GLOBAL_CONTEXT_KEY, kind: 'global', role: 'superadmin', departmentId: null, organisationId: null, name: null },
     ]
   }
   const role = profileRoles.includes('ROLE_ORGANISATIONSCHEF')
@@ -43,22 +48,31 @@ export function buildAdminContextOptions(
     : profileRoles.includes('ROLE_SUBORGCHEF')
       ? 'sub'
       : null
-  if (!role || !contexts || (contexts.role !== 'org' && contexts.role !== 'sub')) return []
+  if (!role || !contexts || contexts.role !== role) return []
 
-  if (contexts.scopes.length > 0) {
-    return contexts.scopes.map((scope) => ({
-      key: managementContextKey(scope.department_id),
-      kind: 'management' as const,
-      role,
-      departmentId: scope.department_id,
-      name: scope.name,
-      organisationId: scope.organisation_id,
-    }))
+  const options: AdminContextOption[] = []
+  for (const scope of contexts.scopes) {
+    if (scope.kind === 'organisation') {
+      options.push({
+        key: organisationContextKey(scope.organisation_id),
+        kind: 'organisation',
+        role,
+        departmentId: null,
+        organisationId: scope.organisation_id,
+        name: scope.name,
+      })
+    } else if (scope.department_id) {
+      options.push({
+        key: departmentContextKey(scope.department_id),
+        kind: 'department',
+        role,
+        departmentId: scope.department_id,
+        organisationId: scope.organisation_id,
+        name: scope.name,
+      })
+    }
   }
-  if (contexts.unrestricted) {
-    return [{ key: managementContextKey(null), kind: 'management', role, departmentId: null, name: null, organisationId: null }]
-  }
-  return []
+  return options
 }
 
 export interface InitialContextInput {
@@ -98,4 +112,9 @@ export function resolveInitialContext(input: InitialContextInput): InitialContex
 /** Startseite des Verwaltungskontexts (Superadmin: globales Dashboard, Orgchef/Suborgchef: Verwaltung). */
 export function adminContextHomePath(option: Pick<AdminContextOption, 'kind'>): string {
   return option.kind === 'global' ? '/dashboard' : '/admin-dashboard/verwaltung'
+}
+
+/** Organisationen, die ein Org-/Suborgchef sehen darf (zugewiesen oder Organisation einer zugewiesenen Wurzel). */
+export function visibleOrganisationIds(contexts: AdminContextsResponse | null | undefined): string[] {
+  return [...new Set((contexts?.scopes ?? []).map((scope) => scope.organisation_id))]
 }

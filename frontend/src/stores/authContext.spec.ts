@@ -50,7 +50,7 @@ describe('auth store contexts', () => {
   it('superadmin: global context is selectable, no department is created or required', async () => {
     const store = useAuthStore()
     await load(store, session(['ROLE_USER', 'ROLE_SUPERADMIN'], [dept('d1', 'Materialverwaltung', 'u', true), dept('d2', 'Event', 'lw')], {
-      global: true, role: 'superadmin', unrestricted: true, scopes: [],
+      global: true, role: 'superadmin', scopes: [],
     }))
 
     expect(store.availableAdminContexts.map((c) => c.key)).toEqual(['global'])
@@ -72,7 +72,7 @@ describe('auth store contexts', () => {
 
   it('superadmin resumes the department after reload, but never a department he is not a member of', async () => {
     const store = useAuthStore()
-    const s = session(['ROLE_USER', 'ROLE_SUPERADMIN'], [dept('d1', 'Materialverwaltung', 'u', true)], { global: true, role: 'superadmin', unrestricted: true, scopes: [] })
+    const s = session(['ROLE_USER', 'ROLE_SUPERADMIN'], [dept('d1', 'Materialverwaltung', 'u', true)], { global: true, role: 'superadmin', scopes: [] })
     await load(store, s)
     await store.setActiveDepartment('d1')
 
@@ -89,15 +89,15 @@ describe('auth store contexts', () => {
   it('orgchef: management areas are selectable next to a normal member role in another department', async () => {
     const store = useAuthStore()
     await load(store, session(['ROLE_USER', 'ROLE_ORGANISATIONSCHEF'], [dept('c1', 'Camp', 'u', true)], {
-      global: false, role: 'org', unrestricted: false, scopes: [{ department_id: 'kv', name: 'Kantonalverband', organisation_id: 'org1', parent_id: null }],
+      global: false, role: 'org', scopes: [{ kind: 'department', department_id: 'kv', name: 'Kantonalverband', organisation_id: 'org1', parent_id: null }],
     }))
 
     expect(store.activeDepartmentId).toBe('c1')
     expect(store.currentDepartmentRole).toBe('u')
-    expect(store.availableAdminContexts.map((c) => c.key)).toEqual(['management:kv'])
+    expect(store.availableAdminContexts.map((c) => c.key)).toEqual(['admin-dept:kv'])
 
-    const option = store.selectAdminContext('management:kv')
-    expect(option).toMatchObject({ kind: 'management', departmentId: 'kv' })
+    const option = store.selectAdminContext('admin-dept:kv')
+    expect(option).toMatchObject({ kind: 'department', departmentId: 'kv' })
     expect(store.activeAdminContext?.name).toBe('Kantonalverband')
     expect(store.activeDepartmentId).toBeNull()
     // keine künstliche Mitgliedschaft entsteht durch die Auswahl
@@ -107,12 +107,46 @@ describe('auth store contexts', () => {
   it('suborgchef without any membership lands in the management area instead of the waiting room', async () => {
     const store = useAuthStore()
     await load(store, session(['ROLE_USER', 'ROLE_SUBORGCHEF'], [], {
-      global: false, role: 'sub', unrestricted: false, scopes: [{ department_id: 'sued', name: 'Abteilung Süd', organisation_id: 'org1', parent_id: 'kv' }],
+      global: false, role: 'sub', scopes: [{ kind: 'department', department_id: 'sued', name: 'Abteilung Süd', organisation_id: 'org1', parent_id: 'kv' }],
     }))
 
     expect(store.departments).toEqual([])
     expect(store.isAdminContextActive).toBe(true)
-    expect(store.activeAdminContext?.key).toBe('management:sued')
+    expect(store.activeAdminContext?.key).toBe('admin-dept:sued')
+  })
+
+  it('orgchef with organisation and department scopes: separate contexts next to a normal role in the same department', async () => {
+    const store = useAuthStore()
+    await load(store, session(['ROLE_USER', 'ROLE_ORGANISATIONSCHEF'], [dept('c1', 'Camp', 'u', true)], {
+      global: false,
+      role: 'org',
+      scopes: [
+        { kind: 'organisation', department_id: null, name: 'Org Camp', organisation_id: 'o1', parent_id: null },
+        { kind: 'department', department_id: 'c1', name: 'Camp', organisation_id: 'o1', parent_id: null },
+      ],
+    }))
+
+    expect(store.availableAdminContexts.map((c) => [c.key, c.kind])).toEqual([['admin-org:o1', 'organisation'], ['admin-dept:c1', 'department']])
+    // die Mitgliedschaft im selben Department ist ein eigener Kontext mit der tatsächlichen Rolle
+    expect(store.activeDepartmentId).toBe('c1')
+    expect(store.activeAdminContext).toBeNull()
+    store.selectAdminContext('admin-org:o1')
+    expect(store.activeAdminContext?.kind).toBe('organisation')
+    expect(store.activeDepartmentId).toBeNull()
+    store.selectAdminContext('admin-dept:c1')
+    expect(store.activeAdminContext?.kind).toBe('department')
+    expect(store.departments.map((d) => d.role)).toEqual(['u'])
+  })
+
+  it('org/sub without any assignment: no context, no organisation visible, membership still works', async () => {
+    const store = useAuthStore()
+    await load(store, session(['ROLE_USER', 'ROLE_SUBORGCHEF'], [dept('d1', 'Abteilung', 'u', true)], { global: false, role: 'sub', scopes: [] }))
+
+    expect(store.availableAdminContexts).toEqual([])
+    expect(store.isAdminContextActive).toBe(false)
+    expect(store.activeDepartmentId).toBe('d1')
+    expect(store.canAccessOrganisation('org1')).toBe(false)
+    expect(store.selectAdminContext('global')).toBeNull()
   })
 
   it('rejects contexts that were not granted by the server', async () => {
@@ -121,7 +155,7 @@ describe('auth store contexts', () => {
 
     expect(store.availableAdminContexts).toEqual([])
     expect(store.selectAdminContext('global')).toBeNull()
-    expect(store.selectAdminContext('management:all')).toBeNull()
+    expect(store.selectAdminContext('admin-org:none')).toBeNull()
     expect(store.activeDepartmentId).toBe('d1')
   })
 })

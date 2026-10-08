@@ -394,9 +394,10 @@
       "adminContexts": "Administration",
       "globalContext": "Administration globale",
       "globalContextHint": "Superadmin · tout le système",
-      "managementAll": "Toutes les organisations",
-      "managementHintOrg": "Chef d’organisation · domaine de gestion",
-      "managementHintSub": "Sous-chef d’organisation · domaine de gestion",
+      "managementHintOrgOrganisation": "Chef d’organisation · organisation",
+      "managementHintOrgDepartment": "Chef d’organisation · gestion du département",
+      "managementHintSubOrganisation": "Sous-chef d’organisation · organisation",
+      "managementHintSubDepartment": "Sous-chef d’organisation · gestion du département",
       "logout": "Se déconnecter"
     },
     "totpRequiredNotice": "L'authentification à deux facteurs est obligatoire pour ton rôle d'administrateur. Configure-la sous Profil → Sécurité, sinon les fonctions d'administration restent bloquées.",

@@ -284,9 +284,10 @@
       "adminContexts": "Amministrazione",
       "globalContext": "Amministrazione globale",
       "globalContextHint": "Superadmin · intero sistema",
-      "managementAll": "Tutte le organizzazioni",
-      "managementHintOrg": "Capo organizzazione · ambito di gestione",
-      "managementHintSub": "Sottocapo organizzazione · ambito di gestione",
+      "managementHintOrgOrganisation": "Capo organizzazione · organizzazione",
+      "managementHintOrgDepartment": "Capo organizzazione · gestione del reparto",
+      "managementHintSubOrganisation": "Sottocapo organizzazione · organizzazione",
+      "managementHintSubDepartment": "Sottocapo organizzazione · gestione del reparto",
       "logout": "Esci"
     },
     "totpRequiredNotice": "L'autenticazione a due fattori è obbligatoria per il tuo ruolo di amministratore. Configurala in Profilo → Sicurezza, altrimenti le funzioni amministrative restano bloccate.",

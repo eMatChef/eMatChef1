@@ -32,6 +32,7 @@ import {
   DEPARTMENT_CONTEXT_MARKER,
   buildAdminContextOptions,
   resolveInitialContext,
+  visibleOrganisationIds,
   type AdminContextOption,
 } from '@/utils/adminContext'
 import {
@@ -48,7 +49,7 @@ export const useAuthStore = defineStore('auth', () => {
   const activeDepartmentId = ref<string | null>(localStorage.getItem('active_department_id'))
   /** Verwaltungskontexte laut Session (Auswahlhilfe; Rechte prüft das Backend). */
   const adminContexts = ref<AdminContextsResponse | null>(null)
-  /** Aktiver Verwaltungskontext (`global` | `management:<id|all>`); null = Department-Kontext. */
+  /** Aktiver Verwaltungskontext (`global` | `admin-org:<id>` | `admin-dept:<id>`); null = Department-Kontext. */
   const activeAdminContextKey = ref<string | null>(null)
   const loadingUser = ref(false)
   const error = ref<string | null>(null)
@@ -170,12 +171,12 @@ export const useAuthStore = defineStore('auth', () => {
     return false
   }
 
+  /** Sichtbarkeit (Anzeige); Zugriffsentscheidungen trifft das Backend. Ohne Zuweisung sieht ein Org-/Suborgchef keine Organisation. */
   function canAccessOrganisation(orgId: string | null | undefined): boolean {
     if (!orgId) return true
     if (userRoles.value.includes('ROLE_SUPERADMIN')) return true
-    const scoped = adminCapabilities.value?.scope?.organisation_ids || []
-    if (scoped.length === 0) return true
-    return scoped.includes(orgId)
+    if (!hasGlobalAdminAccess()) return true
+    return visibleOrganisationIds(adminContexts.value).includes(orgId)
   }
 
   /** null = alle Departments (Superadmin / kein Scope) */

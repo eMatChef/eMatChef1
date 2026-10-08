@@ -551,13 +551,9 @@ IST-Zustand und Zielzustand müssen bei der Umsetzung klar getrennt bleiben.
 
 Diese Punkte beschreiben den aktuellen Code-Stand, nicht das Zielbild. Sie sind bei der weiteren Umsetzung zu beheben.
 
-### Scope-Semantik leerer Organisationslisten — vor Phase 5 klären
+### Scope-Semantik leerer Scopes — behoben (Oktober 2026)
 
-`AdminCapabilityChecker` wertet eine leere `scope.organisation_ids`-Liste als Zugriff auf alle Organisationen. Der Admin-Scope-Editor speichert bei reiner Department-Auswahl genau eine leere Organisationsliste (`department_root_ids` gesetzt, `organisation_ids = []`).
-
-Folge: Ein Org-/Suborgchef mit ausschließlich `department_root_ids` erhält über `canAccessOrganisation()` organisationsübergreifenden Zugriff. Zudem kann ein auf Organisationen begrenzter Orgchef einen solchen Suborgchef über `PATCH /api/users/{id}/admin` nicht verwalten, weil dessen Organisationszugriff formal breiter ist.
-
-Muss vor Phase 5 (Admin-MFA/Step-up) separat untersucht und fachlich korrigiert werden.
+Früher wertete `AdminCapabilityChecker` einen leeren Scope als «alle Organisationen/Departments» und schnitt Organisations- und Department-Zuweisungen (Schnittmenge). Jetzt gilt: Zuweisungen werden vereinigt, ein leerer Scope gibt **keine** hierarchischen Verwaltungsrechte, Organisationsebene verlangt eine Organisations-Zuweisung (`canAdministerOrganisation`), und Department-bezogene Schreib- und Lesezugriffe laufen über `canAdministerDepartment` bzw. `DepartmentAccessGuard`. Auswirkungen auf bestehende Konten zeigt `app:admin:scope-report`. Offen bleibt die Kandidatensuche `GET /api/departments/grossanlass/available-users` (Benutzersuche nicht auf den Bereich eingeschränkt).
 
 ### E-Mail-Wechsel bei unbestätigten Accounts im Profil
 
