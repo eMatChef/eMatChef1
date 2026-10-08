@@ -80,6 +80,29 @@ final class DemoOrganisationCatalogTest extends TestCase
         self::assertSame(['kantonalverband'], $scopes['orgchef']);
         self::assertSame(['abteilung-sued'], $scopes['suborgchef']);
 
+        // Organisations-Scopes in anderen Szenarien: Orgchef im Camp (zugleich dort normales Mitglied «u»), Suborgchef im Event;
+        // beide kombinieren damit Department- und Organisations-Zuständigkeit
+        $organisationScopes = [];
+        foreach (DemoScenarioKey::all() as $key) {
+            foreach ($catalog->scenario($key)['adminScopes'] ?? [] as $scope) {
+                if (($scope['organisation'] ?? false) === true) {
+                    $organisationScopes[$scope['account']][] = $key;
+                }
+            }
+        }
+        ksort($organisationScopes);
+        self::assertSame(['orgchef' => ['grossanlass-camp'], 'suborgchef' => ['grossanlass-event']], $organisationScopes);
+        // Superadmin braucht keinen Scope; kein anderes Konto erhält Verwaltungsbereiche
+        $accountsWithScope = [];
+        foreach (DemoScenarioKey::all() as $key) {
+            foreach ($catalog->scenario($key)['adminScopes'] ?? [] as $scope) {
+                $accountsWithScope[$scope['account']] = true;
+            }
+        }
+        $withScope = array_keys($accountsWithScope);
+        sort($withScope);
+        self::assertSame(['orgchef', 'suborgchef'], $withScope);
+
         // Gast-Abteilung im Grossanlass
         $event = $catalog->scenario('grossanlass-event');
         self::assertSame(['gast-abteilung'], $event['participants']);
@@ -179,6 +202,11 @@ final class DemoOrganisationCatalogTest extends TestCase
 
             return $d;
         }, 'weder Orgchef noch Suborgchef'];
+        yield 'admin scope without roots or organisation' => [static function (array $d): array {
+            $d['scenarios']['materialverwaltung']['adminScopes'][0] = ['account' => 'orgchef'];
+
+            return $d;
+        }, 'ohne roots oder organisation'];
         yield 'admin scope with unknown root' => [static function (array $d): array {
             $d['scenarios']['materialverwaltung']['adminScopes'][0]['roots'] = ['nirgendwo'];
 

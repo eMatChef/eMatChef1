@@ -213,11 +213,19 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
             // Zusätzliche Departments sind Demo-Departments ohne Szenario-Schlüssel
             self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM department WHERE name IN ('Demo Kantonalverband','Demo Abteilung Süd','Demo Abteilung Süd Aussenstelle','Demo Gast-Abteilung') AND (demo_mode = false OR demo_scenario_key IS NOT NULL)"));
 
-            // Verwaltungsbereich: Orgchef = Kantonalverband (Unterbaum inklusive), Suborgchef = Abteilung Süd
-            $scope = static fn (string $account): array => json_decode((string) $conn->fetchOne('SELECT admin_capabilities::text FROM profile WHERE email=?', [DemoAccounts::email($account)]), true)['scope']['department_root_ids'] ?? [];
-            self::assertSame([$id('Demo Kantonalverband')], $scope('orgchef'));
-            self::assertSame([$id('Demo Abteilung Süd')], $scope('suborgchef'));
+            // Verwaltungsbereiche (kombinierbar): Orgchef = Department Kantonalverband + Organisation Camp,
+            // Suborgchef = Department Abteilung Süd + Organisation Event; Superadmin braucht keinen Scope
+            $scope = static function (string $account) use ($conn): array {
+                $raw = json_decode((string) $conn->fetchOne('SELECT admin_capabilities::text FROM profile WHERE email=?', [DemoAccounts::email($account)]), true)['scope'] ?? [];
+
+                return ['departments' => $raw['department_root_ids'] ?? [], 'organisations' => $raw['organisation_ids'] ?? []];
+            };
+            $orgId = static fn (string $scenario): string => (string) $conn->fetchOne('SELECT organisation_id FROM department WHERE demo_scenario_key=?', [$scenario]);
+            self::assertSame(['departments' => [$id('Demo Kantonalverband')], 'organisations' => [$orgId('grossanlass-camp')]], $scope('orgchef'));
+            self::assertSame(['departments' => [$id('Demo Abteilung Süd')], 'organisations' => [$orgId('grossanlass-event')]], $scope('suborgchef'));
             self::assertNull($conn->fetchOne('SELECT admin_capabilities FROM profile WHERE email=?', [DemoAccounts::email('superadmin')]) ?: null);
+            // Fehlender Scope: kein anderes Demo-Konto trägt Verwaltungsbereiche
+            self::assertSame(2, (int) $conn->fetchOne("SELECT count(*) FROM profile WHERE email LIKE '%@demo.ematchef.ch' AND admin_capabilities IS NOT NULL"));
 
             // Gast-Department im Grossanlass: angenommene Teilnahme
             self::assertSame('accepted', $conn->fetchOne("SELECT status FROM department_grossanlass_participant WHERE host_department_id=(SELECT id FROM department WHERE demo_scenario_key='grossanlass-event') AND guest_department_id=?", [$id('Demo Gast-Abteilung')]));
@@ -321,13 +329,24 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
             $conn->executeStatement("INSERT INTO department (id,organisation_id,name,created_at,updated_at,demo_mode,is_grossanlass) VALUES ('handroot0001','handorg00001','Mein Verband',now(),now(),false,false)");
             $this->syncAll($runner, $registry, $em);
             $profile = DemoAccounts::email('orgchef');
-            $conn->executeStatement("UPDATE profile SET admin_capabilities=? WHERE email=?", [json_encode(['scope' => ['organisation_ids' => [], 'department_root_ids' => ['handroot0001']]]), $profile]);
-            $conn->executeStatement("UPDATE demo_seed_record SET managed_hash='manuell-geaendert' WHERE seed_key='materialverwaltung:adminscope:orgchef'");
+            $scopeOf = static fn (): array => json_decode((string) $conn->fetchOne('SELECT admin_capabilities::text FROM profile WHERE email=?', [$profile]), true)['scope'];
+            $kv = (string) $conn->fetchOne("SELECT id FROM department WHERE name='Demo Kantonalverband'");
 
+            // Eigener Anteil des Szenarios fehlt (zuletzt vom Seed so geschrieben), eine von Hand ergänzte Zuweisung ausserhalb der
+            // Demo-Strukturen und der Organisations-Scope aus dem Camp-Szenario bleiben neben dem nachgetragenen Eintrag erhalten
+            $campOrg = (string) $conn->fetchOne("SELECT organisation_id FROM department WHERE demo_scenario_key='grossanlass-camp'");
+            $conn->executeStatement('UPDATE profile SET admin_capabilities=? WHERE email=?', [json_encode(['scope' => ['organisation_ids' => [$campOrg], 'department_root_ids' => ['handroot0001']]]), $profile]);
+            $conn->executeStatement('UPDATE demo_seed_record SET managed_hash=? WHERE seed_key=?', [ManagedSeedApplier::hash(['department_root_ids' => [], 'organisation_ids' => []]), 'materialverwaltung:adminscope:orgchef']);
+            $em->clear();
+            $runner->sync($registry->get('materialverwaltung'));
+            self::assertEqualsCanonicalizing([$kv, 'handroot0001'], $scopeOf()['department_root_ids']);
+            self::assertSame([$campOrg], $scopeOf()['organisation_ids']);
+
+            // Von Hand umgestellter Seed-Eintrag (Wurzel ersetzt) → bleibt, Abweichung gemeldet
+            $conn->executeStatement('UPDATE profile SET admin_capabilities=? WHERE email=?', [json_encode(['scope' => ['organisation_ids' => [], 'department_root_ids' => [(string) $conn->fetchOne("SELECT id FROM department WHERE name='Demo Materialverwaltung'")]]]), $profile]);
             $em->clear();
             $result = $runner->sync($registry->get('materialverwaltung'));
-
-            self::assertSame(['handroot0001'], json_decode((string) $conn->fetchOne('SELECT admin_capabilities::text FROM profile WHERE email=?', [$profile]), true)['scope']['department_root_ids']);
+            self::assertSame([(string) $conn->fetchOne("SELECT id FROM department WHERE name='Demo Materialverwaltung'")], $scopeOf()['department_root_ids']);
             self::assertNotEmpty(array_filter($result->notes, static fn (string $n): bool => str_contains($n, 'materialverwaltung:adminscope:orgchef')));
 
             // Parent des Szenario-Departments von Hand umgehängt → bleibt, Abweichung gemeldet

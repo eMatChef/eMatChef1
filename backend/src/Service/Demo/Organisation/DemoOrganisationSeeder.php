@@ -167,14 +167,16 @@ class DemoOrganisationSeeder
         foreach ($cat['adminScopes'] ?? [] as $scope) {
             $user = $users[$scope['account']] ?? null;
             $rootIds = [];
-            foreach ($scope['roots'] as $rootKey) {
+            foreach ($scope['roots'] ?? [] as $rootKey) {
                 if (($departments[$rootKey] ?? null) instanceof Department) {
                     $rootIds[] = $departments[$rootKey]->getId();
                 }
             }
+            $organisationIds = ($scope['organisation'] ?? false) === true ? [$department->getOrganisationId()] : [];
             $expected[] = $key . ':adminscope:' . $scope['account'];
-            if ($user instanceof User && \count($rootIds) === \count($scope['roots'])) {
-                $this->ensureAdminScope($context, $report, $key, $scope['account'], $user, $rootIds, $version);
+            if ($user instanceof User && \count($rootIds) === \count($scope['roots'] ?? [])) {
+                $universe = array_merge([$department->getOrganisationId()], array_map(static fn (Department $d): string => $d->getId(), array_values($departments)));
+                $this->ensureAdminScope($context, $report, $key, $scope['account'], $user, $rootIds, $organisationIds, $universe, $version);
             }
         }
 
@@ -794,23 +796,34 @@ class DemoOrganisationSeeder
     }
 
     /**
-     * Verwaltungszuständigkeit von Orgchef/Suborgchef: Department-Wurzeln im Admin-Scope des Profils (der Unterbaum
-     * gehört dazu). Eine vorhandene, abweichende Einstellung wird nie überschrieben.
+     * Verwaltungszuständigkeit von Orgchef/Suborgchef: Department-Wurzeln (Unterbaum inklusive) und/oder die Organisation
+     * des Szenarios im Admin-Scope des Profils. Ein Profil kann Scopes mehrerer Szenarien tragen; jedes Szenario verwaltet
+     * nur die Einträge innerhalb seines eigenen Bereichs ($universe: seine Organisation und Departments), fremde und
+     * manuell ergänzte Einträge bleiben unberührt. Ein dort bereits abweichend gesetzter Eintrag wird nie überschrieben.
      *
      * @param list<string> $rootIds
+     * @param list<string> $organisationIds
+     * @param list<string> $universe
      */
-    private function ensureAdminScope(SeedContext $context, SyncReport $report, string $key, string $account, User $user, array $rootIds, string $version): void
+    private function ensureAdminScope(SeedContext $context, SyncReport $report, string $key, string $account, User $user, array $rootIds, array $organisationIds, array $universe, string $version): void
     {
         $profile = $user->getProfile();
         if (!$profile instanceof Profile) {
             return;
         }
         sort($rootIds);
-        $read = static function (object $p): array {
-            $ids = array_values(array_map('strval', (array) ($p->getAdminCapabilities()['scope']['department_root_ids'] ?? [])));
-            sort($ids);
+        sort($organisationIds);
+        $ownIds = array_flip($universe);
+        $read = static function (object $p) use ($ownIds): array {
+            $scope = (array) ($p->getAdminCapabilities()['scope'] ?? []);
+            $own = static function (string $field) use ($scope, $ownIds): array {
+                $ids = array_values(array_filter(array_map('strval', (array) ($scope[$field] ?? [])), static fn (string $id): bool => isset($ownIds[$id])));
+                sort($ids);
 
-            return ['department_root_ids' => $ids];
+                return $ids;
+            };
+
+            return ['department_root_ids' => $own('department_root_ids'), 'organisation_ids' => $own('organisation_ids')];
         };
 
         $this->applier->ensure($context, $report, new ManagedSpec(
@@ -819,20 +832,23 @@ class DemoOrganisationSeeder
             find: fn (string $id): ?object => $this->entityManager->find(Profile::class, $id),
             idOf: static fn (object $p): string => (string) $p->getId(),
             read: $read,
-            write: static function (object $p, array $v): void {
+            write: static function (object $p, array $v) use ($ownIds): void {
                 $caps = $p->getAdminCapabilities() ?? [];
                 $scope = \is_array($caps['scope'] ?? null) ? $caps['scope'] : [];
-                $scope['organisation_ids'] = array_values((array) ($scope['organisation_ids'] ?? []));
-                $scope['department_root_ids'] = array_values($v['department_root_ids']);
+                foreach (['department_root_ids', 'organisation_ids'] as $field) {
+                    $foreign = array_filter(array_map('strval', (array) ($scope[$field] ?? [])), static fn (string $id): bool => !isset($ownIds[$id]));
+                    $scope[$field] = array_values(array_unique(array_merge($foreign, $v[$field])));
+                }
                 $caps['scope'] = $scope;
                 $p->setAdminCapabilities($caps);
             },
-            desired: ['department_root_ids' => $rootIds],
+            desired: ['department_root_ids' => $rootIds, 'organisation_ids' => $organisationIds],
             global: true,
-            adopt: static function () use ($profile, $read, $rootIds): object {
-                $current = $read($profile)['department_root_ids'];
-                if ($current !== [] && $current !== $rootIds) {
-                    throw new OwnershipConflictException(sprintf('«%s» hat bereits einen anderen Verwaltungsbereich; er wird nicht verändert.', $profile->getEmail()));
+            adopt: static function () use ($profile, $read, $rootIds, $organisationIds): object {
+                $current = $read($profile);
+                $empty = $current['department_root_ids'] === [] && $current['organisation_ids'] === [];
+                if (!$empty && ($current['department_root_ids'] !== $rootIds || $current['organisation_ids'] !== $organisationIds)) {
+                    throw new OwnershipConflictException(sprintf('«%s» hat bereits einen anderen Verwaltungsbereich in dieser Demo-Organisation; er wird nicht verändert.', $profile->getEmail()));
                 }
 
                 return $profile;

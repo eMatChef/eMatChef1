@@ -178,10 +178,10 @@ class DemoOrganisationCatalog
                 if (!\in_array($role, ['org', 'sub'], true)) {
                     $fail(sprintf('%s: adminScopes: «%s» ist weder Orgchef noch Suborgchef.', $key, $account));
                 }
-                if (($scope['roots'] ?? []) === []) {
-                    $fail(sprintf('%s: adminScopes: «%s» ohne roots.', $key, $account));
+                if (($scope['roots'] ?? []) === [] && ($scope['organisation'] ?? false) !== true) {
+                    $fail(sprintf('%s: adminScopes: «%s» ohne roots oder organisation.', $key, $account));
                 }
-                foreach ($scope['roots'] as $root) {
+                foreach ($scope['roots'] ?? [] as $root) {
                     if (!isset($departmentKeys[$root])) {
                         $fail(sprintf('%s: adminScopes: Wurzel «%s» von «%s» unbekannt.', $key, $root, $account));
                     }
