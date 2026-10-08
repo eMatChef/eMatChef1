@@ -72,7 +72,8 @@ Ein Demo-Department ist ein `Department` mit `demo_mode = true` (**IST**, [BUSIN
 | Rollen-User, Demo-Konten | **IST** | `app:create-role-users`, `app:dev-demo:reset`, `demo-accounts.json` |
 | Umgebungsfreigabe für Demo-Befehle (`EMATCHEF_ENV_NAME`, `EMATCHEF_DEMO_DESTRUCTIVE`, fail-closed) | **IST** (Phase 0) | [SEED-KONZEPT.md §3.2](./SEED-KONZEPT.md#32-phase-0-absicherung-ist) |
 | Szenario-Registry, `department.demo_scenario_key`, Ownership-Ledger, Runner (Lock/Transaktion), Szenario-Uhr-Resolver, Commands `app:demo:status/verify/sync/adopt/reset` | **IST** (Phase 1, Gerüst; die drei Szenarien sind Platzhalter, Reset gesperrt, Migration gegen isolierte PG-16 validiert, siehe SEED-KONZEPT §7.0) | [SEED-KONZEPT.md §7.0](./SEED-KONZEPT.md#70-phase-1-gebauter-stand-ist) |
-| Szenario-Inhalte (Sync legt Daten an), Reset, Deployment-Sync | **SOLL** | [SEED-KONZEPT.md §7.1–§7.10](./SEED-KONZEPT.md#7-szenario-registry-soll) |
+| Sync legt die Organisationsstruktur an (Organisation, Department, Gruppen, Benutzer, Mitgliedschaften) aus dem versionierten Seed-Katalog | **IST** (Phase 2) | [SEED-KONZEPT.md §7.11](./SEED-KONZEPT.md#711-phase-2-demo-organisationen-ist) |
+| Prozessdaten der Szenarien (Aktivitäten, Material, Bedarf, Packen …), Reset, Deployment-Sync | **SOLL** | [SEED-KONZEPT.md §7.1–§7.10](./SEED-KONZEPT.md#7-szenario-registry-soll) |
 | Deployment-Sync (nur Develop) | **SOLL** | [SEED-KONZEPT.md §7.9](./SEED-KONZEPT.md#79-umgebungsschutz-und-deployment-integration) |
 | Seed-Umsetzungsphasen und Tests | **SOLL** | [SEED-KONZEPT.md §9](./SEED-KONZEPT.md#9-umsetzungsphasen-mit-tests-soll) |
 | Side-Effect-Sandbox | **SOLL** | [§5](#5-demo-sicherheit-und-side-effect-sandbox) |

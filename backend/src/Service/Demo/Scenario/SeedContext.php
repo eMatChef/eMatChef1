@@ -55,18 +55,40 @@ final class SeedContext
         return $this->dryRun;
     }
 
-    public function findRecord(string $seedKey): ?DemoSeedRecord
+    /** Gleicher Kontext nach Anlage des Szenario-Departments (Schlüssel muss bereits gesetzt sein). */
+    public function withDepartment(Department $department): self
     {
-        return $this->ledger->find($this->scenario->key(), $seedKey);
+        return self::create($this->scenario, $department, $this->ledger, $this->dryRun);
     }
 
-    public function record(string $seedKey, object $entity, string $entityId): DemoSeedRecord
+    /** Ledger-Eintrag ohne Department-Bezug (Organisation, Benutzer: überleben einen Department-Reset). */
+    public function recordGlobal(string $seedKey, object $entity, string $entityId, ?string $managedHash = null, ?string $catalogVersion = null): DemoSeedRecord
     {
         if ($this->dryRun) {
             throw new DemoScenarioException('Dry-Run: es wird nichts geschrieben.');
         }
 
-        return $this->ledger->record($this->scenario->key(), $seedKey, $entity, $entityId, $this->requireDepartment());
+        return $this->ledger->record($this->scenario->key(), $seedKey, $entity, $entityId, null, $managedHash, $catalogVersion);
+    }
+
+    /** @return list<DemoSeedRecord> */
+    public function records(): array
+    {
+        return $this->ledger->forScenario($this->scenario->key());
+    }
+
+    public function findRecord(string $seedKey): ?DemoSeedRecord
+    {
+        return $this->ledger->find($this->scenario->key(), $seedKey);
+    }
+
+    public function record(string $seedKey, object $entity, string $entityId, ?string $managedHash = null, ?string $catalogVersion = null): DemoSeedRecord
+    {
+        if ($this->dryRun) {
+            throw new DemoScenarioException('Dry-Run: es wird nichts geschrieben.');
+        }
+
+        return $this->ledger->record($this->scenario->key(), $seedKey, $entity, $entityId, $this->requireDepartment(), $managedHash, $catalogVersion);
     }
 
     public function recordCount(): int

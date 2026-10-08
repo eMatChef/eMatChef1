@@ -22,7 +22,9 @@ final class DemoAccountsTest extends TestCase
         foreach (DemoAccounts::all() as $account) {
             self::assertSame($account['key'] . '@demo.ematchef.ch', $account['email']);
             self::assertTrue(DemoAccounts::isDemoEmail($account['email']));
-            self::assertStringEndsWith('@ematchef.ch', $account['legacyEmail']);
+            if (isset($account['legacyEmail'])) {
+                self::assertStringEndsWith('@ematchef.ch', $account['legacyEmail']);
+            }
         }
         self::assertSame('orgchef@demo.ematchef.ch', DemoAccounts::email('orgchef'));
         self::assertSame('organisationschef@ematchef.ch', DemoAccounts::legacyEmail('orgchef'));

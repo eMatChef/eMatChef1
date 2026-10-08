@@ -34,7 +34,7 @@ class DemoSeedLedger
     }
 
     /** Legt den Eintrag an. Existiert er für eine andere Entity, wird abgebrochen (nie still überschreiben). */
-    public function record(string $scenarioKey, string $seedKey, object $entity, string $entityId, ?Department $department): DemoSeedRecord
+    public function record(string $scenarioKey, string $seedKey, object $entity, string $entityId, ?Department $department, ?string $managedHash = null, ?string $catalogVersion = null): DemoSeedRecord
     {
         $existing = $this->find($scenarioKey, $seedKey);
         if ($existing !== null) {
@@ -46,6 +46,7 @@ class DemoSeedLedger
         }
 
         $record = new DemoSeedRecord($scenarioKey, $seedKey, $entity::class, $entityId, $department);
+        $record->markManaged($managedHash, $catalogVersion);
         $this->entityManager->persist($record);
 
         return $record;

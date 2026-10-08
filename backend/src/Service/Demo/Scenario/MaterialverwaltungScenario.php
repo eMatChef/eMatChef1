@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Service\Demo\Scenario;
 
-final class MaterialverwaltungScenario extends AbstractDemoScenario
+final class MaterialverwaltungScenario extends AbstractCatalogScenario
 {
     public function key(): string
     {
@@ -19,10 +19,5 @@ final class MaterialverwaltungScenario extends AbstractDemoScenario
     public function expectsGrossanlass(): bool
     {
         return false;
-    }
-
-    protected function phaseHint(): string
-    {
-        return 'Phase 4';
     }
 }

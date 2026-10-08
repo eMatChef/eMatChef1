@@ -42,11 +42,12 @@ final class RunnerAndCommandsTest extends ScenarioTestCase
 
     public function testRealScenariosHaveNoResetInPhase1(): void
     {
+        $seeder = $this->createMock(\App\Service\Demo\Organisation\DemoOrganisationSeeder::class);
         $origin = (new \ReflectionClass(\App\Service\Grossanlass\GrossanlassClockOriginResolver::class))->newInstanceWithoutConstructor();
         foreach ([
-            new \App\Service\Demo\Scenario\MaterialverwaltungScenario(),
-            new \App\Service\Demo\Scenario\GrossanlassEventScenario($origin),
-            new \App\Service\Demo\Scenario\GrossanlassCampScenario($origin),
+            new \App\Service\Demo\Scenario\MaterialverwaltungScenario($seeder),
+            new \App\Service\Demo\Scenario\GrossanlassEventScenario($seeder, $origin),
+            new \App\Service\Demo\Scenario\GrossanlassCampScenario($seeder, $origin),
         ] as $scenario) {
             self::assertFalse($scenario->supportsReset(), $scenario->key());
             try {

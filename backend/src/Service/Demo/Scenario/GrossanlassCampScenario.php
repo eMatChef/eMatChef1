@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Service\Demo\Scenario;
 
 use App\Entity\Department;
+use App\Service\Demo\Organisation\DemoOrganisationSeeder;
 use App\Service\Grossanlass\GrossanlassClockOriginResolver;
 
-final class GrossanlassCampScenario extends AbstractDemoScenario
+final class GrossanlassCampScenario extends AbstractCatalogScenario
 {
-    public function __construct(private GrossanlassClockOriginResolver $grossanlassOrigin)
+    public function __construct(DemoOrganisationSeeder $organisationSeeder, private GrossanlassClockOriginResolver $grossanlassOrigin)
     {
+        parent::__construct($organisationSeeder);
     }
 
     public function key(): string
@@ -26,11 +28,6 @@ final class GrossanlassCampScenario extends AbstractDemoScenario
     public function expectsGrossanlass(): bool
     {
         return true;
-    }
-
-    protected function phaseHint(): string
-    {
-        return 'Phase 5; Domain-Modell offen (E2)';
     }
 
     /** Vorläufig derselbe Ausgangspunkt wie Event; eigener Ausgangspunkt folgt mit dem Camp-Seed (E2). */

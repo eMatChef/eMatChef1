@@ -36,6 +36,13 @@ class DemoSeedRecord
     #[ORM\JoinColumn(name: 'department_id', referencedColumnName: 'id', nullable: true, onDelete: 'CASCADE')]
     private ?Department $department;
 
+    /** Hash der Stammdaten, wie der Seed sie zuletzt geschrieben hat (Erkennung manueller Änderungen). */
+    #[ORM\Column(name: 'managed_hash', type: 'string', length: 64, nullable: true)]
+    private ?string $managedHash = null;
+
+    #[ORM\Column(name: 'catalog_version', type: 'string', length: 20, nullable: true)]
+    private ?string $catalogVersion = null;
+
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTimeInterface $createdAt;
 
@@ -73,6 +80,33 @@ class DemoSeedRecord
     public function getEntityId(): string
     {
         return $this->entityId;
+    }
+
+    public function getManagedHash(): ?string
+    {
+        return $this->managedHash;
+    }
+
+    public function getCatalogVersion(): ?string
+    {
+        return $this->catalogVersion;
+    }
+
+    public function markManaged(?string $hash, ?string $catalogVersion): self
+    {
+        $this->managedHash = $hash;
+        $this->catalogVersion = $catalogVersion;
+
+        return $this;
+    }
+
+    /** Neu zugeordnete Entity (z. B. nach Löschen und Neuanlage); Seed-Schlüssel bleibt stabil. */
+    public function rebind(string $entityClass, string $entityId): self
+    {
+        $this->entityClass = $entityClass;
+        $this->entityId = $entityId;
+
+        return $this;
     }
 
     public function getDepartment(): ?Department

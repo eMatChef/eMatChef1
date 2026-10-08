@@ -34,7 +34,7 @@ final class DemoAccounts
     }
 
     /**
-     * @return list<array<string, string>> key, email, legacyEmail, label, role, group[, totpSecret]
+     * @return list<array<string, string>> key, email, [legacyEmail], label, role, group[, totpSecret]
      */
     public static function all(): array
     {
@@ -49,7 +49,13 @@ final class DemoAccounts
     /** Frühere Adresse (`*@ematchef.ch`), nur zur Migration bestehender Dev-/Staging-Datenbanken. */
     public static function legacyEmail(string $key): string
     {
-        return self::account($key)['legacyEmail'];
+        return self::account($key)['legacyEmail'] ?? throw new \InvalidArgumentException(sprintf('Demo-Konto "%s" hat keine Altadresse.', $key));
+    }
+
+    /** @return array<string, string> Konto-Eintrag zum Schlüssel (key, email, label, role, group[, …]) */
+    public static function accountByKey(string $key): array
+    {
+        return self::account($key);
     }
 
     public static function isDemoEmail(?string $email): bool

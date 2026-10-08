@@ -1,6 +1,6 @@
 # Seed-Konzept
 
-**Stand:** 8. Oktober 2026 (Architektur-Review) Phase 0 «Absichern» (umgesetzt, §3.2) und Phase 1 «Gemeinsame Infrastruktur» (umgesetzt, §7.0). Code gelesen und Unit-Tests ausgeführt; **keine** Seeds, Resets, Migrationen oder DB-Zugriffe. Gemeinsame Bausteine und Regeln für alle Demo-Seeds. Szenario-spezifischer Inhalt: [scenarios/DEPARTMENT.md](./scenarios/DEPARTMENT.md), [scenarios/GROSSANLASS.md](./scenarios/GROSSANLASS.md). Übersicht: [README.md](./README.md). Marken **IST / TEILWEISE / SOLL / OFFEN** wie dort.
+**Stand:** 8. Oktober 2026 (Architektur-Review), Phase 0 «Absichern» (umgesetzt, §3.2), Phase 1 «Gemeinsame Infrastruktur» (umgesetzt, §7.0) und Phase 2 «Demo-Organisationen» (umgesetzt, §7.11). Tests und Migrationsprüfungen liefen nur gegen isolierte Wegwerf-Datenbanken; keine Seeds, Resets oder Migrationen auf der Entwicklungsdatenbank `mvdb`. Gemeinsame Bausteine und Regeln für alle Demo-Seeds. Szenario-spezifischer Inhalt: [scenarios/DEPARTMENT.md](./scenarios/DEPARTMENT.md), [scenarios/GROSSANLASS.md](./scenarios/GROSSANLASS.md). Übersicht: [README.md](./README.md). Marken **IST / TEILWEISE / SOLL / OFFEN** wie dort.
 
 **Lesehinweis:** §2–§4 beschreiben den Ist-Zustand und seine Probleme. §7 ist die empfohlene Soll-Architektur, §8 der Umgang mit bestehenden Commands und Daten, §9 die Umsetzungsphasen mit Tests, §10 die offenen Entscheidungen. Nichts in §7–§9 ist gebaut.
 
@@ -185,7 +185,7 @@ Code unter `backend/src/Service/Demo/Scenario/`, Commands unter `backend/src/Com
 | --- | --- | --- |
 | `DemoScenarioInterface` (Tag `app.demo_scenario`): `key`, `label`, `expectsGrossanlass`, `supportsReset`, `sync`, `reset`, `verify`, `clockOrigin` | gebaut | **IST** |
 | `DemoScenarioRegistry`: nur die drei Schlüssel `materialverwaltung`, `grossanlass-event`, `grossanlass-camp`, je einmal; unbekannt oder doppelt → Fehler | gebaut | **IST** |
-| Die drei Szenarien als **Platzhalter** (`MaterialverwaltungScenario`, `GrossanlassEventScenario`, `GrossanlassCampScenario`): `sync` meldet «nicht implementiert», `supportsReset() = false`, `verify` prüft nur Identität und Ledger-Zuordnung | gebaut; Inhalt **SOLL** (Phasen 2, 4, 5) | **TEILWEISE** |
+| Die drei Szenarien (`MaterialverwaltungScenario`, `GrossanlassEventScenario`, `GrossanlassCampScenario`): seit Phase 2 synchronisieren sie die Organisationsstruktur (§7.11); Prozessdaten fehlen (**SOLL**, Phasen 4, 5), `supportsReset() = false` | gebaut | **TEILWEISE** |
 | `department.demo_scenario_key` (VARCHAR 40, NULL, eindeutiger Index `uniq_department_demo_scenario_key`, DB-CHECK «Schlüssel nur mit `demo_mode`»), Migration `Version20261008100000`, rein additiv | gebaut, gegen isolierte PG-16 validiert | **IST** |
 | `DemoScenarioIdentity::assign`: Schlüssel nur an Departments mit `demo_mode`, passendem Grossanlass-Typ, ohne anderen Schlüssel und nur, wenn der Schlüssel frei ist. Nie über Namen. Echte Departments werden abgewiesen. | gebaut | **IST** |
 | Ledger `demo_seed_record` (Entity `DemoSeedRecord`, `DemoSeedLedger`): `(scenario_key, seed_key)` eindeutig, Seed-Schlüssel müssen mit `<szenario>:` beginnen, `record()` ist idempotent und überschreibt nie einen fremden Eintrag, FK auf Department (`ON DELETE CASCADE`). Noch **kein** bestehender Seed schreibt hinein. | gebaut | **IST** (Nutzung ab Phase 2: **SOLL**) |
@@ -194,7 +194,7 @@ Code unter `backend/src/Service/Demo/Scenario/`, Commands unter `backend/src/Com
 | `ScenarioClockOriginResolver` (Tag `app.clock_origin_resolver`): Departments **mit** Schlüssel nutzen den Ausgangspunkt ihres Szenarios; Event und Camp delegieren vorläufig an den bestehenden Grossanlass-Ausgangspunkt (Anlassbeginn − 5 Tage, 09:00); Materialverwaltung hat keinen (reale Zeit). `GrossanlassClockOriginResolver` gilt nur noch für Departments **ohne** Schlüssel, bestehende Departments verhalten sich unverändert. | gebaut | **IST** |
 | Commands (alle mit `DemoEnvironmentGuard`, Freigabe vor jedem Zugriff): `app:demo:status` (lesend), `app:demo:verify` (lesend), `app:demo:sync [--scenario=K\|--all] [--dry-run]`, `app:demo:adopt --scenario=K --department=ID`, `app:demo:reset --scenario=K --confirm=K` (destruktive Freigabe, Bestätigung) | gebaut | **IST** |
 | `app:demo:reset` ist für **alle** echten Szenarien gesperrt («noch nicht verfügbar»); der Reset-Pfad ist nur mit Test-Szenarien getestet | gebaut | **IST** |
-| `sync` legt noch nichts an (Platzhalter), die bestehenden Seed-Services (`app:create-role-users`, Event-Jobs, Wipe) laufen unverändert und kennen die Registry nicht | | **IST** |
+| `sync` legt seit Phase 2 die Organisationsstruktur an (§7.11); Prozessdaten legt es noch nicht an. Die bestehenden Seed-Services (`app:create-role-users`, Event-Jobs, Wipe) laufen unverändert und kennen die Registry nicht | | **IST** |
 | Keine automatische Ausführung: kein Eintrag in `prod-update.sh`, CD oder Entrypoint | | **IST** |
 | Bestehende Departments `Demo Grossanlass` / `Demo-Grossanlass-Event` haben noch keinen Schlüssel; Zuordnung nur ausdrücklich per `app:demo:adopt` | offen (E4) | **OFFEN** |
 
@@ -328,6 +328,61 @@ Kein Command löscht ohne Szenario-Schlüssel. Alle Commands ausser `verify`/`st
 - Seeds laufen mit einem **Seed-Kontext-Flag**, das Mailer, Gmail/Outlook/Hitobito-Adapter, Geocoder und Medien-Import fail-closed sperrt (Teil der Sandbox, [README §5](./README.md#5-demo-sicherheit-und-side-effect-sandbox)). Bis die Sandbox existiert: Seeds rufen **ausschliesslich** Entities/Repositories und Domain-Services ohne externe Adapter auf; ein Test (T8) lässt `sync` mit Mock-Transport/HTTP-Client laufen und prüft, dass kein Aufruf erfolgt.
 - Neue Benutzer lösen keine Verifikations- oder Willkommensmail aus (`VerificationEmailService` ist Controller-Pfad; der Identity-Schritt setzt `emailVerified` direkt wie heute).
 
+### 7.11 Phase 2: Demo-Organisationen (IST)
+
+Code: `backend/src/Service/Demo/Organisation/`, Katalog: `backend/data/seeds/dev-demo/organisations.json` (versioniert über `catalogVersion`, aktuell `2026.10.1`). Migration `Version20261008110000` (zwei nullable Spalten am Ledger). Aufgerufen über `app:demo:sync --scenario=<key>|--all` (und `app:demo:verify`); **kein** Deployment-Schritt.
+
+**Was ein Sync je Szenario anlegt:** Organisation → Department → Gruppenbaum → Benutzer → Mitgliedschaften → Gruppenmitgliedschaften. Jedes Szenario hat eine **eigene** Organisation, ein eigenes Department und eigene Konten; kein Konto steht in zwei Szenarien (vom Katalog-Validator erzwungen).
+
+**Seed-Katalog (Version 2026.10.1):**
+
+| Szenario | Organisation / Department | Gruppen | Konten (Rolle) |
+| --- | --- | --- | --- |
+| `materialverwaltung` | Demo Organisation Materialverwaltung / Demo Materialverwaltung | Stufen (Biber, Wölfe, Pfadis, Pios, Rover), Materialteam | superadmin, orgchef, suborgchef (je `mw`); matwart `mw`, depchef `dc`, leader1–3 `l1`–`l3`, user `u` |
+| `grossanlass-event` | Demo Organisation Grossanlass Event / Demo Grossanlass Event | Infrastruktur › Material & Logistik, Bauten, Wasser & Sanitär | ga-mw `mw`, ga-cmw `cmw`, ga-ok `dc`, ga-komm `komm`, ga-spon `spon`, ga-lw `lw`, ga-clw `clw`, ga-bereich `bl`, ga-helfer `u` |
+| `grossanlass-camp` | Demo Organisation Grossanlass Camp / Demo Grossanlass Camp | Lagerinfrastruktur › Zelte, Küche; Material & Logistik › Materialverteilung, Transporte, Retouren; Lagergruppen › Gruppe A, Gruppe B | camp-mw `mw`, camp-lw `lw`, camp-bereich `bl`, camp-helfer `u` (**neu** in `demo-accounts.json`, ohne Altadresse) |
+
+Der Katalog gilt nur für die Organisationsstruktur. Prozessdaten (Zusagen, Einsätze, Aktivitäten, Material, Bedarf) fehlen weiter (**SOLL**, Phasen 4/5); die bestehenden Dienste `DemoGrossanlassSeedService::ensureDemoScenario` und Event-Jobs laufen unabhängig.
+
+**Seed-Identitäten:** Ledger-Schlüssel `<szenario>:organisation`, `:department`, `:group:<key>`, `:user:<konto>`, `:membership:<konto>`, `:groupmember:<konto>:<gruppe>`. Anzeigenamen sind nie Schlüssel; Katalog-Schlüssel werden nicht umbenannt. Organisation und Benutzer sind **global** im Ledger (ohne Department-Bezug, damit ein späterer Department-Reset sie nicht trifft).
+
+**Sync-Verhalten (Dreiwege-Vergleich Katalog / aktuell / zuletzt vom Seed geschrieben, `managed_hash`):**
+
+| Fall | Verhalten |
+| --- | --- |
+| Eintrag fehlt | anlegen, im Ledger verbuchen |
+| Datensatz wurde gelöscht, Ledger-Eintrag besteht | unter demselben Seed-Schlüssel neu anlegen |
+| aktuell = Katalog | nichts tun |
+| aktuell = zuletzt geschrieben, Katalog hat sich geändert | **kontrolliert aktualisieren** (Version wird vermerkt) |
+| aktuell ≠ zuletzt geschrieben (manuell geändert) | **nicht überschreiben**, als «Abweichung» melden |
+| Eintrag nicht mehr im Katalog | **nicht löschen**, als «Verwaist» melden |
+| vorhandener Datensatz ohne Ledger-Eintrag | nur bei nachweislicher Ownership übernehmen, sonst «Konflikt» (nichts verändern) |
+
+Verwaltete Felder: Organisationsname, Departmentname, Gruppe (Name, Eltern, Sortierung, Art, Beschreibung), Benutzer (Vor-, Nachname, Spitzname), Mitgliedschaft (Rolle, Primär), Gruppenmitgliedschaft (Rolle, Primär). **Nie** verwaltet nach der Anlage: Passwörter, Zustand, globale Profilrollen, TOTP, Clock-Offset, `demo_mode`/Grossanlass-Flag, Logistik-Gruppe (nur einmal gesetzt, wenn leer). Test-TOTP der Admin-Konten wird nur bei Neuanlage gesetzt.
+
+**Ownership-Regeln:**
+
+| Datensatz | Übernahme eines bestehenden Datensatzes |
+| --- | --- |
+| Benutzer | nur bei **exakter** Katalogadresse und wenn alle Mitgliedschaften zu Departments mit `demo_mode` gehören (oder keine). Mitglied eines echten Departments → Konflikt, Konto und Mitgliedschaften bleiben unverändert (z. B. Alt-Rollen-User, die Phase 0/P4 in ein echtes Department gelegt hat). Namen/E-Mail allein genügen nie. Nach der Übernahme gilt der Bestand als Baseline und folgt dem Katalog (Namensfelder). |
+| Department | **keine** automatische Übernahme. Ein bestehendes Demo-Department (z. B. `Demo Grossanlass`) wird nur durch `app:demo:adopt` ausdrücklich zugeordnet (E4); danach arbeitet Sync in dessen Organisation, ohne eine eigene anzulegen. Sonst legt Sync ein neues Department an. |
+| Gruppe, Mitgliedschaft | nur innerhalb des bereits eigenen Departments: gleichnamige/gleiche Gruppe unter demselben Elternknoten, die noch keinem Ledger-Eintrag gehört (einmalige Übernahme), bzw. vorhandene Mitgliedschaft derselben Person |
+| Organisation | nie übernommen; fehlt der Ledger-Eintrag, wird sie neu angelegt |
+
+**Ablauf einer Erstinstallation:** Benutzer (global) → Organisation → Department (Grossanlass über den bestehenden Rahmen `DemoGrossanlassSeedService::ensureDepartment` mit Config, Kalender, Haupt-Aktivität und Uhr am Ausgangspunkt; Materialverwaltung mit Kostenstellen und Werkstatt-Kategorien) → Szenario-Schlüssel setzen → Gruppen → Mitgliedschaften. Alles in **einer** Transaktion unter Advisory-Lock (Runner). Mitgliedschaft `is_primary` wird nur gesetzt, wenn der User nicht schon anderswo primär ist.
+
+**Verify:** meldet fehlende Seed-Einträge, fehlende Datensätze und Struktur-Verstösse (Gruppe/Mitgliedschaft nicht im Szenario-Department). Abweichungen und Verwaiste sind keine Verstösse, erscheinen nur beim Sync. **Dry-Run:** zählt fehlende Einträge, schreibt nichts.
+
+**Tests:** Unit (`DemoOrganisationCatalogTest`, `ManagedSeedApplierTest`) laufen in der CI. Der Integrationstest `tests/Integration/DemoOrganisationSeedIntegrationTest` (Erstinstallation, wiederholter Sync, geschützte Zustände, Strukturänderung, Konflikt/Übernahme, gelöschte Zeilen, Dry-Run, Unabhängigkeit der Szenarien, echte Daten unverändert) läuft nur mit `EMATCHEF_TEST_DB_URL` gegen eine **isolierte** Datenbank (Name `val_*` oder `*_test`, nie `mvdb`) und ist ohne die Variable übersprungen, also **nicht** Teil der CI. Er wurde gegen eine Wegwerf-PostgreSQL-16 ausgeführt (6 Tests grün); die Migration wurde dort inklusive Rollback geprüft.
+
+**Bekannte Grenzen / offen:**
+
+- Camp-Konten stehen in `demo-accounts.json`, das auch die öffentliche Doku (`docs.ematchef.ch`) speist; das Doku-Repository muss die neuen Konten und die fehlende `legacyEmail` tolerieren (nicht geprüft).
+- `app:create-role-users` listet am Ende alle Katalogkonten, auch die noch nicht angelegten Camp-Konten.
+- Die alten Rollen-User aus Phase 0 liegen auf Develop womöglich in einem echten Department (P4): sie werden als Konflikt gemeldet und müssen manuell bereinigt werden (nicht automatisch).
+- Anlagen- und Gruppen-IDs der Departments sind zufällig (`grp…`); stabil ist allein der Ledger-Schlüssel.
+- Dauer: ein Voll-Sync legt ca. 22 Benutzer mit Passwort-Hash an; der Integrationstest braucht rund eine Minute.
+
 ## 8. Umgang mit bestehenden Commands und Daten (SOLL)
 
 | Baustein | Empfehlung |
@@ -355,7 +410,7 @@ Jede Phase ist eigenständig freigebbar und endet mit grünen Tests. Phasen 0 un
 | --- | --- | --- |
 | **0 Absichern (IST, umgesetzt)** | `app:recreate-test-users` abgesichert (P8); Löschschleife nur noch exakte Katalog-Adressen, opt-in (P1); Department-Ownership statt «erstes sichtbares» (P4); `demo_mode`-Prüfung, Bestätigung und Transaktion im Wipe (P7); `DemoEnvironmentGuard` (P12). Kein neues Feature. | Umgesetzt: `DemoEnvironmentGuardTest` (Matrix kernel × Name × Flag), `CreateRoleUsersCommandGuardTest`, `RecreateTestUsersCommandGuardTest`, `DemoSeedOwnershipTest` (Wipe, Department-Ownership, gleichnamiges Department), `DemoAccountsTest::testOnlyExactCatalogueEmailsAreSeedOwned`. |
 | **1 Gerüst (IST, umgesetzt; siehe §7.0)** | `DemoScenarioInterface`, Registry, `SeedContext`, Runner mit Lock/Transaktion, `demo_scenario_key` (Migration), Ledger (Migration), Commands `app:demo:status/verify/sync/adopt/reset` (Reset gesperrt), Szenario-Ausgangspunkt-Resolver. Umgebungsschalter stammen aus Phase 0. **Nicht erledigt (weiter offen, E9):** Index-Herkunft `uniq_membership_one_primary_per_user` und Mapping↔DB-Abweichung `updated_by_user_id` klären. | Umgesetzt: Registry (Schlüssel, Duplikate), Identität (`assign`-Regeln, echte Departments abgewiesen), Isolation (`SeedContext`, Ledger-Scope und Schlüsselpräfix), Runner (Lock, Rollback, Department-Zeile bleibt), Commands über die Umgebungsmatrix, Reset gesperrt für alle echten Szenarien, Clock-Resolver, Container-Wiring (`tests/Service/Demo/Scenario/`). **Nicht** getestet: Migration und Doctrine-Mapping gegen eine echte Datenbank. |
-| **2 Identity + Grossanlass Event** | Identity-Schritt (Konten, TOTP, Memberships, Primär-Regel); bestehendes `Demo Grossanlass` + Event-Jobs als Szenario `grossanlass-event` hinter dem Interface; `ensureEinsatz` ohne Überschreiben; Adoption der Alt-Tags ins Ledger. | **T2** Idempotenz: `sync` zweimal → identische Zeilenzahlen, keine Duplikate; **T4** Zustandserhalt: Einsatz-Status ändern, `sync`, Status bleibt; **T3** Isolation: andere Departments unverändert; **T10** Primär-Mitgliedschaft mit Vor-Zustand (User primär anderswo) → kein Fehler, nur eine Primäre; Wiederholung der beiden bekannten FK-/Primär-Fälle als Regressionstest. |
+| **2 Demo-Organisationen (IST, umgesetzt für Organisationsstruktur; siehe §7.11)** | Umgesetzt: Katalog, Konten, Gruppen, Memberships, Primär-Regel, Übernahme mit Ownership-Nachweis, drei Szenarien. **Noch offen aus dieser Phase:** bestehendes `Demo Grossanlass` + Event-Jobs als Prozessdaten von `grossanlass-event`, `ensureEinsatz` ohne Überschreiben (P5), Adoption der Alt-Tags ins Ledger. | **T2** Idempotenz: `sync` zweimal → identische Zeilenzahlen, keine Duplikate; **T4** Zustandserhalt: Einsatz-Status ändern, `sync`, Status bleibt; **T3** Isolation: andere Departments unverändert; **T10** Primär-Mitgliedschaft mit Vor-Zustand (User primär anderswo) → kein Fehler, nur eine Primäre; Wiederholung der beiden bekannten FK-/Primär-Fälle als Regressionstest. |
 | **3 Reset** | `reset` je Szenario (Variante A oder B nach Entscheid E1), Transaktion, Advisory Lock, `--confirm`, Tabellenliste mit Schema-Test; `app:demo:reset`. | **T5** jede Tabelle mit FK auf Department/Aktivität ist in der Löschliste (Schema-Introspektion); **T6** Abbruch mitten im Reset (injizierte Exception) → Rollback, Szenario unverändert; **T7** Reset von Szenario A lässt B, Konten und fremde Departments unberührt; Lock-Test (zweiter Lauf verweigert). |
 | **4 Materialverwaltung** | neues Szenario `materialverwaltung` (Lager, Gruppen, Konten, Aktivitäten je Typ, Bedarf, Packen, Ausgabe, Rückgabe, Inventur, Werkstatt) mit eigenem Clock-Resolver; Rollen-User wandern in dieses Department (P4). | **T2–T4** wie oben; **verify()** Mengenbilanz Department (§6); `public_code`-Auflösung; Test, dass die Uhr unabhängig von Event/Camp ist. |
 | **5 Grossanlass Camp** | neues Szenario `grossanlass-camp`; eigener Ausgangspunkt. Abhängig von Entscheid E2 (Domain-Modell Camp). | **T2–T4**, **verify()** Mengenbilanz Grossanlass (§6), Isolation zu Event. |

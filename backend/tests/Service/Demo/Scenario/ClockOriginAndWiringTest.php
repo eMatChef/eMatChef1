@@ -7,6 +7,7 @@ namespace App\Tests\Service\Demo\Scenario;
 use App\Entity\DepartmentGrossanlassConfig;
 use App\Tests\Wiring\FreshKernel;
 use App\Service\Clock\BusinessClock;
+use App\Service\Demo\Organisation\DemoOrganisationSeeder;
 use App\Service\Demo\Scenario\DemoScenarioKey;
 use App\Service\Demo\Scenario\DemoScenarioRegistry;
 use App\Service\Demo\Scenario\GrossanlassEventScenario;
@@ -30,7 +31,7 @@ final class ClockOriginAndWiringTest extends ScenarioTestCase
     public function testKeyedDepartmentsUseTheScenarioResolverUnkeyedKeepTheGrossanlassOne(): void
     {
         $legacy = new GrossanlassClockOriginResolver();
-        $scenarioResolver = new ScenarioClockOriginResolver($this->registry(new GrossanlassEventScenario($legacy)));
+        $scenarioResolver = new ScenarioClockOriginResolver($this->registry(new GrossanlassEventScenario($this->createMock(DemoOrganisationSeeder::class), $legacy)));
 
         $unkeyed = $this->gaDepartment(null);
         self::assertTrue($legacy->supports($unkeyed));
@@ -55,8 +56,8 @@ final class ClockOriginAndWiringTest extends ScenarioTestCase
     {
         $legacy = new GrossanlassClockOriginResolver();
         $scenarioResolver = new ScenarioClockOriginResolver($this->registry(
-            new GrossanlassEventScenario($legacy),
-            new MaterialverwaltungScenario(),
+            new GrossanlassEventScenario($this->createMock(DemoOrganisationSeeder::class), $legacy),
+            new MaterialverwaltungScenario($this->createMock(DemoOrganisationSeeder::class)),
         ));
         $kernel = $this->createMock(\Symfony\Component\HttpKernel\KernelInterface::class);
         $kernel->method('getEnvironment')->willReturn('prod');
@@ -83,27 +84,26 @@ final class ClockOriginAndWiringTest extends ScenarioTestCase
         self::assertSame(DemoScenarioKey::GROSSANLASS_EVENT, $keyed->getDemoScenarioKey());
     }
 
-    public function testCompiledContainerRegistersTheThreeScenariosAndTheResolver(): void
+    public function testCompiledContainerTagsTheThreeScenariosAndBothClockResolvers(): void
     {
         FreshKernel::run(function (\App\Kernel $kernel): void {
-            // Private Services sind im kompilierten Container nur über ihre Verbraucher erreichbar.
-            $command = (new Application($kernel))->find('app:demo:status');
-            if ($command instanceof \Symfony\Component\Console\Command\LazyCommand) {
-                $command = $command->getCommand();
-            }
-            $registry = (new \ReflectionProperty($command, 'registry'))->getValue($command);
-            self::assertInstanceOf(DemoScenarioRegistry::class, $registry);
-            self::assertEqualsCanonicalizing(DemoScenarioKey::all(), array_keys($registry->all()));
-            foreach ($registry->all() as $scenario) {
-                self::assertFalse($scenario->supportsReset(), $scenario->key());
-            }
+            $container = $kernel->getContainer();
+            $scenarios = $container->getParameter('wiring.tagged.app.demo_scenario');
+            self::assertEqualsCanonicalizing([
+                \App\Service\Demo\Scenario\MaterialverwaltungScenario::class,
+                GrossanlassEventScenario::class,
+                \App\Service\Demo\Scenario\GrossanlassCampScenario::class,
+            ], $scenarios);
 
-            $clock = (new \ReflectionProperty($command, 'clock'))->getValue($command);
-            self::assertInstanceOf(BusinessClock::class, $clock);
-            $resolvers = (new \ReflectionProperty($clock, 'originResolvers'))->getValue($clock);
-            $classes = array_map(static fn (object $r): string => $r::class, iterator_to_array($resolvers, false));
-            self::assertContains(ScenarioClockOriginResolver::class, $classes);
-            self::assertContains(GrossanlassClockOriginResolver::class, $classes);
+            $resolvers = $container->getParameter('wiring.tagged.app.clock_origin_resolver');
+            self::assertContains(ScenarioClockOriginResolver::class, $resolvers);
+            self::assertContains(GrossanlassClockOriginResolver::class, $resolvers);
+
+            // Alle fünf Commands sind registriert.
+            $app = new Application($kernel);
+            foreach (['status', 'sync', 'verify', 'adopt', 'reset'] as $name) {
+                self::assertTrue($app->has('app:demo:' . $name), $name);
+            }
         });
     }
 }

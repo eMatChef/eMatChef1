@@ -15,12 +15,15 @@ final class SeedResult
         public readonly string $message,
         public readonly int $created = 0,
         public readonly int $existing = 0,
+        /** @var list<string> Hinweise: Abweichungen, Konflikte, verwaiste Seed-Einträge */
+        public readonly array $notes = [],
     ) {
     }
 
-    public static function ok(string $message = '', int $created = 0, int $existing = 0): self
+    /** @param list<string> $notes */
+    public static function ok(string $message = '', int $created = 0, int $existing = 0, array $notes = []): self
     {
-        return new self(self::OK, $message, $created, $existing);
+        return new self(self::OK, $message, $created, $existing, $notes);
     }
 
     public static function notImplemented(string $message): self

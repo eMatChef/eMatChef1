@@ -290,6 +290,9 @@ class CreateRoleUsersCommand extends Command
     private function migrateLegacyDemoEmails(SymfonyStyle $io): void
     {
         foreach (DemoAccounts::all() as $account) {
+            if (!isset($account['legacyEmail'])) {
+                continue; // neuere Konten haben keine Altadresse
+            }
             $legacy = $this->em->getRepository(Profile::class)->findOneBy(['email' => $account['legacyEmail']]);
             if (!$legacy instanceof Profile) {
                 continue;

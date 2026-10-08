@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Service\Demo\Scenario;
 
 use App\Entity\Department;
+use App\Service\Demo\Organisation\DemoOrganisationSeeder;
 use App\Service\Grossanlass\GrossanlassClockOriginResolver;
 
-final class GrossanlassEventScenario extends AbstractDemoScenario
+final class GrossanlassEventScenario extends AbstractCatalogScenario
 {
-    public function __construct(private GrossanlassClockOriginResolver $grossanlassOrigin)
+    public function __construct(DemoOrganisationSeeder $organisationSeeder, private GrossanlassClockOriginResolver $grossanlassOrigin)
     {
+        parent::__construct($organisationSeeder);
     }
 
     public function key(): string
@@ -26,11 +28,6 @@ final class GrossanlassEventScenario extends AbstractDemoScenario
     public function expectsGrossanlass(): bool
     {
         return true;
-    }
-
-    protected function phaseHint(): string
-    {
-        return 'Phase 2; bestehende Seed-Services bleiben bis dahin eigenständig';
     }
 
     /** Bestehender Grossanlass-Ausgangspunkt (Anlassbeginn − 5 Tage, 09:00) wiederverwendet. */
