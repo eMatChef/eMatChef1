@@ -33,7 +33,7 @@ Kontext = `Department` oder Department-ID (aus Route/Entity, nie aus Frontend-St
 
 ## Demo-Ausgangspunkt und Seed-Zeitstrahl
 
-«Zurücksetzen» ist über `ClockOriginResolverInterface` (Tag `app.clock_origin_resolver`) vom Fachbereich getrennt. Heute gibt es einen Resolver: `GrossanlassClockOriginResolver` (Anlassbeginn minus 5 Tage, 09:00, Aufbauphase). Ein Demo-Department ohne Resolver wird auf die reale Zeit zurückgesetzt; ein eigener Ausgangspunkt für normale Demo-Departments ist über einen weiteren Resolver möglich, ohne neue Spalte (nicht gebaut).
+«Zurücksetzen» ist über `ClockOriginResolverInterface` (Tag `app.clock_origin_resolver`) vom Fachbereich getrennt. Es gibt zwei Resolver: `ScenarioClockOriginResolver` für Departments mit `demo_scenario_key` (delegiert an das Szenario, siehe [demo/SEED-KONZEPT.md §7.0](../demo/SEED-KONZEPT.md#70-phase-1-gebauter-stand-ist)) und `GrossanlassClockOriginResolver` für Grossanlass-Departments ohne Schlüssel (Anlassbeginn minus 5 Tage, 09:00, Aufbauphase). Ein Demo-Department ohne Resolver wird auf die reale Zeit zurückgesetzt; ein eigener Ausgangspunkt für normale Demo-Departments ist über einen weiteren Resolver möglich, ohne neue Spalte (nicht gebaut).
 
 `DemoGrossanlassSeedService` markiert das Department als `demo_mode` und setzt – nur wenn noch kein Offset gesetzt ist – die Uhr auf den Ausgangspunkt. Erneutes Seeden überschreibt eine verstellte Uhr nicht. Andere Dev-Departments (z. B. «Bootstrap Department») werden bewusst nicht als Demo markiert.
 

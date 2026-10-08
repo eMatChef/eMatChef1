@@ -1,6 +1,6 @@
 # Seed-Konzept
 
-**Stand:** 8. Oktober 2026 (Architektur-Review) und Phase 0 «Absichern» (umgesetzt, siehe §3.2). Code gelesen und Unit-Tests ausgeführt; **keine** Seeds, Resets, Migrationen oder DB-Zugriffe. Gemeinsame Bausteine und Regeln für alle Demo-Seeds. Szenario-spezifischer Inhalt: [scenarios/DEPARTMENT.md](./scenarios/DEPARTMENT.md), [scenarios/GROSSANLASS.md](./scenarios/GROSSANLASS.md). Übersicht: [README.md](./README.md). Marken **IST / TEILWEISE / SOLL / OFFEN** wie dort.
+**Stand:** 8. Oktober 2026 (Architektur-Review) Phase 0 «Absichern» (umgesetzt, §3.2) und Phase 1 «Gemeinsame Infrastruktur» (umgesetzt, §7.0). Code gelesen und Unit-Tests ausgeführt; **keine** Seeds, Resets, Migrationen oder DB-Zugriffe. Gemeinsame Bausteine und Regeln für alle Demo-Seeds. Szenario-spezifischer Inhalt: [scenarios/DEPARTMENT.md](./scenarios/DEPARTMENT.md), [scenarios/GROSSANLASS.md](./scenarios/GROSSANLASS.md). Übersicht: [README.md](./README.md). Marken **IST / TEILWEISE / SOLL / OFFEN** wie dort.
 
 **Lesehinweis:** §2–§4 beschreiben den Ist-Zustand und seine Probleme. §7 ist die empfohlene Soll-Architektur, §8 der Umgang mit bestehenden Commands und Daten, §9 die Umsetzungsphasen mit Tests, §10 die offenen Entscheidungen. Nichts in §7–§9 ist gebaut.
 
@@ -48,7 +48,7 @@ Gewünschtes Verhalten (SOLL, verbindlich für §7–§9):
 | `DemoAccounts`, `demo-accounts.json` | `Util/`, `backend/data/seeds/dev-demo/` | Einzige Quelle der Demo-Konten (Domain `demo.ematchef.ch`, Passwort, Test-TOTP). |
 | `DevEnvironmentService::isDevToolsEnabled()` | `Service/` | `Kernel ≠ prod` **oder** `EMATCHEF_DEV_TOOLS=1`. Einzige Schranke aller Seed-/Wipe-Commands (ausser `app:recreate-test-users`, siehe P8). |
 
-Es gibt **keinen** gemeinsamen Szenario-Rahmen, keine Registry, keinen Szenario-Schlüssel am Department und kein Protokoll, was ein Seed angelegt hat.
+Die bestehenden Seed-Services kennen weder die Registry noch den Szenario-Schlüssel noch das Ledger. Das Gerüst dafür ist seit Phase 1 vorhanden (§7.0), wird aber von keinem Seed genutzt.
 
 ### 2.2 Umgebung und Deployment (IST)
 
@@ -175,7 +175,31 @@ Gespeicherte Ist-Daten späterer Phasen existieren schon, wenn die Uhr noch am A
 
 ## 7. Szenario-Registry (SOLL)
 
-**Status: nicht gebaut.** Dieser Abschnitt ist die empfohlene Soll-Architektur aus dem Review vom 8. Oktober 2026. Entscheidungen, die der Teamfreigabe bedürfen, stehen in §10.
+**Status:** Das Gerüst (Phase 1) ist gebaut, siehe §7.0. Alles andere in §7.1–§7.10 ist die empfohlene Soll-Architektur aus dem Review vom 8. Oktober 2026 und **nicht** gebaut. Entscheidungen, die der Teamfreigabe bedürfen, stehen in §10.
+
+### 7.0 Phase 1: gebauter Stand (IST)
+
+Code unter `backend/src/Service/Demo/Scenario/`, Commands unter `backend/src/Command/Demo*Command.php`. Ausgeführt wurden nur PHPUnit und PHPStan; die Migration wurde **nicht** gegen eine Datenbank ausgeführt, `doctrine:schema:validate` nicht gelaufen.
+
+| Baustein | Stand | Marke |
+| --- | --- | --- |
+| `DemoScenarioInterface` (Tag `app.demo_scenario`): `key`, `label`, `expectsGrossanlass`, `supportsReset`, `sync`, `reset`, `verify`, `clockOrigin` | gebaut | **IST** |
+| `DemoScenarioRegistry`: nur die drei Schlüssel `materialverwaltung`, `grossanlass-event`, `grossanlass-camp`, je einmal; unbekannt oder doppelt → Fehler | gebaut | **IST** |
+| Die drei Szenarien als **Platzhalter** (`MaterialverwaltungScenario`, `GrossanlassEventScenario`, `GrossanlassCampScenario`): `sync` meldet «nicht implementiert», `supportsReset() = false`, `verify` prüft nur Identität und Ledger-Zuordnung | gebaut; Inhalt **SOLL** (Phasen 2, 4, 5) | **TEILWEISE** |
+| `department.demo_scenario_key` (VARCHAR 40, NULL, eindeutiger Index `uniq_department_demo_scenario_key`, DB-CHECK «Schlüssel nur mit `demo_mode`»), Migration `Version20261008100000`, rein additiv | gebaut, nicht gegen DB ausgeführt | **IST** |
+| `DemoScenarioIdentity::assign`: Schlüssel nur an Departments mit `demo_mode`, passendem Grossanlass-Typ, ohne anderen Schlüssel und nur, wenn der Schlüssel frei ist. Nie über Namen. Echte Departments werden abgewiesen. | gebaut | **IST** |
+| Ledger `demo_seed_record` (Entity `DemoSeedRecord`, `DemoSeedLedger`): `(scenario_key, seed_key)` eindeutig, Seed-Schlüssel müssen mit `<szenario>:` beginnen, `record()` ist idempotent und überschreibt nie einen fremden Eintrag, FK auf Department (`ON DELETE CASCADE`). Noch **kein** bestehender Seed schreibt hinein. | gebaut | **IST** (Nutzung ab Phase 2: **SOLL**) |
+| `SeedContext`: erzwingt Isolation (Department muss genau den Schlüssel des Szenarios tragen und `demo_mode` haben), Ledger-Zugriff nur für das eigene Szenario, Dry-Run schreibt nichts | gebaut | **IST** |
+| `DemoScenarioRunner`: `sync` und `reset` unter Advisory-Lock (`pg_try_advisory_xact_lock`) und in einer Transaktion mit Rollback; `reset` nur bei `supportsReset()`, und die Department-Zeile samt Schlüssel muss danach unverändert bestehen, sonst Rollback | gebaut | **IST** |
+| `ScenarioClockOriginResolver` (Tag `app.clock_origin_resolver`): Departments **mit** Schlüssel nutzen den Ausgangspunkt ihres Szenarios; Event und Camp delegieren vorläufig an den bestehenden Grossanlass-Ausgangspunkt (Anlassbeginn − 5 Tage, 09:00); Materialverwaltung hat keinen (reale Zeit). `GrossanlassClockOriginResolver` gilt nur noch für Departments **ohne** Schlüssel, bestehende Departments verhalten sich unverändert. | gebaut | **IST** |
+| Commands (alle mit `DemoEnvironmentGuard`, Freigabe vor jedem Zugriff): `app:demo:status` (lesend), `app:demo:verify` (lesend), `app:demo:sync [--scenario=K\|--all] [--dry-run]`, `app:demo:adopt --scenario=K --department=ID`, `app:demo:reset --scenario=K --confirm=K` (destruktive Freigabe, Bestätigung) | gebaut | **IST** |
+| `app:demo:reset` ist für **alle** echten Szenarien gesperrt («noch nicht verfügbar»); der Reset-Pfad ist nur mit Test-Szenarien getestet | gebaut | **IST** |
+| `sync` legt noch nichts an (Platzhalter), die bestehenden Seed-Services (`app:create-role-users`, Event-Jobs, Wipe) laufen unverändert und kennen die Registry nicht | | **IST** |
+| Keine automatische Ausführung: kein Eintrag in `prod-update.sh`, CD oder Entrypoint | | **IST** |
+| Bestehende Departments `Demo Grossanlass` / `Demo-Grossanlass-Event` haben noch keinen Schlüssel; Zuordnung nur ausdrücklich per `app:demo:adopt` | offen (E4) | **OFFEN** |
+
+**Betrieb:** Nach dem Deployment der Migration (`doctrine:migrations:migrate` im Entrypoint) existieren Spalte und Tabelle; ohne `app:demo:adopt` ändert sich für bestehende Departments nichts.
+
 
 ### 7.1 Bewertung der Optionen
 
@@ -312,7 +336,7 @@ Jede Phase ist eigenständig freigebbar und endet mit grünen Tests. Phasen 0 un
 | Phase | Inhalt | Tests |
 | --- | --- | --- |
 | **0 Absichern (IST, umgesetzt)** | `app:recreate-test-users` abgesichert (P8); Löschschleife nur noch exakte Katalog-Adressen, opt-in (P1); Department-Ownership statt «erstes sichtbares» (P4); `demo_mode`-Prüfung, Bestätigung und Transaktion im Wipe (P7); `DemoEnvironmentGuard` (P12). Kein neues Feature. | Umgesetzt: `DemoEnvironmentGuardTest` (Matrix kernel × Name × Flag), `CreateRoleUsersCommandGuardTest`, `RecreateTestUsersCommandGuardTest`, `DemoSeedOwnershipTest` (Wipe, Department-Ownership, gleichnamiges Department), `DemoAccountsTest::testOnlyExactCatalogueEmailsAreSeedOwned`. |
-| **1 Gerüst** | `DemoScenarioInterface`, Registry, `SeedContext`, `demo_scenario_key` (Migration), Ledger (Migration), `app:demo:status`/`verify`, Umgebungsschalter (§7.9). Keine Daten. Primär-Mitgliedschaft und FK (P2/P3): Index-Herkunft klären, Mapping ↔ DB-Abweichung per Migration beheben, falls bestätigt. | **T1** Schalter-Matrix (production/staging/develop/local × Sync/Reset); Registry findet Szenarien per Tag; Migration up/down auf leerer DB; Schema-Test: Index/FK entsprechen Mapping. |
+| **1 Gerüst (IST, umgesetzt; siehe §7.0)** | `DemoScenarioInterface`, Registry, `SeedContext`, Runner mit Lock/Transaktion, `demo_scenario_key` (Migration), Ledger (Migration), Commands `app:demo:status/verify/sync/adopt/reset` (Reset gesperrt), Szenario-Ausgangspunkt-Resolver. Umgebungsschalter stammen aus Phase 0. **Nicht erledigt (weiter offen, E9):** Index-Herkunft `uniq_membership_one_primary_per_user` und Mapping↔DB-Abweichung `updated_by_user_id` klären. | Umgesetzt: Registry (Schlüssel, Duplikate), Identität (`assign`-Regeln, echte Departments abgewiesen), Isolation (`SeedContext`, Ledger-Scope und Schlüsselpräfix), Runner (Lock, Rollback, Department-Zeile bleibt), Commands über die Umgebungsmatrix, Reset gesperrt für alle echten Szenarien, Clock-Resolver, Container-Wiring (`tests/Service/Demo/Scenario/`). **Nicht** getestet: Migration und Doctrine-Mapping gegen eine echte Datenbank. |
 | **2 Identity + Grossanlass Event** | Identity-Schritt (Konten, TOTP, Memberships, Primär-Regel); bestehendes `Demo Grossanlass` + Event-Jobs als Szenario `grossanlass-event` hinter dem Interface; `ensureEinsatz` ohne Überschreiben; Adoption der Alt-Tags ins Ledger. | **T2** Idempotenz: `sync` zweimal → identische Zeilenzahlen, keine Duplikate; **T4** Zustandserhalt: Einsatz-Status ändern, `sync`, Status bleibt; **T3** Isolation: andere Departments unverändert; **T10** Primär-Mitgliedschaft mit Vor-Zustand (User primär anderswo) → kein Fehler, nur eine Primäre; Wiederholung der beiden bekannten FK-/Primär-Fälle als Regressionstest. |
 | **3 Reset** | `reset` je Szenario (Variante A oder B nach Entscheid E1), Transaktion, Advisory Lock, `--confirm`, Tabellenliste mit Schema-Test; `app:demo:reset`. | **T5** jede Tabelle mit FK auf Department/Aktivität ist in der Löschliste (Schema-Introspektion); **T6** Abbruch mitten im Reset (injizierte Exception) → Rollback, Szenario unverändert; **T7** Reset von Szenario A lässt B, Konten und fremde Departments unberührt; Lock-Test (zweiter Lauf verweigert). |
 | **4 Materialverwaltung** | neues Szenario `materialverwaltung` (Lager, Gruppen, Konten, Aktivitäten je Typ, Bedarf, Packen, Ausgabe, Rückgabe, Inventur, Werkstatt) mit eigenem Clock-Resolver; Rollen-User wandern in dieses Department (P4). | **T2–T4** wie oben; **verify()** Mengenbilanz Department (§6); `public_code`-Auflösung; Test, dass die Uhr unabhängig von Event/Camp ist. |
@@ -330,7 +354,7 @@ Nummerierung E1… ist neu (Seed-Architektur); Fragen 1–9 bleiben in [README �
 | --- | --- | --- | --- |
 | E1 | Reset: Department-Zeile behalten (A) oder löschen und neu anlegen (B)? | A | §7.7 |
 | E2 | Domain-Modell **Camp**: dieselben Grossanlass-Entities (`is_grossanlass`, Zelte/Küche als Ressorts/Material) oder eigenes Profil? Welche Camp-Funktionen (Zelte, Küche) existieren im Backend heute? Nicht geprüft. | zuerst Bestandsaufnahme, dann Entscheid | [GROSSANLASS.md](./scenarios/GROSSANLASS.md) |
-| E3 | Ownership: Ledger-Tabelle, nur `department_id` + Schlüssel, oder deterministische IDs? | Ledger | §7.3, §7.4 |
+| E3 | Ownership: Ledger-Tabelle (in Phase 1 gebaut, noch ungenutzt), nur `department_id` + Schlüssel, oder deterministische IDs? | Ledger | §7.3, §7.4 |
 | E4 | Schicksal der bestehenden Departments `Demo Grossanlass` und `Demo-Grossanlass-Event`: zusammenführen in `grossanlass-event` (Empfehlung, entspricht dem Zielbild), Daten migrieren oder Legacy stehen lassen? (Beantwortet Frage 2 inhaltlich, Umsetzung offen.) | zusammenführen, Legacy bleibt bis Freigabe | §8 |
 | E5 | Soll **Staging** Demo-Daten tragen (nur manueller Sync) oder keine? | nur manuell, nie automatisch | §7.9 |
 | E6 | Deployment: Sync-Fehler nur warnen (Empfehlung) oder Deployment abbrechen? | warnen | §7.9 |

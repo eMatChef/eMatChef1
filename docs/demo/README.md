@@ -71,8 +71,9 @@ Ein Demo-Department ist ein `Department` mit `demo_mode = true` (**IST**, [BUSIN
 | Seed-Services (`ensure*`-Muster) | **IST** (nur Grossanlass, Lieferant); bekannte Probleme P1–P15 | [SEED-KONZEPT.md §3.1](./SEED-KONZEPT.md#31-ist-probleme) |
 | Rollen-User, Demo-Konten | **IST** | `app:create-role-users`, `app:dev-demo:reset`, `demo-accounts.json` |
 | Umgebungsfreigabe für Demo-Befehle (`EMATCHEF_ENV_NAME`, `EMATCHEF_DEMO_DESTRUCTIVE`, fail-closed) | **IST** (Phase 0) | [SEED-KONZEPT.md §3.2](./SEED-KONZEPT.md#32-phase-0-absicherung-ist) |
-| Gemeinsamer Szenario-Rahmen / Registry, Szenario-Schlüssel am Department, Ownership-Ledger | **SOLL** (Empfehlung, Freigabe offen) | [SEED-KONZEPT.md §7](./SEED-KONZEPT.md#7-szenario-registry-soll) |
-| Sync/Reset-Commands `app:demo:*`, Umgebungsschalter, Deployment-Sync (nur Develop) | **SOLL** | [SEED-KONZEPT.md §7.8–§7.9](./SEED-KONZEPT.md#78-command-struktur) |
+| Szenario-Registry, `department.demo_scenario_key`, Ownership-Ledger, Runner (Lock/Transaktion), Szenario-Uhr-Resolver, Commands `app:demo:status/verify/sync/adopt/reset` | **IST** (Phase 1, Gerüst; die drei Szenarien sind Platzhalter, Reset gesperrt, Migration noch nicht gegen DB ausgeführt) | [SEED-KONZEPT.md §7.0](./SEED-KONZEPT.md#70-phase-1-gebauter-stand-ist) |
+| Szenario-Inhalte (Sync legt Daten an), Reset, Deployment-Sync | **SOLL** | [SEED-KONZEPT.md §7.1–§7.10](./SEED-KONZEPT.md#7-szenario-registry-soll) |
+| Deployment-Sync (nur Develop) | **SOLL** | [SEED-KONZEPT.md §7.9](./SEED-KONZEPT.md#79-umgebungsschutz-und-deployment-integration) |
 | Seed-Umsetzungsphasen und Tests | **SOLL** | [SEED-KONZEPT.md §9](./SEED-KONZEPT.md#9-umsetzungsphasen-mit-tests-soll) |
 | Side-Effect-Sandbox | **SOLL** | [§5](#5-demo-sicherheit-und-side-effect-sandbox) |
 

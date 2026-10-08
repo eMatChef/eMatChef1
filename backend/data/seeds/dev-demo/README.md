@@ -53,6 +53,8 @@ php bin/console app:create-role-users --with-ga-demo
 php bin/console app:dev-demo:reset --e2e-password='test!ematchef'
 ```
 
+Szenario-Gerüst (Phase 1; noch ohne Inhalt, löscht nichts): `php bin/console app:demo:status`, `app:demo:verify --all`, `app:demo:sync --all --dry-run`, `app:demo:adopt --scenario=<key> --department=<id>`. `app:demo:reset` ist für alle Szenarien noch gesperrt. Siehe `docs/demo/SEED-KONZEPT.md` §7.0.
+
 Org-Subset-Export für erweiterte Demos kann hier abgelegt werden, z. B.:
 
 ```text
