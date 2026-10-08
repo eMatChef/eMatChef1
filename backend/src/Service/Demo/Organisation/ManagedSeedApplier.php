@@ -53,9 +53,9 @@ class ManagedSeedApplier
                 return null;
             }
             if ($entity !== null) {
-                $this->bind($context, $spec, $entity, self::hash(($spec->read)($entity)), $catalogVersion);
+                // Der neue Eintrag ist noch nicht geflusht und über find() nicht sichtbar: Rückgabe verwenden.
+                $record = $this->bind($context, $spec, $entity, self::hash(($spec->read)($entity)), $catalogVersion);
                 ++$report->adopted;
-                $record = $context->findRecord($spec->seedKey);
             } else {
                 $entity = $this->createEntity($spec);
                 $this->bind($context, $spec, $entity, self::hash($spec->desired), $catalogVersion);
@@ -100,10 +100,11 @@ class ManagedSeedApplier
         return $entity;
     }
 
-    private function bind(SeedContext $context, ManagedSpec $spec, object $entity, string $hash, string $version): void
+    private function bind(SeedContext $context, ManagedSpec $spec, object $entity, string $hash, string $version): \App\Entity\DemoSeedRecord
     {
         $id = ($spec->idOf)($entity);
-        $spec->global
+
+        return $spec->global
             ? $context->recordGlobal($spec->seedKey, $entity, $id, $hash, $version)
             : $context->record($spec->seedKey, $entity, $id, $hash, $version);
     }

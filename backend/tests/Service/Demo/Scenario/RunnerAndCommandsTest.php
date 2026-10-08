@@ -232,4 +232,15 @@ final class RunnerAndCommandsTest extends ScenarioTestCase
         self::assertSame(Command::SUCCESS, $tester->execute(['--all' => true]));
         self::assertStringContainsString('implementiert', $tester->getDisplay());
     }
+
+    public function testSyncCommandPrintsNotesSoDivergencesAndConflictsAreVisible(): void
+    {
+        $runner = $this->createMock(DemoScenarioRunner::class);
+        $runner->method('sync')->willReturn(SeedResult::ok('fertig', 1, 2, ['Konflikt (nicht übernommen): x', 'Abweichung (manuell geändert, nicht überschrieben): y']));
+        $tester = new CommandTester(new DemoSyncCommand($this->guard('dev', '', false), $this->registry($this->scenario(DemoScenarioKey::MATERIALVERWALTUNG)), $runner));
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['--all' => true]));
+        self::assertStringContainsString('Konflikt (nicht übernommen): x', $tester->getDisplay());
+        self::assertStringContainsString('Abweichung (manuell geändert', $tester->getDisplay());
+    }
 }

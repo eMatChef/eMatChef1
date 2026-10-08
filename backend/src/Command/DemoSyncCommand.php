@@ -55,6 +55,9 @@ final class DemoSyncCommand extends AbstractDemoScenarioCommand
                 SeedResult::OK => $io->success($line . sprintf(' (neu %d, vorhanden %d)', $result->created, $result->existing)),
                 default => $io->note($line),
             };
+            if ($result->notes !== []) {
+                $io->listing($result->notes);
+            }
         }
 
         return $failed ? Command::FAILURE : Command::SUCCESS;

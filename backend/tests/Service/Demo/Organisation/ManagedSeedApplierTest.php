@@ -23,12 +23,20 @@ final class ManagedSeedApplierTest extends ScenarioTestCase
     /** @var array<string, DemoSeedRecord> */
     private array $records = [];
     private int $counter = 0;
+    /** @var array<string, DemoSeedRecord> */
+    private array $visible = [];
+
+    private function flushPending(): void
+    {
+        $this->visible = $this->records;
+    }
 
     private function setup1(): array
     {
         $em = $this->createMock(EntityManagerInterface::class);
         $ledger = $this->createMock(DemoSeedLedger::class);
-        $ledger->method('find')->willReturnCallback(fn (string $s, string $k) => $this->records[$k] ?? null);
+        // Wie die echte Datenbank: ein soeben verbuchter Eintrag ist erst nach flushPending() über find() sichtbar.
+        $ledger->method('find')->willReturnCallback(fn (string $s, string $k) => $this->visible[$k] ?? null);
         $ledger->method('forScenario')->willReturnCallback(fn () => array_values($this->records));
         $ledger->method('record')->willReturnCallback(function (string $s, string $k, object $e, string $id, $dept, $hash = null, $ver = null) {
             return $this->records[$k] = (new DemoSeedRecord($s, $k, $e::class, $id, $dept))->markManaged($hash, $ver);
@@ -69,6 +77,7 @@ final class ManagedSeedApplierTest extends ScenarioTestCase
     {
         [$applier, $ctx, $report] = $this->setup1();
         $e = $applier->ensure($ctx, $report, $this->spec(['name' => 'A']), '1');
+        $this->flushPending();
         self::assertSame('A', $e->name);
         self::assertSame(1, $report->created);
 
@@ -83,6 +92,7 @@ final class ManagedSeedApplierTest extends ScenarioTestCase
     {
         [$applier, $ctx, $report] = $this->setup1();
         $e = $applier->ensure($ctx, $report, $this->spec(['name' => 'A']), '1');
+        $this->flushPending();
 
         $second = new SyncReport();
         $applier->ensure($ctx, $second, $this->spec(['name' => 'A2']), '2');
@@ -95,6 +105,7 @@ final class ManagedSeedApplierTest extends ScenarioTestCase
     {
         [$applier, $ctx, $report] = $this->setup1();
         $e = $applier->ensure($ctx, $report, $this->spec(['name' => 'A']), '1');
+        $this->flushPending();
         $e->name = 'Von Hand';
 
         $second = new SyncReport();
@@ -115,6 +126,7 @@ final class ManagedSeedApplierTest extends ScenarioTestCase
     {
         [$applier, $ctx, $report] = $this->setup1();
         $e = $applier->ensure($ctx, $report, $this->spec(['name' => 'A']), '1');
+        $this->flushPending();
         unset($this->store[$e->id]);
 
         $second = new SyncReport();
@@ -133,8 +145,11 @@ final class ManagedSeedApplierTest extends ScenarioTestCase
         self::assertSame($existing, $e);
         self::assertSame(1, $report->adopted);
         self::assertSame('A', $existing->name); // nie manuell geändert (Baseline = Bestand) → folgt dem Katalog
+        self::assertSame(1, $report->updated);
+        self::assertSame([], $report->divergences);
 
         $this->records = [];
+        $this->flushPending();
         $conflict = new SyncReport();
         $other = $this->thing('real', 'Echt');
         $result = $applier->ensure($ctx, $conflict, $this->spec(['name' => 'A'], static function (): never {
