@@ -12,12 +12,12 @@ use PHPUnit\Framework\TestCase;
 
 final class DemoOrganisationCatalogTest extends TestCase
 {
-    public function testShippedCatalogIsValidAndCoversThreeIndependentScenarios(): void
+    public function testShippedCatalogIsValidAndCoversThreeScenariosWithSharedDemoUsers(): void
     {
         $catalog = new DemoOrganisationCatalog();
         self::assertMatchesRegularExpression('/^\d{4}\.\d+\.\d+$/', $catalog->version());
 
-        $accounts = [];
+        $perScenario = [];
         $orgNames = [];
         foreach (DemoScenarioKey::all() as $key) {
             $s = $catalog->scenario($key);
@@ -25,28 +25,46 @@ final class DemoOrganisationCatalogTest extends TestCase
             $orgNames[] = $s['department']['name'];
             self::assertNotEmpty($s['groups'], $key);
             self::assertNotEmpty($s['members'], $key);
-            foreach ($s['members'] as $m) {
-                $accounts[] = $m['account'];
+            $perScenario[$key] = array_column($s['members'], 'account');
+            // je Szenario kein Konto doppelt
+            self::assertSame(array_values(array_unique($perScenario[$key])), $perScenario[$key], $key);
+        }
+        // Organisationen und Departments sind je Szenario eigen
+        self::assertSame(array_values(array_unique($orgNames)), $orgNames);
+        // Demo-Benutzer dürfen mehreren Demo-Departments angehören (globale Admin-Konten in allen drei)
+        foreach (['superadmin', 'orgchef', 'suborgchef'] as $admin) {
+            foreach ($perScenario as $key => $accounts) {
+                self::assertContains($admin, $accounts, $key);
             }
         }
-        // Unabhängigkeit: kein Konto, keine Organisation und kein Department doppelt
-        self::assertSame(array_values(array_unique($accounts)), $accounts);
-        self::assertSame(array_values(array_unique($orgNames)), $orgNames);
-        // Nur Konten aus demo-accounts.json (Single Source), Lieferant gehört nicht in ein Department
-        foreach ($accounts as $a) {
-            self::assertTrue(DemoAccounts::isSeedOwnedEmail(DemoAccounts::email($a)));
-            self::assertNotSame('supplier', $a);
+        // Nur Konten aus demo-accounts.json (Single Source); der Lieferant ist ein sharedAccount ohne Mitgliedschaft
+        foreach ($perScenario as $accounts) {
+            foreach ($accounts as $a) {
+                self::assertTrue(DemoAccounts::isSeedOwnedEmail(DemoAccounts::email($a)));
+                self::assertNotSame('supplier', $a);
+            }
         }
+        self::assertSame(['supplier'], $catalog->sharedAccounts());
     }
 
     /** @return iterable<string, array{callable(array<string, mixed>): array<string, mixed>, string}> */
     public static function brokenCatalogs(): iterable
     {
-        yield 'account in two scenarios' => [static function (array $d): array {
-            $d['scenarios']['grossanlass-camp']['members'][] = ['account' => 'matwart', 'role' => 'mw', 'groups' => []];
+        yield 'account twice in one scenario' => [static function (array $d): array {
+            $d['scenarios']['grossanlass-camp']['members'][] = ['account' => 'camp-mw', 'role' => 'mw', 'groups' => []];
 
             return $d;
-        }, 'mehreren Szenarien'];
+        }, 'doppelt'];
+        yield 'shared account with membership' => [static function (array $d): array {
+            $d['scenarios']['grossanlass-camp']['members'][] = ['account' => 'supplier', 'role' => 'u', 'groups' => []];
+
+            return $d;
+        }, 'sharedAccount'];
+        yield 'unknown shared account' => [static function (array $d): array {
+            $d['sharedAccounts'][] = 'gibt-es-nicht';
+
+            return $d;
+        }, 'sharedAccounts'];
         yield 'unknown account' => [static function (array $d): array {
             $d['scenarios']['grossanlass-camp']['members'][0]['account'] = 'gibt-es-nicht';
 

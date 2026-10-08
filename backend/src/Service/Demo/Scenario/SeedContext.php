@@ -14,7 +14,7 @@ use App\Entity\DemoSeedRecord;
 final class SeedContext
 {
     private function __construct(
-        private DemoScenarioInterface $scenario,
+        private string $scenarioKey,
         private ?Department $department,
         private DemoSeedLedger $ledger,
         private bool $dryRun,
@@ -32,12 +32,21 @@ final class SeedContext
             }
         }
 
-        return new self($scenario, $department, $ledger, $dryRun);
+        return new self($scenario->key(), $department, $ledger, $dryRun);
+    }
+
+    /**
+     * Kontext für gemeinsam genutzte Demo-Benutzer. Sie gehören keinem Szenario (und keinem Department), dürfen in
+     * mehreren Demo-Departments Mitglied sein und überleben jeden Szenario-Reset.
+     */
+    public function sharedUsers(): self
+    {
+        return new self(DemoSeedLedger::SHARED_USERS, null, $this->ledger, $this->dryRun);
     }
 
     public function scenarioKey(): string
     {
-        return $this->scenario->key();
+        return $this->scenarioKey;
     }
 
     public function department(): ?Department
@@ -47,7 +56,7 @@ final class SeedContext
 
     public function requireDepartment(): Department
     {
-        return $this->department ?? throw new DemoScenarioException(sprintf('Szenario «%s» hat noch kein Department.', $this->scenario->key()));
+        return $this->department ?? throw new DemoScenarioException(sprintf('Szenario «%s» hat noch kein Department.', $this->scenarioKey));
     }
 
     public function isDryRun(): bool
@@ -58,7 +67,11 @@ final class SeedContext
     /** Gleicher Kontext nach Anlage des Szenario-Departments (Schlüssel muss bereits gesetzt sein). */
     public function withDepartment(Department $department): self
     {
-        return self::create($this->scenario, $department, $this->ledger, $this->dryRun);
+        if ($department->getDemoScenarioKey() !== $this->scenarioKey || !$department->isDemoMode()) {
+            throw new DemoScenarioException(sprintf('Department «%s» gehört nicht zum Szenario «%s».', $department->getName(), $this->scenarioKey));
+        }
+
+        return new self($this->scenarioKey, $department, $this->ledger, $this->dryRun);
     }
 
     /** Ledger-Eintrag ohne Department-Bezug (Organisation, Benutzer: überleben einen Department-Reset). */
@@ -68,18 +81,18 @@ final class SeedContext
             throw new DemoScenarioException('Dry-Run: es wird nichts geschrieben.');
         }
 
-        return $this->ledger->record($this->scenario->key(), $seedKey, $entity, $entityId, null, $managedHash, $catalogVersion);
+        return $this->ledger->record($this->scenarioKey, $seedKey, $entity, $entityId, null, $managedHash, $catalogVersion);
     }
 
     /** @return list<DemoSeedRecord> */
     public function records(): array
     {
-        return $this->ledger->forScenario($this->scenario->key());
+        return $this->ledger->forScenario($this->scenarioKey);
     }
 
     public function findRecord(string $seedKey): ?DemoSeedRecord
     {
-        return $this->ledger->find($this->scenario->key(), $seedKey);
+        return $this->ledger->find($this->scenarioKey, $seedKey);
     }
 
     public function record(string $seedKey, object $entity, string $entityId, ?string $managedHash = null, ?string $catalogVersion = null): DemoSeedRecord
@@ -88,12 +101,12 @@ final class SeedContext
             throw new DemoScenarioException('Dry-Run: es wird nichts geschrieben.');
         }
 
-        return $this->ledger->record($this->scenario->key(), $seedKey, $entity, $entityId, $this->requireDepartment(), $managedHash, $catalogVersion);
+        return $this->ledger->record($this->scenarioKey, $seedKey, $entity, $entityId, $this->requireDepartment(), $managedHash, $catalogVersion);
     }
 
     public function recordCount(): int
     {
-        return \count($this->ledger->forScenario($this->scenario->key()));
+        return \count($this->ledger->forScenario($this->scenarioKey));
     }
 
     /** @return list<DemoSeedRecord> Ledger-Einträge dieses Szenarios, die auf ein anderes (oder kein) Department zeigen */
@@ -102,7 +115,7 @@ final class SeedContext
         $own = $this->department?->getId();
 
         return array_values(array_filter(
-            $this->ledger->forScenario($this->scenario->key()),
+            $this->ledger->forScenario($this->scenarioKey),
             static fn (DemoSeedRecord $r): bool => $r->getDepartment() !== null && $r->getDepartment()->getId() !== $own,
         ));
     }

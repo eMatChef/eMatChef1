@@ -330,21 +330,21 @@ Kein Command löscht ohne Szenario-Schlüssel. Alle Commands ausser `verify`/`st
 
 ### 7.11 Phase 2: Demo-Organisationen (IST)
 
-Code: `backend/src/Service/Demo/Organisation/`, Katalog: `backend/data/seeds/dev-demo/organisations.json` (versioniert über `catalogVersion`, aktuell `2026.10.1`). Migration `Version20261008110000` (zwei nullable Spalten am Ledger). Aufgerufen über `app:demo:sync --scenario=<key>|--all` (und `app:demo:verify`); **kein** Deployment-Schritt.
+Code: `backend/src/Service/Demo/Organisation/`, Katalog: `backend/data/seeds/dev-demo/organisations.json` (versioniert über `catalogVersion`, aktuell `2026.10.2`). Migration `Version20261008110000` (zwei nullable Spalten am Ledger). Aufgerufen über `app:demo:sync --scenario=<key>|--all` (und `app:demo:verify`); **kein** Deployment-Schritt.
 
-**Was ein Sync je Szenario anlegt:** Organisation → Department → Gruppenbaum → Benutzer → Mitgliedschaften → Gruppenmitgliedschaften. Jedes Szenario hat eine **eigene** Organisation, ein eigenes Department und eigene Konten; kein Konto steht in zwei Szenarien (vom Katalog-Validator erzwungen).
+**Was ein Sync je Szenario anlegt:** Organisation → Department → Gruppenbaum → Benutzer → Mitgliedschaften → Gruppenmitgliedschaften. Jedes Szenario hat eine **eigene** Organisation und ein eigenes Department. **Demo-Benutzer sind reine Testdaten ohne Bezug zu echten Identitäten und gehören keinem Szenario:** ein Konto darf in mehreren Demo-Departments Mitglied sein (z. B. superadmin, orgchef, suborgchef in allen drei), je Szenario aber nur einmal (Katalog-Validator). Konten ohne Department-Mitgliedschaft (`sharedAccounts`, derzeit der Lieferant) legt jeder Sync mit an. Auf einer **neuen Develop-Installation** erzeugt `app:demo:sync --all` damit sämtliche Demo-Konten selbstständig.
 
-**Seed-Katalog (Version 2026.10.1):**
+**Seed-Katalog (Version 2026.10.2):**
 
 | Szenario | Organisation / Department | Gruppen | Konten (Rolle) |
 | --- | --- | --- | --- |
-| `materialverwaltung` | Demo Organisation Materialverwaltung / Demo Materialverwaltung | Stufen (Biber, Wölfe, Pfadis, Pios, Rover), Materialteam | superadmin, orgchef, suborgchef (je `mw`); matwart `mw`, depchef `dc`, leader1–3 `l1`–`l3`, user `u` |
-| `grossanlass-event` | Demo Organisation Grossanlass Event / Demo Grossanlass Event | Infrastruktur › Material & Logistik, Bauten, Wasser & Sanitär | ga-mw `mw`, ga-cmw `cmw`, ga-ok `dc`, ga-komm `komm`, ga-spon `spon`, ga-lw `lw`, ga-clw `clw`, ga-bereich `bl`, ga-helfer `u` |
-| `grossanlass-camp` | Demo Organisation Grossanlass Camp / Demo Grossanlass Camp | Lagerinfrastruktur › Zelte, Küche; Material & Logistik › Materialverteilung, Transporte, Retouren; Lagergruppen › Gruppe A, Gruppe B | camp-mw `mw`, camp-lw `lw`, camp-bereich `bl`, camp-helfer `u` (**neu** in `demo-accounts.json`, ohne Altadresse) |
+| `materialverwaltung` | Demo Organisation Materialverwaltung / Demo Materialverwaltung | Stufen (Biber, Wölfe, Pfadis, Pios, Rover), Materialteam | superadmin (primär), orgchef, suborgchef (je `mw`; **auch in Event und Camp**); matwart `mw`, depchef `dc`, leader1–3 `l1`–`l3`, user `u` |
+| `grossanlass-event` | Demo Organisation Grossanlass Event / Demo Grossanlass Event | Infrastruktur › Material & Logistik, Bauten, Wasser & Sanitär | ga-mw `mw`, ga-cmw `cmw`, ga-ok `dc`, ga-komm `komm`, ga-spon `spon`, ga-lw `lw`, ga-clw `clw`, ga-bereich `bl`, ga-helfer `u`; zusätzlich superadmin, orgchef, suborgchef (`mw`, nicht primär) |
+| `grossanlass-camp` | Demo Organisation Grossanlass Camp / Demo Grossanlass Camp | Lagerinfrastruktur › Zelte, Küche; Material & Logistik › Materialverteilung, Transporte, Retouren; Lagergruppen › Gruppe A, Gruppe B | camp-mw `mw`, camp-lw `lw`, camp-bereich `bl`, camp-helfer `u` (**neu** in `demo-accounts.json`, ohne Altadresse); zusätzlich superadmin, orgchef, suborgchef (`mw`, nicht primär) |
 
 Der Katalog gilt nur für die Organisationsstruktur. Prozessdaten (Zusagen, Einsätze, Aktivitäten, Material, Bedarf) fehlen weiter (**SOLL**, Phasen 4/5); die bestehenden Dienste `DemoGrossanlassSeedService::ensureDemoScenario` und Event-Jobs laufen unabhängig.
 
-**Seed-Identitäten:** Ledger-Schlüssel `<szenario>:organisation`, `:department`, `:group:<key>`, `:user:<konto>`, `:membership:<konto>`, `:groupmember:<konto>:<gruppe>`. Anzeigenamen sind nie Schlüssel; Katalog-Schlüssel werden nicht umbenannt. Organisation und Benutzer sind **global** im Ledger (ohne Department-Bezug, damit ein späterer Department-Reset sie nicht trifft).
+**Seed-Identitäten:** Ledger-Schlüssel `<szenario>:organisation`, `:department`, `:group:<key>`, `:membership:<konto>`, `:groupmember:<konto>:<gruppe>`. Benutzer haben den **szenariounabhängigen** Schlüssel `demo-users:user:<konto>` (Ledger-Bereich `demo-users`, kein registriertes Szenario, ohne Department-Bezug); die Organisation ist global im Szenario-Ledger. Anzeigenamen sind nie Schlüssel; Katalog-Schlüssel werden nicht umbenannt.
 
 **Sync-Verhalten (Dreiwege-Vergleich Katalog / aktuell / zuletzt vom Seed geschrieben, `managed_hash`):**
 
@@ -364,10 +364,13 @@ Verwaltete Felder: Organisationsname, Departmentname, Gruppe (Name, Eltern, Sort
 
 | Datensatz | Übernahme eines bestehenden Datensatzes |
 | --- | --- |
-| Benutzer | nur bei **exakter** Katalogadresse und wenn alle Mitgliedschaften zu Departments mit `demo_mode` gehören (oder keine). Mitglied eines echten Departments → Konflikt, Konto und Mitgliedschaften bleiben unverändert (z. B. Alt-Rollen-User, die Phase 0/P4 in ein echtes Department gelegt hat). Namen/E-Mail allein genügen nie. Nach der Übernahme gilt der Bestand als Baseline und folgt dem Katalog (Namensfelder). |
+| Benutzer | nur bei **exakter** Katalogadresse auf der reservierten Demo-Domain **und** eindeutigem Nachweis: (a) alle Mitgliedschaften gehören zu Demo-Departments (oder keine), oder (b) das Passwort ist das öffentliche Demo-Passwort. Mitglied eines echten Departments **und** anderes Passwort → Konflikt, Konto und Mitgliedschaften bleiben unverändert. Bei (b) bleibt die Mitgliedschaft im fremden Department unverändert und wird als Hinweis gemeldet (z. B. Alt-Rollen-User aus Phase 0/P4). Nach der Übernahme gilt der Bestand als Baseline und folgt dem Katalog (Namensfelder). Echte Benutzer (andere Adressen) werden nie übernommen, verändert oder gelöscht. |
 | Department | **keine** automatische Übernahme. Ein bestehendes Demo-Department (z. B. `Demo Grossanlass`) wird nur durch `app:demo:adopt` ausdrücklich zugeordnet (E4); danach arbeitet Sync in dessen Organisation, ohne eine eigene anzulegen. Sonst legt Sync ein neues Department an. |
 | Gruppe, Mitgliedschaft | nur innerhalb des bereits eigenen Departments: gleichnamige/gleiche Gruppe unter demselben Elternknoten, die noch keinem Ledger-Eintrag gehört (einmalige Übernahme), bzw. vorhandene Mitgliedschaft derselben Person |
 | Organisation | nie übernommen; fehlt der Ledger-Eintrag, wird sie neu angelegt |
+| Lieferant (`sharedAccounts`) | bei Neuanlage über `DemoSupplierSeedService` (Benutzer, Testfirma, Mitgliedschaft); ein vorhandenes Konto wird nur verbucht, nie verändert (kein Passwort-Reset) |
+
+**Gemeinsam genutzte Demo-Benutzer und Reset:** Ein Szenario-Reset (SOLL, Phase 3) darf nur Inhalte seines Departments entfernen. Benutzer, Profile und der Ledger-Bereich `demo-users` bleiben erhalten; der Runner prüft das (vor/nach dem Reset müssen dieselben gemeinsamen Benutzer existieren, sonst Rollback). Mitgliedschaften im zurückgesetzten Department werden dort neu aufgebaut.
 
 **Ablauf einer Erstinstallation:** Benutzer (global) → Organisation → Department (Grossanlass über den bestehenden Rahmen `DemoGrossanlassSeedService::ensureDepartment` mit Config, Kalender, Haupt-Aktivität und Uhr am Ausgangspunkt; Materialverwaltung mit Kostenstellen und Werkstatt-Kategorien) → Szenario-Schlüssel setzen → Gruppen → Mitgliedschaften. Alles in **einer** Transaktion unter Advisory-Lock (Runner). Mitgliedschaft `is_primary` wird nur gesetzt, wenn der User nicht schon anderswo primär ist.
 
@@ -379,9 +382,9 @@ Verwaltete Felder: Organisationsname, Departmentname, Gruppe (Name, Eltern, Sort
 
 - Camp-Konten stehen in `demo-accounts.json`, das auch die öffentliche Doku (`docs.ematchef.ch`) speist; das Doku-Repository muss die neuen Konten und die fehlende `legacyEmail` tolerieren (nicht geprüft).
 - `app:create-role-users` listet am Ende alle Katalogkonten, auch die noch nicht angelegten Camp-Konten.
-- Die alten Rollen-User aus Phase 0 liegen auf Develop womöglich in einem echten Department (P4): sie werden als Konflikt gemeldet und müssen manuell bereinigt werden (nicht automatisch).
+- Die alten Rollen-User aus Phase 0 liegen auf Develop womöglich in einem echten Department (P4): mit dem Demo-Passwort werden sie übernommen (Mitgliedschaft im fremden Department bleibt, Hinweis); mit geändertem Passwort bleiben sie ein Konflikt und müssen manuell bereinigt werden.
 - Anlagen- und Gruppen-IDs der Departments sind zufällig (`grp…`); stabil ist allein der Ledger-Schlüssel.
-- Dauer: ein Voll-Sync legt ca. 22 Benutzer mit Passwort-Hash an; der Integrationstest braucht rund eine Minute.
+- Dauer: ein Voll-Sync legt ca. 23 Benutzer (inkl. Lieferant) mit Passwort-Hash an; der Integrationstest braucht rund eine Minute.
 
 ## 8. Umgang mit bestehenden Commands und Daten (SOLL)
 

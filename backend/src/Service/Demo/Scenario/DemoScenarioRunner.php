@@ -47,15 +47,34 @@ class DemoScenarioRunner
         $departmentId = (string) $department->getId();
 
         return $this->locked($scenario, function () use ($scenario, $department, $departmentId): SeedResult {
+            $sharedBefore = $this->sharedUserIds();
             $result = $scenario->reset(SeedContext::create($scenario, $department, $this->ledger, false));
 
             $key = $this->entityManager->getConnection()->fetchOne('SELECT demo_scenario_key FROM department WHERE id = ?', [$departmentId]);
             if ($key !== $scenario->key()) {
                 throw new DemoScenarioException('Reset hat die Department-Zeile oder deren Szenario-Schlüssel verändert; zurückgerollt.');
             }
+            // Gemeinsam genutzte Demo-Benutzer gehören keinem Szenario und müssen einen Reset überleben.
+            if ($this->sharedUserIds() !== $sharedBefore) {
+                throw new DemoScenarioException('Reset hat gemeinsam genutzte Demo-Benutzer verändert; zurückgerollt.');
+            }
 
             return $result;
         });
+    }
+
+    /** @return list<string> IDs der vorhandenen gemeinsamen Demo-Benutzer (nur existierende Datensätze) */
+    private function sharedUserIds(): array
+    {
+        $ids = [];
+        foreach ($this->ledger->sharedUserRecords() as $record) {
+            if ($this->entityManager->getConnection()->fetchOne('SELECT 1 FROM "user" WHERE id = ?', [$record->getEntityId()])) {
+                $ids[] = $record->getEntityId();
+            }
+        }
+        sort($ids);
+
+        return $ids;
     }
 
     /**

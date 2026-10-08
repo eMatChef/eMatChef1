@@ -14,6 +14,9 @@ use Doctrine\ORM\EntityManagerInterface;
  */
 class DemoSeedLedger
 {
+    /** Pseudo-Szenario für gemeinsam genutzte Demo-Benutzer; kein registriertes Szenario, nie von einem Reset betroffen. */
+    public const SHARED_USERS = 'demo-users';
+
     public function __construct(private EntityManagerInterface $entityManager)
     {
     }
@@ -50,6 +53,12 @@ class DemoSeedLedger
         $this->entityManager->persist($record);
 
         return $record;
+    }
+
+    /** @return list<DemoSeedRecord> Ledger-Einträge der gemeinsamen Demo-Benutzer */
+    public function sharedUserRecords(): array
+    {
+        return $this->forScenario(self::SHARED_USERS);
     }
 
     /** @return list<DemoSeedRecord> */

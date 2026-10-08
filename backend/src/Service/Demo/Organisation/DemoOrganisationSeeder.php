@@ -15,7 +15,9 @@ use App\Entity\User;
 use App\Service\Accounting\AccountingCostCenterBootstrapService;
 use App\Service\Auth\TotpService;
 use App\Service\Bootstrap\DemoGrossanlassSeedService;
+use App\Service\Bootstrap\DemoSupplierSeedService;
 use App\Service\Demo\Scenario\DemoScenarioInterface;
+use App\Service\Demo\Scenario\DemoSeedLedger;
 use App\Service\Demo\Scenario\SeedContext;
 use App\Service\Demo\Scenario\SeedResult;
 use App\Service\Workshop\WorkshopSparePartsCategoryBootstrapService;
@@ -34,6 +36,8 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
  *    Übernahme innerhalb eines bereits nachweislich eigenen Departments.
  *  - Bestehende Benutzer werden nur übernommen, wenn die Adresse exakt im Katalog steht und alle ihre
  *    Mitgliedschaften zu Demo-Departments gehören. Sonst Konflikt, nichts wird verändert.
+ *  - Demo-Benutzer sind reine Testdaten ohne Bezug zu echten Identitäten. Sie gehören keinem Szenario (Ledger-Bereich
+ *    «demo-users»), dürfen in mehreren Demo-Departments Mitglied sein und überleben jeden Szenario-Reset.
  *  - Passwörter, Zustände, globale Rollen und Clock-Offsets werden nur bei Neuanlage gesetzt.
  *  - Nichts wird gelöscht; Katalog-Abweichungen werden gemeldet.
  */
@@ -48,6 +52,7 @@ class DemoOrganisationSeeder
         private DemoGrossanlassSeedService $grossanlassSeed,
         private AccountingCostCenterBootstrapService $accountingCostCenterBootstrap,
         private WorkshopSparePartsCategoryBootstrapService $workshopSparePartsCategoryBootstrap,
+        private DemoSupplierSeedService $supplierSeed,
     ) {
     }
 
@@ -64,10 +69,14 @@ class DemoOrganisationSeeder
         $report = new SyncReport();
         $expected = [];
 
+        // Gemeinsame Demo-Benutzer: nur anlegen/ergänzen, nie einem Szenario zugeordnet, nie gelöscht.
+        $shared = $context->sharedUsers();
+        foreach ($this->catalog->sharedAccounts() as $account) {
+            $this->ensureSharedAccount($shared, $report, $account, $version);
+        }
         $users = [];
         foreach ($cat['members'] as $member) {
-            $expected[] = $key . ':user:' . $member['account'];
-            $users[$member['account']] = $this->ensureUser($context, $report, $key, $member['account'], $version);
+            $users[$member['account']] = $this->ensureUser($shared, $report, $member['account'], $version);
         }
 
         $department = $context->department();
@@ -142,12 +151,19 @@ class DemoOrganisationSeeder
         $cat = $this->catalog->scenario($key);
         $violations = [];
 
+        $shared = $context->sharedUsers();
+        foreach ($cat['members'] as $m) {
+            $userRecord = $shared->findRecord(DemoSeedLedger::SHARED_USERS . ':user:' . $m['account']);
+            if ($userRecord === null || !$this->entityExists($userRecord)) {
+                $violations[] = sprintf('Demo-Benutzer «%s» fehlt (Sync legt ihn an).', $m['account']);
+            }
+        }
+
         $required = [$key . ':department'];
         foreach ($cat['groups'] as $g) {
             $required[] = $key . ':group:' . $g['key'];
         }
         foreach ($cat['members'] as $m) {
-            $required[] = $key . ':user:' . $m['account'];
             $required[] = $key . ':membership:' . $m['account'];
             foreach ($m['groups'] ?? [] as $gm) {
                 $required[] = $key . ':groupmember:' . $m['account'] . ':' . $gm['group'];
@@ -188,17 +204,25 @@ class DemoOrganisationSeeder
     private function plan(string $key, array $cat, SeedContext $context): SeedResult
     {
         $seedKeys = [$key . ':organisation', $key . ':department'];
+        $sharedKeys = [];
         foreach ($cat['groups'] as $g) {
             $seedKeys[] = $key . ':group:' . $g['key'];
         }
         foreach ($cat['members'] as $m) {
-            $seedKeys[] = $key . ':user:' . $m['account'];
+            $sharedKeys[] = DemoSeedLedger::SHARED_USERS . ':user:' . $m['account'];
             $seedKeys[] = $key . ':membership:' . $m['account'];
             foreach ($m['groups'] ?? [] as $gm) {
                 $seedKeys[] = $key . ':groupmember:' . $m['account'] . ':' . $gm['group'];
             }
         }
         $missing = array_values(array_filter($seedKeys, fn (string $k): bool => $context->findRecord($k) === null));
+        $shared = $context->sharedUsers();
+        foreach (array_unique(array_merge($sharedKeys, array_map(static fn (string $a): string => DemoSeedLedger::SHARED_USERS . ':user:' . $a, $this->catalog->sharedAccounts()))) as $k) {
+            $seedKeys[] = $k;
+            if ($shared->findRecord($k) === null) {
+                $missing[] = $k;
+            }
+        }
 
         return SeedResult::ok(
             sprintf('Dry-Run: %d Einträge fehlen (würden angelegt oder übernommen), %d vorhanden.', \count($missing), \count($seedKeys) - \count($missing)),
@@ -268,14 +292,14 @@ class DemoOrganisationSeeder
         ), $version);
     }
 
-    private function ensureUser(SeedContext $context, SyncReport $report, string $key, string $account, string $version): ?User
+    private function ensureUser(SeedContext $context, SyncReport $report, string $account, string $version): ?User
     {
         $def = DemoAccounts::accountByKey($account);
         $email = $def['email'];
         $first = DemoUserNames::firstNameForEmail($email);
 
         $entity = $this->applier->ensure($context, $report, new ManagedSpec(
-            seedKey: $key . ':user:' . $account,
+            seedKey: DemoSeedLedger::SHARED_USERS . ':user:' . $account,
             create: function () use ($email, $def): User {
                 $profile = new Profile();
                 $profile->setId(IdGenerator::generateUnique($this->entityManager, Profile::class));
@@ -305,7 +329,7 @@ class DemoOrganisationSeeder
             },
             desired: ['first_name' => $first, 'last_name' => (string) $def['label'], 'nickname' => $first],
             global: true,
-            adopt: fn (): ?object => $this->adoptUser($email),
+            adopt: fn (): ?object => $this->adoptUser($email, $report),
             afterCreate: function (object $u) use ($email): void {
                 // Test-TOTP der globalen Demo-Admins nur bei Neuanlage.
                 $secret = DemoAccounts::totpSecretForEmail($email);
@@ -319,10 +343,12 @@ class DemoOrganisationSeeder
     }
 
     /**
-     * Übernahme nur bei nachweislicher Ownership: exakte Katalogadresse und keine Mitgliedschaft in einem
-     * Department ohne demo_mode. Passwort und Zustand werden nie angefasst.
+     * Übernahme eines bestehenden Kontos nur mit eindeutigem Nachweis: exakte Katalogadresse auf der reservierten
+     * Demo-Domain und entweder (a) Passwort = öffentliches Demo-Passwort oder (b) Mitgliedschaften ausschliesslich in
+     * Demo-Departments (oder keine). Mitgliedschaften in fremden Departments werden nie verändert (nur gemeldet).
+     * Passwort und Zustand werden nie angefasst.
      */
-    private function adoptUser(string $email): ?User
+    private function adoptUser(string $email, SyncReport $report): ?User
     {
         $profile = $this->entityManager->getRepository(Profile::class)->findOneBy(['email' => $email]);
         if (!$profile instanceof Profile) {
@@ -332,14 +358,46 @@ class DemoOrganisationSeeder
         if (!$user instanceof User) {
             throw new OwnershipConflictException(sprintf('Profil «%s» existiert ohne Benutzer.', $email));
         }
+        $foreign = [];
         foreach ($this->entityManager->getRepository(Membership::class)->findBy(['userId' => $user->getId()]) as $membership) {
             $dept = $this->entityManager->find(Department::class, $membership->getDepartmentId());
             if (!$dept instanceof Department || !$dept->isDemoMode()) {
-                throw new OwnershipConflictException(sprintf('«%s» ist Mitglied von «%s» (kein Demo-Department); Benutzer wird nicht übernommen.', $email, $dept?->getName() ?? $membership->getDepartmentId()));
+                $foreign[] = $dept?->getName() ?? $membership->getDepartmentId();
             }
+        }
+        if ($foreign !== []) {
+            if (!$this->passwordHasher->isPasswordValid($user, DemoAccounts::password())) {
+                throw new OwnershipConflictException(sprintf('«%s» ist Mitglied von «%s» (kein Demo-Department) und hat nicht das Demo-Passwort; Benutzer wird nicht übernommen.', $email, implode(', ', $foreign)));
+            }
+            $report->warnings[] = sprintf('«%s» bleibt unverändert Mitglied von «%s» (kein Demo-Department).', $email, implode(', ', $foreign));
         }
 
         return $user;
+    }
+
+    /**
+     * Konten ohne Department-Mitgliedschaft (Lieferant). Bei Neuanlage über den bestehenden Seed-Dienst
+     * (Benutzer, Testfirma, Mitgliedschaft); ein vorhandenes Konto wird nur verbucht, nie verändert.
+     */
+    private function ensureSharedAccount(SeedContext $shared, SyncReport $report, string $account, string $version): void
+    {
+        $email = DemoAccounts::email($account);
+        $this->applier->ensure($shared, $report, new ManagedSpec(
+            seedKey: DemoSeedLedger::SHARED_USERS . ':user:' . $account,
+            create: function (): User {
+                $created = $this->supplierSeed->ensure(null);
+
+                return $created;
+            },
+            find: fn (string $id): ?object => $this->entityManager->find(User::class, $id),
+            idOf: static fn (object $u): string => (string) $u->getId(),
+            read: static fn (object $u): array => [],
+            write: static function (object $u, array $d): void {
+            },
+            desired: [],
+            global: true,
+            adopt: fn (): ?object => $this->adoptUser($email, $report),
+        ), $version);
     }
 
     /**

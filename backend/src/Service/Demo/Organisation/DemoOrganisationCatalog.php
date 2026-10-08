@@ -21,7 +21,7 @@ class DemoOrganisationCatalog
     private const GROUP_ROLES = ['leader', 'member'];
     private const KINDS = ['ressort', 'bereich', 'teilbereich'];
 
-    /** @var array{catalogVersion: string, scenarios: array<string, array<string, mixed>>}|null */
+    /** @var array{catalogVersion: string, sharedAccounts?: list<string>, scenarios: array<string, array<string, mixed>>}|null */
     private ?array $data = null;
 
     public function __construct(private string $file = self::FILE)
@@ -31,6 +31,12 @@ class DemoOrganisationCatalog
     public function version(): string
     {
         return $this->data()['catalogVersion'];
+    }
+
+    /** @return list<string> Konten ohne Department-Mitgliedschaft, die jeder Sync mit anlegt (z. B. Lieferant) */
+    public function sharedAccounts(): array
+    {
+        return $this->data()['sharedAccounts'] ?? [];
     }
 
     /** @return array<string, mixed> organisation{name}, department{name}, groups[], members[] */
@@ -64,8 +70,16 @@ class DemoOrganisationCatalog
             $fail('genau die drei Szenarien ' . implode(', ', DemoScenarioKey::all()) . ' erwartet.');
         }
 
-        $accountOwner = [];
+        foreach ($d['sharedAccounts'] ?? [] as $account) {
+            try {
+                DemoAccounts::accountByKey((string) $account);
+            } catch (\InvalidArgumentException) {
+                $fail(sprintf('sharedAccounts: Konto «%s» fehlt in demo-accounts.json.', $account));
+            }
+        }
+
         foreach ($scenarios as $key => $scenario) {
+            $accountsInScenario = [];
             foreach (['organisation', 'department'] as $part) {
                 if (trim((string) ($scenario[$part]['name'] ?? '')) === '') {
                     $fail(sprintf('%s: %s.name fehlt.', $key, $part));
@@ -95,10 +109,14 @@ class DemoOrganisationCatalog
                 } catch (\InvalidArgumentException) {
                     $fail(sprintf('%s: Konto «%s» fehlt in demo-accounts.json.', $key, $account));
                 }
-                if (isset($accountOwner[$account])) {
-                    $fail(sprintf('Konto «%s» ist mehreren Szenarien zugeordnet (%s, %s).', $account, $accountOwner[$account], $key));
+                // Demo-Benutzer dürfen mehreren Demo-Departments angehören, aber nur einmal je Szenario.
+                if (isset($accountsInScenario[$account])) {
+                    $fail(sprintf('%s: Konto «%s» doppelt.', $key, $account));
                 }
-                $accountOwner[$account] = $key;
+                if (\in_array($account, $d['sharedAccounts'] ?? [], true)) {
+                    $fail(sprintf('%s: Konto «%s» ist ein sharedAccount und hat keine Mitgliedschaft.', $key, $account));
+                }
+                $accountsInScenario[$account] = true;
                 if (!\in_array($member['role'] ?? null, self::MEMBERSHIP_ROLES, true)) {
                     $fail(sprintf('%s: Rolle «%s» von «%s» ungültig.', $key, $member['role'] ?? '', $account));
                 }

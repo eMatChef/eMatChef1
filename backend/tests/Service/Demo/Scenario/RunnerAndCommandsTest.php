@@ -91,6 +91,52 @@ final class RunnerAndCommandsTest extends ScenarioTestCase
         $this->runner(true, null, $dept)->reset($scenario); // Department-Zeile/Schlüssel nach Reset weg
     }
 
+    /** @param list<mixed> $userLookups Antworten auf die Existenzprüfung der gemeinsamen Demo-Benutzer, der Reihe nach */
+    private function runnerWithSharedUser(array $userLookups, string $key, \App\Entity\Department $dept): DemoScenarioRunner
+    {
+        $conn = $this->createMock(Connection::class);
+        $conn->method('fetchOne')->willReturnCallback(static function (string $sql) use (&$userLookups, $key) {
+            if (str_contains($sql, 'advisory')) {
+                return true;
+            }
+
+            return str_contains($sql, '"user"') ? array_shift($userLookups) : $key;
+        });
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('getConnection')->willReturn($conn);
+        $identity = $this->createMock(DemoScenarioIdentity::class);
+        $identity->method('findDepartment')->willReturn($dept);
+        $ledger = $this->createMock(DemoSeedLedger::class);
+        $ledger->method('sharedUserRecords')->willReturn([
+            new \App\Entity\DemoSeedRecord(DemoSeedLedger::SHARED_USERS, 'demo-users:user:superadmin', \App\Entity\User::class, 'u1', null),
+        ]);
+
+        return new DemoScenarioRunner($em, $identity, $ledger);
+    }
+
+    public function testResetKeepsSharedDemoUsersOrIsRolledBack(): void
+    {
+        $key = DemoScenarioKey::GROSSANLASS_EVENT;
+        $dept = $this->department('d1', true, true, $key);
+        $scenario = $this->scenario($key, true, true, static fn (): SeedResult => SeedResult::ok('reset'));
+
+        // Benutzer vor und nach dem Reset vorhanden → in Ordnung
+        self::assertSame('reset', $this->runnerWithSharedUser([1, 1], $key, $dept)->reset($scenario)->message);
+
+        // Reset hat einen gemeinsam genutzten Demo-Benutzer entfernt → Rollback
+        $this->expectException(DemoScenarioException::class);
+        $this->expectExceptionMessage('gemeinsam genutzte Demo-Benutzer');
+        $this->runnerWithSharedUser([1, false], $key, $dept)->reset($scenario);
+    }
+
+    public function testSharedUserLedgerScopeIsNotAScenario(): void
+    {
+        self::assertNotContains(DemoSeedLedger::SHARED_USERS, DemoScenarioKey::all());
+        DemoSeedLedger::assertSeedKey(DemoSeedLedger::SHARED_USERS, 'demo-users:user:superadmin');
+        $this->expectException(DemoScenarioException::class);
+        DemoSeedLedger::assertSeedKey(DemoSeedLedger::SHARED_USERS, 'grossanlass-event:user:superadmin');
+    }
+
     public function testResetWithoutDepartmentDoesNothing(): void
     {
         $scenario = $this->scenario(DemoScenarioKey::MATERIALVERWALTUNG, false, true, function (): SeedResult {

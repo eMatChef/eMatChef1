@@ -90,7 +90,11 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
         $conn->executeStatement("INSERT INTO department (id,organisation_id,name,created_at,updated_at,demo_mode,is_grossanlass) VALUES ('realdept0001','realorg00001','Echtes Department',now(),now(),false,false)");
         $conn->executeStatement("INSERT INTO profile (id,email,first_name,last_name,nickname,roles,created_at,updated_at) VALUES ('realprof0001','echt@example.org','Eva','Echt','Eva','[\"ROLE_USER\"]',now(),now())");
 
-        return [$conn->fetchAllAssociative("SELECT * FROM department WHERE id='realdept0001'"), $conn->fetchAllAssociative("SELECT * FROM organisation WHERE id='realorg00001'")];
+        return [
+            $conn->fetchAllAssociative("SELECT * FROM department WHERE id='realdept0001'"),
+            $conn->fetchAllAssociative("SELECT * FROM organisation WHERE id='realorg00001'"),
+            $conn->fetchAllAssociative("SELECT * FROM profile WHERE id='realprof0001'"),
+        ];
     }
 
     public function testFirstInstallationRepeatedSyncAndRealDataIsUntouched(): void
@@ -108,21 +112,34 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
             self::assertSame($before['organisation'] + 3, $after['organisation']);
             self::assertSame($before['department'] + 3, $after['department']);
             self::assertSame(3, (int) $conn->fetchOne('SELECT count(*) FROM department WHERE demo_scenario_key IS NOT NULL AND demo_mode = true'));
-            $expectedUsers = 0;
+            $accounts = [];
+            $memberships = 0;
             $expectedGroups = 0;
             foreach (DemoScenarioKey::all() as $key) {
-                $expectedUsers += \count($catalog->scenario($key)['members']);
+                $members = $catalog->scenario($key)['members'];
+                $memberships += \count($members);
                 $expectedGroups += \count($catalog->scenario($key)['groups']);
+                foreach ($members as $m) {
+                    $accounts[$m['account']] = true;
+                }
             }
+            // Demo-Benutzer: jedes Konto genau einmal (auch wenn in mehreren Departments), plus Lieferant
+            $expectedUsers = \count($accounts) + \count($catalog->sharedAccounts());
             self::assertSame($before['"user"'] + $expectedUsers, $after['"user"']);
             self::assertSame($before['"group"'] + $expectedGroups, $after['"group"']);
-            self::assertSame($expectedUsers, $after['membership']);
+            self::assertSame($memberships, $after['membership']);
+            self::assertSame($expectedUsers, (int) $conn->fetchOne("SELECT count(*) FROM demo_seed_record WHERE scenario_key='demo-users'"));
+            self::assertSame(1, (int) $conn->fetchOne('SELECT count(*) FROM profile WHERE email=?', [DemoAccounts::email('supplier')]));
+            // Globale Admins sind in allen drei Demo-Departments Mitglied, aber nur einmal vorhanden
+            self::assertSame(3, (int) $conn->fetchOne("SELECT count(*) FROM membership m JOIN \"user\" u ON u.id=m.user_id JOIN profile p ON p.id=u.profile_id WHERE p.email=?", [DemoAccounts::email('superadmin')]));
+            self::assertSame(1, (int) $conn->fetchOne("SELECT count(*) FROM membership m JOIN \"user\" u ON u.id=m.user_id JOIN profile p ON p.id=u.profile_id WHERE m.is_primary AND p.email=?", [DemoAccounts::email('superadmin')]));
             // Event/Camp sind Grossanlass-Departments, Materialverwaltung nicht
             self::assertTrue((bool) $conn->fetchOne("SELECT is_grossanlass FROM department WHERE demo_scenario_key='grossanlass-camp'"));
             self::assertFalse((bool) $conn->fetchOne("SELECT is_grossanlass FROM department WHERE demo_scenario_key='materialverwaltung'"));
             // Echte Daten unverändert
             self::assertSame($real[0], $conn->fetchAllAssociative("SELECT * FROM department WHERE id='realdept0001'"));
             self::assertSame($real[1], $conn->fetchAllAssociative("SELECT * FROM organisation WHERE id='realorg00001'"));
+            self::assertSame($real[2], $conn->fetchAllAssociative("SELECT * FROM profile WHERE id='realprof0001'"));
             // verify ist sauber
             foreach (DemoScenarioKey::all() as $key) {
                 $em->clear();
@@ -203,7 +220,7 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
             // neu ergänzt
             self::assertSame($groupsBefore + 1, (int) $conn->fetchOne('SELECT count(*) FROM "group"'));
             // entfernt aus dem Katalog: gemeldet, aber nicht gelöscht
-            self::assertNotEmpty(array_filter($result->notes, static fn (string $n): bool => str_contains($n, 'grossanlass-event:user:ga-spon')));
+            self::assertNotEmpty(array_filter($result->notes, static fn (string $n): bool => str_contains($n, 'grossanlass-event:membership:ga-spon')));
             self::assertSame(1, (int) $conn->fetchOne('SELECT count(*) FROM profile WHERE email=?', [DemoAccounts::email('ga-spon')]));
             self::assertSame(1, (int) $conn->fetchOne("SELECT count(*) FROM membership m JOIN \"user\" u ON u.id=m.user_id JOIN profile p ON p.id=u.profile_id WHERE p.email=?", [DemoAccounts::email('ga-spon')]));
         });
@@ -217,6 +234,10 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
             $conn->executeStatement("INSERT INTO profile (id,email,first_name,last_name,nickname,roles,created_at,updated_at) VALUES ('conflprof001',?,'Echt','Person','E','[\"ROLE_USER\"]',now(),now())", [DemoAccounts::email('matwart')]);
             $conn->executeStatement("INSERT INTO \"user\" (id,profile_id,state,password,email_verified,created_at,updated_at) VALUES ('confluser001','conflprof001','active','echtes-passwort',true,now(),now())");
             $conn->executeStatement("INSERT INTO membership (user_id,department_id,role,is_primary) VALUES ('confluser001','realdept0001','mw',true)");
+            // (c) Demo-Konto, das fälschlich in einem echten Department hängt, aber noch das Demo-Passwort hat → eindeutiger Nachweis
+            $conn->executeStatement("INSERT INTO profile (id,email,first_name,last_name,nickname,roles,created_at,updated_at) VALUES ('proofprof001',?,'Alt','Name','A','[\"ROLE_USER\"]',now(),now())", [DemoAccounts::email('ga-komm')]);
+            $conn->executeStatement("INSERT INTO \"user\" (id,profile_id,state,password,email_verified,created_at,updated_at) VALUES ('proofuser001','proofprof001','active',?,true,now(),now())", [password_hash(DemoAccounts::password(), PASSWORD_BCRYPT, ['cost' => 4])]);
+            $conn->executeStatement("INSERT INTO membership (user_id,department_id,role,is_primary) VALUES ('proofuser001','realdept0001','u',true)");
             // (b) Legacy-Demo-Konto ohne echte Mitgliedschaft → wird übernommen, Passwort bleibt
             $conn->executeStatement("INSERT INTO profile (id,email,first_name,last_name,nickname,roles,created_at,updated_at) VALUES ('adoptprof001',?,'Alt','Name','A','[\"ROLE_USER\"]',now(),now())", [DemoAccounts::email('ga-lw')]);
             $conn->executeStatement("INSERT INTO \"user\" (id,profile_id,state,password,email_verified,created_at,updated_at) VALUES ('adoptuser001','adoptprof001','active','altes-passwort',true,now(),now())");
@@ -228,19 +249,25 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
             self::assertSame('echtes-passwort', $conn->fetchOne("SELECT password FROM \"user\" WHERE id='confluser001'"));
             self::assertSame('Person', $conn->fetchOne("SELECT last_name FROM profile WHERE id='conflprof001'"));
             self::assertSame(1, (int) $conn->fetchOne("SELECT count(*) FROM membership WHERE user_id='confluser001'"));
-            self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM demo_seed_record WHERE seed_key='materialverwaltung:user:matwart'"));
+            self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM demo_seed_record WHERE seed_key='demo-users:user:matwart'"));
             // restliche Mitglieder des Szenarios wurden trotzdem angelegt; matwart hat hier keine Demo-Mitgliedschaft
             self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM membership WHERE user_id='confluser001' AND department_id<>'realdept0001'"));
 
+            // (c) übernommen; Mitgliedschaft im echten Department bleibt unverändert (primär), Hinweis statt Konflikt
+            self::assertSame(1, (int) $conn->fetchOne("SELECT count(*) FROM demo_seed_record WHERE seed_key='demo-users:user:ga-komm' AND entity_id='proofuser001'"));
+            self::assertSame('u', $conn->fetchOne("SELECT role FROM membership WHERE user_id='proofuser001' AND department_id='realdept0001'"));
+            self::assertTrue((bool) $conn->fetchOne("SELECT is_primary FROM membership WHERE user_id='proofuser001' AND department_id='realdept0001'"));
+            self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM membership WHERE user_id='proofuser001' AND is_primary AND department_id<>'realdept0001'"));
+            self::assertNotEmpty(array_filter($results['grossanlass-event']->notes, static fn (string $n): bool => str_contains($n, 'ga-komm') && str_contains($n, 'Hinweis')));
             self::assertSame('altes-passwort', $conn->fetchOne("SELECT password FROM \"user\" WHERE id='adoptuser001'"));
-            self::assertSame(1, (int) $conn->fetchOne("SELECT count(*) FROM demo_seed_record WHERE seed_key='grossanlass-event:user:ga-lw' AND entity_id='adoptuser001'"));
+            self::assertSame(1, (int) $conn->fetchOne("SELECT count(*) FROM demo_seed_record WHERE seed_key='demo-users:user:ga-lw' AND entity_id='adoptuser001'"));
             self::assertSame(1, (int) $conn->fetchOne("SELECT count(*) FROM profile WHERE email=?", [DemoAccounts::email('ga-lw')]));
 
             // Nach dem Beheben des Konflikts (Konto ohne echte Mitgliedschaft) wird es beim nächsten Sync übernommen
             $conn->executeStatement("DELETE FROM membership WHERE user_id='confluser001'");
             $em->clear();
             $runner->sync($registry->get('materialverwaltung'));
-            self::assertSame(1, (int) $conn->fetchOne("SELECT count(*) FROM demo_seed_record WHERE seed_key='materialverwaltung:user:matwart' AND entity_id='confluser001'"));
+            self::assertSame(1, (int) $conn->fetchOne("SELECT count(*) FROM demo_seed_record WHERE seed_key='demo-users:user:matwart' AND entity_id='confluser001'"));
             self::assertSame('echtes-passwort', $conn->fetchOne("SELECT password FROM \"user\" WHERE id='confluser001'"));
         });
     }
@@ -277,8 +304,10 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
             $runner->sync($registry->get('grossanlass-event'));
             $runner->sync($registry->get('materialverwaltung'));
             self::assertSame($campRows, $conn->fetchAllAssociative("SELECT * FROM demo_seed_record WHERE scenario_key='grossanlass-camp' ORDER BY seed_key"));
-            // jedes Department hat nur eigene Gruppen und Mitgliedschaften
-            self::assertSame(0, (int) $conn->fetchOne('SELECT count(*) FROM membership m JOIN department d ON d.id=m.department_id WHERE d.demo_scenario_key IS NOT NULL AND m.user_id IN (SELECT m2.user_id FROM membership m2 WHERE m2.department_id<>m.department_id)'));
+            // Gruppen gehören je einem Department; gemeinsame Demo-Benutzer liegen ausserhalb der Szenario-Ledger
+            self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM demo_seed_record WHERE scenario_key<>'demo-users' AND entity_class LIKE '%\\User'"));
+            self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM demo_seed_record WHERE scenario_key='demo-users' AND department_id IS NOT NULL"));
+            self::assertSame(1, (int) $conn->fetchOne('SELECT count(*) FROM profile WHERE email=?', [DemoAccounts::email('orgchef')]));
         });
     }
 }
