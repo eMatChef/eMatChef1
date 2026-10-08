@@ -179,14 +179,14 @@ Gespeicherte Ist-Daten späterer Phasen existieren schon, wenn die Uhr noch am A
 
 ### 7.0 Phase 1: gebauter Stand (IST)
 
-Code unter `backend/src/Service/Demo/Scenario/`, Commands unter `backend/src/Command/Demo*Command.php`. Ausgeführt wurden nur PHPUnit und PHPStan; die Migration wurde **nicht** gegen eine Datenbank ausgeführt, `doctrine:schema:validate` nicht gelaufen.
+Code unter `backend/src/Service/Demo/Scenario/`, Commands unter `backend/src/Command/Demo*Command.php`. PHPUnit und PHPStan laufen grün. Die Migration wurde zusätzlich gegen eine isolierte Wegwerf-PostgreSQL-16-Instanz validiert (siehe «Validierung» unten); die Entwicklungsdatenbank `mvdb` wurde nicht berührt.
 
 | Baustein | Stand | Marke |
 | --- | --- | --- |
 | `DemoScenarioInterface` (Tag `app.demo_scenario`): `key`, `label`, `expectsGrossanlass`, `supportsReset`, `sync`, `reset`, `verify`, `clockOrigin` | gebaut | **IST** |
 | `DemoScenarioRegistry`: nur die drei Schlüssel `materialverwaltung`, `grossanlass-event`, `grossanlass-camp`, je einmal; unbekannt oder doppelt → Fehler | gebaut | **IST** |
 | Die drei Szenarien als **Platzhalter** (`MaterialverwaltungScenario`, `GrossanlassEventScenario`, `GrossanlassCampScenario`): `sync` meldet «nicht implementiert», `supportsReset() = false`, `verify` prüft nur Identität und Ledger-Zuordnung | gebaut; Inhalt **SOLL** (Phasen 2, 4, 5) | **TEILWEISE** |
-| `department.demo_scenario_key` (VARCHAR 40, NULL, eindeutiger Index `uniq_department_demo_scenario_key`, DB-CHECK «Schlüssel nur mit `demo_mode`»), Migration `Version20261008100000`, rein additiv | gebaut, nicht gegen DB ausgeführt | **IST** |
+| `department.demo_scenario_key` (VARCHAR 40, NULL, eindeutiger Index `uniq_department_demo_scenario_key`, DB-CHECK «Schlüssel nur mit `demo_mode`»), Migration `Version20261008100000`, rein additiv | gebaut, gegen isolierte PG-16 validiert | **IST** |
 | `DemoScenarioIdentity::assign`: Schlüssel nur an Departments mit `demo_mode`, passendem Grossanlass-Typ, ohne anderen Schlüssel und nur, wenn der Schlüssel frei ist. Nie über Namen. Echte Departments werden abgewiesen. | gebaut | **IST** |
 | Ledger `demo_seed_record` (Entity `DemoSeedRecord`, `DemoSeedLedger`): `(scenario_key, seed_key)` eindeutig, Seed-Schlüssel müssen mit `<szenario>:` beginnen, `record()` ist idempotent und überschreibt nie einen fremden Eintrag, FK auf Department (`ON DELETE CASCADE`). Noch **kein** bestehender Seed schreibt hinein. | gebaut | **IST** (Nutzung ab Phase 2: **SOLL**) |
 | `SeedContext`: erzwingt Isolation (Department muss genau den Schlüssel des Szenarios tragen und `demo_mode` haben), Ledger-Zugriff nur für das eigene Szenario, Dry-Run schreibt nichts | gebaut | **IST** |
@@ -197,6 +197,24 @@ Code unter `backend/src/Service/Demo/Scenario/`, Commands unter `backend/src/Com
 | `sync` legt noch nichts an (Platzhalter), die bestehenden Seed-Services (`app:create-role-users`, Event-Jobs, Wipe) laufen unverändert und kennen die Registry nicht | | **IST** |
 | Keine automatische Ausführung: kein Eintrag in `prod-update.sh`, CD oder Entrypoint | | **IST** |
 | Bestehende Departments `Demo Grossanlass` / `Demo-Grossanlass-Event` haben noch keinen Schlüssel; Zuordnung nur ausdrücklich per `app:demo:adopt` | offen (E4) | **OFFEN** |
+
+**Validierung (isolierte Wegwerf-DB, 8. Oktober 2026):**
+
+| Prüfung | Ergebnis |
+| --- | --- |
+| Gesamte Migrationskette (253 Migrationen) auf leerer DB inklusive `Version20261008100000` | läuft durch |
+| Rollback `execute --down`: Spalte, Index, CHECK und Tabelle verschwinden vollständig; danach erneut `migrate` | in Ordnung |
+| Bestehende Departments (echt, Demo-Grossanlass, anderes Demo) vor/nach der Migration: alle bisherigen Spalten byte-identisch, `demo_scenario_key` überall NULL | in Ordnung |
+| Eindeutiger Schlüssel: zweites Department mit gleichem Schlüssel wird abgewiesen; mehrere NULL erlaubt | in Ordnung |
+| CHECK: Schlüssel an Department ohne `demo_mode` wird abgewiesen | in Ordnung |
+| Ledger: doppeltes `(scenario_key, seed_key)` und unbekannte `department_id` werden abgewiesen; `NULL` erlaubt; Department löschen entfernt seine Ledger-Einträge (`CASCADE`), andere Departments bleiben | in Ordnung |
+| Mapping ↔ DB für `Department` und `DemoSeedRecord` (SchemaTool-Diff nur für diese beiden Entities): keine Abweichung bei `demo_scenario_key`, Indizes und FK. Verbleibend nur das bei allen Entities mit `CHARACTER(12)` bekannte Rauschen (`ALTER … TYPE VARCHAR(12)`) | in Ordnung |
+| Echte Services gegen die DB: `assign` weist echtes Department ab, Sync/Verify/Ledger idempotent, Advisory-Lock-SQL (`pg_try_advisory_xact_lock(hashtext(?))`) funktioniert und eine zweite Verbindung wird abgewiesen, Reset ohne Freigabe verweigert, Departments ohne Schlüssel unberührt | in Ordnung |
+| `doctrine:schema:validate` | **bricht ab, unabhängig von Phase 1:** doppelter Indexname `uniq_cf87ef08a6005ca0` an `activity_grossanlass_round_form` (Mapping einer früheren Entity). Ein Voll-Diff ist deshalb nicht möglich; geprüft wurde per Teil-Diff (siehe oben). Offen: separat beheben. |
+
+Die Validierung lief gegen einen kurzlebigen Container mit tmpfs-Daten (eigener Name, nur `127.0.0.1`, danach entfernt); es ist nicht Teil der CI.
+
+**Wiring-Tests:** `tests/Wiring/FreshKernel` bootet den Test-Kernel mit eigenem, temporärem Cache- und Log-Verzeichnis (wird danach gelöscht). Ein veralteter `var/cache/test` kann die Tests nicht mehr verfälschen; die CI braucht keinen manuellen Cache-Eingriff.
 
 **Betrieb:** Nach dem Deployment der Migration (`doctrine:migrations:migrate` im Entrypoint) existieren Spalte und Tabelle; ohne `app:demo:adopt` ändert sich für bestehende Departments nichts.
 
