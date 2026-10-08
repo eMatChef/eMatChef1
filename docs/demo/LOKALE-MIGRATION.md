@@ -1,6 +1,6 @@
 # Lokale Demo-Migration (WSL + Docker, Datenbank `mvdb`)
 
-**Stand:** 8. Oktober 2026. Einmaliger Plan, um die lokale Entwicklungsdatenbank auf die neuen Demo-Seeds umzustellen und die alten Demo-Departments zu entfernen. Marken **IST / SOLL / OFFEN** wie in [README.md](./README.md). Dieses Dokument ist ein **Plan**: Auf `mvdb` wurden bisher **keine** Migrationen, Seeds oder Löschungen ausgeführt; die Inventur war ausschliesslich lesend, alle Proben liefen auf einer Kopie.
+**Stand:** 8. Oktober 2026. Einmaliger Plan, um die lokale Entwicklungsdatenbank auf die neuen Demo-Seeds umzustellen und die alten Demo-Departments zu entfernen. Marken **IST / SOLL / OFFEN** wie in [README.md](./README.md). **Ausgeführt am 8. Oktober 2026 (IST):** Backup, Migrationen, `app:demo:sync --all`, `app:demo:verify --all` und die `old-`-Umbenennung (§8). Gelöscht wurde **nichts**; die Löschung der Legacy-Daten (§5, «Später») ist weiter ein eigener, späterer Schritt. Die Inventur davor war ausschliesslich lesend, die Proben liefen auf Kopien.
 
 **Änderung der Entscheidung (8. Oktober 2026): Nichts wird gelöscht.** Die in diesem Dokument beschriebene Löschung der Legacy-Demo-Departments ist **verschoben**. Die Legacy-Strukturen bleiben unverändert bestehen, bis **alle** neuen Seeds fertig sind; sie werden vorläufig nur durch das Präfix `old-` im Anzeigenamen gekennzeichnet (§5a). Die Löschung (§5, «Später») ist ein eigener, späterer Arbeitsschritt mit eigener Freigabe.
 
@@ -13,7 +13,7 @@ Festgelegte Entscheidungen: WSL + Docker ist die Ausführungsumgebung · `mvdb` 
 | Compose-Projekt | `ematchef`; Container `ematchef-db-1` (postgres:16-alpine, healthy), `-backend-1`, `-frontend-1`, `-nginx-1`, `-adminer-1` |
 | Datenbank | `mvdb`, Benutzer `mvuser`, 22 MB, 34 Benutzer/Profile; Volume `ematchef_postgres_data`; **kein Host-Port** (Zugriff nur im Netz oder per `docker exec`) |
 | Backend | `APP_ENV=dev`, `DATABASE_URL=…@db:5432/mvdb`; Quellcode per Bind-Mount `./backend` (es läuft immer der **ausgecheckte Branch**, derzeit `feat/demo-seed-architecture`); `EMATCHEF_ENV_NAME` ist nicht gesetzt, was auf einem dev-Kernel als `local` gilt: Demo-Befehle und löschende Befehle sind erlaubt |
-| Migrationsstand | 255 Einträge, letzter `Version20261007100000`. **Offen:** `Version20261008100000` (Szenario-Schlüssel, Ledger), `Version20261008110000` (Ledger-Hash). Beide additiv |
+| Migrationsstand | **257** Einträge, letzter `Version20261008110000` (am 8. Oktober 2026 angewendet: `Version20261008100000` Szenario-Schlüssel/Ledger, `Version20261008110000` Ledger-Hash; beide additiv). Vorher 255, letzter `Version20261007100000` |
 | Achtung Entrypoint | `backend/docker-entrypoint.sh` führt bei **jedem Start des Backend-Containers** `doctrine:migrations:migrate` aus. Ein `docker compose up/restart backend` würde die beiden Migrationen also ohne weiteres Zutun auf `mvdb` anwenden. Vorher Backup (§5, Schritt 1) |
 | Abweichung | 3 Migrationen sind in `mvdb` eingetragen, aber in diesem Branch nicht vorhanden (`Version20260805120000`, `Version20260813190000`, `Version20260813210000`, von anderen Branches). Harmlos («Executed Unavailable»), nicht ändern |
 | Sonst | Keine Demo-Seeds laufen automatisch (kein Deployment-Schritt, kein Cron) |
@@ -76,7 +76,7 @@ Alle Befehle im Backend-Container: `docker exec ematchef-backend-1 php bin/conso
 
 **Warum diese Reihenfolge:** Backup vor jeder Änderung; Migration vor dem Sync (Spalten/Tabellen); Sync **vor** der Bereinigung (Vorgabe: erst entfernen, wenn die neuen Seeds erfolgreich sind) und weil die Demo-Konten dadurch bereits neue Mitgliedschaften haben; Bereinigung zuletzt; ein zweiter Sync danach korrigiert Primär-Markierungen.
 
-### 5a. Legacy-Umbenennung `old-` (IST, Command gebaut, auf `mvdb` noch nicht ausgeführt)
+### 5a. Legacy-Umbenennung `old-` (IST, auf `mvdb` ausgeführt am 8. Oktober 2026)
 
 `php bin/console app:demo:legacy-rename [--execute --confirm=<Code>]` · Klassen `LegacyDemoRename`, `DemoLegacyRenameCommand`.
 
@@ -96,6 +96,46 @@ Alle Befehle im Backend-Container: `docker exec ematchef-backend-1 php bin/conso
 
 Die Legacy-Daten bleiben bis zur Fertigstellung **aller** neuen Seeds bestehen. Erst dann folgt, separat und mit eigener Freigabe, die Löschung nach dem Plan unten («Später»).
 
+## 8. Ausführungsprotokoll `mvdb` (8. Oktober 2026, IST)
+
+Ausgeführt im Container `ematchef-backend-1` (`APP_ENV=dev`, `EMATCHEF_ENV_NAME` leer = lokal, `MAILER_DSN=null://null` für die Befehle gesetzt) gegen `ematchef-db-1` / `mvdb`. Reihenfolge wie §5; vor den schreibenden Schritten stimmten Datenbank, Departments (15), Benutzer (34) und Migrationsstand (255) mit der Inventur überein.
+
+| Schritt | Ergebnis |
+| --- | --- |
+| Backup | `~/backups/ematchef/mvdb-20261008-203119-pre-demo-activation.dump` (`pg_dump -Fc`, 596 KB, Rechte 600, SHA-256 `fe1f3162…0043` in `….dump.sha256`). **Restore-Test** in eine isolierte Wegwerf-DB (eigener Container, Port 55434): erfolgreich, Zeilenzahlen aller 130 Tabellen identisch mit `mvdb`, Migrationsstand und 15 Departments stimmen |
+| Migrationen | genau die zwei erwarteten, 9 SQL-Statements, 108 ms; danach 257 Einträge |
+| `app:demo:sync --all` | Camp: 26 neu, 5 übernommen · Event: 24 neu, 10 übernommen, 9 aktualisiert · Materialverwaltung: 22 neu, 7 übernommen · **0 Konflikte, 0 Abweichungen, 0 verwaist**. Hinweise: die neun Rollen-User bleiben Mitglied von `Cevi ZH11` (unverändert) |
+| `app:demo:verify --all` | alle drei ✓ (vor und nach der Umbenennung) |
+| `app:demo:legacy-rename` Dry-Run | exakt die Allowlist: Organisation `5f35b7cde9b5`, Departments `7aa39b221bab`, `3dc94912d836`, `72605b231274`, `638c8d301090`, `7ae5770a1180`, 38 Gruppen; Bestätigungscode `6e6b98e11c` (identisch zum Probelauf auf der Kopie) |
+| Umbenennung | `--execute --confirm=6e6b98e11c`: 44 Namen mit `old-` gekennzeichnet; zweiter Lauf «Nichts zu tun»; kein doppeltes Präfix |
+| Danach | `sync --all`: alles unverändert (0 neu, 0 aktualisiert); `verify --all` ✓ |
+
+**Neue Demo-Departments:**
+
+| Szenario | Department | ID | Organisation | Mitglieder | Uhr (Offset) |
+| --- | --- | --- | --- | --- | --- |
+| `materialverwaltung` | Demo Materialverwaltung | `b57aa6184ef5` | Demo Organisation Materialverwaltung (`0e3b342a2963`) | 9 | reale Zeit |
+| `grossanlass-event` | Demo Grossanlass Event | `2d42e87c5197` | Demo Organisation Grossanlass Event (`9f35acfd679f`) | 12 | 138467 s |
+| `grossanlass-camp` | Demo Grossanlass Camp | `c8f78a2d6766` | Demo Organisation Grossanlass Camp (`c79529db1108`) | 7 | 138467 s |
+
+**Legacy (unverändert ausser Anzeigenamen, `old-`):** `old-Demo Grossanlass` (`7aa39b221bab`, Org Cevi Schweiz, 9 Mitglieder, Offset 101960 s), `old-Demo-Grossanlass-Event`, `old-Demo-Grossanlass-Camp`, `old-Demo-Department`, `old-Demo-Department-Parent` (alle in `old-Demo-Organisation`, 0 Mitglieder); alle 38 Gruppen `old-…`.
+
+**Nachprüfung (Vorher-/Nachher-Snapshots von `mvdb`):**
+
+- Alle 34 bisherigen Benutzer: Passwort-Hash, Zustand und `last_used_department_id` **unverändert**; kein Benutzer entfernt; neu nur `camp-mw`, `camp-lw`, `camp-bereich`, `camp-helfer` (Lieferant war schon vorhanden). 23 Demo-Konten gesamt.
+- Mitgliedschaften: 40 → 68; **keine** entfernt oder verändert (nur 28 neue: 12 Event, 9 Materialverwaltung, 7 Camp). Gruppenmitgliedschaften 13 → 29 (+16 neue; die 4 der Legacy-Gruppen und 9 anderer Departments unverändert).
+- Profile: nur die neun `ga-*` haben die Katalognamen übernommen (vorgesehene Aktualisierung); alle anderen Profile unverändert.
+- Fremde Departments (Cevi ZH11, Corps Musegg, Hardscout, J+S, PFF 2027, Pfadi Effi/Luzern/Zytturm/ZüriOberland/Zürich): Zeilen und Namen unverändert. `Cevi ZH11` hat weiter 9 Mitglieder.
+- Tabellenzahlen: nur die erwarteten Zunahmen (3 Departments/Organisationen, 4 Benutzer/Profile, Gruppen +21, Kostenstellen, Aktivitäten +2 usw.); die Umbenennung selbst änderte keine Zeilenzahl.
+- Ledger: `demo-users` 23, Camp 23, Event 25, Materialverwaltung 23.
+- Es wurden keine Nachrichten versendet (kein Mailer-Aufruf in den Seeds, zusätzlich `MAILER_DSN=null://null`).
+
+**Beobachtungen / Folgen:**
+
+1. **Primär-Mitgliedschaft:** Die `ga-*`-Konten sind weiter **primär in `old-Demo Grossanlass`**, im neuen Event-Department nicht primär (der Sync setzt nie eine zweite Primäre). Ein Login mit `ga-*` landet deshalb zunächst im Legacy-Department. Erst nach der späteren Löschung (oder wenn man dort die Primär-Markierung entfernt, D1/D6) wird das neue Department primär; ein erneuter Sync erledigt das dann automatisch. Gleiches gilt für `superadmin`/`orgchef`/`suborgchef`, die in `Cevi ZH11` primär bleiben.
+2. Die drei Migrationen «Executed Unavailable» (§1) bestehen unverändert.
+3. Keine Fehler, keine Abbrüche; es musste kein Schritt wiederholt werden.
+
 ## 6. Sind die gemeinsamen Demo-Benutzer gefährdet? (geprüft)
 
 **Nein.** Die Umbenennung ändert keine Benutzerdaten. Die spätere Bereinigung löscht nur Zeilen mit `department_id` der Allowlist; `user`, `profile`, `user_totp` und der Ledger-Bereich `demo-users` werden nicht berührt. Im Probelauf blieben alle 23 Demo-Konten (inklusive Passwort-Hashes) und alle 94 Ledger-Einträge identisch. Es verschwinden nur die **alten Mitgliedschaften** in `Demo Grossanlass` (9); die neuen Mitgliedschaften in Event/Camp/Materialverwaltung bleiben. Kein Benutzer hat ausserhalb der Allowlist eine Mitgliedschaft, die gelöscht würde (`Cevi ZH11` wird nicht angefasst). `User.last_used_department_id` zeigt aktuell auf keine Legacy-Department (0 Treffer); der Plan setzt es dennoch auf NULL. Der Runner schützt gemeinsame Benutzer zusätzlich bei jedem künftigen Szenario-Reset ([SEED-KONZEPT.md §7.5, §7.11](./SEED-KONZEPT.md#711-phase-2-demo-organisationen-ist)).
@@ -108,4 +148,5 @@ Die Legacy-Daten bleiben bis zur Fertigstellung **aller** neuen Seeds bestehen. 
 | D2 | (für die spätere Löschung) Bereinigungswerkzeug: eigener Command `app:demo:legacy-cleanup` (Allowlist ID+Name, Dry-Run als Standard, `--execute --confirm`, nur `local`/freigegebenes `develop`) oder einmaliges Skript? | Command mit Dry-Run, damit der Plan reproduzierbar und testbar ist; danach wieder entfernen |
 | D3 | Der von Hand aufgebaute Inhalt von `Demo-Grossanlass-Event` (34 Gruppen, 23 Orte, 15 Kosten …) geht verloren, ausser er steckt im Backup. Soll vorher etwas gesichert oder in den Seed-Katalog übernommen werden? | Backup genügt, wenn der Inhalt nicht gebraucht wird; sonst vorher gezielt exportieren |
 | D4 | Bestehende Waisen (5× `accounting_cost_center_rule`, 2× `audit_event` `GLOBAL000000`) mitbereinigen? | Nein, ausserhalb dieses Auftrags |
+| D6 | Primär-Mitgliedschaft der `ga-*`-Konten (und der Admin-Konten) liegt weiter im Legacy-Department bzw. in `Cevi ZH11`. Bis zur Löschung dort manuell lösen oder so lassen? | So lassen bis zur Löschung (der Sync korrigiert danach automatisch) |
 | D5 | Wipe-Dienst um die drei Tabellen ohne Fremdschlüssel (`public_code`, `accounting_cost_center_rule`, `department_grossanlass_pack(_line)`) erweitern? | Ja, in Phase 3 (Reset); für die einmalige Bereinigung gesondert aufgeführt |

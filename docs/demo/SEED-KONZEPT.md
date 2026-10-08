@@ -196,7 +196,7 @@ Code unter `backend/src/Service/Demo/Scenario/`, Commands unter `backend/src/Com
 | `app:demo:reset` ist für **alle** echten Szenarien gesperrt («noch nicht verfügbar»); der Reset-Pfad ist nur mit Test-Szenarien getestet | gebaut | **IST** |
 | `sync` legt seit Phase 2 die Organisationsstruktur an (§7.11); Prozessdaten legt es noch nicht an. Die bestehenden Seed-Services (`app:create-role-users`, Event-Jobs, Wipe) laufen unverändert und kennen die Registry nicht | | **IST** |
 | Keine automatische Ausführung: kein Eintrag in `prod-update.sh`, CD oder Entrypoint | | **IST** |
-| Legacy-Departments (`Demo Grossanlass`, `Demo-Grossanlass-Event`, …) werden **nicht** übernommen: sie bleiben bis zur späteren Löschung unverändert bestehen und werden lokal mit `app:demo:legacy-rename` durch das Präfix `old-` gekennzeichnet ([LOKALE-MIGRATION.md §5a](./LOKALE-MIGRATION.md#5a-legacy-umbenennung-old-ist-command-gebaut-auf-mvdb-noch-nicht-ausgeführt)); die alten Seed-Dienste legen die alten Namen nicht neu an | gebaut | **IST** (E4 entschieden: nicht übernehmen, später löschen) |
+| Legacy-Departments (`Demo Grossanlass`, `Demo-Grossanlass-Event`, …) werden **nicht** übernommen: sie bleiben bis zur späteren Löschung unverändert bestehen und werden lokal mit `app:demo:legacy-rename` durch das Präfix `old-` gekennzeichnet ([LOKALE-MIGRATION.md §5a](./LOKALE-MIGRATION.md#5a-legacy-umbenennung-old-ist-auf-mvdb-ausgeführt-am-8-oktober-2026), Ausführung auf `mvdb` am 8. Oktober 2026 in [§8](./LOKALE-MIGRATION.md#8-ausführungsprotokoll-mvdb-8-oktober-2026-ist)); die alten Seed-Dienste legen die alten Namen nicht neu an | gebaut | **IST** (E4 entschieden: nicht übernehmen, später löschen) |
 
 **Validierung (isolierte Wegwerf-DB, 8. Oktober 2026):**
 
