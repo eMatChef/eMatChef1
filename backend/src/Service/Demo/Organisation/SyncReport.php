@@ -11,6 +11,7 @@ final class SyncReport
     public int $unchanged = 0;
     public int $adopted = 0;
     public int $recreated = 0;
+    public int $retired = 0;
 
     /** @var list<string> */
     public array $divergences = [];
@@ -44,8 +45,8 @@ final class SyncReport
     public function summary(): string
     {
         return sprintf(
-            'neu %d, aktualisiert %d, übernommen %d, neu angelegt %d, unverändert %d, Abweichungen %d, Konflikte %d, verwaist %d',
-            $this->created, $this->updated, $this->adopted, $this->recreated, $this->unchanged,
+            'neu %d, aktualisiert %d, übernommen %d, neu angelegt %d, unverändert %d, entfernt %d, Abweichungen %d, Konflikte %d, verwaist %d',
+            $this->created, $this->updated, $this->adopted, $this->recreated, $this->unchanged, $this->retired,
             \count($this->divergences), \count($this->conflicts), \count($this->orphans),
         );
     }

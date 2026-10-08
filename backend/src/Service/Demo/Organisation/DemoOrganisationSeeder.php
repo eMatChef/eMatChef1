@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service\Demo\Organisation;
 
 use App\Entity\DemoSeedRecord;
+use App\Entity\DepartmentGrossanlassParticipant;
 use App\Entity\Department;
 use App\Entity\Group;
 use App\Entity\GroupMembership;
@@ -78,6 +79,10 @@ class DemoOrganisationSeeder
         foreach ($cat['members'] as $member) {
             $users[$member['account']] = $this->ensureUser($shared, $report, $member['account'], $version);
         }
+        // Orgchef/Suborgchef brauchen keine Mitgliedschaft im Szenario, aber das Konto für den Verwaltungsbereich.
+        foreach ($cat['adminScopes'] ?? [] as $scope) {
+            $users[$scope['account']] ??= $this->ensureUser($shared, $report, $scope['account'], $version);
+        }
 
         $department = $context->department();
         if ($department === null) {
@@ -106,25 +111,70 @@ class DemoOrganisationSeeder
         $this->ensureDepartmentRecord($context, $report, $key, $department, $cat['department']['name'], $version);
         $expected[] = $key . ':department';
 
+        $departments = [DemoOrganisationCatalog::MAIN => $department];
+        foreach ($cat['departments'] ?? [] as $def) {
+            $expected[] = $key . ':department:' . $def['key'];
+            $extra = $this->ensureExtraDepartment($context, $report, $key, $department, $def, $departments, $version);
+            if ($extra instanceof Department) {
+                $departments[$def['key']] = $extra;
+            }
+        }
+        if (isset($cat['department']['parent'])) {
+            $expected[] = $key . ':department-parent';
+            $this->ensureMainParent($context, $report, $key, $department, $departments[$cat['department']['parent']] ?? null, $version);
+        }
+
         $groups = [];
         foreach ($cat['groups'] as $def) {
             $expected[] = $key . ':group:' . $def['key'];
             $groups[$def['key']] = $this->ensureGroup($context, $report, $key, $department, $def, $groups, $version);
         }
 
+        // Früher fälschlich gesäte Mitgliedschaften zuerst entfernen (nur unverändert vom Seed), damit die
+        // Primär-Prüfung der folgenden Mitgliedschaften den bereinigten Stand sieht.
+        foreach ($cat['retiredMembers'] ?? [] as $retired) {
+            $this->retireMembership($context, $report, $key, $departments, $retired);
+            // Bewusst im Katalog behandelt: bleibt sie bestehen (manuell geändert), genügt der Hinweis, keine «Verwaist»-Meldung.
+            $expected[] = self::membershipKey($key, $retired['department'] ?? null, (string) $retired['account']);
+        }
+
         foreach ($cat['members'] as $member) {
             $user = $users[$member['account']] ?? null;
-            if (!$user instanceof User) {
+            $target = $departments[$member['department'] ?? DemoOrganisationCatalog::MAIN] ?? null;
+            if (!$user instanceof User || !$target instanceof Department) {
                 continue;
             }
-            $expected[] = $key . ':membership:' . $member['account'];
-            $this->ensureMembership($context, $report, $key, $department, $user, $member, $version);
+            $membershipKey = self::membershipKey($key, $member['department'] ?? null, $member['account']);
+            $expected[] = $membershipKey;
+            $this->ensureMembership($context, $report, $membershipKey, $target, $user, $member, $version);
             foreach ($member['groups'] ?? [] as $gm) {
                 $group = $groups[$gm['group']] ?? null;
                 $expected[] = $key . ':groupmember:' . $member['account'] . ':' . $gm['group'];
                 if ($group instanceof Group) {
                     $this->ensureGroupMembership($context, $report, $key, $user, $group, $member['account'], $gm, $version);
                 }
+            }
+        }
+
+        foreach ($cat['participants'] ?? [] as $participantKey) {
+            $guest = $departments[$participantKey] ?? null;
+            $expected[] = $key . ':participant:' . $participantKey;
+            if ($guest instanceof Department) {
+                $this->ensureParticipant($context, $report, $key, $participantKey, $department, $guest, $version);
+            }
+        }
+
+        foreach ($cat['adminScopes'] ?? [] as $scope) {
+            $user = $users[$scope['account']] ?? null;
+            $rootIds = [];
+            foreach ($scope['roots'] as $rootKey) {
+                if (($departments[$rootKey] ?? null) instanceof Department) {
+                    $rootIds[] = $departments[$rootKey]->getId();
+                }
+            }
+            $expected[] = $key . ':adminscope:' . $scope['account'];
+            if ($user instanceof User && \count($rootIds) === \count($scope['roots'])) {
+                $this->ensureAdminScope($context, $report, $key, $scope['account'], $user, $rootIds, $version);
             }
         }
 
@@ -159,12 +209,28 @@ class DemoOrganisationSeeder
             }
         }
 
+        foreach ($cat['adminScopes'] ?? [] as $scope) {
+            $userRecord = $shared->findRecord(DemoSeedLedger::SHARED_USERS . ':user:' . $scope['account']);
+            if ($userRecord === null || !$this->entityExists($userRecord)) {
+                $violations[] = sprintf('Demo-Benutzer «%s» fehlt (Sync legt ihn an).', $scope['account']);
+            }
+        }
+
         $required = [$key . ':department'];
+        foreach ($cat['departments'] ?? [] as $d) {
+            $required[] = $key . ':department:' . $d['key'];
+        }
+        foreach ($cat['participants'] ?? [] as $participantKey) {
+            $required[] = $key . ':participant:' . $participantKey;
+        }
+        foreach ($cat['adminScopes'] ?? [] as $scope) {
+            $required[] = $key . ':adminscope:' . $scope['account'];
+        }
         foreach ($cat['groups'] as $g) {
             $required[] = $key . ':group:' . $g['key'];
         }
         foreach ($cat['members'] as $m) {
-            $required[] = $key . ':membership:' . $m['account'];
+            $required[] = self::membershipKey($key, $m['department'] ?? null, $m['account']);
             foreach ($m['groups'] ?? [] as $gm) {
                 $required[] = $key . ':groupmember:' . $m['account'] . ':' . $gm['group'];
             }
@@ -191,9 +257,16 @@ class DemoOrganisationSeeder
             }
         }
         foreach ($cat['members'] as $m) {
-            $record = $records[$key . ':membership:' . $m['account']] ?? null;
-            if ($record !== null && !str_ends_with($record->getEntityId(), ':' . $department->getId())) {
-                $violations[] = sprintf('Mitgliedschaft von «%s» liegt nicht im Szenario-Department.', $m['account']);
+            $record = $records[self::membershipKey($key, $m['department'] ?? null, $m['account'])] ?? null;
+            $expectedDepartmentId = $department->getId();
+            if (isset($m['department'])) {
+                $expectedDepartmentId = ($records[$key . ':department:' . $m['department']] ?? null)?->getEntityId();
+            }
+            if ($record !== null && ($expectedDepartmentId === null || !str_ends_with($record->getEntityId(), ':' . $expectedDepartmentId))) {
+                $violations[] = sprintf('Mitgliedschaft von «%s» liegt nicht im vorgesehenen Department.', $m['account']);
+            }
+            if (($m['role'] ?? '') === 'mw' && \in_array(DemoAccounts::accountByKey($m['account'])['role'] ?? '', ['sa', 'org', 'sub'], true)) {
+                $violations[] = sprintf('«%s» hat eine globale Rolle und darf keine automatische MW-Mitgliedschaft haben.', $m['account']);
             }
         }
 
@@ -205,12 +278,22 @@ class DemoOrganisationSeeder
     {
         $seedKeys = [$key . ':organisation', $key . ':department'];
         $sharedKeys = [];
+        foreach ($cat['departments'] ?? [] as $d) {
+            $seedKeys[] = $key . ':department:' . $d['key'];
+        }
+        foreach ($cat['participants'] ?? [] as $participantKey) {
+            $seedKeys[] = $key . ':participant:' . $participantKey;
+        }
+        foreach ($cat['adminScopes'] ?? [] as $scope) {
+            $seedKeys[] = $key . ':adminscope:' . $scope['account'];
+            $sharedKeys[] = DemoSeedLedger::SHARED_USERS . ':user:' . $scope['account'];
+        }
         foreach ($cat['groups'] as $g) {
             $seedKeys[] = $key . ':group:' . $g['key'];
         }
         foreach ($cat['members'] as $m) {
             $sharedKeys[] = DemoSeedLedger::SHARED_USERS . ':user:' . $m['account'];
-            $seedKeys[] = $key . ':membership:' . $m['account'];
+            $seedKeys[] = self::membershipKey($key, $m['department'] ?? null, $m['account']);
             foreach ($m['groups'] ?? [] as $gm) {
                 $seedKeys[] = $key . ':groupmember:' . $m['account'] . ':' . $gm['group'];
             }
@@ -262,6 +345,12 @@ class DemoOrganisationSeeder
             return $this->grossanlassSeed->ensureDepartment($organisation, $owner, $name);
         }
 
+        return $this->createPlainDepartment($organisation, $name);
+    }
+
+    /** Normales Demo-Department (kein Grossanlass-Rahmen, kein Szenario-Schlüssel). */
+    private function createPlainDepartment(Organisation $organisation, string $name): Department
+    {
         $department = new Department();
         $department->setId(IdGenerator::generateUnique($this->entityManager, Department::class));
         $department->setName($name);
@@ -273,6 +362,84 @@ class DemoOrganisationSeeder
         $this->workshopSparePartsCategoryBootstrap->ensure($department);
 
         return $department;
+    }
+
+    /**
+     * Zusätzliches Demo-Department der Hierarchie (z. B. Kantonalverband, Gast-Abteilung): gleiche Organisation wie das
+     * Szenario-Department, demo_mode, aber ohne Szenario-Schlüssel (der gehört genau einem Department je Szenario).
+     * Eigentum ausschliesslich über den Ledger-Eintrag; vorhandene gleichnamige Demo-Departments werden nur übernommen,
+     * wenn sie in derselben Organisation liegen, demo_mode haben und noch keinem Eintrag gehören.
+     *
+     * @param array<string, mixed>       $def
+     * @param array<string, Department>  $departments
+     */
+    private function ensureExtraDepartment(SeedContext $context, SyncReport $report, string $key, Department $main, array $def, array $departments, string $version): ?Department
+    {
+        $parent = isset($def['parent']) ? ($departments[$def['parent']] ?? null) : null;
+        if (isset($def['parent']) && !$parent instanceof Department) {
+            $report->warnings[] = sprintf('Department «%s» übersprungen: Eltern-Department fehlt.', $def['key']);
+
+            return null;
+        }
+        $organisation = $main->getOrganisation();
+
+        $entity = $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $key . ':department:' . $def['key'],
+            create: fn (): Department => $this->createPlainDepartment($organisation, (string) $def['name']),
+            find: fn (string $id): ?object => $this->entityManager->find(Department::class, $id),
+            idOf: static fn (object $d): string => (string) $d->getId(),
+            read: static fn (object $d): array => ['name' => $d->getName(), 'parent_id' => $d->getParentId()],
+            write: function (object $d, array $v): void {
+                $d->setName((string) $v['name']);
+                $d->setParent($v['parent_id'] !== null ? $this->entityManager->find(Department::class, $v['parent_id']) : null);
+            },
+            desired: ['name' => (string) $def['name'], 'parent_id' => $parent?->getId()],
+            adopt: fn (): ?object => $this->adoptExtraDepartment($organisation, (string) $def['name']),
+        ), $version);
+
+        return $entity instanceof Department ? $entity : null;
+    }
+
+    private function adoptExtraDepartment(Organisation $organisation, string $name): ?Department
+    {
+        $department = $this->entityManager->getRepository(Department::class)->findOneBy(['organisationId' => $organisation->getId(), 'name' => $name]);
+        if (!$department instanceof Department || !$department->isDemoMode() || $department->getDemoScenarioKey() !== null) {
+            return null;
+        }
+        $taken = $this->entityManager->getRepository(DemoSeedRecord::class)->findOneBy(['entityClass' => Department::class, 'entityId' => $department->getId()]);
+
+        return $taken === null ? $department : null;
+    }
+
+    /**
+     * Parent des Szenario-Departments (Hierarchie). Ein bereits anders gesetzter Parent wird nie überschrieben,
+     * sondern als Konflikt gemeldet.
+     */
+    private function ensureMainParent(SeedContext $context, SyncReport $report, string $key, Department $main, ?Department $parent, string $version): void
+    {
+        if (!$parent instanceof Department) {
+            $report->warnings[] = 'Parent des Szenario-Departments nicht gesetzt: Eltern-Department fehlt.';
+
+            return;
+        }
+        $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $key . ':department-parent',
+            create: static fn (): object => throw new \LogicException('Das Szenario-Department wird nie neu angelegt'),
+            find: fn (string $id): ?object => $this->entityManager->find(Department::class, $id),
+            idOf: static fn (object $d): string => (string) $d->getId(),
+            read: static fn (object $d): array => ['parent_id' => $d->getParentId()],
+            write: function (object $d, array $v): void {
+                $d->setParent($v['parent_id'] !== null ? $this->entityManager->find(Department::class, $v['parent_id']) : null);
+            },
+            desired: ['parent_id' => $parent->getId()],
+            adopt: static function () use ($main, $parent): object {
+                if ($main->getParentId() !== null && $main->getParentId() !== $parent->getId()) {
+                    throw new OwnershipConflictException(sprintf('«%s» hat bereits einen anderen Parent; er wird nicht verändert.', $main->getName()));
+                }
+
+                return $main;
+            },
+        ), $version);
     }
 
     private function ensureDepartmentRecord(SeedContext $context, SyncReport $report, string $key, Department $department, string $name, string $version): void
@@ -465,7 +632,7 @@ class DemoOrganisationSeeder
     }
 
     /** @param array<string, mixed> $member */
-    private function ensureMembership(SeedContext $context, SyncReport $report, string $key, Department $department, User $user, array $member, string $version): void
+    private function ensureMembership(SeedContext $context, SyncReport $report, string $seedKey, Department $department, User $user, array $member, string $version): void
     {
         $primary = (bool) ($member['primary'] ?? false) && !$this->hasOtherPrimary($user, $department);
         $find = function (string $id) use ($department): ?object {
@@ -475,7 +642,7 @@ class DemoOrganisationSeeder
         };
 
         $this->applier->ensure($context, $report, new ManagedSpec(
-            seedKey: $key . ':membership:' . $member['account'],
+            seedKey: $seedKey,
             create: static function () use ($user, $department): Membership {
                 $m = new Membership();
                 $m->setUser($user);
@@ -540,6 +707,137 @@ class DemoOrganisationSeeder
                 return;
             }
         }
+    }
+
+    /** Seed-Schlüssel einer Mitgliedschaft; im Szenario-Department unverändert (bestehende Ledger-Einträge bleiben gültig). */
+    public static function membershipKey(string $scenarioKey, ?string $departmentKey, string $account): string
+    {
+        return $departmentKey === null || $departmentKey === DemoOrganisationCatalog::MAIN
+            ? $scenarioKey . ':membership:' . $account
+            : $scenarioKey . ':membership:' . $departmentKey . ':' . $account;
+    }
+
+    /**
+     * Entfernt eine früher fälschlich gesäte Mitgliedschaft (z. B. automatische MW-Rolle eines Superadmins), aber nur,
+     * wenn der Ledger-Eintrag sie als vom Seed geschrieben ausweist und sie seither unverändert ist und keine
+     * Gruppenmitgliedschaften im Department hat. Alles andere bleibt unangetastet und wird gemeldet.
+     *
+     * @param array<string, Department> $departments
+     * @param array<string, mixed>      $retired
+     */
+    private function retireMembership(SeedContext $context, SyncReport $report, string $key, array $departments, array $retired): void
+    {
+        $departmentKey = $retired['department'] ?? DemoOrganisationCatalog::MAIN;
+        $seedKey = self::membershipKey($key, $departmentKey, (string) $retired['account']);
+        $record = $context->findRecord($seedKey);
+        if ($record === null) {
+            return; // nie vom Seed angelegt: nichts zu bereinigen
+        }
+        [$userId, $departmentId] = array_pad(explode(':', $record->getEntityId(), 2), 2, '');
+        $membership = $this->entityManager->getRepository(Membership::class)->findOneBy(['userId' => $userId, 'departmentId' => $departmentId]);
+        if ($membership instanceof Membership) {
+            $current = ManagedSeedApplier::hash(['role' => $membership->getRole(), 'is_primary' => $membership->getIsPrimary()]);
+            if ($record->getManagedHash() !== $current) {
+                $report->warnings[] = sprintf('Mitgliedschaft «%s» ist nicht mehr im Katalog, wurde aber manuell geändert und bleibt bestehen.', $seedKey);
+
+                return;
+            }
+            $department = $departments[$departmentKey] ?? null;
+            $hasGroups = $department instanceof Department && $this->entityManager->getRepository(GroupMembership::class)->createQueryBuilder('gm')
+                ->innerJoin('gm.group', 'g')
+                ->where('gm.userId = :user')->andWhere('g.departmentId = :department')
+                ->setParameter('user', $userId)->setParameter('department', $department->getId())
+                ->select('count(gm.userId)')->getQuery()->getSingleScalarResult() > 0;
+            if ($hasGroups) {
+                $report->warnings[] = sprintf('Mitgliedschaft «%s» ist nicht mehr im Katalog, hat aber Gruppenmitgliedschaften und bleibt bestehen.', $seedKey);
+
+                return;
+            }
+            $this->entityManager->remove($membership);
+        }
+        $this->entityManager->remove($record);
+        $this->entityManager->flush();
+        ++$report->retired;
+    }
+
+    /** Gast-Department eines Grossanlasses: angenommene Teilnahme (Planungsdaten, kein Prozessablauf). */
+    private function ensureParticipant(SeedContext $context, SyncReport $report, string $key, string $participantKey, Department $host, Department $guest, string $version): void
+    {
+        if (!$host->isGrossanlass()) {
+            $report->warnings[] = sprintf('Teilnehmer «%s» übersprungen: «%s» ist kein Grossanlass.', $guest->getName(), $host->getName());
+
+            return;
+        }
+        $find = fn (string $id): ?object => $this->entityManager->find(DepartmentGrossanlassParticipant::class, $id);
+
+        $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $key . ':participant:' . $participantKey,
+            create: function () use ($host, $guest): DepartmentGrossanlassParticipant {
+                $row = new DepartmentGrossanlassParticipant();
+                $row->setId(IdGenerator::generateUnique($this->entityManager, DepartmentGrossanlassParticipant::class));
+                $row->setHostDepartment($host);
+                $row->setGuestDepartment($guest);
+                $row->setInvitedAt(new \DateTime());
+                $row->setDecidedAt(new \DateTime());
+
+                return $row;
+            },
+            find: $find,
+            idOf: static fn (object $r): string => (string) $r->getId(),
+            read: static fn (object $r): array => ['status' => $r->getStatus()],
+            write: static function (object $r, array $v): void {
+                $r->setStatus((string) $v['status']);
+            },
+            desired: ['status' => DepartmentGrossanlassParticipant::STATUS_ACCEPTED],
+            adopt: fn (): ?object => $this->entityManager->getRepository(DepartmentGrossanlassParticipant::class)->findOneBy(['hostDepartmentId' => $host->getId(), 'guestDepartmentId' => $guest->getId()]),
+        ), $version);
+    }
+
+    /**
+     * Verwaltungszuständigkeit von Orgchef/Suborgchef: Department-Wurzeln im Admin-Scope des Profils (der Unterbaum
+     * gehört dazu). Eine vorhandene, abweichende Einstellung wird nie überschrieben.
+     *
+     * @param list<string> $rootIds
+     */
+    private function ensureAdminScope(SeedContext $context, SyncReport $report, string $key, string $account, User $user, array $rootIds, string $version): void
+    {
+        $profile = $user->getProfile();
+        if (!$profile instanceof Profile) {
+            return;
+        }
+        sort($rootIds);
+        $read = static function (object $p): array {
+            $ids = array_values(array_map('strval', (array) ($p->getAdminCapabilities()['scope']['department_root_ids'] ?? [])));
+            sort($ids);
+
+            return ['department_root_ids' => $ids];
+        };
+
+        $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $key . ':adminscope:' . $account,
+            create: static fn (): object => throw new \LogicException('Das Profil wird nie über den Admin-Scope angelegt'),
+            find: fn (string $id): ?object => $this->entityManager->find(Profile::class, $id),
+            idOf: static fn (object $p): string => (string) $p->getId(),
+            read: $read,
+            write: static function (object $p, array $v): void {
+                $caps = $p->getAdminCapabilities() ?? [];
+                $scope = \is_array($caps['scope'] ?? null) ? $caps['scope'] : [];
+                $scope['organisation_ids'] = array_values((array) ($scope['organisation_ids'] ?? []));
+                $scope['department_root_ids'] = array_values($v['department_root_ids']);
+                $caps['scope'] = $scope;
+                $p->setAdminCapabilities($caps);
+            },
+            desired: ['department_root_ids' => $rootIds],
+            global: true,
+            adopt: static function () use ($profile, $read, $rootIds): object {
+                $current = $read($profile)['department_root_ids'];
+                if ($current !== [] && $current !== $rootIds) {
+                    throw new OwnershipConflictException(sprintf('«%s» hat bereits einen anderen Verwaltungsbereich; er wird nicht verändert.', $profile->getEmail()));
+                }
+
+                return $profile;
+            },
+        ), $version);
     }
 
     private function hasOtherPrimary(User $user, Department $department): bool

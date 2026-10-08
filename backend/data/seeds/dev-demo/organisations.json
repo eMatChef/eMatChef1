@@ -1,6 +1,6 @@
 {
-  "_comment": "Versionierter Seed-Katalog der Demo-Organisationen. Schlüssel (key) sind stabile Seed-Identitäten und werden nie umbenannt; Anzeigenamen dürfen sich ändern. Konten stammen aus demo-accounts.json. Demo-Benutzer sind reine Testdaten, gehören keinem Szenario und dürfen in mehreren Demo-Departments Mitglied sein. Doku: docs/demo/SEED-KONZEPT.md §7.11.",
-  "catalogVersion": "2026.10.2",
+  "_comment": "Versionierter Seed-Katalog der Demo-Organisationen. Schlüssel (key) sind stabile Seed-Identitäten und werden nie umbenannt; Anzeigenamen dürfen sich ändern. Konten stammen aus demo-accounts.json. Demo-Benutzer sind reine Testdaten, gehören keinem Szenario und dürfen in mehreren Demo-Departments Mitglied sein. Globale Rollen (sa/org/sub) stehen in profile.roles und sind keine Mitgliedschaftsrolle: Superadmin, Orgchef und Suborgchef erhalten nie automatisch eine MW-Rolle; ihre Verwaltungszuständigkeit steht in adminScopes (Department-Wurzeln, Unterbaum inklusive), operative Rollen nur ausdrücklich unter members. Zusätzliche Departments (departments) bilden nur die Hierarchie ab, ohne Prozessdaten. members[].department verweist auf einen Schlüssel aus departments (ohne Angabe: das Szenario-Department). retiredMembers nennt früher fälschlich gesäte Mitgliedschaften, die nur entfernt werden, wenn sie unverändert vom Seed stammen. Doku: docs/demo/SEED-KONZEPT.md §7.11.",
+  "catalogVersion": "2026.10.3",
   "sharedAccounts": [
     "supplier"
   ],
@@ -10,8 +10,25 @@
         "name": "Demo Organisation Materialverwaltung"
       },
       "department": {
-        "name": "Demo Materialverwaltung"
+        "name": "Demo Materialverwaltung",
+        "parent": "kantonalverband"
       },
+      "departments": [
+        {
+          "key": "kantonalverband",
+          "name": "Demo Kantonalverband"
+        },
+        {
+          "key": "abteilung-sued",
+          "name": "Demo Abteilung Süd",
+          "parent": "kantonalverband"
+        },
+        {
+          "key": "abteilung-sued-aussenstelle",
+          "name": "Demo Abteilung Süd Aussenstelle",
+          "parent": "abteilung-sued"
+        }
+      ],
       "groups": [
         {
           "key": "stufen",
@@ -57,20 +74,8 @@
       "members": [
         {
           "account": "superadmin",
-          "role": "mw",
+          "role": "u",
           "primary": true,
-          "groups": []
-        },
-        {
-          "account": "orgchef",
-          "role": "mw",
-          "primary": false,
-          "groups": []
-        },
-        {
-          "account": "suborgchef",
-          "role": "mw",
-          "primary": false,
           "groups": []
         },
         {
@@ -138,6 +143,31 @@
               "primary": true
             }
           ]
+        },
+        {
+          "account": "suborgchef",
+          "role": "u",
+          "primary": true,
+          "groups": []
+        }
+      ],
+      "retiredMembers": [
+        {
+          "account": "orgchef"
+        }
+      ],
+      "adminScopes": [
+        {
+          "account": "orgchef",
+          "roots": [
+            "kantonalverband"
+          ]
+        },
+        {
+          "account": "suborgchef",
+          "roots": [
+            "abteilung-sued"
+          ]
         }
       ]
     },
@@ -148,6 +178,12 @@
       "department": {
         "name": "Demo Grossanlass Event"
       },
+      "departments": [
+        {
+          "key": "gast-abteilung",
+          "name": "Demo Gast-Abteilung"
+        }
+      ],
       "groups": [
         {
           "key": "infrastruktur",
@@ -277,21 +313,27 @@
         },
         {
           "account": "superadmin",
-          "role": "mw",
+          "role": "lw",
           "primary": false,
           "groups": []
         },
         {
-          "account": "orgchef",
+          "account": "matwart",
+          "department": "gast-abteilung",
           "role": "mw",
           "primary": false,
           "groups": []
+        }
+      ],
+      "participants": [
+        "gast-abteilung"
+      ],
+      "retiredMembers": [
+        {
+          "account": "orgchef"
         },
         {
-          "account": "suborgchef",
-          "role": "mw",
-          "primary": false,
-          "groups": []
+          "account": "suborgchef"
         }
       ]
     },
@@ -422,22 +464,21 @@
           ]
         },
         {
-          "account": "superadmin",
-          "role": "mw",
-          "primary": false,
-          "groups": []
-        },
-        {
           "account": "orgchef",
-          "role": "mw",
+          "role": "u",
           "primary": false,
           "groups": []
         },
         {
           "account": "suborgchef",
-          "role": "mw",
+          "role": "l2",
           "primary": false,
           "groups": []
+        }
+      ],
+      "retiredMembers": [
+        {
+          "account": "superadmin"
         }
       ]
     }

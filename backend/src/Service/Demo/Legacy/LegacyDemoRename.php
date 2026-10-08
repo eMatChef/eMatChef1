@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace App\Service\Demo\Legacy;
 
+use App\Entity\Activity;
 use App\Entity\Department;
+use App\Entity\DepartmentCalendarPeriod;
 use App\Entity\Group;
 use App\Entity\Organisation;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
  * Kennzeichnet die Legacy-Demo-Strukturen der lokalen Entwicklungsdatenbank mit dem Präfix «old-» im Anzeigenamen.
- * Identifikation ausschliesslich über feste IDs (plus Namensprobe als Sicherung). Es werden nur Namen geändert:
+ * Identifikation ausschliesslich über feste IDs (plus Namensprobe als Sicherung). Neben Organisation, Departments und
+ * Gruppen betrifft das die sichtbaren Titel darin: Aktivitäten (auch die Grossanlass-Hauptaktivität) und Kalenderperioden
+ * der allowlisteten Legacy-Departments. Es werden nur Namen geändert:
  * keine IDs, Codes, Benutzer, Mitgliedschaften, Prozessdaten; nichts wird gelöscht. Idempotent, kein doppeltes Präfix.
  * Neue Szenario-Departments (mit demo_scenario_key) werden nie angefasst.
  */
@@ -19,6 +23,7 @@ class LegacyDemoRename
 {
     public const PREFIX = 'old-';
     private const MAX_LENGTH = 255;
+    private const MAX_CALENDAR_LENGTH = 120;
 
     /** @var array<string, string> Department-ID => ursprünglicher Name (Inventur vom 8. Oktober 2026) */
     public const DEPARTMENTS = [
@@ -100,7 +105,46 @@ class LegacyDemoRename
             }
         }
 
+        foreach (array_keys(self::DEPARTMENTS) as $deptId) {
+            $dept = $this->entityManager->find(Department::class, $deptId);
+            if (!$dept instanceof Department || $dept->getDemoScenarioKey() !== null) {
+                continue; // nicht vorhanden oder neues Szenario: nie anfassen
+            }
+            /** @var list<Activity> $activities */
+            $activities = $this->entityManager->getRepository(Activity::class)->findBy(['departmentId' => $deptId], ['name' => 'ASC']);
+            foreach ($activities as $activity) {
+                $items[] = $this->titleItem('activity', (string) $activity->getId(), $activity->getName(), $deptId, self::MAX_LENGTH, fn (string $target): bool => $this->entityManager->getRepository(Activity::class)->count(['departmentId' => $deptId, 'name' => $target]) > 0);
+            }
+            /** @var list<DepartmentCalendarPeriod> $periods */
+            $periods = $this->entityManager->getRepository(DepartmentCalendarPeriod::class)->findBy(['departmentId' => $deptId], ['startDate' => 'ASC']);
+            foreach ($periods as $period) {
+                $items[] = $this->titleItem('calendar', (string) $period->getId(), $period->getName(), $deptId, self::MAX_CALENDAR_LENGTH, fn (string $target): bool => $this->entityManager->getRepository(DepartmentCalendarPeriod::class)->count(['departmentId' => $deptId, 'name' => $target]) > 0);
+            }
+        }
+
         return $items;
+    }
+
+    /**
+     * @param callable(string): bool $targetTaken
+     *
+     * @return array{type: string, id: string, current: string, target: string, status: string, reason: string, parent: string}
+     */
+    private function titleItem(string $type, string $id, string $current, string $deptId, int $maxLength, callable $targetTaken): array
+    {
+        $base = ['type' => $type, 'id' => $id, 'parent' => $deptId, 'reason' => ''];
+        $target = self::target($current);
+        if ($target === null) {
+            return $base + ['current' => $current, 'target' => $current, 'status' => 'done'];
+        }
+        if (\strlen($target) > $maxLength) {
+            return ['reason' => 'Name wäre zu lang'] + $base + ['current' => $current, 'target' => $current, 'status' => 'skip'];
+        }
+        if ($targetTaken($target)) {
+            return ['reason' => 'Zielname existiert bereits'] + $base + ['current' => $current, 'target' => $current, 'status' => 'skip'];
+        }
+
+        return $base + ['current' => $current, 'target' => $target, 'status' => 'rename'];
     }
 
     /** Bestätigungscode: ändert sich, sobald sich der Plan ändert. */
@@ -131,6 +175,8 @@ class LegacyDemoRename
                     'organisation' => $this->entityManager->find(Organisation::class, $item['id']),
                     'department' => $this->entityManager->find(Department::class, $item['id']),
                     'group' => $this->entityManager->find(Group::class, $item['id']),
+                    'activity' => $this->entityManager->find(Activity::class, $item['id']),
+                    'calendar' => $this->entityManager->find(DepartmentCalendarPeriod::class, $item['id']),
                     default => null,
                 };
                 // Erneute Sicherung: nur umbenennen, wenn sich der Name seit der Planung nicht geändert hat.

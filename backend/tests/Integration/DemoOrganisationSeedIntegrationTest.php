@@ -10,6 +10,7 @@ use App\Entity\Membership;
 use App\Entity\Profile;
 use App\Entity\User;
 use App\Service\Demo\Organisation\DemoOrganisationCatalog;
+use App\Service\Demo\Organisation\ManagedSeedApplier;
 use App\Service\Demo\Scenario\DemoScenarioKey;
 use App\Service\Demo\Scenario\DemoScenarioRegistry;
 use App\Service\Demo\Scenario\DemoScenarioRunner;
@@ -110,7 +111,11 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
                 self::assertSame([], $result->notes, $key);
             }
             self::assertSame($before['organisation'] + 3, $after['organisation']);
-            self::assertSame($before['department'] + 3, $after['department']);
+            $extraDepartments = 0;
+            foreach (DemoScenarioKey::all() as $key) {
+                $extraDepartments += \count($catalog->scenario($key)['departments'] ?? []);
+            }
+            self::assertSame($before['department'] + 3 + $extraDepartments, $after['department']);
             self::assertSame(3, (int) $conn->fetchOne('SELECT count(*) FROM department WHERE demo_scenario_key IS NOT NULL AND demo_mode = true'));
             $accounts = [];
             $memberships = 0;
@@ -130,8 +135,8 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
             self::assertSame($memberships, $after['membership']);
             self::assertSame($expectedUsers, (int) $conn->fetchOne("SELECT count(*) FROM demo_seed_record WHERE scenario_key='demo-users'"));
             self::assertSame(1, (int) $conn->fetchOne('SELECT count(*) FROM profile WHERE email=?', [DemoAccounts::email('supplier')]));
-            // Globale Admins sind in allen drei Demo-Departments Mitglied, aber nur einmal vorhanden
-            self::assertSame(3, (int) $conn->fetchOne("SELECT count(*) FROM membership m JOIN \"user\" u ON u.id=m.user_id JOIN profile p ON p.id=u.profile_id WHERE p.email=?", [DemoAccounts::email('superadmin')]));
+            // Globale Admins sind nur dort Mitglied, wo der Katalog es ausdrücklich vorsieht, und nur einmal vorhanden
+            self::assertSame(2, (int) $conn->fetchOne("SELECT count(*) FROM membership m JOIN \"user\" u ON u.id=m.user_id JOIN profile p ON p.id=u.profile_id WHERE p.email=?", [DemoAccounts::email('superadmin')]));
             self::assertSame(1, (int) $conn->fetchOne("SELECT count(*) FROM membership m JOIN \"user\" u ON u.id=m.user_id JOIN profile p ON p.id=u.profile_id WHERE m.is_primary AND p.email=?", [DemoAccounts::email('superadmin')]));
             // Event/Camp sind Grossanlass-Departments, Materialverwaltung nicht
             self::assertTrue((bool) $conn->fetchOne("SELECT is_grossanlass FROM department WHERE demo_scenario_key='grossanlass-camp'"));
@@ -155,6 +160,182 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
                 self::assertSame([], $result->notes, $key);
                 self::assertSame(0, $result->created, $key);
             }
+        });
+    }
+
+    /** @return array<string, list<string>> Konto => ["<Department-Name>=<Rolle>", …] */
+    private function rolesByAccount(Connection $conn, array $accounts): array
+    {
+        $out = [];
+        foreach ($accounts as $account) {
+            $out[$account] = $conn->fetchFirstColumn(
+                'SELECT d.name || \'=\' || m.role FROM membership m JOIN "user" u ON u.id=m.user_id JOIN profile p ON p.id=u.profile_id JOIN department d ON d.id=m.department_id WHERE p.email=? ORDER BY 1',
+                [DemoAccounts::email($account)],
+            );
+        }
+
+        return $out;
+    }
+
+    public function testRolesPerDepartmentHierarchyScopesAndGuestDepartment(): void
+    {
+        $this->withDb(function (DemoScenarioRunner $runner, DemoScenarioRegistry $registry, EntityManagerInterface $em, Connection $conn): void {
+            $this->syncAll($runner, $registry, $em);
+
+            // Globale Rollen stehen im Profil, nie als MW-Mitgliedschaft; normale Rollen je Department ausdrücklich
+            self::assertSame(
+                [
+                    'superadmin' => ['Demo Grossanlass Event=lw', 'Demo Materialverwaltung=u'],
+                    'orgchef' => ['Demo Grossanlass Camp=u'],
+                    'suborgchef' => ['Demo Grossanlass Camp=l2', 'Demo Materialverwaltung=u'],
+                ],
+                $this->rolesByAccount($conn, ['superadmin', 'orgchef', 'suborgchef']),
+            );
+            self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM membership m JOIN \"user\" u ON u.id=m.user_id JOIN profile p ON p.id=u.profile_id WHERE m.role IN ('mw','cmw') AND p.roles::text ~ 'SUPERADMIN|ORGANISATIONSCHEF|SUBORGCHEF'"));
+            self::assertSame(['["ROLE_USER", "ROLE_SUPERADMIN", "ROLE_WEBADMIN"]', '["ROLE_USER", "ROLE_ORGANISATIONSCHEF"]', '["ROLE_USER", "ROLE_SUBORGCHEF"]'], array_map(
+                static fn (string $a): string => (string) $conn->fetchOne('SELECT roles::jsonb::text FROM profile WHERE email=?', [DemoAccounts::email($a)]),
+                ['superadmin', 'orgchef', 'suborgchef'],
+            ));
+            // dieselbe Person: andere Rolle im Gast-Department als im eigenen Department
+            self::assertSame(['Demo Gast-Abteilung=mw', 'Demo Materialverwaltung=mw'], $this->rolesByAccount($conn, ['matwart'])['matwart']);
+
+            // Mehrstufige Hierarchie: Kantonalverband (selbst Department) → Materialverwaltung | Abteilung Süd → Aussenstelle
+            $id = static fn (string $name): string => (string) $conn->fetchOne('SELECT id FROM department WHERE name=?', [$name]);
+            $parent = static fn (string $name): ?string => ($v = $conn->fetchOne('SELECT parent_id FROM department WHERE name=?', [$name])) === false ? null : ($v === null ? null : (string) $v);
+            self::assertNull($parent('Demo Kantonalverband'));
+            self::assertSame($id('Demo Kantonalverband'), $parent('Demo Materialverwaltung'));
+            self::assertSame($id('Demo Kantonalverband'), $parent('Demo Abteilung Süd'));
+            self::assertSame($id('Demo Abteilung Süd'), $parent('Demo Abteilung Süd Aussenstelle'));
+            self::assertSame(
+                (string) $conn->fetchOne("SELECT organisation_id FROM department WHERE demo_scenario_key='materialverwaltung'"),
+                (string) $conn->fetchOne("SELECT organisation_id FROM department WHERE name='Demo Abteilung Süd Aussenstelle'"),
+            );
+            // Zusätzliche Departments sind Demo-Departments ohne Szenario-Schlüssel
+            self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM department WHERE name IN ('Demo Kantonalverband','Demo Abteilung Süd','Demo Abteilung Süd Aussenstelle','Demo Gast-Abteilung') AND (demo_mode = false OR demo_scenario_key IS NOT NULL)"));
+
+            // Verwaltungsbereich: Orgchef = Kantonalverband (Unterbaum inklusive), Suborgchef = Abteilung Süd
+            $scope = static fn (string $account): array => json_decode((string) $conn->fetchOne('SELECT admin_capabilities::text FROM profile WHERE email=?', [DemoAccounts::email($account)]), true)['scope']['department_root_ids'] ?? [];
+            self::assertSame([$id('Demo Kantonalverband')], $scope('orgchef'));
+            self::assertSame([$id('Demo Abteilung Süd')], $scope('suborgchef'));
+            self::assertNull($conn->fetchOne('SELECT admin_capabilities FROM profile WHERE email=?', [DemoAccounts::email('superadmin')]) ?: null);
+
+            // Gast-Department im Grossanlass: angenommene Teilnahme
+            self::assertSame('accepted', $conn->fetchOne("SELECT status FROM department_grossanlass_participant WHERE host_department_id=(SELECT id FROM department WHERE demo_scenario_key='grossanlass-event') AND guest_department_id=?", [$id('Demo Gast-Abteilung')]));
+
+            // verify sauber, wiederholter Sync ohne Änderungen
+            foreach (DemoScenarioKey::all() as $key) {
+                $em->clear();
+                self::assertSame([], $runner->verify($registry->get($key)), $key);
+            }
+            $snapshot = [
+                $conn->fetchAllAssociative('SELECT * FROM membership ORDER BY user_id, department_id'),
+                $conn->fetchAllAssociative('SELECT id, admin_capabilities FROM profile ORDER BY id'),
+                $conn->fetchAllAssociative('SELECT id, name, parent_id FROM department ORDER BY id'),
+                $conn->fetchAllAssociative('SELECT * FROM department_grossanlass_participant'),
+                $conn->fetchAllAssociative('SELECT seed_key, managed_hash FROM demo_seed_record ORDER BY scenario_key, seed_key'),
+            ];
+            $counts = $this->counts($conn);
+            foreach ($this->syncAll($runner, $registry, $em) as $key => $result) {
+                self::assertSame([], $result->notes, $key);
+                self::assertSame(0, $result->created, $key);
+            }
+            self::assertSame($counts, $this->counts($conn));
+            self::assertSame($snapshot, [
+                $conn->fetchAllAssociative('SELECT * FROM membership ORDER BY user_id, department_id'),
+                $conn->fetchAllAssociative('SELECT id, admin_capabilities FROM profile ORDER BY id'),
+                $conn->fetchAllAssociative('SELECT id, name, parent_id FROM department ORDER BY id'),
+                $conn->fetchAllAssociative('SELECT * FROM department_grossanlass_participant'),
+                $conn->fetchAllAssociative('SELECT seed_key, managed_hash FROM demo_seed_record ORDER BY scenario_key, seed_key'),
+            ]);
+        });
+    }
+
+    /**
+     * Stand der früheren Seeds nachstellen: Superadmin/Orgchef/Suborgchef mit automatischer MW-Rolle in allen drei
+     * Demo-Departments, im Ledger als unverändert vom Seed geschrieben verbucht.
+     */
+    private function plantLegacyMwMemberships(Connection $conn): void
+    {
+        $hash = ManagedSeedApplier::hash(['role' => 'mw', 'is_primary' => false]);
+        foreach (['superadmin', 'orgchef', 'suborgchef'] as $account) {
+            $user = (string) $conn->fetchOne('SELECT u.id FROM "user" u JOIN profile p ON p.id=u.profile_id WHERE p.email=?', [DemoAccounts::email($account)]);
+            foreach (DemoScenarioKey::all() as $key) {
+                $dept = (string) $conn->fetchOne('SELECT id FROM department WHERE demo_scenario_key=?', [$key]);
+                $conn->executeStatement('DELETE FROM membership WHERE user_id=? AND department_id=?', [$user, $dept]);
+                $conn->executeStatement("INSERT INTO membership (user_id,department_id,role,is_primary) VALUES (?,?,'mw',false)", [$user, $dept]);
+                $conn->executeStatement('DELETE FROM demo_seed_record WHERE scenario_key=? AND seed_key=?', [$key, $key . ':membership:' . $account]);
+                $conn->executeStatement(
+                    "INSERT INTO demo_seed_record (id,scenario_key,seed_key,entity_class,entity_id,department_id,managed_hash,catalog_version,created_at) VALUES (?,?,?,?,?,?,?,'2026.10.2',now())",
+                    [substr(md5($user . $dept), 0, 12), $key, $key . ':membership:' . $account, Membership::class, $user . ':' . $dept, $dept, $hash],
+                );
+            }
+        }
+    }
+
+    public function testLegacyAutomaticMwMembershipsAreCorrectedOnlyWhenUntouched(): void
+    {
+        $this->withDb(function (DemoScenarioRunner $runner, DemoScenarioRegistry $registry, EntityManagerInterface $em, Connection $conn): void {
+            $real = $this->realWorld($em);
+            $this->syncAll($runner, $registry, $em);
+            $this->plantLegacyMwMemberships($conn);
+            $userId = static fn (string $account): string => (string) $conn->fetchOne('SELECT u.id FROM "user" u JOIN profile p ON p.id=u.profile_id WHERE p.email=?', [DemoAccounts::email($account)]);
+            // Mitgliedschaft in einem echten Department (wie Cevi ZH11 lokal): bleibt in jedem Fall unberührt
+            $conn->executeStatement("INSERT INTO membership (user_id,department_id,role,is_primary) VALUES (?,'realdept0001','mw',true)", [$userId('superadmin')]);
+            // Von Hand geändert (Orgchef als Leader im Materialverwaltungs-Department): bleibt bestehen, wird gemeldet
+            $conn->executeStatement("UPDATE membership SET role='l1' WHERE user_id=? AND department_id=(SELECT id FROM department WHERE demo_scenario_key='materialverwaltung')", [$userId('orgchef')]);
+
+            $em->clear();
+            $results = $this->syncAll($runner, $registry, $em);
+
+            self::assertSame(
+                [
+                    'superadmin' => ['Demo Grossanlass Event=lw', 'Demo Materialverwaltung=u', 'Echtes Department=mw'],
+                    'orgchef' => ['Demo Grossanlass Camp=u', 'Demo Materialverwaltung=l1'],
+                    'suborgchef' => ['Demo Grossanlass Camp=l2', 'Demo Materialverwaltung=u'],
+                ],
+                $this->rolesByAccount($conn, ['superadmin', 'orgchef', 'suborgchef']),
+            );
+            // Hinweis auf die von Hand geänderte Zuordnung, nichts anderes
+            $notes = array_merge(...array_values(array_map(static fn ($r): array => $r->notes, $results)));
+            self::assertCount(1, $notes, implode("\n", $notes));
+            self::assertStringContainsString('materialverwaltung:membership:orgchef', $notes[0]);
+            // Die echte Mitgliedschaft samt Primär-Flag ist unverändert; echte Daten ebenfalls
+            self::assertTrue((bool) $conn->fetchOne("SELECT is_primary FROM membership WHERE user_id=? AND department_id='realdept0001'", [$userId('superadmin')]));
+            self::assertSame($real[0], $conn->fetchAllAssociative("SELECT * FROM department WHERE id='realdept0001'"));
+
+            // Entfernte Zuordnungen sind auch aus dem Ledger verschwunden; zweiter Lauf ändert nichts mehr
+            self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM demo_seed_record WHERE seed_key IN ('grossanlass-camp:membership:superadmin','grossanlass-event:membership:orgchef','grossanlass-event:membership:suborgchef')"));
+            $snapshot = $conn->fetchAllAssociative('SELECT * FROM membership ORDER BY user_id, department_id');
+            $again = $this->syncAll($runner, $registry, $em);
+            self::assertSame($snapshot, $conn->fetchAllAssociative('SELECT * FROM membership ORDER BY user_id, department_id'));
+            $notesAgain = array_merge(...array_values(array_map(static fn ($r): array => $r->notes, $again)));
+            self::assertCount(1, $notesAgain, implode("\n", $notesAgain));
+        });
+    }
+
+    public function testExistingAdminScopeAndParentSetByHandAreNeverOverwritten(): void
+    {
+        $this->withDb(function (DemoScenarioRunner $runner, DemoScenarioRegistry $registry, EntityManagerInterface $em, Connection $conn): void {
+            // Vorab: Orgchef-Profil mit eigenem Scope (z. B. von Hand eingerichtet), Materialverwaltungs-Department mit eigenem Parent
+            $conn->executeStatement("INSERT INTO organisation (id,name,created_at,updated_at) VALUES ('handorg00001','Meine Org',now(),now())");
+            $conn->executeStatement("INSERT INTO department (id,organisation_id,name,created_at,updated_at,demo_mode,is_grossanlass) VALUES ('handroot0001','handorg00001','Mein Verband',now(),now(),false,false)");
+            $this->syncAll($runner, $registry, $em);
+            $profile = DemoAccounts::email('orgchef');
+            $conn->executeStatement("UPDATE profile SET admin_capabilities=? WHERE email=?", [json_encode(['scope' => ['organisation_ids' => [], 'department_root_ids' => ['handroot0001']]]), $profile]);
+            $conn->executeStatement("UPDATE demo_seed_record SET managed_hash='manuell-geaendert' WHERE seed_key='materialverwaltung:adminscope:orgchef'");
+
+            $em->clear();
+            $result = $runner->sync($registry->get('materialverwaltung'));
+
+            self::assertSame(['handroot0001'], json_decode((string) $conn->fetchOne('SELECT admin_capabilities::text FROM profile WHERE email=?', [$profile]), true)['scope']['department_root_ids']);
+            self::assertNotEmpty(array_filter($result->notes, static fn (string $n): bool => str_contains($n, 'materialverwaltung:adminscope:orgchef')));
+
+            // Parent des Szenario-Departments von Hand umgehängt → bleibt, Abweichung gemeldet
+            $conn->executeStatement("UPDATE department SET parent_id='handroot0001' WHERE demo_scenario_key='materialverwaltung'");
+            $em->clear();
+            $result = $runner->sync($registry->get('materialverwaltung'));
+            self::assertSame('handroot0001', $conn->fetchOne("SELECT parent_id FROM department WHERE demo_scenario_key='materialverwaltung'"));
+            self::assertNotEmpty(array_filter($result->notes, static fn (string $n): bool => str_contains($n, 'materialverwaltung:department-parent')));
         });
     }
 
@@ -322,6 +503,17 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
         return $out;
     }
 
+    /** Wie fingerprint(), zusätzlich Aktivitäten und Kalenderperioden (ohne ihre Titel). */
+    private function fingerprintWithTitles(Connection $conn): array
+    {
+        $out = $this->fingerprint($conn);
+        foreach (['activity', 'department_calendar_period'] as $t) {
+            $out[$t] = $conn->fetchFirstColumn("SELECT md5((to_jsonb(t) - 'name' - 'updated_at')::text) FROM $t t ORDER BY 1");
+        }
+
+        return $out;
+    }
+
     public function testLegacyRenameOnlyChangesNamesIsIdempotentAndKeepsNewSeedsSeparate(): void
     {
         $this->withDb(function (DemoScenarioRunner $runner, DemoScenarioRegistry $registry, EntityManagerInterface $em, Connection $conn, DemoOrganisationCatalog $catalog, $container): void {
@@ -350,13 +542,28 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
             $conn->executeStatement("INSERT INTO \"user\" (id,profile_id,state,password,email_verified,created_at,updated_at) VALUES ('leguser00001','legprof00001','active','pw',true,now(),now())");
             $conn->executeStatement("INSERT INTO membership (user_id,department_id,role,is_primary) VALUES ('leguser00001','3dc94912d836','lw',true)");
             $conn->executeStatement("INSERT INTO group_membership (user_id,group_id,role,is_primary,can_procure,created_at) VALUES ('leguser00001','grp000000001','member',true,false,now())");
-            $before = $this->fingerprint($conn);
+            $activity = static fn (string $id, string $d, string $name) => $conn->executeStatement(
+                'INSERT INTO activity (id,department_id,name,created_at,updated_at) VALUES (?,?,?,now(),now())',
+                [$id, $d, $name],
+            );
+            $period = static fn (string $id, string $d, string $name) => $conn->executeStatement(
+                "INSERT INTO department_calendar_period (id,department_id,label,name,start_date,end_date,created_at,updated_at) VALUES (?,?,'grossanlass',?,'2026-11-13','2026-11-15',now(),now())",
+                [$id, $d, $name],
+            );
+            $activity('act000000001', '3dc94912d836', 'Demo-Grossanlass-Event');
+            $activity('act000000002', '7aa39b221bab', 'old-Demo Grossanlass'); // schon gekennzeichnet
+            $activity('act000000003', 'decoydept001', 'Demo-Department'); // fremdes Department → nie anfassen
+            $activity('act000000004', '3dc94912d836', 'Mein eigener Anlass'); // gehört zum Legacy-Department → wird gekennzeichnet
+            $period('per000000001', '3dc94912d836', 'Aufbau');
+            $period('per000000002', '3dc94912d836', 'Demo-Grossanlass-Event');
+            $period('per000000003', 'decoydept001', 'Aufbau');
+            $before = $this->fingerprintWithTitles($conn);
             $deptCount = (int) $conn->fetchOne('SELECT count(*) FROM department');
 
             // Dry-Run (plan) schreibt nichts
             $em->clear();
             $plan = $rename->plan();
-            self::assertSame($before, $this->fingerprint($conn));
+            self::assertSame($before, $this->fingerprintWithTitles($conn));
             self::assertSame('Demo-Organisation', $conn->fetchOne("SELECT name FROM organisation WHERE id='5f35b7cde9b5'"));
             $status = array_column(array_filter($plan, static fn (array $i): bool => $i['type'] === 'department'), 'status', 'id');
             self::assertSame('done', $status['7aa39b221bab']);
@@ -364,7 +571,7 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
             self::assertSame('rename', $status['3dc94912d836']);
 
             $em->clear();
-            self::assertSame(1 + 3 + 3, $rename->apply($plan)); // Organisation + 3 Departments + 3 Gruppen (Bauten, Holzbau, Infrastruktur)
+            self::assertSame(1 + 3 + 3 + 2 + 2, $rename->apply($plan)); // Organisation + 3 Departments + 3 Gruppen + 2 Aktivitäten + 2 Kalenderperioden
             $em->clear();
 
             // Nur diese Namen haben sich geändert
@@ -378,15 +585,22 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
             self::assertSame(['old-Bauten', 'old-Holzbau', 'old-Schon markiert'], $conn->fetchFirstColumn("SELECT name FROM \"group\" WHERE department_id='3dc94912d836' ORDER BY name"));
             self::assertSame('old-Infrastruktur', $conn->fetchOne("SELECT name FROM \"group\" WHERE id='grp000000004'"));
             self::assertSame('Bauten', $conn->fetchOne("SELECT name FROM \"group\" WHERE id='grp000000005'"));
-            // IDs, Benutzer, Mitgliedschaften und alle übrigen Spalten unverändert, nichts gelöscht
-            self::assertSame($before, $this->fingerprint($conn));
+            // Sichtbare Aktivitäts- und Kalendertitel der Legacy-Departments; Fremdes und Gekennzeichnetes bleibt
+            self::assertSame(['old-Demo-Grossanlass-Event', 'old-Mein eigener Anlass'], $conn->fetchFirstColumn("SELECT name FROM activity WHERE department_id='3dc94912d836' ORDER BY name"));
+            self::assertSame('old-Demo Grossanlass', $conn->fetchOne("SELECT name FROM activity WHERE id='act000000002'"));
+            self::assertSame('Demo-Department', $conn->fetchOne("SELECT name FROM activity WHERE id='act000000003'"));
+            self::assertSame(['old-Aufbau', 'old-Demo-Grossanlass-Event'], $conn->fetchFirstColumn("SELECT name FROM department_calendar_period WHERE department_id='3dc94912d836' ORDER BY name"));
+            self::assertSame('Aufbau', $conn->fetchOne("SELECT name FROM department_calendar_period WHERE id='per000000003'"));
+            // Technische Schlüssel (Kalender-Label), IDs, Benutzer, Mitgliedschaften und alle übrigen Spalten unverändert, nichts gelöscht
+            self::assertSame(['grossanlass'], array_values(array_unique($conn->fetchFirstColumn("SELECT label FROM department_calendar_period WHERE department_id='3dc94912d836'"))));
+            self::assertSame($before, $this->fingerprintWithTitles($conn));
             self::assertSame($deptCount, (int) $conn->fetchOne('SELECT count(*) FROM department'));
 
             // Idempotent: zweiter Lauf ändert nichts, kein doppeltes Präfix
             $again = $rename->plan();
             self::assertSame([], array_filter($again, static fn (array $i): bool => $i['status'] === 'rename'));
             self::assertSame(0, $rename->apply($again));
-            self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM department WHERE name ILIKE 'old-old-%'") + (int) $conn->fetchOne("SELECT count(*) FROM \"group\" WHERE name ILIKE 'old-old-%'"));
+            self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM department WHERE name ILIKE 'old-old-%'") + (int) $conn->fetchOne("SELECT count(*) FROM \"group\" WHERE name ILIKE 'old-old-%'") + (int) $conn->fetchOne("SELECT count(*) FROM activity WHERE name ILIKE 'old-old-%'") + (int) $conn->fetchOne("SELECT count(*) FROM department_calendar_period WHERE name ILIKE 'old-old-%'"));
 
             // Neue Seeds legen eigene Departments an, fassen die umbenannten nicht an und legen die alten Namen nicht neu an
             $legacyFingerprint = $this->fingerprint($conn);

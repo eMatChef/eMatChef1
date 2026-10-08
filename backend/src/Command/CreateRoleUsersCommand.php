@@ -388,7 +388,7 @@ class CreateRoleUsersCommand extends Command
         
         $this->em->persist($user);
 
-        // Membership-Zuordnung erstellen (sa/org/sub werden als mw gespeichert)
+        // Membership-Zuordnung erstellen (sa/org/sub erhalten keine Mitgliedschaft)
         $this->createMembership($user, $department, $role, $isPrimary);
 
         return $user;
@@ -477,14 +477,17 @@ class CreateRoleUsersCommand extends Command
     }
 
     /**
-     * Membership-Rolle: nur mw, dc, l1, l2, l3, u. sa/org/sub werden als mw gespeichert.
+     * Globale Rollen (sa/org/sub) stehen in profile.roles und sind keine operative Rolle: sie erhalten nie
+     * automatisch eine Mitgliedschaft (insbesondere keine MW-Rolle). Operative Rollen: nur ausdrücklich zugewiesen.
      */
+    private function isGlobalOnlyRole(DepartmentRole $role): bool
+    {
+        return \in_array($role, [DepartmentRole::SUPERADMIN, DepartmentRole::ORGANISATIONSCHEF, DepartmentRole::SUBORGCHEF], true);
+    }
+
     private function getMembershipRole(DepartmentRole $role): string
     {
-        return match ($role) {
-            DepartmentRole::SUPERADMIN, DepartmentRole::ORGANISATIONSCHEF, DepartmentRole::SUBORGCHEF => 'mw',
-            default => $role->value,
-        };
+        return $role->value;
     }
 
     private function createMembership(
@@ -493,6 +496,9 @@ class CreateRoleUsersCommand extends Command
         DepartmentRole $role,
         bool $isPrimary
     ): void {
+        if ($this->isGlobalOnlyRole($role)) {
+            return; // bestehende Mitgliedschaften bleiben unangetastet, neue gibt es nicht
+        }
         // Prüfe ob bereits zugeordnet
         $existing = $this->em->getRepository(Membership::class)->findOneBy([
             'userId' => $user->getId(),
@@ -536,6 +542,9 @@ class CreateRoleUsersCommand extends Command
         DepartmentRole $role,
         bool $isPrimary
     ): void {
+        if ($this->isGlobalOnlyRole($role)) {
+            return;
+        }
         $existing = $this->em->getRepository(Membership::class)->findOneBy([
             'userId' => $user->getId(),
             'departmentId' => $department->getId()
