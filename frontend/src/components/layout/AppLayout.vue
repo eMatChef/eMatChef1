@@ -29,7 +29,7 @@
       />
       <router-view v-slot="{ Component }">
         <keep-alive :include="['MaterialsView', 'ActivitiesView']" :max="8">
-          <component :is="Component" :key="route.path" />
+          <component :is="Component" :key="`${route.path}:${clockStore.revision}`" />
         </keep-alive>
       </router-view>
     </div>
@@ -55,6 +55,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useBusinessClockStore } from '@/stores/businessClock'
 import { useUnsavedChangesReminder } from '@/composables/useUnsavedChangesReminder'
 import { useDepartmentOnboardingAccess } from '@/composables/useDepartmentOnboardingAccess'
 import { useHelpShortcut } from '@/composables/useHelpShortcut'
@@ -66,6 +67,7 @@ import TopHeader from './TopHeader.vue'
 import PendingDepartmentInvitesPanel from '@/components/dashboard/PendingDepartmentInvitesPanel.vue'
 
 const route = useRoute()
+const clockStore = useBusinessClockStore()
 const { t } = useI18n()
 const authStore = useAuthStore()
 

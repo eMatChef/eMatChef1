@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Service\Grossanlass;
 
+use App\Service\Clock\BusinessClock;
 use App\Entity\ActivityGrossanlassWishLine;
 use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassCommitment;
@@ -22,6 +23,7 @@ final class GrossanlassPackService
         private EntityManagerInterface $entityManager,
         private GrossanlassAccessService $access,
         private GrossanlassUserCardService $cards,
+        private BusinessClock $clock,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $appFrontendUrl,
         #[Autowire('%env(APP_PUBLIC_QR_URL)%')] private string $appPublicQrUrl,
     ) {}
@@ -119,7 +121,7 @@ final class GrossanlassPackService
         if (!$this->hasAnyPacked($pack)) {
             throw new \InvalidArgumentException('Fahrt-Frei erst nach Pack (Teilpack reicht)');
         }
-        $pack->setTripReleasedAt($pack->getTripReleasedAt() ?? new \DateTime());
+        $pack->setTripReleasedAt($pack->getTripReleasedAt() ?? $this->clock->now($department));
         $pack->setStatus(DepartmentGrossanlassPack::STATUS_TRIP_RELEASED);
         if (!$einsatz->isTripReleased()) {
             $einsatz->setTripReleasedAt($pack->getTripReleasedAt());

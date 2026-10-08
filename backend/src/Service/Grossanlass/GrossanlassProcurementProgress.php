@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Service\Grossanlass;
 
+use App\Service\Clock\BusinessClock;
 use App\Entity\ActivityGrossanlassProcurementLine;
 use App\Entity\ActivityGrossanlassProcurementOrder;
 use App\Entity\ActivityGrossanlassProcurementQuote;
@@ -19,6 +20,7 @@ final class GrossanlassProcurementProgress
 {
     public function __construct(
         private EntityManagerInterface $entityManager,
+        private BusinessClock $clock,
     ) {}
 
     /**
@@ -26,7 +28,7 @@ final class GrossanlassProcurementProgress
      */
     public function buildProgressByGroup(string $departmentId): array
     {
-        $now = new \DateTime();
+        $now = $this->clock->now($departmentId);
         $progress = [];
 
         $packs = $this->entityManager->createQueryBuilder()

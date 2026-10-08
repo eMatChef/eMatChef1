@@ -18,6 +18,7 @@ use App\Entity\GroupMembership;
 use App\Entity\Organisation;
 use App\Entity\User;
 use App\Service\Accounting\AccountingCostCenterBootstrapService;
+use App\Service\Clock\BusinessClock;
 use App\Service\Grossanlass\GrossanlassDriveCategories;
 use App\Service\Grossanlass\GrossanlassPackService;
 use App\Service\Workshop\WorkshopSparePartsCategoryBootstrapService;
@@ -55,12 +56,24 @@ final class DemoGrossanlassSeedService
     private const SEED_TAG_TRIP = '[demo:v1:babp-trip]';
     private const SEED_TAG_PENDING = '[demo:v1:babp-pending]';
     private const SEED_TAG_SANITAER = '[demo:v1:sanitaer]';
+    private const SEED_TAG_PAST = '[demo:v1:timeline-past]';
+    private const SEED_TAG_RUNNING = '[demo:v1:timeline-running]';
+    private const SEED_TAG_SOON = '[demo:v1:timeline-soon]';
+    private const SEED_TAG_TEARDOWN = '[demo:v1:timeline-teardown]';
+
+    /**
+     * Zentraler Seed-Anker: Anlassbeginn (E) liegt so viele Tage nach dem Seed-Tag.
+     * Alle Demo-Termine werden relativ zu E erzeugt; der Demo-Ausgangspunkt der BusinessClock
+     * ist E - {@see \App\Service\Grossanlass\GrossanlassClockOriginResolver::DAYS_BEFORE_EVENT} Tage 09:00 (Aufbauphase).
+     */
+    private const EVENT_START_DAYS_AFTER_SEED = 7;
 
     public function __construct(
         private EntityManagerInterface $entityManager,
         private AccountingCostCenterBootstrapService $accountingCostCenterBootstrap,
         private WorkshopSparePartsCategoryBootstrapService $workshopSparePartsCategoryBootstrap,
         private GrossanlassPackService $packs,
+        private BusinessClock $clock,
     ) {
     }
 
@@ -71,10 +84,13 @@ final class DemoGrossanlassSeedService
             'name' => self::DEPARTMENT_NAME,
         ]);
         if ($existing instanceof Department && $existing->isGrossanlass()) {
+            $this->ensureDemoClock($existing);
+
             return $existing;
         }
 
-        $start = new \DateTime('today');
+        // Seed-Anker = echter Seed-Tag; die Fachzeit der Demo startet danach in der Aufbauphase.
+        $start = (new \DateTime('today'))->modify('+' . self::EVENT_START_DAYS_AFTER_SEED . ' days');
         $end = (clone $start)->modify('+14 days')->setTime(23, 59, 59);
 
         $department = new Department();
@@ -82,6 +98,7 @@ final class DemoGrossanlassSeedService
         $department->setName(self::DEPARTMENT_NAME);
         $department->setOrganisation($organisation);
         $department->setIsGrossanlass(true);
+        $department->setDemoMode(true);
         $this->entityManager->persist($department);
 
         $config = new DepartmentGrossanlassConfig();
@@ -122,6 +139,8 @@ final class DemoGrossanlassSeedService
         $this->entityManager->persist($activityConfig);
         $config->setMainActivity($activity);
 
+        $this->entityManager->flush();
+        $this->ensureDemoClock($department);
         $this->entityManager->flush();
 
         $this->accountingCostCenterBootstrap->ensureDefaultCostCenters($this->entityManager, $department);
@@ -184,6 +203,7 @@ final class DemoGrossanlassSeedService
         if ($config instanceof DepartmentGrossanlassConfig) {
             $config->setLogisticsGroup($logistik);
         }
+        $this->ensureDemoClock($department);
 
         $this->ensureGroupMembership($logistik, $mw, 'leader', true);
         $this->ensureGroupMembership($bauten, $bereich, 'leader', true);
@@ -261,7 +281,82 @@ final class DemoGrossanlassSeedService
             'who' => 'Demo · Sanitär ' . self::SEED_TAG_SANITAER,
         ]);
 
+        $this->ensureTimeline($department, $eventStart, $tables, $transporter, $bauten, $sanitaer, $helfer, $place);
+
         $this->entityManager->flush();
+    }
+
+    /**
+     * Demo-Modus markieren und – nur falls noch keine Demo-Zeit gesetzt – auf den Ausgangspunkt stellen.
+     * Eine vom User verstellte Demo-Zeit wird beim erneuten Seeden nicht überschrieben.
+     */
+    private function ensureDemoClock(Department $department): void
+    {
+        $department->setDemoMode(true);
+        if ($department->getDemoClockOffsetSeconds() === null) {
+            $this->clock->reset($department);
+        }
+    }
+
+    /**
+     * Zusammenhängender Zeitstrahl relativ zum Anlassbeginn E, damit man ohne Re-Seed durchreisen kann:
+     * Vergangenheit (E-7d/-6d), laufend am Demo-Ausgangspunkt (E-5d), kommende Stunden (E-5d 14:00),
+     * kommende Tage (E+1d/+2d, bestehend), Rückbau/Nachbearbeitung (E+12d).
+     */
+    private function ensureTimeline(
+        Department $department,
+        \DateTime $eventStart,
+        DepartmentGrossanlassCommitment $tables,
+        DepartmentGrossanlassCommitment $transporter,
+        Group $bauten,
+        Group $sanitaer,
+        User $helfer,
+        DepartmentGrossanlassPlace $place,
+    ): void {
+        $at = static fn (int $days, int $hour): \DateTime => (clone $eventStart)->modify(sprintf('%+d days', $days))->setTime($hour, 0);
+
+        $this->ensureEinsatz($department, self::SEED_TAG_PAST, [
+            'commitment' => $tables,
+            'group' => $bauten,
+            'qty' => 6,
+            'starts_at' => $at(-7, 8),
+            'ends_at' => $at(-7, 12),
+            'status' => DepartmentGrossanlassEinsatz::STATUS_RETURNED,
+            'delivery' => DepartmentGrossanlassEinsatz::DELIVERY_PICKUP,
+            'who' => 'Demo · Vorabholung erledigt ' . self::SEED_TAG_PAST,
+        ]);
+        $this->ensureEinsatz($department, self::SEED_TAG_RUNNING, [
+            'commitment' => $tables,
+            'group' => $bauten,
+            'qty' => 8,
+            'starts_at' => $at(-5, 8),
+            'ends_at' => $at(-5, 17),
+            'status' => DepartmentGrossanlassEinsatz::STATUS_ISSUED,
+            'delivery' => DepartmentGrossanlassEinsatz::DELIVERY_PICKUP,
+            'who' => 'Demo · Aufbau läuft ' . self::SEED_TAG_RUNNING,
+        ]);
+        $this->ensureEinsatz($department, self::SEED_TAG_SOON, [
+            'commitment' => $transporter,
+            'group' => $sanitaer,
+            'qty' => 1,
+            'starts_at' => $at(-5, 14),
+            'ends_at' => $at(-5, 16),
+            'status' => DepartmentGrossanlassEinsatz::STATUS_PLANNED,
+            'delivery' => DepartmentGrossanlassEinsatz::DELIVERY_TRIP,
+            'chauffeur_user_id' => $helfer->getId(),
+            'destination_place' => $place,
+            'who' => 'Demo · Fahrt heute Nachmittag ' . self::SEED_TAG_SOON,
+        ]);
+        $this->ensureEinsatz($department, self::SEED_TAG_TEARDOWN, [
+            'commitment' => $tables,
+            'group' => $bauten,
+            'qty' => 14,
+            'starts_at' => $at(12, 8),
+            'ends_at' => $at(12, 16),
+            'status' => DepartmentGrossanlassEinsatz::STATUS_PLANNED,
+            'delivery' => DepartmentGrossanlassEinsatz::DELIVERY_PICKUP,
+            'who' => 'Demo · Rückbau ' . self::SEED_TAG_TEARDOWN,
+        ]);
     }
 
     /**

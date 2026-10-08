@@ -55,6 +55,14 @@ class Department
     #[ORM\Column(name: 'is_grossanlass', type: 'boolean', options: ['default' => false])]
     private bool $isGrossanlass = false;
 
+    /** Demo-Department: eigene, verstellbare Fachzeit (siehe BusinessClock). */
+    #[ORM\Column(name: 'demo_mode', type: 'boolean', options: ['default' => false])]
+    private bool $demoMode = false;
+
+    /** Sekunden, die die Fachzeit gegenüber der realen Zeit vor-/nachgeht. Null = reale Zeit. */
+    #[ORM\Column(name: 'demo_clock_offset_seconds', type: 'integer', nullable: true)]
+    private ?int $demoClockOffsetSeconds = null;
+
     #[ORM\OneToOne(mappedBy: 'department', targetEntity: DepartmentGrossanlassConfig::class)]
     private ?DepartmentGrossanlassConfig $grossanlassConfig = null;
 
@@ -228,6 +236,30 @@ class Department
     public function setIsGrossanlass(bool $isGrossanlass): self
     {
         $this->isGrossanlass = $isGrossanlass;
+
+        return $this;
+    }
+
+    public function isDemoMode(): bool
+    {
+        return $this->demoMode;
+    }
+
+    public function setDemoMode(bool $demoMode): self
+    {
+        $this->demoMode = $demoMode;
+
+        return $this;
+    }
+
+    public function getDemoClockOffsetSeconds(): ?int
+    {
+        return $this->demoClockOffsetSeconds;
+    }
+
+    public function setDemoClockOffsetSeconds(?int $seconds): self
+    {
+        $this->demoClockOffsetSeconds = $seconds;
 
         return $this;
     }

@@ -2,6 +2,7 @@
 
 namespace App\Service\Grossanlass;
 
+use App\Service\Clock\BusinessClock;
 use App\Entity\ActivityGrossanlassProcurementLine;
 use App\Entity\ActivityGrossanlassProcurementLineWish;
 use App\Entity\ActivityGrossanlassRound;
@@ -28,6 +29,7 @@ class GrossanlassWishService
         private GrossanlassPlanningRoundService $roundService,
         private GrossanlassRoundFormService $formService,
         private GroupHierarchyService $hierarchy,
+        private BusinessClock $clock,
     ) {}
 
     /**
@@ -889,7 +891,7 @@ class GrossanlassWishService
             $validTo ??= $calendarTo;
         }
         if ($validFrom === null) {
-            $validFrom = new \DateTime();
+            $validFrom = $this->clock->now($department);
         }
         if ($validTo === null) {
             $validTo = clone $validFrom;
