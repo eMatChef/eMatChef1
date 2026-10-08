@@ -54,11 +54,11 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
             $conn = $em->getConnection();
             $conn->beginTransaction();
             try {
-                $test($c->get(DemoScenarioRunner::class), $c->get(DemoScenarioRegistry::class), $em, $conn, $c->get(DemoOrganisationCatalog::class));
+                $test($c->get(DemoScenarioRunner::class), $c->get(DemoScenarioRegistry::class), $em, $conn, $c->get(DemoOrganisationCatalog::class), $c);
             } finally {
                 $conn->rollBack();
             }
-        }, $url, [DemoScenarioRunner::class, DemoScenarioRegistry::class, DemoOrganisationCatalog::class]);
+        }, $url, [DemoScenarioRunner::class, DemoScenarioRegistry::class, DemoOrganisationCatalog::class, \App\Service\Demo\Legacy\LegacyDemoRename::class, \App\Service\Bootstrap\DemoGrossanlassSeedService::class]);
     }
 
     /** @return array<string, int> */
@@ -308,6 +308,105 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
             self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM demo_seed_record WHERE scenario_key<>'demo-users' AND entity_class LIKE '%\\User'"));
             self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM demo_seed_record WHERE scenario_key='demo-users' AND department_id IS NOT NULL"));
             self::assertSame(1, (int) $conn->fetchOne('SELECT count(*) FROM profile WHERE email=?', [DemoAccounts::email('orgchef')]));
+        });
+    }
+
+    /** Zeilen-Fingerabdrücke ohne Namens- und Zeitstempelspalten (Beweis: nur Anzeigenamen ändern sich). */
+    private function fingerprint(Connection $conn): array
+    {
+        $out = [];
+        foreach (['organisation', 'department', '"group"', 'membership', 'group_membership', '"user"', 'profile'] as $t) {
+            $out[$t] = $conn->fetchFirstColumn("SELECT md5((to_jsonb(t) - 'name' - 'updated_at')::text) FROM $t t ORDER BY 1");
+        }
+
+        return $out;
+    }
+
+    public function testLegacyRenameOnlyChangesNamesIsIdempotentAndKeepsNewSeedsSeparate(): void
+    {
+        $this->withDb(function (DemoScenarioRunner $runner, DemoScenarioRegistry $registry, EntityManagerInterface $em, Connection $conn, DemoOrganisationCatalog $catalog, $container): void {
+            $rename = $container->get(\App\Service\Demo\Legacy\LegacyDemoRename::class);
+            $conn->executeStatement("INSERT INTO organisation (id,name,created_at,updated_at) VALUES ('5f35b7cde9b5','Demo-Organisation',now(),now()),('decoyorg0001','Andere Org',now(),now())");
+            $dept = static fn (string $id, string $org, string $name, string $ga = 'false', ?string $parent = null) => $conn->executeStatement(
+                'INSERT INTO department (id,organisation_id,name,created_at,updated_at,demo_mode,is_grossanlass,parent_id) VALUES (?,?,?,now(),now(),false,' . $ga . ',?)',
+                [$id, $org, $name, $parent],
+            );
+            $dept('7ae5770a1180', '5f35b7cde9b5', 'Demo-Department-Parent');
+            $dept('638c8d301090', '5f35b7cde9b5', 'Demo-Department (mein Umbau)', 'false', '7ae5770a1180'); // Name weicht ab → bleibt
+            $dept('72605b231274', '5f35b7cde9b5', 'Demo-Grossanlass-Camp', 'true', '7ae5770a1180');
+            $dept('3dc94912d836', '5f35b7cde9b5', 'Demo-Grossanlass-Event', 'true');
+            $dept('7aa39b221bab', '5f35b7cde9b5', 'old-Demo Grossanlass', 'true'); // schon gekennzeichnet
+            $dept('decoydept001', 'decoyorg0001', 'Demo-Department'); // gleicher Name, andere ID → nie anfassen
+            $group = static fn (string $id, string $d, string $name, ?string $parent = null) => $conn->executeStatement(
+                'INSERT INTO "group" (id,department_id,name,parent_id,sort_order,created_at,updated_at) VALUES (?,?,?,?,0,now(),now())',
+                [$id, $d, $name, $parent],
+            );
+            $group('grp000000001', '3dc94912d836', 'Bauten');
+            $group('grp000000002', '3dc94912d836', 'Holzbau', 'grp000000001');
+            $group('grp000000003', '3dc94912d836', 'old-Schon markiert');
+            $group('grp000000004', '7aa39b221bab', 'Infrastruktur');
+            $group('grp000000005', 'decoydept001', 'Bauten'); // Decoy-Gruppe
+            $conn->executeStatement("INSERT INTO profile (id,email,first_name,last_name,nickname,roles,created_at,updated_at) VALUES ('legprof00001',?,'A','B','C','[\"ROLE_USER\"]',now(),now())", [DemoAccounts::email('ga-lw')]);
+            $conn->executeStatement("INSERT INTO \"user\" (id,profile_id,state,password,email_verified,created_at,updated_at) VALUES ('leguser00001','legprof00001','active','pw',true,now(),now())");
+            $conn->executeStatement("INSERT INTO membership (user_id,department_id,role,is_primary) VALUES ('leguser00001','3dc94912d836','lw',true)");
+            $conn->executeStatement("INSERT INTO group_membership (user_id,group_id,role,is_primary,can_procure,created_at) VALUES ('leguser00001','grp000000001','member',true,false,now())");
+            $before = $this->fingerprint($conn);
+            $deptCount = (int) $conn->fetchOne('SELECT count(*) FROM department');
+
+            // Dry-Run (plan) schreibt nichts
+            $em->clear();
+            $plan = $rename->plan();
+            self::assertSame($before, $this->fingerprint($conn));
+            self::assertSame('Demo-Organisation', $conn->fetchOne("SELECT name FROM organisation WHERE id='5f35b7cde9b5'"));
+            $status = array_column(array_filter($plan, static fn (array $i): bool => $i['type'] === 'department'), 'status', 'id');
+            self::assertSame('done', $status['7aa39b221bab']);
+            self::assertSame('skip', $status['638c8d301090']);
+            self::assertSame('rename', $status['3dc94912d836']);
+
+            $em->clear();
+            self::assertSame(1 + 3 + 3, $rename->apply($plan)); // Organisation + 3 Departments + 3 Gruppen (Bauten, Holzbau, Infrastruktur)
+            $em->clear();
+
+            // Nur diese Namen haben sich geändert
+            self::assertSame('old-Demo-Organisation', $conn->fetchOne("SELECT name FROM organisation WHERE id='5f35b7cde9b5'"));
+            self::assertSame('old-Demo-Grossanlass-Event', $conn->fetchOne("SELECT name FROM department WHERE id='3dc94912d836'"));
+            self::assertSame('old-Demo-Grossanlass-Camp', $conn->fetchOne("SELECT name FROM department WHERE id='72605b231274'"));
+            self::assertSame('old-Demo-Department-Parent', $conn->fetchOne("SELECT name FROM department WHERE id='7ae5770a1180'"));
+            self::assertSame('old-Demo Grossanlass', $conn->fetchOne("SELECT name FROM department WHERE id='7aa39b221bab'"));
+            self::assertSame('Demo-Department (mein Umbau)', $conn->fetchOne("SELECT name FROM department WHERE id='638c8d301090'"));
+            self::assertSame('Demo-Department', $conn->fetchOne("SELECT name FROM department WHERE id='decoydept001'"));
+            self::assertSame(['old-Bauten', 'old-Holzbau', 'old-Schon markiert'], $conn->fetchFirstColumn("SELECT name FROM \"group\" WHERE department_id='3dc94912d836' ORDER BY name"));
+            self::assertSame('old-Infrastruktur', $conn->fetchOne("SELECT name FROM \"group\" WHERE id='grp000000004'"));
+            self::assertSame('Bauten', $conn->fetchOne("SELECT name FROM \"group\" WHERE id='grp000000005'"));
+            // IDs, Benutzer, Mitgliedschaften und alle übrigen Spalten unverändert, nichts gelöscht
+            self::assertSame($before, $this->fingerprint($conn));
+            self::assertSame($deptCount, (int) $conn->fetchOne('SELECT count(*) FROM department'));
+
+            // Idempotent: zweiter Lauf ändert nichts, kein doppeltes Präfix
+            $again = $rename->plan();
+            self::assertSame([], array_filter($again, static fn (array $i): bool => $i['status'] === 'rename'));
+            self::assertSame(0, $rename->apply($again));
+            self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM department WHERE name ILIKE 'old-old-%'") + (int) $conn->fetchOne("SELECT count(*) FROM \"group\" WHERE name ILIKE 'old-old-%'"));
+
+            // Neue Seeds legen eigene Departments an, fassen die umbenannten nicht an und legen die alten Namen nicht neu an
+            $legacyFingerprint = $this->fingerprint($conn);
+            $legacyNames = $conn->fetchAllAssociative("SELECT id,name FROM department WHERE id IN ('5f35b7cde9b5')  OR id IN ('3dc94912d836','72605b231274','7ae5770a1180','7aa39b221bab','638c8d301090') ORDER BY id");
+            $this->syncAll($runner, $registry, $em);
+            self::assertSame($legacyNames, $conn->fetchAllAssociative("SELECT id,name FROM department WHERE id IN ('5f35b7cde9b5')  OR id IN ('3dc94912d836','72605b231274','7ae5770a1180','7aa39b221bab','638c8d301090') ORDER BY id"));
+            self::assertSame(3, (int) $conn->fetchOne('SELECT count(*) FROM department WHERE demo_scenario_key IS NOT NULL'));
+            self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM demo_seed_record WHERE entity_id IN ('3dc94912d836','72605b231274','638c8d301090','7ae5770a1180','7aa39b221bab')"));
+            self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM department WHERE name IN ('Demo Grossanlass','Demo-Grossanlass-Event','Demo-Grossanlass-Camp','Demo-Department-Parent')"));
+
+            $seed = $container->get(\App\Service\Bootstrap\DemoGrossanlassSeedService::class);
+            $org = $em->find(\App\Entity\Organisation::class, '5f35b7cde9b5');
+            $owner = $em->find(\App\Entity\User::class, 'leguser00001');
+            try {
+                $seed->ensureDepartment($org, $owner, 'Demo Grossanlass');
+                self::fail('Legacy-Name darf nicht neu angelegt werden');
+            } catch (\RuntimeException $e) {
+                self::assertStringContainsString('ausgemusterten', $e->getMessage());
+            }
+            self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM department WHERE name = 'Demo Grossanlass'"));
         });
     }
 }

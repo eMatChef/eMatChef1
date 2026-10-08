@@ -117,6 +117,16 @@ class CreateRoleUsersCommand extends Command
             return Command::FAILURE;
         }
 
+        if ($input->getOption('with-ga-demo')) {
+            try {
+                $this->demoGrossanlassSeed->assertLegacyDepartmentAvailable($organisation);
+            } catch (\RuntimeException $e) {
+                $io->error($e->getMessage());
+
+                return Command::FAILURE;
+            }
+        }
+
         if ($this->environmentGuard->destructiveDenial() === null) {
             $this->migrateLegacyDemoEmails($io);
         } else {

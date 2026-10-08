@@ -53,7 +53,7 @@ php bin/console app:create-role-users --with-ga-demo
 php bin/console app:dev-demo:reset --e2e-password='test!ematchef'
 ```
 
-Szenario-Gerüst (Phase 1) und Organisationsstruktur (Phase 2, Katalog `organisations.json`; löscht nichts, legt Organisation/Department/Gruppen/Benutzer/Mitgliedschaften der drei Szenarien an): `php bin/console app:demo:status`, `app:demo:verify --all`, `app:demo:sync --all --dry-run`, `app:demo:adopt --scenario=<key> --department=<id>`. `app:demo:reset` ist für alle Szenarien noch gesperrt. Die Camp-Konten (`camp-*@`) entstehen erst durch `app:demo:sync`, nicht durch `app:create-role-users`. Siehe `docs/demo/SEED-KONZEPT.md` §7.0.
+Szenario-Gerüst (Phase 1) und Organisationsstruktur (Phase 2, Katalog `organisations.json`; löscht nichts, legt Organisation/Department/Gruppen/Benutzer/Mitgliedschaften der drei Szenarien an): `php bin/console app:demo:status`, `app:demo:verify --all`, `app:demo:sync --all --dry-run`, `app:demo:adopt --scenario=<key> --department=<id>`. `app:demo:reset` ist für alle Szenarien noch gesperrt. Lokal: `app:demo:legacy-rename` kennzeichnet die alten Demo-Departments mit `old-` (Dry-Run ist Standard, löscht nichts); `app:create-role-users --with-ga-demo` und die alten Event-Jobs legen die ausgemusterten Namen nicht mehr neu an (Details `docs/demo/LOKALE-MIGRATION.md`). Die Camp-Konten (`camp-*@`) entstehen erst durch `app:demo:sync`, nicht durch `app:create-role-users`. Siehe `docs/demo/SEED-KONZEPT.md` §7.0.
 
 Org-Subset-Export für erweiterte Demos kann hier abgelegt werden, z. B.:
 

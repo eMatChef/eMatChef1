@@ -2,6 +2,8 @@
 
 **Stand:** 8. Oktober 2026. Einmaliger Plan, um die lokale Entwicklungsdatenbank auf die neuen Demo-Seeds umzustellen und die alten Demo-Departments zu entfernen. Marken **IST / SOLL / OFFEN** wie in [README.md](./README.md). Dieses Dokument ist ein **Plan**: Auf `mvdb` wurden bisher **keine** Migrationen, Seeds oder Löschungen ausgeführt; die Inventur war ausschliesslich lesend, alle Proben liefen auf einer Kopie.
 
+**Änderung der Entscheidung (8. Oktober 2026): Nichts wird gelöscht.** Die in diesem Dokument beschriebene Löschung der Legacy-Demo-Departments ist **verschoben**. Die Legacy-Strukturen bleiben unverändert bestehen, bis **alle** neuen Seeds fertig sind; sie werden vorläufig nur durch das Präfix `old-` im Anzeigenamen gekennzeichnet (§5a). Die Löschung (§5, «Später») ist ein eigener, späterer Arbeitsschritt mit eigener Freigabe.
+
 Festgelegte Entscheidungen: WSL + Docker ist die Ausführungsumgebung · `mvdb` bleibt bestehen (kein globaler Reset, keine Volume-/DB-Löschung) · Demo-Organisationen und gemeinsame Demo-Benutzer entstehen vollständig durch `app:demo:sync --all` · alte Demo-Departments werden nicht übernommen, sondern erst **nach** erfolgreichem Sync lokal entfernt.
 
 ## 1. Umgebung (IST, geprüft)
@@ -21,7 +23,8 @@ Festgelegte Entscheidungen: WSL + Docker ist die Ausführungsumgebung · `mvdb` 
 - Tests: PHPUnit 847 Tests grün (6 übersprungen = Integrationstest ohne Test-DB), PHPStan ohne Fehler.
 - **Probelauf auf einer Kopie** (`pg_dump` von `mvdb` → Wegwerf-PostgreSQL auf Port 55433, tmpfs): alle Schritte aus §5 liefen durch, Zahlen in §4. Die Kopie ist inzwischen verworfen; die Probe lässt sich jederzeit wiederholen.
 - Beim Probelauf gefunden und behoben: (a) übernommene Datensätze wurden wegen eines noch nicht geflushten Ledger-Eintrags fälschlich als «Abweichung» gemeldet und nicht aktualisiert; (b) `app:demo:sync` zeigte Abweichungen, Konflikte und Hinweise nicht an. Beides ist korrigiert und getestet.
-- **Noch nicht gebaut:** das Werkzeug für die Legacy-Bereinigung (§5, Schritt 6). Die Probe lief mit einem Wegwerf-Skript. **OFFEN (D2).**
+- **Gebaut (IST):** `app:demo:legacy-rename` (§5a) kennzeichnet die Legacy-Strukturen mit `old-`; getestet (Unit, Integration gegen isolierte DB, Probelauf auf einer `mvdb`-Kopie: 44 Namen, alle übrigen Spalten und Zeilenzahlen identisch).
+- **Noch nicht gebaut (verschoben):** ein Werkzeug für die spätere Löschung. Die Probe lief mit einem Wegwerf-Skript. **OFFEN (D2).**
 
 ## 3. Inventur der Demo-Departments (read-only, `mvdb`)
 
@@ -62,24 +65,47 @@ Alle Befehle im Backend-Container: `docker exec ematchef-backend-1 php bin/conso
 | 3 | Sync trocken | `php bin/console app:demo:sync --all --dry-run` | keine Konflikte erwartet |
 | 4 | Sync | `php bin/console app:demo:sync --all` | Camp/Event/Materialverwaltung «OK»; Hinweise zu Cevi ZH11 erwartet; **Konflikte = 0**, sonst stoppen |
 | 5 | Verify + Wiederholung | `app:demo:verify --all`; Sync ein zweites Mal | alles ✓, zweiter Sync 0 Änderungen; im UI mit `ga-mw@`, `matwart@`, `camp-mw@` (Passwort `test!ematchef`) anmelden |
-| 6 | **Legacy-Bereinigung** (erst nach 5) | Allowlist §3: Reihenfolge `3dc94912d836`, `72605b231274`, `638c8d301090`, `7ae5770a1180`, `7aa39b221bab`, danach Organisation `5f35b7cde9b5`. Je Department eigene Transaktion. Vorbedingungen prüfen (§3 Kriterien, ID **und** Name), `demo_mode` setzen, GA-Departments über `DemoGrossanlassWipeService`, übrige über `DepartmentResetService::resetDepartment`, dazu `public_code`, `accounting_cost_center_rule`, `department_grossanlass_pack(_line)`, `department_calendar_period`, `department_setting`, `inbox_message`, `audit_event`, `membership`, `last_used_department_id` → NULL, zuletzt Zeile `department`; Organisation nur, wenn leer | Zeilenzahlen = §4; Fingerabdruck fremder Daten unverändert |
-| 7 | Nachher | `app:demo:sync --all` (setzt Primär-Mitgliedschaften der `ga-*` im neuen Event-Department), `app:demo:verify --all`, Waisen-Scan (nur die zwei bekannten Altlasten) | Demo-Benutzer 23, Ledger 94 |
-| 8 | Aufräumen | Nur nach Freigabe (D1): Mitgliedschaften der neun Demo-Konten in `Cevi ZH11` entfernen | – |
+| 6 | **Legacy kennzeichnen** (erst nach 5; ersetzt die Löschung) | `php bin/console app:demo:legacy-rename` (Dry-Run, zeigt den Plan und den Bestätigungscode), dann `--execute --confirm=<Code>`; Details §5a. Danach `app:demo:verify --all` | Dry-Run: 44 Namen (1 Organisation, 5 Departments, 38 Gruppen); danach «Nichts zu tun» |
+| 7 | Nachher | `app:demo:sync --all` (Idempotenz-Check), `app:demo:verify --all` | alle neuen Departments unverändert ✓; Demo-Benutzer 23, Ledger 94 |
+| 8 | Optional, nur nach Freigabe (D1) | Mitgliedschaften der neun Demo-Konten in `Cevi ZH11` entfernen | – |
+| **Später** | **Legacy-Löschung (verschoben, nicht Teil des aktuellen Auftrags)** | Beschreibung der früheren Schritte 6 und 7 unten als Referenz |
+| (früher 6) | Legacy-Bereinigung | Allowlist §3: Reihenfolge `3dc94912d836`, `72605b231274`, `638c8d301090`, `7ae5770a1180`, `7aa39b221bab`, danach Organisation `5f35b7cde9b5`. Je Department eigene Transaktion. Vorbedingungen prüfen (§3 Kriterien, ID **und** Name), `demo_mode` setzen, GA-Departments über `DemoGrossanlassWipeService`, übrige über `DepartmentResetService::resetDepartment`, dazu `public_code`, `accounting_cost_center_rule`, `department_grossanlass_pack(_line)`, `department_calendar_period`, `department_setting`, `inbox_message`, `audit_event`, `membership`, `last_used_department_id` → NULL, zuletzt Zeile `department`; Organisation nur, wenn leer | Zeilenzahlen = §4; Fingerabdruck fremder Daten unverändert |
+| (früher 7) | Nachher (nur nach Löschung) | `app:demo:sync --all` (setzt Primär-Mitgliedschaften der `ga-*` im neuen Event-Department neu, weil `Demo Grossanlass` dann wegfällt), `app:demo:verify --all`, Waisen-Scan (nur die zwei bekannten Altlasten) | Demo-Benutzer 23, Ledger 94 |
 
-**Rückweg:** Bis Schritt 6 genügt es, die neuen Departments nicht zu nutzen (additiv). Nach Schritt 6: Dump aus Schritt 1 in eine **neue** Datenbank restoren und die Backend-`DATABASE_URL` umstellen; `mvdb` selbst wird nicht gelöscht oder überschrieben, solange nicht ausdrücklich entschieden.
+**Rückweg:** Umbenennung: dieselben Namen von Hand zurücksetzen (nur Anzeigenamen; die alten Namen stehen im Dry-Run/Backup) oder das Backup aus Schritt 1 in eine neue Datenbank restoren. Bis zur späteren Löschung genügt es, die neuen Departments nicht zu nutzen (additiv). Nach Schritt 6: Dump aus Schritt 1 in eine **neue** Datenbank restoren und die Backend-`DATABASE_URL` umstellen; `mvdb` selbst wird nicht gelöscht oder überschrieben, solange nicht ausdrücklich entschieden.
 
 **Warum diese Reihenfolge:** Backup vor jeder Änderung; Migration vor dem Sync (Spalten/Tabellen); Sync **vor** der Bereinigung (Vorgabe: erst entfernen, wenn die neuen Seeds erfolgreich sind) und weil die Demo-Konten dadurch bereits neue Mitgliedschaften haben; Bereinigung zuletzt; ein zweiter Sync danach korrigiert Primär-Markierungen.
 
+### 5a. Legacy-Umbenennung `old-` (IST, Command gebaut, auf `mvdb` noch nicht ausgeführt)
+
+`php bin/console app:demo:legacy-rename [--execute --confirm=<Code>]` · Klassen `LegacyDemoRename`, `DemoLegacyRenameCommand`.
+
+| Aspekt | Verhalten |
+| --- | --- |
+| Erlaubte Umgebung | **ausschliesslich lokal** (`DemoEnvironmentGuard::localOnlyDenial`: Nicht-prod-Kernel, `EMATCHEF_ENV_NAME` leer oder `local`); auf Develop, Staging, Production und prod-Kernel verweigert, auch als Dry-Run |
+| Standard | **Dry-Run**: zeigt Plan (Typ, ID, aktuell, neu, Status) und den Bestätigungscode, schreibt nichts |
+| Ausführen | `--execute --confirm=<Code>`; der Code ist ein Hash des Plans und passt nur zum geprüften Stand. Ohne oder mit falschem Code: Abbruch |
+| Identifikation | feste IDs (fünf Departments, Organisation `5f35b7cde9b5`) **und** Namensprobe: weicht der Name vom inventarierten ab, wird übersprungen und gemeldet. Gleichnamige Departments/Gruppen anderer IDs werden nie angefasst. Departments mit `demo_scenario_key` werden nie angefasst |
+| Gruppen | alle Gruppen der fünf Legacy-Departments (Auswahl über `department_id`, nicht über den Namen) |
+| Doppeltes Präfix | ausgeschlossen: ein Name, der schon mit `old-` beginnt (Gross-/Kleinschreibung egal), gilt als erledigt. Der Befehl ist idempotent (zweiter Lauf: «Nichts zu tun») |
+| Kollisionen | Zielname schon vergeben (gleiche Organisation bzw. gleiches Department und Elterngruppe) oder länger als 255 Zeichen → übersprungen und gemeldet |
+| Geändert | **nur** `name` von `organisation`, `department`, `group` (eine Transaktion). IDs, Codes, externe Identitäten, Benutzer, Mitgliedschaften, Gruppenmitgliedschaften, Prozessdaten, Szenario-Registry und Ledger bleiben unverändert; es wird nichts gelöscht |
+| Nicht umbenannt | Haupt-Aktivität und Kalenderperiode der Grossanlass-Legacy-Departments (spiegeln den Departmentnamen, sind Fachdaten); technisch ohne Wirkung auf Schlüssel |
+| Neue Seeds | übernehmen keine Legacy-Daten. Die alten Seed-Dienste legen unter den **ausgemusterten Namen** (`Demo Grossanlass`, `Demo-Grossanlass-Event`, …, und jedem Namen mit `old-`) nichts mehr neu an: `DemoGrossanlassSeedService::ensureDepartment` wirft, `app:create-role-users --with-ga-demo` bricht vor jedem Schreiben ab, `app:demo-grossanlass:event-jobs` verweigert `old-`-Departments. Vorhandene unveränderte Legacy-Departments funktionieren bis zur Umbenennung wie bisher |
+| Probelauf | Kopie von `mvdb`: 44 Namen (1 Organisation, 5 Departments, 38 Gruppen); Fingerabdrücke aller übrigen Spalten von `organisation`, `department`, `group`, `membership`, `group_membership`, `user`, `profile`, `department_grossanlass_einsatz`, `activity` und die Zeilenzahlen identisch; zweiter Lauf ohne Änderung; anschliessend `app:demo:sync --all` unverändert erfolgreich, legt keine alten Namen neu an |
+
+Die Legacy-Daten bleiben bis zur Fertigstellung **aller** neuen Seeds bestehen. Erst dann folgt, separat und mit eigener Freigabe, die Löschung nach dem Plan unten («Später»).
+
 ## 6. Sind die gemeinsamen Demo-Benutzer gefährdet? (geprüft)
 
-**Nein.** Die Bereinigung löscht nur Zeilen mit `department_id` der Allowlist; `user`, `profile`, `user_totp` und der Ledger-Bereich `demo-users` werden nicht berührt. Im Probelauf blieben alle 23 Demo-Konten (inklusive Passwort-Hashes) und alle 94 Ledger-Einträge identisch. Es verschwinden nur die **alten Mitgliedschaften** in `Demo Grossanlass` (9); die neuen Mitgliedschaften in Event/Camp/Materialverwaltung bleiben. Kein Benutzer hat ausserhalb der Allowlist eine Mitgliedschaft, die gelöscht würde (`Cevi ZH11` wird nicht angefasst). `User.last_used_department_id` zeigt aktuell auf keine Legacy-Department (0 Treffer); der Plan setzt es dennoch auf NULL. Der Runner schützt gemeinsame Benutzer zusätzlich bei jedem künftigen Szenario-Reset ([SEED-KONZEPT.md §7.5, §7.11](./SEED-KONZEPT.md#711-phase-2-demo-organisationen-ist)).
+**Nein.** Die Umbenennung ändert keine Benutzerdaten. Die spätere Bereinigung löscht nur Zeilen mit `department_id` der Allowlist; `user`, `profile`, `user_totp` und der Ledger-Bereich `demo-users` werden nicht berührt. Im Probelauf blieben alle 23 Demo-Konten (inklusive Passwort-Hashes) und alle 94 Ledger-Einträge identisch. Es verschwinden nur die **alten Mitgliedschaften** in `Demo Grossanlass` (9); die neuen Mitgliedschaften in Event/Camp/Materialverwaltung bleiben. Kein Benutzer hat ausserhalb der Allowlist eine Mitgliedschaft, die gelöscht würde (`Cevi ZH11` wird nicht angefasst). `User.last_used_department_id` zeigt aktuell auf keine Legacy-Department (0 Treffer); der Plan setzt es dennoch auf NULL. Der Runner schützt gemeinsame Benutzer zusätzlich bei jedem künftigen Szenario-Reset ([SEED-KONZEPT.md §7.5, §7.11](./SEED-KONZEPT.md#711-phase-2-demo-organisationen-ist)).
 
 ## 7. Offene Entscheidungen
 
 | # | Frage | Empfehlung |
 | --- | --- | --- |
 | D1 | Mitgliedschaften der neun Demo-Konten in `Cevi ZH11` nach dem Sync entfernen? Sonst bleibt `superadmin` dort primär und die Sync-Hinweise bleiben | Entfernen (Department ist danach leer, wird aber nicht gelöscht), als separater Schritt 8 |
-| D2 | Bereinigungswerkzeug: eigener Command `app:demo:legacy-cleanup` (Allowlist ID+Name, Dry-Run als Standard, `--execute --confirm`, nur `local`/freigegebenes `develop`) oder einmaliges Skript? | Command mit Dry-Run, damit der Plan reproduzierbar und testbar ist; danach wieder entfernen |
+| D2 | (für die spätere Löschung) Bereinigungswerkzeug: eigener Command `app:demo:legacy-cleanup` (Allowlist ID+Name, Dry-Run als Standard, `--execute --confirm`, nur `local`/freigegebenes `develop`) oder einmaliges Skript? | Command mit Dry-Run, damit der Plan reproduzierbar und testbar ist; danach wieder entfernen |
 | D3 | Der von Hand aufgebaute Inhalt von `Demo-Grossanlass-Event` (34 Gruppen, 23 Orte, 15 Kosten …) geht verloren, ausser er steckt im Backup. Soll vorher etwas gesichert oder in den Seed-Katalog übernommen werden? | Backup genügt, wenn der Inhalt nicht gebraucht wird; sonst vorher gezielt exportieren |
 | D4 | Bestehende Waisen (5× `accounting_cost_center_rule`, 2× `audit_event` `GLOBAL000000`) mitbereinigen? | Nein, ausserhalb dieses Auftrags |
 | D5 | Wipe-Dienst um die drei Tabellen ohne Fremdschlüssel (`public_code`, `accounting_cost_center_rule`, `department_grossanlass_pack(_line)`) erweitern? | Ja, in Phase 3 (Reset); für die einmalige Bereinigung gesondert aufgeführt |

@@ -37,6 +37,10 @@ final class DemoGrossanlassEventJobsSeedService
      */
     public function seedByName(string $departmentName, bool $markDemo = false): array
     {
+        if (\App\Service\Demo\Legacy\LegacyDemoRename::hasPrefix($departmentName)) {
+            throw new \InvalidArgumentException(sprintf('«%s» ist ein ausgemustertes Legacy-Department (old-) und wird nicht mehr bespielt.', $departmentName));
+        }
+
         $department = $this->entityManager->getRepository(Department::class)->findOneBy([
             'name' => $departmentName,
         ]);

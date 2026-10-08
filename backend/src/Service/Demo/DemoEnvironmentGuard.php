@@ -71,6 +71,23 @@ class DemoEnvironmentGuard
         return null;
     }
 
+    /**
+     * Nur die lokale Entwicklungsumgebung (WSL/Docker, Nicht-prod-Kernel, Name «local» oder leer).
+     * Für einmalige Umbauten an Legacy-Daten, die nirgends sonst laufen dürfen (auch nicht als Dry-Run).
+     */
+    public function localOnlyDenial(): ?string
+    {
+        $denial = $this->additiveDenial();
+        if ($denial !== null) {
+            return $denial;
+        }
+        if ($this->environmentName() !== self::ENV_LOCAL || $this->kernel->getEnvironment() === 'prod') {
+            return 'Dieser Befehl ist nur in der lokalen Umgebung erlaubt (Nicht-prod-Kernel, EMATCHEF_ENV_NAME leer oder «local»).';
+        }
+
+        return null;
+    }
+
     /** Grund der Ablehnung für löschende Demo-Befehle oder null, wenn erlaubt. */
     public function destructiveDenial(): ?string
     {
