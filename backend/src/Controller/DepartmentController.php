@@ -20,7 +20,7 @@ use App\Service\DepartmentResetService;
 use App\Service\DepartmentRoleLabelService;
 use App\Service\MembershipNotificationEmailResolver;
 use App\Service\UserEmailAliasService;
-use App\Service\DevEnvironmentService;
+use App\Service\Demo\DemoEnvironmentGuard;
 use App\Service\Grossanlass\GrossanlassDepartmentCreateService;
 use App\Service\Grossanlass\GrossanlassDepartmentSerializer;
 use App\Service\MembershipRoleCatalog;
@@ -44,7 +44,7 @@ class DepartmentController extends AbstractController
         private EntityManagerInterface $entityManager,
         private AuditLogger $auditLogger,
         private DepartmentResetService $departmentResetService,
-        private DevEnvironmentService $devEnvironmentService,
+        private DemoEnvironmentGuard $demoEnvironmentGuard,
         private AccountingCostCenterBootstrapService $accountingCostCenterBootstrap,
         private WorkshopSparePartsCategoryBootstrapService $workshopSparePartsCategoryBootstrap,
         private VerificationEmailService $verificationEmailService,
@@ -1554,13 +1554,14 @@ class DepartmentController extends AbstractController
 
     /**
      * DB zurücksetzen – löscht alle Daten des Departments (Aktivitäten, Materialien, Adressen, etc.)
-     * Nur für Dev/Test. Erfordert Superadmin oder Department-Manager.
+     * Nur local, oder develop mit EMATCHEF_DEMO_DESTRUCTIVE=1 (DemoEnvironmentGuard); Staging/Production nie.
+     * Erfordert zusätzlich Superadmin oder Department-Manager.
      */
     #[Route('/{departmentId}/reset-db', name: 'reset_db', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
     public function resetDb(string $departmentId): JsonResponse
     {
-        if (!$this->devEnvironmentService->isDevToolsEnabled()) {
+        if ($this->demoEnvironmentGuard->destructiveDenial() !== null) {
             return new JsonResponse(['error' => 'Nur in Dev/Test verfügbar'], 403);
         }
 
@@ -1575,13 +1576,14 @@ class DepartmentController extends AbstractController
 
     /**
      * Aktivitäten löschen – setzt die Aktivitäten-Anzahl auf 0 (Material/Adressen bleiben).
-     * Nur für Dev/Test. Erfordert Superadmin oder Department-Manager.
+     * Nur local, oder develop mit EMATCHEF_DEMO_DESTRUCTIVE=1 (DemoEnvironmentGuard); Staging/Production nie.
+     * Erfordert zusätzlich Superadmin oder Department-Manager.
      */
     #[Route('/{departmentId}/reset-activities', name: 'reset_activities', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
     public function resetActivities(string $departmentId): JsonResponse
     {
-        if (!$this->devEnvironmentService->isDevToolsEnabled()) {
+        if ($this->demoEnvironmentGuard->destructiveDenial() !== null) {
             return new JsonResponse(['error' => 'Nur in Dev/Test verfügbar'], 403);
         }
 

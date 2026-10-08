@@ -111,7 +111,11 @@ Umgesetzt, ohne Registry und ohne Szenario-Migration. Klasse `Service/Demo/DemoE
 | Wipe: nur `demo_mode`-Departments, eindeutiger Name, Bestätigung `--confirm=<Name>`, eine äussere Transaktion mit Rollback; Fehlerfälle enden mit Exit-Code 1. | **IST** (P7, Teil) |
 | `app:recreate-test-users`: gesperrt ohne Freigabe; bricht ab, wenn ein Zielkonto Mitgliedschaften hat. Weiterhin veraltet (Entfernen empfohlen, Phase 1/8). | **IST** (P8, Teil) |
 
-**Nicht Teil von Phase 0 (weiter SOLL / offen):** REST `resetDb`/`resetActivities` (weiterhin nur `isDevToolsEnabled`, E7), Szenario-Schlüssel, Ledger, Registry, vollständiger Reset, Löschlisten-Test (P13), `ensureEinsatz`-Überschreiben (P5), wurzelhafte Behebung von P2 (FK `updated_by`) und P3 (Index-Herkunft), Deployment-Sync.
+| REST `POST /api/departments/{id}/reset-db` und `…/reset-activities` prüfen `DemoEnvironmentGuard::destructiveDenial()` **vor** der Berechtigungsprüfung: Staging und Production sind unabhängig von `EMATCHEF_DEV_TOOLS` gesperrt (403), Develop nur mit `EMATCHEF_DEMO_DESTRUCTIVE=1`, local frei. Authentifizierung und Rollenprüfung (Superadmin oder Department-Manager) bleiben unverändert. Gilt für **jedes** Department, nicht nur für Demo; Test `DepartmentResetEndpointsGuardTest` über alle Umgebungen. | **IST** (P12) |
+
+**Nicht Teil von Phase 0 (weiter SOLL / offen):** Demo-Sperre der REST-Resets für Demo-Departments bzw. Umleitung auf den Szenario-Reset (E7; die Umgebungsfreigabe ist erledigt), Szenario-Schlüssel, Ledger, Registry, vollständiger Reset, Löschlisten-Test (P13), `ensureEinsatz`-Überschreiben (P5), wurzelhafte Behebung von P2 (FK `updated_by`) und P3 (Index-Herkunft), Deployment-Sync.
+
+**Bekannter, nicht zusammenhängender Befund (`lint:container`):** `ApiDiscoveryController` bekommt `%env(default::APP_MAIN_SITE_ORIGIN)%`, das bei nicht gesetzter Variable `null` ergibt, für einen `string`-Parameter. `lint:container` schlägt dadurch fehl, wenn `APP_MAIN_SITE_ORIGIN` fehlt (in `.env` nicht definiert; mit gesetzter Variable ist der Lint grün, geprüft). Alt (Commit `ffaf86ca`), unabhängig von Phase 0; Server setzen die Variable. Ein Fix (`?string` oder `default:`-Prozessor mit Leerstring) ist bewusst nicht Teil dieses Branches.
 
 **Betrieb:** Auf Develop und Staging muss `EMATCHEF_ENV_NAME` gesetzt werden (Beispiele in `deploy/`); bis dahin sind die Demo-Befehle dort gesperrt (gewollt). Auf Develop mit bestehenden Departments braucht `app:create-role-users` einmalig `--department=<id>` (Demo-Department) oder `--mark-department-demo`.
 
@@ -294,7 +298,7 @@ Kein Command löscht ohne Szenario-Schlüssel. Alle Commands ausser `verify`/`st
 | `app:ensure-demo-supplier` | bleibt als Baustein im Identity-/Lieferanten-Schritt. |
 | `DemoGrossanlassSeedService` | wird `grossanlass-event`-Szenario; `ensureEinsatz` ohne Überschreiben von Status/Packzustand (P5); `ensureDepartment` über `demo_scenario_key` statt Name (P6). |
 | `DemoGrossanlassWipeService` | wird `reset` des Szenarios; Tabellenliste wird testgeprüft (P13); Transaktion (P7). |
-| `DepartmentResetService` | bleibt für den (devtools-geschützten) REST-Endpunkt und als Baustein des Szenario-Resets. Der Endpunkt `resetDb` ist **kein** Demo-Reset und sollte für Demo-Departments gesperrt oder auf den Szenario-Reset umgeleitet werden (OFFEN, E7). |
+| `DepartmentResetService` | bleibt für den (devtools-geschützten) REST-Endpunkt und als Baustein des Szenario-Resets. Der Endpunkt `resetDb` ist **kein** Demo-Reset (seit Phase 0 umgebungsgeschützt) und sollte für Demo-Departments gesperrt oder auf den Szenario-Reset umgeleitet werden (OFFEN, E7). |
 | `DevBootstrapContextService` | der Materialverwaltungs-Seed legt sein **eigenes** Demo-Department an (`materialverwaltung`); die Rollen-User gehören dorthin, nicht ins «erste sichtbare Department» (P4). Für `app:ensure-e2e-user`/Superadmin-Bootstrap unverändert. |
 | `InboxDemoSeedService` | bleibt, wird dem passenden Szenario zugeordnet (OFFEN, E8). |
 | Bestehende Demo-Departments `Demo Grossanlass`, `Demo-Grossanlass-Event` | **nicht löschen.** Einmalige, idempotente Migration (Phase 2): `Demo Grossanlass` bekommt `demo_scenario_key = grossanlass-event` (behält ID, Memberships, Uhr); `Demo-Grossanlass-Event` (nur Event-Jobs) wird in dieses Department überführt oder bleibt als Legacy bis zur Freigabe (OFFEN, E4). |
@@ -330,7 +334,7 @@ Nummerierung E1… ist neu (Seed-Architektur); Fragen 1–9 bleiben in [README �
 | E4 | Schicksal der bestehenden Departments `Demo Grossanlass` und `Demo-Grossanlass-Event`: zusammenführen in `grossanlass-event` (Empfehlung, entspricht dem Zielbild), Daten migrieren oder Legacy stehen lassen? (Beantwortet Frage 2 inhaltlich, Umsetzung offen.) | zusammenführen, Legacy bleibt bis Freigabe | §8 |
 | E5 | Soll **Staging** Demo-Daten tragen (nur manueller Sync) oder keine? | nur manuell, nie automatisch | §7.9 |
 | E6 | Deployment: Sync-Fehler nur warnen (Empfehlung) oder Deployment abbrechen? | warnen | §7.9 |
-| E7 | REST `resetDb`/`resetActivities` für Demo-Departments sperren oder umleiten? | sperren | §8 |
+| E7 | REST `resetDb`/`resetActivities`: Umgebungsfreigabe ist seit Phase 0 umgesetzt. Offen: für Demo-Departments sperren oder auf den Szenario-Reset umleiten? | sperren | §8 |
 | E8 | Zuordnung `InboxDemoSeedService` und weiterer Hilfs-Seeds zu Szenarien. | Materialverwaltung | §8 |
 | E9 | Herkunft von `uniq_membership_one_primary_per_user` (nirgends im Repo definiert) und der Abweichung `ON DELETE` bei `fk_grossanlass_wish_response_updated_by`; Behebung per Migration oder Mapping-Anpassung. | in Phase 1 klären | P2, P3 |
 | E10 | Mehrere Prozesszustände: Variante (a) «nur Ist-Daten bis Ausgangspunkt» (Frage 1). | (a) | §5.3 |
