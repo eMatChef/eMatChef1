@@ -238,8 +238,16 @@ class MediaFileAccessService
         if ($user->getId() === $contextId) {
             return;
         }
-        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_ADMIN'], $user->getRoles())) > 0) {
+        if ($this->adminCapabilities->isSuperAdmin($user)) {
             return;
+        }
+        // Orgchef/Suborgchef nur für Personen mit Mitgliedschaft in ihrem Verwaltungsbereich
+        if ($this->adminCapabilities->hasGlobalAdminRole($user)) {
+            foreach ($this->entityManager->getRepository(Membership::class)->findBy(['userId' => $contextId]) as $membership) {
+                if ($this->adminCapabilities->canAdministerDepartment($user, $membership->getDepartmentId())) {
+                    return;
+                }
+            }
         }
 
         throw new AccessDeniedHttpException('Kein Zugriff auf diese Datei');

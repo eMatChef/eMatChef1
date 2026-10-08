@@ -330,30 +330,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
             $roles = array_merge($roles, $this->profile->getRoles());
         }
         
-        // Department-Rollen aus Memberships sammeln (nur department-lokale Rollen).
-        foreach ($this->memberships as $membership) {
-            $departmentRole = $membership->getRole();
-            
-            // Mapping zu Symfony Roles (Rollen sind jetzt Abkürzungen)
-            $symfonyRole = match($departmentRole) {
-                'mw' => 'ROLE_MATWART',
-                'cmw' => 'ROLE_CO_MATWART',
-                'dc' => 'ROLE_DEPCHEF',
-                'komm' => 'ROLE_KOMMUNIKATION',
-                'spon' => 'ROLE_SPONSORING',
-                'lw' => 'ROLE_LOGISTIKWART',
-                'clw' => 'ROLE_CO_LOGISTIKWART',
-                'l1' => 'ROLE_LEADER1',
-                'l2' => 'ROLE_LEADER2',
-                'l3' => 'ROLE_LEADER3',
-                'u' => 'ROLE_USER',
-                default => null,
-            };
-            
-            if ($symfonyRole) {
-                $roles[] = $symfonyRole;
-            }
-        }
+        // Bewusst keine Rollen aus Department-Memberships: Symfony-Rollen sind global und würden eine operative Rolle
+        // aus Department A in Department B wirksam machen. Operative Rollen gelten nur je Department über
+        // Membership::getRole(); globale Rollen (sa/org/sub) stehen im Profil.
 
         if ($this->hasActiveSupplierMembership()) {
             $roles[] = 'ROLE_SUPPLIER';

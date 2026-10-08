@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service\Auth;
 
 use App\Entity\Department;
+use App\Entity\Organisation;
 use App\Entity\User;
 use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\Admin\AdminCapabilityRegistry;
@@ -15,8 +16,9 @@ use Doctrine\ORM\EntityManagerInterface;
  *
  * Verwaltungskontexte sind keine Department-Mitgliedschaften und vergeben keine operative Rolle:
  *  - Superadmin: ein globaler Systemkontext (kein Department in der Datenbank).
- *  - Orgchef/Suborgchef: ein Kontext je Wurzel-Department ihres Scopes (profile.admin_capabilities.scope);
- *    nur Organisations-Scope: die obersten Departments dieser Organisationen; ohne Scope: unbeschränkt (`unrestricted`).
+ *  - Orgchef/Suborgchef: je ausdrücklich zugewiesener Organisation ein Organisationskontext und je zugewiesener
+ *    Department-Wurzel ein Department-Verwaltungskontext (profile.admin_capabilities.scope); beides kombinierbar.
+ *    Ohne Zuweisung gibt es keinen Kontext (kein «alles»).
  * Die Zugriffsprüfung bleibt im Backend (AdminCapabilityChecker); diese Liste steuert nur die Auswahl.
  */
 final class AdminContextResolver
@@ -31,8 +33,7 @@ final class AdminContextResolver
      * @return array{
      *     global: bool,
      *     role: string,
-     *     unrestricted: bool,
-     *     scopes: list<array{department_id: string, name: string, organisation_id: string, parent_id: string|null}>
+     *     scopes: list<array{kind: string, organisation_id: string, department_id: string|null, name: string, parent_id: string|null}>
      * }
      */
     public function resolve(User $user): array
@@ -40,36 +41,44 @@ final class AdminContextResolver
         $role = $this->adminCapabilities->getGlobalRole($user);
 
         if ($this->adminCapabilities->isSuperAdmin($user)) {
-            return ['global' => true, 'role' => AdminCapabilityRegistry::GLOBAL_ROLE_SUPERADMIN, 'unrestricted' => true, 'scopes' => []];
+            return ['global' => true, 'role' => AdminCapabilityRegistry::GLOBAL_ROLE_SUPERADMIN, 'scopes' => []];
         }
         if (!$this->adminCapabilities->hasGlobalAdminRole($user)) {
-            return ['global' => false, 'role' => AdminCapabilityRegistry::GLOBAL_ROLE_NONE, 'unrestricted' => false, 'scopes' => []];
+            return ['global' => false, 'role' => AdminCapabilityRegistry::GLOBAL_ROLE_NONE, 'scopes' => []];
         }
 
-        $caps = $this->adminCapabilities->getEffectiveCapabilities($user);
-        $rootIds = AdminCapabilityRegistry::scopedDepartmentRootIds($caps);
-        $organisationIds = AdminCapabilityRegistry::scopedOrganisationIds($caps);
+        $scope = $this->adminCapabilities->getScope($user);
+        $scopes = [];
 
-        $repository = $this->entityManager->getRepository(Department::class);
-        /** @var list<Department> $departments */
-        $departments = [];
-        if ($rootIds !== []) {
-            $departments = $repository->findBy(['id' => $rootIds]);
-        } elseif ($organisationIds !== []) {
-            $departments = $repository->findBy(['organisationId' => $organisationIds, 'parentId' => null]);
+        if ($scope['organisation_ids'] !== []) {
+            /** @var list<Organisation> $organisations */
+            $organisations = $this->entityManager->getRepository(Organisation::class)->findBy(['id' => $scope['organisation_ids']]);
+            usort($organisations, static fn (Organisation $a, Organisation $b): int => strcasecmp($a->getName(), $b->getName()));
+            foreach ($organisations as $organisation) {
+                $scopes[] = [
+                    'kind' => 'organisation',
+                    'organisation_id' => $organisation->getId(),
+                    'department_id' => null,
+                    'name' => $organisation->getName(),
+                    'parent_id' => null,
+                ];
+            }
         }
-        usort($departments, static fn (Department $a, Department $b): int => strcasecmp($a->getName(), $b->getName()));
+        if ($scope['department_root_ids'] !== []) {
+            /** @var list<Department> $departments */
+            $departments = $this->entityManager->getRepository(Department::class)->findBy(['id' => $scope['department_root_ids']]);
+            usort($departments, static fn (Department $a, Department $b): int => strcasecmp($a->getName(), $b->getName()));
+            foreach ($departments as $department) {
+                $scopes[] = [
+                    'kind' => 'department',
+                    'organisation_id' => $department->getOrganisationId(),
+                    'department_id' => $department->getId(),
+                    'name' => $department->getName(),
+                    'parent_id' => $department->getParentId(),
+                ];
+            }
+        }
 
-        return [
-            'global' => false,
-            'role' => $role,
-            'unrestricted' => $rootIds === [] && $organisationIds === [],
-            'scopes' => array_map(static fn (Department $d): array => [
-                'department_id' => $d->getId(),
-                'name' => $d->getName(),
-                'organisation_id' => $d->getOrganisationId(),
-                'parent_id' => $d->getParentId(),
-            ], $departments),
-        ];
+        return ['global' => false, 'role' => $role, 'scopes' => $scopes];
     }
 }

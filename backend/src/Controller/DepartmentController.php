@@ -179,7 +179,7 @@ class DepartmentController extends AbstractController
         $deptMembership = $this->entityManager->getRepository(Membership::class)
             ->findOneBy(['userId' => $currentUser->getId(), 'departmentId' => $departmentId]);
 
-        $isGlobalAdmin = $this->adminCapabilityChecker->hasGlobalAdminRole($currentUser);
+        $isGlobalAdmin = $this->adminCapabilityChecker->canAdministerDepartment($currentUser, $departmentId);
         $deptRole = $deptMembership ? strtolower(trim((string) $deptMembership->getRole())) : '';
         $isDepartmentAdmin = in_array($deptRole, ['mw', 'dc'], true);
         $isAdmin = $isGlobalAdmin || $isDepartmentAdmin;
@@ -355,7 +355,8 @@ class DepartmentController extends AbstractController
         if (!OrganisationUserPickerFilter::isVisibleForUserPickers($organisation)) {
             return new JsonResponse(['error' => 'Organisation nicht verfuegbar'], 400);
         }
-        if (!$this->adminCapabilityChecker->canAccessOrganisation($currentUser, $organisation->getId())) {
+        // Organisationsebene braucht eine Organisations-Zuweisung; unter einem Parent genügt dessen Verwaltungsbereich.
+        if (empty($data['parent_id']) && !$this->adminCapabilityChecker->canAdministerOrganisation($currentUser, $organisation->getId())) {
             return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
         }
 
@@ -373,8 +374,6 @@ class DepartmentController extends AbstractController
             if ($parent->getOrganisationId() !== $organisation->getId()) {
                 return new JsonResponse(['error' => 'Parent Department muss zur gleichen Organisation gehören'], 400);
             }
-        } elseif (!$this->adminCapabilityChecker->canAccessOrganisation($currentUser, $organisation->getId())) {
-            return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
         }
 
         $departmentName = trim((string) $data['name']);
@@ -705,7 +704,7 @@ class DepartmentController extends AbstractController
             ->getSingleScalarResult();
 
         $bootstrapRoles = ['mw', 'dc'];
-        $hasBootstrapPrivilege = $this->adminCapabilityChecker->hasGlobalAdminRole($currentUser);
+        $hasBootstrapPrivilege = $this->adminCapabilityChecker->canAdministerDepartment($currentUser, $departmentId);
 
         // Bootstrap-Sonderfall: leeres Department darf initial mit MW/DC besetzt werden.
         if ($existingMemberCount === 0 && in_array($targetRole, $bootstrapRoles, true) && $hasBootstrapPrivilege) {
@@ -745,7 +744,7 @@ class DepartmentController extends AbstractController
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
 
-        if ($this->adminCapabilityChecker->hasGlobalAdminRole($currentUser)) {
+        if ($this->adminCapabilityChecker->canAdministerDepartment($currentUser, $departmentId)) {
             return true;
         }
 
@@ -1701,7 +1700,10 @@ class DepartmentController extends AbstractController
             if (!OrganisationUserPickerFilter::isVisibleForUserPickers($organisation)) {
                 return new JsonResponse(['error' => 'Organisation nicht verfuegbar'], 400);
             }
-            if (!$this->adminCapabilityChecker->canAccessOrganisation($currentUser, $organisation->getId())) {
+            if (
+                $organisation->getId() !== $department->getOrganisationId()
+                && !$this->adminCapabilityChecker->canAdministerOrganisation($currentUser, $organisation->getId())
+            ) {
                 return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
             }
 

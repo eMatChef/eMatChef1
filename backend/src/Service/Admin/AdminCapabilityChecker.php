@@ -79,7 +79,54 @@ final class AdminCapabilityChecker
     }
 
     /**
-     * null = alle Organisationen, [] = keiner, list = nur diese IDs.
+     * Explizit zugewiesener Verwaltungs-Scope von Orgchef/Suborgchef (profile.admin_capabilities.scope).
+     * Ohne Zuweisung ist er leer, und ein leerer Scope gibt keine hierarchischen Verwaltungsrechte.
+     *
+     * @return array{organisation_ids: list<string>, department_root_ids: list<string>}
+     */
+    public function getScope(User $user): array
+    {
+        if ($this->isSuperAdmin($user) || !$this->hasGlobalAdminRole($user)) {
+            return ['organisation_ids' => [], 'department_root_ids' => []];
+        }
+        $caps = $this->getEffectiveCapabilities($user);
+
+        return [
+            'organisation_ids' => AdminCapabilityRegistry::scopedOrganisationIds($caps),
+            'department_root_ids' => AdminCapabilityRegistry::scopedDepartmentRootIds($caps),
+        ];
+    }
+
+    /** Superadmin oder Orgchef/Suborgchef mit mindestens einer expliziten Zuweisung. */
+    public function hasAdministrativeScope(User $user): bool
+    {
+        if ($this->isSuperAdmin($user)) {
+            return true;
+        }
+        $scope = $this->getScope($user);
+
+        return $scope['organisation_ids'] !== [] || $scope['department_root_ids'] !== [];
+    }
+
+    /**
+     * Organisationen mit Verwaltungsrecht auf Organisationsebene (nur explizit zugewiesene Organisations-Scopes).
+     * null = alle (Superadmin), [] = keine.
+     *
+     * @return list<string>|null
+     */
+    public function getAdministeredOrganisationIds(User $user): ?array
+    {
+        if ($this->isSuperAdmin($user)) {
+            return null;
+        }
+
+        return $this->getScope($user)['organisation_ids'];
+    }
+
+    /**
+     * Sichtbare Organisationen. null = alle (Superadmin), [] = keine. Orgchef/Suborgchef: explizit zugewiesene
+     * Organisationen plus die Organisationen ihrer Department-Wurzeln (nur zur Anzeige; Verwaltung auf Organisations-
+     * ebene braucht eine Organisations-Zuweisung). Ohne Zuweisung: keine. Übrige Benutzer: Organisationen ihrer Mitgliedschaften.
      *
      * @return list<string>|null
      */
@@ -93,21 +140,13 @@ final class AdminCapabilityChecker
             return $this->getMembershipOrganisationIds($user);
         }
 
-        $caps = $this->getEffectiveCapabilities($user);
-        $scoped = AdminCapabilityRegistry::scopedOrganisationIds($caps);
-        if ($scoped !== []) {
-            return $scoped;
+        $scope = $this->getScope($user);
+        $ids = $scope['organisation_ids'];
+        if ($scope['department_root_ids'] !== []) {
+            $ids = array_merge($ids, $this->departmentScope->organisationIdsForDepartments($scope['department_root_ids']));
         }
 
-        // Nur Department-Wurzeln im Scope: Organisationszugriff = Organisationen dieser Wurzeln, nicht «alle».
-        // Unbekannte Wurzeln ergeben [] (kein Zugriff, fail closed).
-        $rootIds = AdminCapabilityRegistry::scopedDepartmentRootIds($caps);
-        if ($rootIds !== []) {
-            return $this->departmentScope->organisationIdsForDepartments($rootIds);
-        }
-
-        // Komplett leerer Scope = bewusst unbeschränkt (Standard einer Rolle ohne Einschränkung).
-        return null;
+        return array_values(array_unique($ids));
     }
 
     public function canAccessOrganisation(User $user, ?string $organisationId): bool
@@ -127,8 +166,21 @@ final class AdminCapabilityChecker
         return \in_array($organisationId, $accessible, true);
     }
 
+    /** Verwaltung auf Organisationsebene: Superadmin oder ausdrücklich zugewiesene Organisation. */
+    public function canAdministerOrganisation(User $user, ?string $organisationId): bool
+    {
+        if ($organisationId === null || $organisationId === '') {
+            return false;
+        }
+        $administered = $this->getAdministeredOrganisationIds($user);
+
+        return $administered === null || \in_array($organisationId, $administered, true);
+    }
+
     /**
-     * null = alle Departments, list = nur diese IDs (inkl. Unterbäume der Wurzeln).
+     * null = alle Departments (Superadmin), [] = keine, list = Verwaltungsbereich. Orgchef/Suborgchef: Vereinigung aller
+     * Departments der zugewiesenen Organisationen und der Unterbäume der zugewiesenen Department-Wurzeln. Parent- und
+     * Geschwister-Departments einer Wurzel gehören nicht dazu. Ohne Zuweisung: keine.
      *
      * @return list<string>|null
      */
@@ -142,27 +194,16 @@ final class AdminCapabilityChecker
             return $this->getMembershipDepartmentIds($user);
         }
 
-        $caps = $this->getEffectiveCapabilities($user);
-        $rootIds = AdminCapabilityRegistry::scopedDepartmentRootIds($caps);
-        if ($rootIds !== []) {
-            $expanded = $this->departmentScope->expandSubtreeDepartmentIds($rootIds);
-            $orgIds = AdminCapabilityRegistry::scopedOrganisationIds($caps);
-            if ($orgIds !== []) {
-                return $this->departmentScope->filterDepartmentIdsWithinOrganisations($expanded, $orgIds);
-            }
-
-            return $expanded;
+        $scope = $this->getScope($user);
+        $ids = [];
+        if ($scope['department_root_ids'] !== []) {
+            $ids = $this->departmentScope->expandSubtreeDepartmentIds($scope['department_root_ids']);
+        }
+        if ($scope['organisation_ids'] !== []) {
+            $ids = array_merge($ids, $this->departmentScope->departmentIdsForOrganisations($scope['organisation_ids']));
         }
 
-        $orgIds = $this->getAccessibleOrganisationIds($user);
-        if ($orgIds === null) {
-            return null;
-        }
-        if ($orgIds === []) {
-            return [];
-        }
-
-        return $this->departmentScope->departmentIdsForOrganisations($orgIds);
+        return array_values(array_unique($ids));
     }
 
     public function canAccessDepartment(User $user, ?string $departmentId): bool
