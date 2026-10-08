@@ -96,6 +96,21 @@ Alle Befehle im Backend-Container: `docker exec ematchef-backend-1 php bin/conso
 
 Die Legacy-Daten bleiben bis zur Fertigstellung **aller** neuen Seeds bestehen. Erst dann folgt, separat und mit eigener Freigabe, die Löschung nach dem Plan unten («Später»).
 
+## 6. Sind die gemeinsamen Demo-Benutzer gefährdet? (geprüft)
+
+**Nein.** Die Umbenennung ändert keine Benutzerdaten. Die spätere Bereinigung löscht nur Zeilen mit `department_id` der Allowlist; `user`, `profile`, `user_totp` und der Ledger-Bereich `demo-users` werden nicht berührt. Im Probelauf blieben alle 23 Demo-Konten (inklusive Passwort-Hashes) und alle 94 Ledger-Einträge identisch. Es verschwinden nur die **alten Mitgliedschaften** in `Demo Grossanlass` (9); die neuen Mitgliedschaften in Event/Camp/Materialverwaltung bleiben. Kein Benutzer hat ausserhalb der Allowlist eine Mitgliedschaft, die gelöscht würde (`Cevi ZH11` wird nicht angefasst). `User.last_used_department_id` zeigt aktuell auf keine Legacy-Department (0 Treffer); der Plan setzt es dennoch auf NULL. Der Runner schützt gemeinsame Benutzer zusätzlich bei jedem künftigen Szenario-Reset ([SEED-KONZEPT.md §7.5, §7.11](./SEED-KONZEPT.md#711-phase-2-demo-organisationen-ist)).
+
+## 7. Offene Entscheidungen
+
+| # | Frage | Empfehlung |
+| --- | --- | --- |
+| D1 | Mitgliedschaften der neun Demo-Konten in `Cevi ZH11` nach dem Sync entfernen? Sonst bleibt `superadmin` dort primär und die Sync-Hinweise bleiben | Entfernen (Department ist danach leer, wird aber nicht gelöscht), als separater Schritt 8 |
+| D2 | (für die spätere Löschung) Bereinigungswerkzeug: eigener Command `app:demo:legacy-cleanup` (Allowlist ID+Name, Dry-Run als Standard, `--execute --confirm`, nur `local`/freigegebenes `develop`) oder einmaliges Skript? | Command mit Dry-Run, damit der Plan reproduzierbar und testbar ist; danach wieder entfernen |
+| D3 | Der von Hand aufgebaute Inhalt von `Demo-Grossanlass-Event` (34 Gruppen, 23 Orte, 15 Kosten …) geht verloren, ausser er steckt im Backup. Soll vorher etwas gesichert oder in den Seed-Katalog übernommen werden? | Backup genügt, wenn der Inhalt nicht gebraucht wird; sonst vorher gezielt exportieren |
+| D4 | Bestehende Waisen (5× `accounting_cost_center_rule`, 2× `audit_event` `GLOBAL000000`) mitbereinigen? | Nein, ausserhalb dieses Auftrags |
+| D6 | Primär-Mitgliedschaft der `ga-*`-Konten (und der Admin-Konten) liegt weiter im Legacy-Department bzw. in `Cevi ZH11`. Bis zur Löschung dort manuell lösen oder so lassen? | So lassen bis zur Löschung (der Sync korrigiert danach automatisch) |
+| D5 | Wipe-Dienst um die drei Tabellen ohne Fremdschlüssel (`public_code`, `accounting_cost_center_rule`, `department_grossanlass_pack(_line)`) erweitern? | Ja, in Phase 3 (Reset); für die einmalige Bereinigung gesondert aufgeführt |
+
 ## 8. Ausführungsprotokoll `mvdb` (8. Oktober 2026, IST)
 
 Ausgeführt im Container `ematchef-backend-1` (`APP_ENV=dev`, `EMATCHEF_ENV_NAME` leer = lokal, `MAILER_DSN=null://null` für die Befehle gesetzt) gegen `ematchef-db-1` / `mvdb`. Reihenfolge wie §5; vor den schreibenden Schritten stimmten Datenbank, Departments (15), Benutzer (34) und Migrationsstand (255) mit der Inventur überein.
@@ -135,18 +150,3 @@ Ausgeführt im Container `ematchef-backend-1` (`APP_ENV=dev`, `EMATCHEF_ENV_NAME
 1. **Primär-Mitgliedschaft:** Die `ga-*`-Konten sind weiter **primär in `old-Demo Grossanlass`**, im neuen Event-Department nicht primär (der Sync setzt nie eine zweite Primäre). Ein Login mit `ga-*` landet deshalb zunächst im Legacy-Department. Erst nach der späteren Löschung (oder wenn man dort die Primär-Markierung entfernt, D1/D6) wird das neue Department primär; ein erneuter Sync erledigt das dann automatisch. Gleiches gilt für `superadmin`/`orgchef`/`suborgchef`, die in `Cevi ZH11` primär bleiben.
 2. Die drei Migrationen «Executed Unavailable» (§1) bestehen unverändert.
 3. Keine Fehler, keine Abbrüche; es musste kein Schritt wiederholt werden.
-
-## 6. Sind die gemeinsamen Demo-Benutzer gefährdet? (geprüft)
-
-**Nein.** Die Umbenennung ändert keine Benutzerdaten. Die spätere Bereinigung löscht nur Zeilen mit `department_id` der Allowlist; `user`, `profile`, `user_totp` und der Ledger-Bereich `demo-users` werden nicht berührt. Im Probelauf blieben alle 23 Demo-Konten (inklusive Passwort-Hashes) und alle 94 Ledger-Einträge identisch. Es verschwinden nur die **alten Mitgliedschaften** in `Demo Grossanlass` (9); die neuen Mitgliedschaften in Event/Camp/Materialverwaltung bleiben. Kein Benutzer hat ausserhalb der Allowlist eine Mitgliedschaft, die gelöscht würde (`Cevi ZH11` wird nicht angefasst). `User.last_used_department_id` zeigt aktuell auf keine Legacy-Department (0 Treffer); der Plan setzt es dennoch auf NULL. Der Runner schützt gemeinsame Benutzer zusätzlich bei jedem künftigen Szenario-Reset ([SEED-KONZEPT.md §7.5, §7.11](./SEED-KONZEPT.md#711-phase-2-demo-organisationen-ist)).
-
-## 7. Offene Entscheidungen
-
-| # | Frage | Empfehlung |
-| --- | --- | --- |
-| D1 | Mitgliedschaften der neun Demo-Konten in `Cevi ZH11` nach dem Sync entfernen? Sonst bleibt `superadmin` dort primär und die Sync-Hinweise bleiben | Entfernen (Department ist danach leer, wird aber nicht gelöscht), als separater Schritt 8 |
-| D2 | (für die spätere Löschung) Bereinigungswerkzeug: eigener Command `app:demo:legacy-cleanup` (Allowlist ID+Name, Dry-Run als Standard, `--execute --confirm`, nur `local`/freigegebenes `develop`) oder einmaliges Skript? | Command mit Dry-Run, damit der Plan reproduzierbar und testbar ist; danach wieder entfernen |
-| D3 | Der von Hand aufgebaute Inhalt von `Demo-Grossanlass-Event` (34 Gruppen, 23 Orte, 15 Kosten …) geht verloren, ausser er steckt im Backup. Soll vorher etwas gesichert oder in den Seed-Katalog übernommen werden? | Backup genügt, wenn der Inhalt nicht gebraucht wird; sonst vorher gezielt exportieren |
-| D4 | Bestehende Waisen (5× `accounting_cost_center_rule`, 2× `audit_event` `GLOBAL000000`) mitbereinigen? | Nein, ausserhalb dieses Auftrags |
-| D6 | Primär-Mitgliedschaft der `ga-*`-Konten (und der Admin-Konten) liegt weiter im Legacy-Department bzw. in `Cevi ZH11`. Bis zur Löschung dort manuell lösen oder so lassen? | So lassen bis zur Löschung (der Sync korrigiert danach automatisch) |
-| D5 | Wipe-Dienst um die drei Tabellen ohne Fremdschlüssel (`public_code`, `accounting_cost_center_rule`, `department_grossanlass_pack(_line)`) erweitern? | Ja, in Phase 3 (Reset); für die einmalige Bereinigung gesondert aufgeführt |
