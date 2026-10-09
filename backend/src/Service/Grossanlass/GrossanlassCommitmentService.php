@@ -171,6 +171,17 @@ final class GrossanlassCommitmentService
         ActivityGrossanlassProcurementOrder $order,
         ?ActivityGrossanlassProcurementQuote $quote,
     ): void {
+        // Die Bestellung kann die Menge der Kauf-Charge ändern: gleiche Transaktion und Chargensperre wie die Buchungen.
+        $this->availability->transactional(fn () => $this->syncBuyChargeFromOrder($department, $user, $line, $order, $quote));
+    }
+
+    private function syncBuyChargeFromOrder(
+        Department $department,
+        User $user,
+        ActivityGrossanlassProcurementLine $line,
+        ActivityGrossanlassProcurementOrder $order,
+        ?ActivityGrossanlassProcurementQuote $quote,
+    ): void {
         $this->assertManage($department, $user);
 
         $related = $this->commitmentsForLine($department, $line->getId());
@@ -327,8 +338,8 @@ final class GrossanlassCommitmentService
                     ));
                 }
             }
-            if (!$creating && $nextQty < $previousQty) {
-                // Weniger Menge darf bestehende Reservierungen nicht unterschreiten.
+            if (!$creating && $nextQty > 0 && $nextQty < $previousQty) {
+                // Weniger Menge darf bestehende Reservierungen nicht unterschreiten (Menge 0 gibt sie über releaseBookingsForZeroQuantity frei).
                 $this->availability->lock($row);
                 $this->availability->assertQuantityCoversBookings($row, $nextQty);
             }

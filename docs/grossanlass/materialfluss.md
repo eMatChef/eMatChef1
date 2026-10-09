@@ -289,9 +289,11 @@ Der Einsatz ist die Reservierung. Der Server entscheidet verbindlich (`Grossanla
 | `PATCH …/uebersicht/einsaetze/{id}` | Reservierung bei Änderung von Charge, Menge, Zeitraum, Art oder Status (auch Freigabe `pending_approval` → `planned`, Wiederöffnen eines zurückgenommenen Einsatzes); Ausgabe bei `status=issued`. Reine Pack-/Fahrt-Änderungen lösen keine Prüfung aus |
 | `POST …/uebersicht/einsaetze/{id}/issue` | Ausgabe |
 | `POST …/packs/{id}/scan-start` | Ausgabe (der Pack-Scan gibt den Einsatz aus) |
-| `PATCH …/beschaffung/zusagen/{id}` | Verringern der Charge-Menge nur bis zur höchsten gleichzeitig reservierten Menge |
+| `PATCH …/beschaffung/zusagen/{id}` | Verringern der Charge-Menge nur bis zur höchsten gleichzeitig reservierten Menge; gilt auch für die Kauf-Charge, die eine Bestellung (`ensureBuyChargeFromOrder`) anlegt oder anpasst (eigene Transaktion mit Chargensperre). Menge 0 gibt die Reservierungen wie bisher frei |
 
-**Antwort bei Konflikt:** HTTP 409 mit `error` (verständlicher Text), `code: availability_conflict` und `conflict` (`kind` = `overbooked` \| `unique_overlap` \| `not_on_hand` \| `below_booked`, dazu Charge, Bestand, Spitzenmenge, beteiligte `einsatz_ids` bzw. vorhandene und bereits ausgegebene Menge). Der Server speichert dann nichts.
+**Antwort bei Konflikt:** HTTP 409 (`GrossanlassAvailabilityConflict` ist keine `RuntimeException`, viele Controller würden sie sonst als 403 melden; Controller ohne eigene Behandlung übernimmt `GrossanlassAvailabilityConflictSubscriber`) mit `error` (verständlicher Text), `code: availability_conflict` und `conflict` (`kind` = `overbooked` \| `unique_overlap` \| `not_on_hand` \| `below_booked`, dazu Charge, Bestand, Spitzenmenge, beteiligte `einsatz_ids` bzw. vorhandene und bereits ausgegebene Menge). Der Server speichert dann nichts.
+
+**Frontend.** Die GA-Ansichten zeigen den Servertext (`error`) als Meldung; `isAvailabilityConflict` (`utils/apiErrorMessage.ts`) erkennt die Antwort. Der Pack-Scan (`useGrossanlassHelperScan`) wertet einen abgelehnten Start nicht mehr als unbekannten Code, und die Programm-Zeitachse nennt beim Verschieben den Konflikt statt einer allgemeinen Fehlermeldung.
 
 **Konfliktvorschau.** `GET …/uebersicht` (`conflicts`) nutzt dieselbe Rechnung. Ein Konflikt nennt alle gleichzeitig beteiligten Einsätze (bisher nur Paare); Altbestand, der vor der Sperre überbucht wurde, bleibt sichtbar und lässt sich nicht weiter ändern, bis die Menge wieder passt.
 
@@ -299,7 +301,6 @@ Der Einsatz ist die Reservierung. Der Server entscheidet verbindlich (`Grossanla
 
 - Reservierungen gegen Material des Gast-Departments (`MaterialItem` im Gast-Department): GuestShare prüft den Bestand dort noch nicht.
 - Inbound-Einsätze sind nicht gekennzeichnet; vor der Verknüpfung mit der Charge zählen sie als normale Reservierung.
-- Interne Abgleiche der Beschaffung, die die Charge-Menge ausserhalb einer Transaktion ändern, sperren die Charge nicht; die Mengenprüfung beim Verringern gilt auch dort.
 - Teilrückgabe: ein zurückgenommener Einsatz gibt immer die ganze Menge frei ([§10](#10-rückbau-und-rücknahme-partial)).
 
 ---

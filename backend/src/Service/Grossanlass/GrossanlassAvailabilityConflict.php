@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace App\Service\Grossanlass;
 
 /**
- * Buchung oder Ausgabe würde die Charge überbuchen bzw. übersteigt die physisch vorhandene Menge. Die Controller melden HTTP 409.
+ * Buchung oder Ausgabe würde die Charge überbuchen bzw. übersteigt die physisch vorhandene Menge. Kein RuntimeException: viele Controller
+ * übersetzen diese als HTTP 403; der Konflikt ist HTTP 409 (Controller oder {@see \App\EventSubscriber\GrossanlassAvailabilityConflictSubscriber}).
  */
-final class GrossanlassAvailabilityConflict extends \RuntimeException
+final class GrossanlassAvailabilityConflict extends \DomainException
 {
     public const KIND_OVERBOOKED = 'overbooked';
     public const KIND_UNIQUE = 'unique_overlap';
