@@ -84,7 +84,7 @@ Ein Pack gehört zu genau einem Einsatz und hat einen eigenen QR (`/i/k/{code}`)
 - **Charge ist nicht Pack.** Die Charge ist Bestand mit Herkunft; der Pack ist die Transportidentität für eine Bewegung.
 - **Artikel ist nicht zwingend ein einzelnes Objekt.** Er gruppiert Chargen.
 - **Mengenware:** eine Charge mit Menge > 1 (z. B. 100 Schrauben).
-- **Unikat:** eine Charge mit Menge 1. Die Konfliktprüfung behandelt Chargen mit Menge ≤ 1 und Fahrzeuge bereits als Unikat.
+- **Unikat:** eine Charge mit Menge 1. Die Verfügbarkeitsregel ([§7.4](#74-verfügbarkeit-und-überbuchungsschutz-ist)) behandelt Chargen mit Menge ≤ 1 und Fahrzeuge als Unikat: nie zwei Einsätze gleichzeitig.
 - **Gebinde / Charge im engeren Sinn:** z. B. 20 Holzbalken als eine Charge oder pro Gebinde eine Charge.
 
 ---
@@ -179,7 +179,7 @@ Darstellbar als je eine Charge pro Quelle und je ein Einsatz pro Deckung; die of
 - Kein externer Abholort: Einsatz-Ziele sind nur GA-Orte; die Firmenadresse liegt an Offerte/Anfrage, nicht als Fahrt-Ursprung.
 - Keine Inbound-Richtung: Fahrten sind fachlich Materialplatz → GA-Ort.
 - Die Ankunft im Materiallager bucht keinen mengenbasierten Wareneingang.
-- Inbound-Einsätze sind nicht sauber von normalen Einsätzen getrennt: sie erzeugen einen Pack mit QR und zählen in der Mengen-Konfliktprüfung mit.
+- Inbound-Einsätze sind nicht sauber von normalen Einsätzen getrennt: sie erzeugen einen Pack mit QR. Von der Verfügbarkeitsregel sind sie ausgenommen, sobald die Charge sie über `item_details.pickup_einsatz_id` / `delivery_einsatz_id` referenziert ([§7.4](#74-verfügbarkeit-und-überbuchungsschutz-ist)); beim Anlegen, vor dieser Verknüpfung, werden sie noch wie jeder Einsatz geprüft.
 
 **SOLL:** den bestehenden Einsatz / Pack / Fahrt-Mechanismus um Inbound erweitern (Richtung, externer Ursprung, Ankunft = Wareneingang). Keine zweite Fahrt-Tabelle.
 
@@ -272,6 +272,35 @@ Mehrere Zustände enthalten gleichzeitig Teilmengen; es gibt keinen Gesamtstatus
 | endgültig disponiert | nein | [§10](#10-rückbau-und-rücknahme-partial) |
 
 **SOLL:** Mengen berechnen, keine zusätzlichen Statusfelder. Mehrere Zustände können gleichzeitig Teilmengen enthalten.
+
+### 7.4 Verfügbarkeit und Überbuchungsschutz (IST)
+
+Der Einsatz ist die Reservierung. Der Server entscheidet verbindlich (`GrossanlassAvailabilityService`, Mengenrechnung `GrossanlassAvailability`); das Flag `has_conflict` des Clients wirkt nicht mehr. Keine zweite Reservierungs- oder Bestandstabelle.
+
+**Reservierung.** Einsätze (`kind=einsatz`) mit Status `planned`, `pending_approval` und `issued` belegen ihre Menge im Fenster `[von, bis)`; berührende Fenster überlappen nicht. `pending_approval` blockiert wie `planned`; `returned` zählt nicht. Geprüft wird die **höchste gleichzeitige Menge**, nicht nur Paare: drei Einsätze mit je 4 Stück auf einer Charge von 10 sind überbucht. Die Obergrenze ist die Charge-Menge (erwartete Menge, auch vor dem Wareneingang). Unikate (Menge ≤ 1) und Fahrzeuge werden nie gleichzeitig mehrfach vergeben.
+
+**Ausgabe.** Höchstens die physisch vorhandene Menge: Eigenbestand (`origin=own`) ist vorhanden, alles andere erst nach Wareneingang (Charge-Bewegung `received`, [§6](#6-wareneingang-ist-mengenbasiert)). Bereits ausgegebene, nicht zurückgenommene Einsätze derselben Charge werden einmal abgezogen; erneutes Ausgeben desselben Einsatzes ändert nichts.
+
+**Wo geprüft wird** (immer in einer Transaktion, die Charge ist mit derselben pessimistischen Sperre wie der Wareneingang gesperrt):
+
+| Vorgang | Regel |
+| --- | --- |
+| `POST …/uebersicht/einsaetze` | Reservierung |
+| `PATCH …/uebersicht/einsaetze/{id}` | Reservierung bei Änderung von Charge, Menge, Zeitraum, Art oder Status (auch Freigabe `pending_approval` → `planned`, Wiederöffnen eines zurückgenommenen Einsatzes); Ausgabe bei `status=issued`. Reine Pack-/Fahrt-Änderungen lösen keine Prüfung aus |
+| `POST …/uebersicht/einsaetze/{id}/issue` | Ausgabe |
+| `POST …/packs/{id}/scan-start` | Ausgabe (der Pack-Scan gibt den Einsatz aus) |
+| `PATCH …/beschaffung/zusagen/{id}` | Verringern der Charge-Menge nur bis zur höchsten gleichzeitig reservierten Menge |
+
+**Antwort bei Konflikt:** HTTP 409 mit `error` (verständlicher Text), `code: availability_conflict` und `conflict` (`kind` = `overbooked` \| `unique_overlap` \| `not_on_hand` \| `below_booked`, dazu Charge, Bestand, Spitzenmenge, beteiligte `einsatz_ids` bzw. vorhandene und bereits ausgegebene Menge). Der Server speichert dann nichts.
+
+**Konfliktvorschau.** `GET …/uebersicht` (`conflicts`) nutzt dieselbe Rechnung. Ein Konflikt nennt alle gleichzeitig beteiligten Einsätze (bisher nur Paare); Altbestand, der vor der Sperre überbucht wurde, bleibt sichtbar und lässt sich nicht weiter ändern, bis die Menge wieder passt.
+
+**Nicht Teil der Regel (offen):**
+
+- Reservierungen gegen Material des Gast-Departments (`MaterialItem` im Gast-Department): GuestShare prüft den Bestand dort noch nicht.
+- Inbound-Einsätze sind nicht gekennzeichnet; vor der Verknüpfung mit der Charge zählen sie als normale Reservierung.
+- Interne Abgleiche der Beschaffung, die die Charge-Menge ausserhalb einer Transaktion ändern, sperren die Charge nicht; die Mengenprüfung beim Verringern gilt auch dort.
+- Teilrückgabe: ein zurückgenommener Einsatz gibt immer die ganze Menge frei ([§10](#10-rückbau-und-rücknahme-partial)).
 
 ---
 
@@ -436,6 +465,8 @@ Fachlich zu unterscheiden bleiben: GA-/Eigenbestand, Material eines Departments 
 | Abholung bei Firma / Lieferung | PARTIAL |
 | Wareneingang (mengenbasiert an der Charge) | IST |
 | Einsatz, Pack, Teilpack, Fahrt-Frei, unterwegs, Ankunft GA-Ort | IST |
+| Serverseitige Verfügbarkeit, Überbuchungssperre, Ausgabe nur physisch vorhandener Menge ([§7.4](#74-verfügbarkeit-und-überbuchungsschutz-ist)) | IST |
+| Verfügbarkeit gegen Material im Gast-Department | SOLL |
 | Pack-QR, GA-Ort-QR, Charge-Barcode `ZS-…` | IST |
 | Charge-Code öffentlich auflösbar, Charge-Etikett | SOLL |
 | Druckinfrastruktur | IST |

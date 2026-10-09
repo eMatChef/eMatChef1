@@ -1216,7 +1216,7 @@ Ressort «Bau»
 2. Zuweisung = **Einsatz** auf eine Charge, pro Ressort/Bauprojekt und Zeitraum → **Zugewiesen** (`place=assigned`). Bereichsleitungen reichen Einsätze ein, MW/CMW/OK-Leitung geben frei.
 3. Pack / Fahrt / Selbstabholung → **Draussen** (`place=out`); Einsatz-Status `returned` → **Im Lager** (Backend; keine Rücknahme-UI für Einsätze).
 
-Liste und Zeitachse pro Charge × Ressort/Bauprojekt (Planung → Belegung, Konflikte). Konfliktprüfung: Unikate (Menge ≤ 1, Fahrzeuge) bei überlappenden Fenstern, Mengen bei Summe > Charge-Menge, Einsatz ausserhalb des Partnerfensters. Wunsch-Zeitraum ≠ Einsatz, bis gebucht. Details: [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md), [materialfluss.md §2, §7](./materialfluss.md#2-kernmodell-artikel--charge--einsatz--pack--ort-ist).
+Liste und Zeitachse pro Charge × Ressort/Bauprojekt (Planung → Belegung, Konflikte). Konfliktprüfung und serverseitige Buchungssperre (HTTP 409): Unikate (Menge ≤ 1, Fahrzeuge) bei überlappenden Fenstern, höchste gleichzeitige Menge > Charge-Menge, Ausgabe nur der physisch vorhandenen Menge ([materialfluss.md §7.4](./materialfluss.md#74-verfügbarkeit-und-überbuchungsschutz-ist)); Einsatz ausserhalb des Partnerfensters wird nur angezeigt. Wunsch-Zeitraum ≠ Einsatz, bis gebucht. Details: [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md), [materialfluss.md §2, §7](./materialfluss.md#2-kernmodell-artikel--charge--einsatz--pack--ort-ist).
 
 Die Status in §11.1 gelten pro Einsatz für die ganze Einsatzmenge.
 
