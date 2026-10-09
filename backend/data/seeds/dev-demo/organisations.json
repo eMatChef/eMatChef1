@@ -75,7 +75,7 @@
         {
           "account": "superadmin",
           "role": "u",
-          "primary": true,
+          "primary": false,
           "groups": []
         },
         {

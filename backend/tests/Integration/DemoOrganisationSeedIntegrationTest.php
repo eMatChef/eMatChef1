@@ -137,7 +137,8 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
             self::assertSame(1, (int) $conn->fetchOne('SELECT count(*) FROM profile WHERE email=?', [DemoAccounts::email('supplier')]));
             // Globale Admins sind nur dort Mitglied, wo der Katalog es ausdrücklich vorsieht, und nur einmal vorhanden
             self::assertSame(2, (int) $conn->fetchOne("SELECT count(*) FROM membership m JOIN \"user\" u ON u.id=m.user_id JOIN profile p ON p.id=u.profile_id WHERE p.email=?", [DemoAccounts::email('superadmin')]));
-            self::assertSame(1, (int) $conn->fetchOne("SELECT count(*) FROM membership m JOIN \"user\" u ON u.id=m.user_id JOIN profile p ON p.id=u.profile_id WHERE m.is_primary AND p.email=?", [DemoAccounts::email('superadmin')]));
+            // Der Superadmin erhält kein automatisches primäres Department (der globale Verwaltungskontext ist sein Einstieg)
+            self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM membership m JOIN \"user\" u ON u.id=m.user_id JOIN profile p ON p.id=u.profile_id WHERE m.is_primary AND p.email=?", [DemoAccounts::email('superadmin')]));
             // Event/Camp sind Grossanlass-Departments, Materialverwaltung nicht
             self::assertTrue((bool) $conn->fetchOne("SELECT is_grossanlass FROM department WHERE demo_scenario_key='grossanlass-camp'"));
             self::assertFalse((bool) $conn->fetchOne("SELECT is_grossanlass FROM department WHERE demo_scenario_key='materialverwaltung'"));
