@@ -4,7 +4,7 @@
     <ELoadingState v-if="loading" variant="list" :message="t('common.loading')" />
     <p v-else-if="error" class="warn">{{ error }}</p>
     <template v-else>
-      <div class="form">
+      <div class="form" data-onboarding="ga-setup-stammdaten">
         <ETextField
           v-model="deptNameDraft"
           :label="t('grossanlass.planung.stammdaten.name')"
@@ -63,7 +63,7 @@
         <section class="card guest-card">
           <h3>{{ t('grossanlass.planung.stammdaten.guestTitle') }}</h3>
           <p class="hint">{{ t('grossanlass.planung.stammdaten.guestLead') }}</p>
-          <div class="modus-grid">
+          <div class="modus-grid" data-onboarding="ga-setup-type">
             <button
               type="button"
               class="modus-card"

@@ -1,4 +1,43 @@
 {
+  "grossanlass": {
+      "setup": {
+        "title": "Configurazione iniziale",
+        "lead": "Servono ancora alcune informazioni importanti prima che il grande evento possa iniziare. Poi lo rilasci per tutti i ruoli.",
+        "leadOther": "Questo grande evento è in fase di configurazione. Appena MW o direzione OK lo rilasciano, la tua area sarà disponibile.",
+        "pendingForRole": "Il grande evento è ancora in configurazione e non è ancora rilasciato per il tuo ruolo.",
+        "open": "Apri",
+        "release": "Rilascia la configurazione",
+        "releasedToast": "Il grande evento è rilasciato.",
+        "releaseError": "Il rilascio non è possibile.",
+        "releaseBlocked": "Il grande evento può essere rilasciato solo quando tutte e tre le aree sono completate.",
+        "releaseByMwOrOk": "MW e direzione OK possono rilasciare.",
+        "startTour": "Avvia l’introduzione",
+        "steps": {
+          "stammdaten": {
+            "title": "Dati di base",
+            "hint": "Nome, inizio, luogo e tipo (campo o evento)."
+          },
+          "ressorts": {
+            "title": "Settori e responsabilità",
+            "hint": "Almeno un settore, ciascuno con una direzione."
+          },
+          "mitglieder": {
+            "title": "Membri e assegnazione OK",
+            "hint": "Almeno un responsabile materiale (MW) e una direzione OK."
+          }
+        },
+        "missing": {
+          "name": "Manca il nome.",
+          "location": "Manca il luogo.",
+          "type": "Il tipo non è impostato.",
+          "period": "La fine è prima dell’inizio.",
+          "no_ressort": "Non c’è ancora nessun settore.",
+          "ressort_without_leader": "Il settore «{name}» non ha ancora una direzione.",
+          "no_mw": "Manca un responsabile materiale (MW).",
+          "no_ok": "Manca una direzione OK."
+        }
+      }
+  },
   "app": {
     "name": "eMatChef",
     "devEnvironmentBanner": "Ambiente di test – non sono dati di produzione.",
@@ -1384,6 +1423,28 @@
     }
   },
   "onboarding": {
-    "tours": {}
+    "tours": {
+        "gaSetup": {
+          "title": "Configurare il grande evento",
+          "description": "Conosci il sistema e configura dati di base, settori e membri.",
+          "ctaStay": "Resta qui",
+          "step1Title": "Benvenuto al grande evento",
+          "step1Body": "Conosci prima il sistema. Servono ancora alcune informazioni importanti prima di poter iniziare. Clicca su «Gestire il grande evento».",
+          "step2Title": "1. Dati di base",
+          "step2Body": "Nome, data e luogo del grande evento. Questi dati sono obbligatori.",
+          "step3Title": "Tipo: campo o evento",
+          "step3Body": "Scegli se gli ospiti svolgono un campo o un evento. La partecipazione dei reparti e il prestito di materiale ne sono indipendenti e si scelgono liberamente in seguito.",
+          "step4Title": "2. Settori",
+          "step4Body": "Passa ai settori.",
+          "step5Title": "Settori e responsabilità",
+          "step5Body": "Crea almeno un settore e assegna una direzione a ciascuno.",
+          "step6Title": "3. Membri",
+          "step6Body": "Gestisci membri e direzione OK nelle impostazioni.",
+          "step7Title": "Utenti",
+          "step7Body": "Invita membri e assegna loro dei ruoli. Servono almeno un MW e una direzione OK.",
+          "step8Title": "Rilasciare",
+          "step8Body": "Quando le tre aree sono completate, MW o direzione OK rilasciano qui la configurazione. Solo allora il grande evento è aperto a tutti i ruoli."
+        }
+    }
   }
 }

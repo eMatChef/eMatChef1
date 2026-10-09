@@ -216,6 +216,25 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isActiveDepartmentGrossanlass = computed(() => isDepartmentGrossanlass(activeDepartmentId.value))
 
+  /**
+   * Grossanlass mit offener Ersteinrichtung (Freigabe fehlt). Nur ein ausdrückliches `false` zählt: Antworten ohne das Feld
+   * (ältere Sitzungen, bestehende Anlässe) gelten als freigegeben. Die Sperre erzwingt der Server.
+   */
+  function isGrossanlassSetupPending(departmentId: string | null | undefined): boolean {
+    if (!departmentId) return false
+    const dept = departments.value.find((d) => d.department_id === departmentId)
+    // Globale Admins (Superadmin, Orgchef, Suborgchef) behalten ihre Rechte; der Server sperrt nur Mitglieder ohne Verwaltungsscope.
+    if (userRoles.value.some((r) => ['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'].includes(r))) return false
+    return Boolean(dept?.department?.is_grossanlass) && dept?.department?.grossanlass_config?.setup_released === false
+  }
+
+  function markGrossanlassSetupReleased(departmentId: string): void {
+    const config = departments.value.find((d) => d.department_id === departmentId)?.department?.grossanlass_config
+    if (config) config.setup_released = true
+  }
+
+  const isActiveGrossanlassSetupPending = computed(() => isGrossanlassSetupPending(activeDepartmentId.value))
+
   const departmentTimezone = ref<string>(localStorage.getItem('department_timezone') || 'Europe/Zurich')
 
   async function loadDepartmentTimezone() {
@@ -668,6 +687,9 @@ export const useAuthStore = defineStore('auth', () => {
     userColors,
     currentDepartmentRole,
     isDepartmentGrossanlass,
+    isGrossanlassSetupPending,
+    isActiveGrossanlassSetupPending,
+    markGrossanlassSetupReleased,
     isActiveDepartmentGrossanlass,
     activeDepartmentName,
     departmentTimezone,

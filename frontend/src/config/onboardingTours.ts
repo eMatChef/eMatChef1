@@ -29,6 +29,7 @@ export type OnboardingTourId =
   | 'department-details'
   | 'org-overview'
   | 'suborg-overview'
+  | 'ga-setup'
 
 export type OnboardingTourCategory = 'start' | 'material' | 'activities' | 'settings' | 'admin'
 
@@ -48,8 +49,9 @@ export interface OnboardingTourCompletionCta {
  * - mw: Materialwart + Depchef
  * - dc: nur Depchef (und Superadmin)
  * - org / suborg: wie bisher
+ * - ga-setup: Einrichtung eines Grossanlasses (MW, Co-MW, OK-Leitung); nur im Grossanlass-Hub sichtbar
  */
-export type OnboardingTourAudience = 'mw' | 'dc' | 'leader' | 'member' | 'all' | 'org' | 'suborg'
+export type OnboardingTourAudience = 'mw' | 'dc' | 'leader' | 'member' | 'all' | 'org' | 'suborg' | 'ga-setup'
 
 export interface OnboardingTourStepDef {
   id: string
@@ -163,6 +165,8 @@ export type OnboardingTourFilterOptions = {
   canCreateCamp?: boolean
   /** User ist Gruppenchef (★) in mind. einer Gruppe dieses Departments. */
   isGroupLeader?: boolean
+  /** Hub eines Grossanlass-Departments: nur Touren der Audience `ga-setup`, dort keine Pfadi-Touren. */
+  isGrossanlass?: boolean
 }
 
 export const ONBOARDING_TOUR_QUERY = 'onboardingTour'
@@ -1784,6 +1788,89 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
       },
     ],
   },
+  {
+    id: 'ga-setup',
+    category: 'start',
+    version: 1,
+    audience: 'ga-setup',
+    routeName: 'Dashboard',
+    titleKey: 'onboarding.tours.gaSetup.title',
+    descriptionKey: 'onboarding.tours.gaSetup.description',
+    mdiIcon: 'mdi-flag-checkered',
+    completionCtas: [
+      {
+        labelKey: 'onboarding.tours.gaSetup.ctaStay',
+        action: 'stay',
+      },
+    ],
+    steps: [
+      {
+        id: '1',
+        target: '[data-onboarding="nav-ga-verwalten"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.gaSetup.step1Title',
+        bodyKey: 'onboarding.tours.gaSetup.step1Body',
+      },
+      {
+        id: '2',
+        routeName: 'GrossanlassPlanungStammdaten',
+        target: '[data-onboarding="ga-setup-stammdaten"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.gaSetup.step2Title',
+        bodyKey: 'onboarding.tours.gaSetup.step2Body',
+      },
+      {
+        id: '3',
+        routeName: 'GrossanlassPlanungStammdaten',
+        target: '[data-onboarding="ga-setup-type"]',
+        mode: 'info',
+        scroll: 'nearest',
+        titleKey: 'onboarding.tours.gaSetup.step3Title',
+        bodyKey: 'onboarding.tours.gaSetup.step3Body',
+      },
+      {
+        id: '4',
+        routeName: 'GrossanlassPlanungStammdaten',
+        target: '[data-onboarding="ga-setup-tab-ressorts"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.gaSetup.step4Title',
+        bodyKey: 'onboarding.tours.gaSetup.step4Body',
+      },
+      {
+        id: '5',
+        routeName: 'GrossanlassRessorts',
+        target: '[data-onboarding="ga-setup-ressorts"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.gaSetup.step5Title',
+        bodyKey: 'onboarding.tours.gaSetup.step5Body',
+      },
+      {
+        id: '6',
+        routeName: 'GrossanlassRessorts',
+        target: '[data-onboarding="nav-settings"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.gaSetup.step6Title',
+        bodyKey: 'onboarding.tours.gaSetup.step6Body',
+      },
+      {
+        id: '7',
+        target: '[data-onboarding="settings-nav-users"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.gaSetup.step7Title',
+        bodyKey: 'onboarding.tours.gaSetup.step7Body',
+      },
+      {
+        id: '8',
+        routeName: 'Dashboard',
+        target: '[data-onboarding="ga-setup-release"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.gaSetup.step8Title',
+        bodyKey: 'onboarding.tours.gaSetup.step8Body',
+      },
+    ],
+  },
 ]
 
 export function getOnboardingTour(id: string): OnboardingTourDef | undefined {
@@ -1810,6 +1897,10 @@ export function isTourVisibleForRole(
 ): boolean {
   const audience = tour.audience ?? 'mw'
   const normalized = String(role || '').toLowerCase().trim()
+  if (audience === 'ga-setup' || options.isGrossanlass) {
+    // Grossanlass: eigene Einrichtungs-Tour für die Rollen, die einrichten dürfen; keine Pfadi-Material-/Aktivitäts-Touren.
+    return audience === 'ga-setup' && !!options.isGrossanlass && ['mw', 'cmw', 'dc', 'matwart', 'depchef'].includes(normalized)
+  }
   const isMw = isDepartmentMwOrDcRole(role)
   const isMember = isDepartmentBasicMemberRole(role)
   const isLeaderRole = isDepartmentLeaderRole(role) || !!options.isGroupLeader

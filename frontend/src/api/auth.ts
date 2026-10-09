@@ -118,6 +118,8 @@ export interface LoginResponse {
       planned_event_start: string
       planned_event_end?: string | null
       main_activity_id?: string | null
+      /** Ersteinrichtung freigegeben; fehlt bei älteren Antworten (dann gilt sie als freigegeben). */
+      setup_released?: boolean
     }
   }>
   admin_contexts?: AdminContextsResponse
@@ -217,6 +219,8 @@ export interface UserDepartmentResponse {
       planned_event_start: string
       planned_event_end?: string | null
       main_activity_id?: string | null
+      /** Ersteinrichtung freigegeben; fehlt bei älteren Antworten (dann gilt sie als freigegeben). */
+      setup_released?: boolean
     }
   }
 }

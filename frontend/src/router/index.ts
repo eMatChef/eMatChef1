@@ -27,8 +27,10 @@ import {
 import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 import {
   canUseHelpTours,
+  canUseGrossanlassSetupTour,
   isHelpToursPath,
 } from '@/utils/onboardingGate'
+import { isGrossanlassSetupAllowedPath } from '@/utils/grossanlassSetupRoutes'
 import {
   gaCanManageDepartmentUsers,
   gaCanSeeAnlassOverview,
@@ -2907,6 +2909,16 @@ router.beforeEach(async (to, from, next) => {
   // Grossanlass-only routes (Planung, Beschaffung)
   if (to.meta.requiresGrossanlassDepartment) {
     const deptId = (to.params.departmentId as string) || authStore.activeDepartmentId || ''
+  // Grossanlass mit offener Ersteinrichtung: nur Dashboard und Einrichtung (der Server sperrt unabhängig davon).
+  const setupDeptId = (to.params.departmentId as string) || ''
+  if (
+    setupDeptId
+    && authStore.isGrossanlassSetupPending(setupDeptId)
+    && !isGrossanlassSetupAllowedPath(to.path, setupDeptId, canUseGrossanlassSetupTour(authStore, setupDeptId))
+  ) {
+    return next({ name: 'Dashboard', params: { departmentId: setupDeptId }, replace: true })
+  }
+
     if (!deptId || !authStore.isDepartmentGrossanlass(deptId)) {
       if (deptId) {
         return next(`/${deptId}`)

@@ -1,4 +1,43 @@
 {
+  "grossanlass": {
+      "setup": {
+        "title": "Première configuration",
+        "lead": "Il nous faut encore quelques informations importantes avant le démarrage du grand événement. Ensuite, tu le libères pour tous les rôles.",
+        "leadOther": "Ce grand événement est en cours de configuration. Dès que le MW ou la direction OK le libère, ton espace sera disponible.",
+        "pendingForRole": "Le grand événement est encore en configuration et pas encore libéré pour ton rôle.",
+        "open": "Ouvrir",
+        "release": "Libérer la configuration",
+        "releasedToast": "Le grand événement est libéré.",
+        "releaseError": "La libération n’est pas possible.",
+        "releaseBlocked": "Le grand événement ne peut être libéré que lorsque les trois domaines sont terminés.",
+        "releaseByMwOrOk": "Le MW et la direction OK peuvent libérer.",
+        "startTour": "Démarrer l’introduction",
+        "steps": {
+          "stammdaten": {
+            "title": "Données de base",
+            "hint": "Nom, début, lieu et type (camp ou événement)."
+          },
+          "ressorts": {
+            "title": "Départements et responsabilités",
+            "hint": "Au moins un secteur, chacun avec une direction."
+          },
+          "mitglieder": {
+            "title": "Membres et attribution OK",
+            "hint": "Au moins un chef du matériel (MW) et une direction OK."
+          }
+        },
+        "missing": {
+          "name": "Le nom manque.",
+          "location": "Le lieu manque.",
+          "type": "Le type n’est pas défini.",
+          "period": "La fin est avant le début.",
+          "no_ressort": "Il n’y a pas encore de secteur.",
+          "ressort_without_leader": "Le secteur « {name} » n’a pas encore de direction.",
+          "no_mw": "Un chef du matériel (MW) manque.",
+          "no_ok": "Une direction OK manque."
+        }
+      }
+  },
   "app": {
     "name": "eMatChef",
     "devEnvironmentBanner": "Environnement de test – pas les données de production.",
@@ -1514,6 +1553,28 @@
     "dropImageHint": "Déposez ou collez une image ici"
   },
   "onboarding": {
-    "tours": {}
+    "tours": {
+        "gaSetup": {
+          "title": "Configurer le grand événement",
+          "description": "Découvre le système et configure données de base, secteurs et membres.",
+          "ctaStay": "Rester ici",
+          "step1Title": "Bienvenue au grand événement",
+          "step1Body": "Découvre d’abord le système. Il nous faut encore quelques informations importantes avant que tu puisses démarrer. Clique sur « Gérer le grand événement ».",
+          "step2Title": "1. Données de base",
+          "step2Body": "Nom, date et lieu du grand événement. Ces données sont obligatoires.",
+          "step3Title": "Type : camp ou événement",
+          "step3Body": "Choisis si les invités organisent un camp ou un événement. La participation de départements et le prêt de matériel en sont indépendants et se choisissent librement plus tard.",
+          "step4Title": "2. Secteurs",
+          "step4Body": "Passe aux secteurs.",
+          "step5Title": "Secteurs et responsabilités",
+          "step5Body": "Crée au moins un secteur et désigne une direction pour chacun.",
+          "step6Title": "3. Membres",
+          "step6Body": "Tu gères les membres et la direction OK dans les paramètres.",
+          "step7Title": "Utilisateurs",
+          "step7Body": "Invite des membres et attribue-leur des rôles. Il faut au moins un MW et une direction OK.",
+          "step8Title": "Libérer",
+          "step8Body": "Lorsque les trois domaines sont terminés, le MW ou la direction OK libère la configuration ici. Ensuite seulement, le grand événement est ouvert à tous les rôles."
+        }
+    }
   }
 }

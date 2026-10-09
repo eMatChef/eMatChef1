@@ -1744,6 +1744,27 @@
       }
     },
     "tours": {
+        "gaSetup": {
+          "title": "Set up the large event",
+          "description": "Get to know the system and set up master data, areas and members.",
+          "ctaStay": "Stay here",
+          "step1Title": "Welcome to the large event",
+          "step1Body": "First get to know the system. We still need a few important details before you can start. Click “Manage large event”.",
+          "step2Title": "1. Master data",
+          "step2Body": "Name, date and place of the large event. These details are required.",
+          "step3Title": "Type: camp or event",
+          "step3Body": "Choose whether guests run a camp or an event. Participation of departments and material loans are independent of this and can be chosen freely later.",
+          "step4Title": "2. Areas",
+          "step4Body": "Switch to the areas.",
+          "step5Title": "Areas and responsibilities",
+          "step5Body": "Create at least one area and assign a lead to each.",
+          "step6Title": "3. Members",
+          "step6Body": "You manage members and the OK lead in the settings.",
+          "step7Title": "Users",
+          "step7Body": "Invite members and assign roles. At least one MW and one OK lead are needed.",
+          "step8Title": "Release",
+          "step8Body": "When all three areas are done, the MW or the OK lead releases the setup here. Only then is the large event open to all roles."
+        },
       "start": "Start tour",
       "restart": "Go through tour again",
       "next": "Next",
@@ -8177,6 +8198,43 @@
         "location": "Location",
         "ressort": "Department",
         "bereich": "Area",
+      "setup": {
+        "title": "Initial setup",
+        "lead": "We need a few important details before the large event can start. After that you release it for all roles.",
+        "leadOther": "This large event is being set up. Once the MW or the OK lead releases it, your area becomes available.",
+        "pendingForRole": "The large event is still being set up and is not yet released for your role.",
+        "open": "Open",
+        "release": "Release setup",
+        "releasedToast": "The large event is released.",
+        "releaseError": "Release is not possible.",
+        "releaseBlocked": "The large event can only be released once all three areas are done.",
+        "releaseByMwOrOk": "The MW and the OK lead can release.",
+        "startTour": "Start introduction",
+        "steps": {
+          "stammdaten": {
+            "title": "Master data",
+            "hint": "Name, start of the event, place and type (camp or event)."
+          },
+          "ressorts": {
+            "title": "Departments and responsibilities",
+            "hint": "At least one area, each with a lead."
+          },
+          "mitglieder": {
+            "title": "Members and OK assignment",
+            "hint": "At least one material lead (MW) and one OK lead."
+          }
+        },
+        "missing": {
+          "name": "The name is missing.",
+          "location": "The place is missing.",
+          "type": "The type is not set.",
+          "period": "The end is before the start.",
+          "no_ressort": "There is no area yet.",
+          "ressort_without_leader": "Area “{name}” has no lead yet.",
+          "no_mw": "A material lead (MW) is missing.",
+          "no_ok": "An OK lead is missing."
+        }
+      },
         "project": "Construction project (text filter)",
         "rotate": "Rotate views automatically (simulated only)",
         "rotateSec": "Seconds per view"

@@ -1873,6 +1873,27 @@
       }
     },
     "tours": {
+        "gaSetup": {
+          "title": "Grossanlass einrichten",
+          "description": "Lerne das System kennen und richte Stammdaten, Ressorts und Mitglieder ein.",
+          "ctaStay": "Hier bleiben",
+          "step1Title": "Willkommen im Grossanlass",
+          "step1Body": "Lerne zuerst das System kennen. Wir brauchen noch ein paar wichtige Angaben, bevor du starten kannst. Klicke auf «Grossanlass verwalten».",
+          "step2Title": "1. Stammdaten",
+          "step2Body": "Name, Anlassdatum und Ort des Grossanlasses. Diese Angaben sind Pflicht.",
+          "step3Title": "GA-Typ: Lager oder Event",
+          "step3Body": "Wähle, ob die Gäste ein Lager oder einen Event durchführen. Die Teilnahme von Departments und die Materialleihe sind davon unabhängig und später frei wählbar.",
+          "step4Title": "2. Ressorts",
+          "step4Body": "Wechsle zu den Ressorts.",
+          "step5Title": "Ressorts und Verantwortlichkeiten",
+          "step5Body": "Lege mindestens ein Ressort an und bestimme für jedes eine Leitung.",
+          "step6Title": "3. Mitglieder",
+          "step6Body": "Mitglieder und OK-Leitung verwaltest du in den Einstellungen.",
+          "step7Title": "Benutzer",
+          "step7Body": "Lade Mitglieder ein und weise ihnen Rollen zu. Es braucht mindestens einen MW und eine OK-Leitung.",
+          "step8Title": "Freigeben",
+          "step8Body": "Sind alle drei Bereiche erledigt, geben MW oder OK-Leitung die Einrichtung hier frei. Erst dann steht der Grossanlass allen Rollen offen."
+        },
       "start": "Tour starten",
       "restart": "Tour nochmals durchgehen",
       "next": "Weiter",
@@ -10830,6 +10851,43 @@
         "location": "Standort",
         "ressort": "Ressort",
         "bereich": "Bereich",
+      "setup": {
+        "title": "Ersteinrichtung",
+        "lead": "Bevor der Grossanlass startet, brauchen wir noch ein paar wichtige Angaben. Danach schaltest du ihn für alle Rollen frei.",
+        "leadOther": "Dieser Grossanlass wird gerade eingerichtet. Sobald MW oder OK-Leitung ihn freigeben, steht dir dein Bereich zur Verfügung.",
+        "pendingForRole": "Der Grossanlass ist noch in der Einrichtung und für deine Rolle noch nicht freigegeben.",
+        "open": "Öffnen",
+        "release": "Einrichtung freigeben",
+        "releasedToast": "Der Grossanlass ist freigegeben.",
+        "releaseError": "Die Freigabe ist nicht möglich.",
+        "releaseBlocked": "Erst wenn alle drei Bereiche erledigt sind, lässt sich der Grossanlass freigeben.",
+        "releaseByMwOrOk": "Freigeben dürfen MW und OK-Leitung.",
+        "startTour": "Einführung starten",
+        "steps": {
+          "stammdaten": {
+            "title": "Stammdaten",
+            "hint": "Name, Anlassbeginn, Ort und GA-Typ (Lager oder Event)."
+          },
+          "ressorts": {
+            "title": "Ressorts und Verantwortlichkeiten",
+            "hint": "Mindestens ein Ressort, jedes mit einer Leitung."
+          },
+          "mitglieder": {
+            "title": "Mitglieder und OK-Zuordnung",
+            "hint": "Mindestens ein Materialchef (MW) und eine OK-Leitung."
+          }
+        },
+        "missing": {
+          "name": "Der Name fehlt.",
+          "location": "Der Ort fehlt.",
+          "type": "Der GA-Typ ist nicht gesetzt.",
+          "period": "Das Ende liegt vor dem Beginn.",
+          "no_ressort": "Es gibt noch kein Ressort.",
+          "ressort_without_leader": "Ressort «{name}» hat noch keine Leitung.",
+          "no_mw": "Es fehlt ein Materialchef (MW).",
+          "no_ok": "Es fehlt eine OK-Leitung."
+        }
+      },
         "project": "Bauprojekt (Textfilter)",
         "rotate": "Ansichten automatisch wechseln (nur simuliert)",
         "rotateSec": "Sekunden pro Ansicht"
