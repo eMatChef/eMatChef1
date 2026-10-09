@@ -564,3 +564,11 @@ Lesen und Schreiben von Department-Daten wird getrennt autorisiert (`DepartmentA
 `GET /api/auth/verify` behandelt jeden Token als E-Mail-Wechsel, sobald `pendingEmail` gesetzt ist, und setzt dabei `emailVerified` nicht. Ein unbestätigter User (z. B. MiData-Neuanlage ohne vom Provider verifizierte E-Mail, die per OAuth trotzdem angemeldet ist) kann über `PATCH /api/profiles/{id}` einen E-Mail-Wechsel anstoßen. Dabei wird der offene Registrierungs-Token überschrieben und der Account bleibt nach Bestätigung unbestätigt.
 
 Der Admin-Endpoint `PATCH /api/users/{id}/admin` lehnt E-Mail-Änderungen für unbestätigte User bereits ab (409). Der Profil-Endpoint ist noch offen.
+
+---
+
+## Offene Folgeaufgaben (Profil → Sicherheit)
+
+- **Server-Cron fehlt:** `app:security-activity:purge-context` (IP/User-Agent nach 90 Tagen leeren) ist dokumentiert (`deploy/SERVER-UPDATE.md`), aber auf Staging/Prod noch nicht eingerichtet.
+- **Google Link/Unlink:** Es gibt nur die Statusanzeige. Ein Link-Flow für eingeloggte User und ein Unlink (mit Schutz der letzten Login-Methode, Step-up für Admins, Audit) sind noch zu bauen. Keine automatische Zusammenführung über E-Mail.
+- **`TRUSTED_PROXIES` einengen:** In den Server-Overrides steht `172.16.0.0/12`; nach dem Deploy auf das exakte Compose-Netz (`docker network inspect <projekt>_default`) reduzieren.

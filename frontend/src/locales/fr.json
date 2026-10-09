@@ -416,14 +416,22 @@
       "securitySection": "Sécurité",
         "externalIdentities": {
           "title": "Connexions liées",
-          "hint": "Comptes externes avec lesquels vous pouvez vous connecter à eMatChef.",
+          "hint": "Avec ces comptes, vous pouvez vous connecter à eMatChef. Les départements, rôles et groupes restent inchangés en cas de déconnexion.",
           "linkedAt": "Lié depuis le {date}",
           "disconnect": "Déconnecter",
           "confirmTitle": "Déconnecter MiData ?",
           "confirmMessage": "Vous ne pourrez plus vous connecter avec MiData. Vos départements, rôles et groupes dans eMatChef restent inchangés.",
           "lastMethod": "MiData est votre seul moyen de connexion. Confirmez d'abord votre adresse e-mail ou liez un autre fournisseur.",
           "disconnected": "Connexion supprimée.",
-          "error": "Impossible de déconnecter."
+          "error": "Impossible de déconnecter.",
+          "linked": "Lié",
+          "notLinked": "Non lié",
+          "connect": "Lier",
+          "googleNote": "La connexion Google est créée lors de la première connexion avec Google et ne peut pas être modifiée ici.",
+          "providers": {
+            "google": "Google",
+            "midata": "MiData / db.scout.ch"
+          }
         },
       "sessions": {
         "title": "Appareils et sessions",
@@ -465,7 +473,7 @@
       },
       "activity": {
         "title": "Activité de sécurité",
-        "hint": "Les derniers événements de sécurité de ton compte.",
+        "hint": "Votre journal de sécurité personnel. Vous seul pouvez le voir.",
         "empty": "Aucun événement.",
         "loadError": "Impossible de charger l'activité.",
         "events": {
@@ -488,8 +496,63 @@
           "profile_primary_email_changed": "Adresse principale modifiée",
           "profile_email_added": "Adresse e-mail ajoutée",
           "profile_email_verified": "Adresse e-mail confirmée",
-          "profile_email_removed": "Adresse e-mail supprimée"
-        }
+          "profile_email_removed": "Adresse e-mail supprimée",
+          "profile_updated": "Profil modifié",
+          "profile_email_change_requested": "Changement d'e-mail demandé",
+          "profile_email_change_confirmed": "Changement d'e-mail confirmé",
+          "external_identity_linked": "Connexion liée",
+          "external_identity_unlinked": "Connexion déconnectée",
+          "membership_created": "Affectation à un département ajoutée",
+          "membership_role_changed": "Rôle modifié",
+          "membership_removed": "Affectation à un département supprimée"
+        },
+        "loadMore": "Charger plus",
+        "loading": "Chargement …",
+        "retention": "Les adresses IP et les informations du navigateur sont supprimées après {days} jours.",
+        "meta": {
+          "method": "Connexion via {value}",
+          "mfa": "MFA : {value}",
+          "device": "{value}",
+          "ip": "IP {value}",
+          "actor": "Déclenché par {name}",
+          "actorUnknown": "Déclenché par un administrateur",
+          "self": "Par vous",
+          "fields": "Modifié : {fields}"
+        },
+        "authMethods": {
+          "password": "mot de passe",
+          "google": "Google",
+          "midata": "MiData",
+          "legacy": "session existante"
+        },
+        "mfaSources": {
+          "totp": "code d'authentification",
+          "recovery_code": "code de récupération",
+          "trusted_device": "appareil de confiance"
+        },
+        "providers": {
+          "google": "Google",
+          "midata": "MiData"
+        },
+        "fields": {
+          "first_name": "Prénom",
+          "last_name": "Nom",
+          "nickname": "Totem",
+          "avatar_initials": "Initiales",
+          "language": "Langue",
+          "background_color": "Couleur de fond",
+          "text_color": "Couleur du texte",
+          "global_admin_role": "Rôle global",
+          "admin_capabilities": "Droits d'administration"
+        },
+        "fullLog": "Journal complet",
+        "fullLogTitle": "Journal de sécurité",
+        "filterType": "Type d'événement",
+        "filterFrom": "Du",
+        "filterTo": "Au",
+        "filterAllTypes": "Tous les événements",
+        "filterApply": "Filtrer",
+        "filterReset": "Réinitialiser"
       },
       "totp": {
         "title": "Authentification à deux facteurs",
@@ -560,7 +623,8 @@
       "lastName": "Nom",
       "firstName": "Prénom",
       "email": "E-mail",
-      "editEmailTitle": "Modifier l'e-mail",
+      "editEmailTitle": "Gérer les adresses e-mail",
+      "emailManagedInSecurity": "L'adresse principale se gère sous « Sécurité → Adresses e-mail ».",
       "emailNewMustVerify": "La nouvelle adresse doit être confirmée. Jusqu'à confirmation, l'ancienne reste valide.",
       "emailPendingSent": "Lien de confirmation envoyé pour la nouvelle adresse : {pending}. Jusqu'à confirmation, {current} reste actif.",
       "nickname": "Surnom",

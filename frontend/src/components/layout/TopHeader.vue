@@ -494,14 +494,14 @@
                     type="email"
                     maxlength="180"
                     autocomplete="username"
-                    :disabled="!isEmailEditEnabled"
-                    :class="{ 'is-readonly': !isEmailEditEnabled }"
+                    disabled
+                    class="is-readonly"
                   />
                   <button
                     type="button"
                     class="email-edit-btn"
-                    :class="{ active: isEmailEditEnabled }"
-                    @click="toggleEmailEdit"
+                    data-testid="manage-emails"
+                    @click="openEmailManagement"
                     :title="t('layout.profileModal.editEmailTitle')"
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
@@ -510,8 +510,8 @@
                     </svg>
                   </button>
                 </div>
-                <small v-if="isEmailEditEnabled" class="email-edit-hint">
-                  {{ t('layout.profileModal.emailNewMustVerify') }}
+                <small class="email-edit-hint">
+                  {{ t('layout.profileModal.emailManagedInSecurity') }}
                 </small>
                 <small v-if="pendingEmailTarget" class="email-pending-hint">
                   {{
@@ -666,7 +666,11 @@
               </div>
             </details>
 
-            <ProfileSecurityEmailsAccordion :open="showEditProfileModal" :expanded="profileSecurityExpanded" />
+            <ProfileSecurityEmailsAccordion
+              :open="showEditProfileModal"
+              :expanded="profileSecurityExpanded"
+              @primary-changed="syncPrimaryEmail"
+            />
             <ProfileDriveLicenseAccordion :open="showEditProfileModal" />
             <ProfileMiDataMembershipsAccordion :open="showEditProfileModal" />
 
@@ -759,7 +763,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, reactive } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { useDisplay } from 'vuetify'
@@ -1019,7 +1023,6 @@ const searchDepartmentId = computed(() => {
   return deptId || authStore.activeDepartmentId || ''
 })
 const showEditProfileModal = ref(false)
-const isEmailEditEnabled = ref(false)
 const savingProfile = ref(false)
 const unreadCount = ref(0)
 const showNotifications = ref(false)
@@ -1938,7 +1941,6 @@ function editProfile() {
   }
   initialProfileFormSnapshot.value = serializeProfileForm(profileForm.value)
   resetPasswordForm()
-  isEmailEditEnabled.value = false
   showEditProfileModal.value = true
   showUserDropdown.value = false
   void loadProfileUserAddress()
@@ -1988,10 +1990,17 @@ function activateLicense() {
   // License activation
 }
 
+/** Hauptadresse wurde in Sicherheit geändert: oberes Feld und gespeicherter Snapshot nachziehen. */
+function syncPrimaryEmail() {
+  const email = authStore.profile?.email
+  if (!email) return
+  profileForm.value.email = email
+  initialProfileFormSnapshot.value = serializeProfileForm(profileForm.value)
+}
+
 function closeEditProfileModal() {
   profileSecurityExpanded.value = false
   showEditProfileModal.value = false
-  isEmailEditEnabled.value = false
   initialProfileFormSnapshot.value = ''
   initialAddressSnapshot.value = ''
   addressRecordId.value = null
@@ -2073,22 +2082,12 @@ function normalizeHexColor(value: string, fallback: string): string {
   return fallback
 }
 
-async function toggleEmailEdit() {
-  if (isEmailEditEnabled.value) {
-    isEmailEditEnabled.value = false
-    return
-  }
-
-  const confirmed = await confirm.confirm({
-    title: t('layout.confirm.changeEmailTitle'),
-    message: t('layout.confirm.changeEmailMessage'),
-    confirmText: t('layout.confirm.enableEmailEdit'),
-    cancelText: t('common.cancel'),
-    variant: 'warning',
-  })
-  if (!confirmed) return
-
-  isEmailEditEnabled.value = true
+/** Einziger Bearbeitungsweg für E-Mail-Adressen: Profil → Sicherheit → E-Mail-Adressen (Profile.email wird dort verwaltet). */
+function openEmailManagement() {
+  const details = document.querySelector<HTMLDetailsElement>('[data-onboarding="profile-security"]')
+  if (!details) return
+  details.open = true
+  void nextTick(() => document.getElementById('profile-email-management')?.scrollIntoView({ block: 'center', behavior: 'smooth' }))
 }
 
 function applyAvatarColor(backgroundColor: string, textColor: string) {
@@ -2165,7 +2164,7 @@ async function saveProfile() {
       }
 
       const payload = {
-        email: isEmailEditEnabled.value ? email : (authStore.profile?.email || email),
+        email: authStore.profile?.email || email,
         first_name: profileForm.value.first_name.trim(),
         last_name: profileForm.value.last_name.trim(),
         nickname: profileForm.value.nickname.trim(),
@@ -2177,11 +2176,6 @@ async function saveProfile() {
 
       const updatedProfile = await updateProfile(profileId, payload)
       authStore.profile = updatedProfile
-      if (isEmailEditEnabled.value && updatedProfile.pending_email) {
-        toast.info(t('layout.toast.confirmationLinkSent'))
-        isEmailEditEnabled.value = false
-        profileForm.value.email = updatedProfile.email || profileForm.value.email
-      }
     }
 
     if (shouldChangePassword) {

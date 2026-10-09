@@ -306,14 +306,22 @@
       "securitySection": "Sicurezza",
         "externalIdentities": {
           "title": "Accessi collegati",
-          "hint": "Account esterni con cui puoi accedere a eMatChef.",
+          "hint": "Con questi account puoi accedere a eMatChef. Reparti, ruoli e gruppi restano invariati se scolleghi.",
           "linkedAt": "Collegato dal {date}",
           "disconnect": "Scollega",
           "confirmTitle": "Scollegare MiData?",
           "confirmMessage": "Non potrai più accedere con MiData. I tuoi reparti, ruoli e gruppi in eMatChef restano invariati.",
           "lastMethod": "MiData è il tuo unico modo di accesso. Conferma prima il tuo indirizzo e-mail o collega un altro provider.",
           "disconnected": "Collegamento rimosso.",
-          "error": "Impossibile scollegare."
+          "error": "Impossibile scollegare.",
+          "linked": "Collegato",
+          "notLinked": "Non collegato",
+          "connect": "Collega",
+          "googleNote": "L'accesso con Google viene creato al primo accesso con Google e non può essere modificato qui.",
+          "providers": {
+            "google": "Google",
+            "midata": "MiData / db.scout.ch"
+          }
         },
       "sessions": {
         "title": "Dispositivi e sessioni",
@@ -355,7 +363,7 @@
       },
       "activity": {
         "title": "Attività di sicurezza",
-        "hint": "Gli ultimi eventi di sicurezza del tuo account.",
+        "hint": "Il tuo registro di sicurezza personale. Solo tu puoi vederlo.",
         "empty": "Nessun evento.",
         "loadError": "Impossibile caricare l'attività.",
         "events": {
@@ -378,8 +386,63 @@
           "profile_primary_email_changed": "Indirizzo principale modificato",
           "profile_email_added": "Indirizzo e-mail aggiunto",
           "profile_email_verified": "Indirizzo e-mail confermato",
-          "profile_email_removed": "Indirizzo e-mail rimosso"
-        }
+          "profile_email_removed": "Indirizzo e-mail rimosso",
+          "profile_updated": "Profilo modificato",
+          "profile_email_change_requested": "Modifica e-mail richiesta",
+          "profile_email_change_confirmed": "Modifica e-mail confermata",
+          "external_identity_linked": "Accesso collegato",
+          "external_identity_unlinked": "Accesso scollegato",
+          "membership_created": "Assegnazione al reparto aggiunta",
+          "membership_role_changed": "Ruolo modificato",
+          "membership_removed": "Assegnazione al reparto rimossa"
+        },
+        "loadMore": "Carica altri",
+        "loading": "Caricamento …",
+        "retention": "Gli indirizzi IP e i dati del browser vengono eliminati dopo {days} giorni.",
+        "meta": {
+          "method": "Accesso tramite {value}",
+          "mfa": "MFA: {value}",
+          "device": "{value}",
+          "ip": "IP {value}",
+          "actor": "Eseguito da {name}",
+          "actorUnknown": "Eseguito da un amministratore",
+          "self": "Da te",
+          "fields": "Modificato: {fields}"
+        },
+        "authMethods": {
+          "password": "password",
+          "google": "Google",
+          "midata": "MiData",
+          "legacy": "sessione esistente"
+        },
+        "mfaSources": {
+          "totp": "codice dell'app di autenticazione",
+          "recovery_code": "codice di recupero",
+          "trusted_device": "dispositivo attendibile"
+        },
+        "providers": {
+          "google": "Google",
+          "midata": "MiData"
+        },
+        "fields": {
+          "first_name": "Nome",
+          "last_name": "Cognome",
+          "nickname": "Nome di caccia",
+          "avatar_initials": "Iniziali",
+          "language": "Lingua",
+          "background_color": "Colore di sfondo",
+          "text_color": "Colore del testo",
+          "global_admin_role": "Ruolo globale",
+          "admin_capabilities": "Diritti di amministrazione"
+        },
+        "fullLog": "Registro completo",
+        "fullLogTitle": "Registro di sicurezza",
+        "filterType": "Tipo di evento",
+        "filterFrom": "Dal",
+        "filterTo": "Al",
+        "filterAllTypes": "Tutti gli eventi",
+        "filterApply": "Filtra",
+        "filterReset": "Reimposta"
       },
       "totp": {
         "title": "Autenticazione a due fattori",
@@ -450,7 +513,8 @@
       "lastName": "Cognome",
       "firstName": "Nome",
       "email": "E-mail",
-      "editEmailTitle": "Modifica e-mail",
+      "editEmailTitle": "Gestisci indirizzi e-mail",
+      "emailManagedInSecurity": "L'indirizzo principale si gestisce in «Sicurezza → Indirizzi e-mail».",
       "emailNewMustVerify": "La nuova e-mail va confermata. Fino alla conferma resta valida la vecchia.",
       "emailPendingSent": "Link di conferma inviato al nuovo indirizzo: {pending}. Fino alla conferma resta attivo {current}.",
       "nickname": "Soprannome",

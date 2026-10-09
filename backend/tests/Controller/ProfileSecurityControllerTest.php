@@ -39,6 +39,12 @@ final class ProfileSecurityControllerTest extends TestCase
     /** @var list<string> */
     private array $calls = [];
 
+    /** @var list<array{string|null, int, string|null}> */
+    private array $activityCalls = [];
+
+    /** @var list<array{string|null, string|null, string|null}> */
+    private array $activityFilters = [];
+
     private CurrentAuthSession $currentHolder;
 
     private TrustedDeviceService $trusted;
@@ -46,6 +52,8 @@ final class ProfileSecurityControllerTest extends TestCase
     protected function setUp(): void
     {
         $this->calls = [];
+        $this->activityCalls = [];
+        $this->activityFilters = [];
         $this->me = $this->user('me', 'p_me');
         $this->other = $this->user('other', 'p_other');
         $this->current = new UserSession($this->me, AuthMethod::PASSWORD, 'Mozilla/5.0 (Windows NT 10.0) Chrome/120');
@@ -87,6 +95,40 @@ final class ProfileSecurityControllerTest extends TestCase
             self::assertSame(403, $response->getStatusCode());
         }
         self::assertSame([], $this->calls);
+        self::assertSame([], $this->activityCalls);
+    }
+
+    public function testActivityIsServedOnlyForTheOwnUserWithLimitCursorAndNoStore(): void
+    {
+        $response = $this->controller()->activity($this->me->getProfileId(), new Request(['limit' => '5', 'cursor' => 'abc']));
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame([[$this->me->getId(), 5, 'abc']], $this->activityCalls);
+        self::assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
+        $body = json_decode((string) $response->getContent(), true);
+        self::assertSame([], $body['events']);
+        self::assertNull($body['next_cursor']);
+        self::assertContains('login_success', $body['actions']);
+    }
+
+    public function testActivityDefaultsToTwentyEventsAndRejectsInvalidCursor(): void
+    {
+        $this->controller()->activity($this->me->getProfileId(), new Request());
+        self::assertSame([[$this->me->getId(), 20, null]], $this->activityCalls);
+
+        $response = $this->controller()->activity($this->me->getProfileId(), new Request(['cursor' => 'bad']));
+        self::assertSame(400, $response->getStatusCode());
+    }
+
+    public function testActivityPassesFiltersAndRejectsInvalidOnes(): void
+    {
+        $ok = $this->controller()->activity($this->me->getProfileId(), new Request(['action' => 'login_success', 'from' => '2026-10-01', 'to' => '2026-10-09']));
+        self::assertSame(200, $ok->getStatusCode());
+        self::assertSame([['login_success', '2026-10-01', '2026-10-09']], $this->activityFilters);
+
+        self::assertSame(400, $this->controller()->activity($this->me->getProfileId(), new Request(['action' => 'nope']))->getStatusCode());
+        self::assertSame(400, $this->controller()->activity($this->me->getProfileId(), new Request(['from' => '2026-13-40']))->getStatusCode());
+        self::assertSame(400, $this->controller()->activity($this->me->getProfileId(), new Request(['to' => 'yesterday']))->getStatusCode());
     }
 
     public function testCurrentSessionCannotBeRevokedThroughTheOtherSessionEndpoint(): void
@@ -185,6 +227,18 @@ final class ProfileSecurityControllerTest extends TestCase
         });
 
         $activity = $this->createMock(SecurityActivityService::class);
+        $activity->method('page')->willReturnCallback(function (User $user, int $limit, ?string $cursor, ?string $action, ?\DateTimeInterface $from, ?\DateTimeInterface $to): array {
+            $this->activityCalls[] = [$user->getId(), $limit, $cursor];
+            $this->activityFilters[] = [$action, $from?->format('Y-m-d'), $to?->format('Y-m-d')];
+            if ($action === 'nope') {
+                throw new \InvalidArgumentException('Ungültiger Ereignistyp');
+            }
+            if ($cursor === 'bad') {
+                throw new \InvalidArgumentException('Ungültiger Cursor');
+            }
+
+            return ['events' => [], 'next_cursor' => null];
+        });
         $trusted = $this->trusted ?? $this->createMock(TrustedDeviceService::class);
 
         $controller = new ProfileSecurityController(

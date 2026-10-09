@@ -2289,15 +2289,23 @@
     "profileModal": {
       "securitySection": "Security",
         "externalIdentities": {
-          "title": "Connected sign-ins",
-          "hint": "External accounts you can use to sign in to eMatChef.",
+          "title": "Linked sign-ins",
+          "hint": "You can sign in to eMatChef with these accounts. Departments, roles and groups stay unchanged when you disconnect.",
           "linkedAt": "Connected since {date}",
           "disconnect": "Disconnect",
           "confirmTitle": "Disconnect from MiData?",
           "confirmMessage": "You will no longer be able to sign in with MiData. Your departments, roles and groups in eMatChef stay unchanged.",
           "lastMethod": "MiData is your only way to sign in. Verify your email address or connect another provider first.",
           "disconnected": "Disconnected.",
-          "error": "Could not disconnect."
+          "error": "Could not disconnect.",
+          "linked": "Connected",
+          "notLinked": "Not connected",
+          "connect": "Connect",
+          "googleNote": "The Google sign-in is created when you first sign in with Google and cannot be changed here.",
+          "providers": {
+            "google": "Google",
+            "midata": "MiData / db.scout.ch"
+          }
         },
       "sessions": {
         "title": "Devices & sessions",
@@ -2339,7 +2347,7 @@
       },
       "activity": {
         "title": "Security activity",
-        "hint": "The latest security events of your account.",
+        "hint": "Your personal security log. Only you can see it.",
         "empty": "No events yet.",
         "loadError": "Could not load activity.",
         "events": {
@@ -2362,8 +2370,63 @@
           "profile_primary_email_changed": "Primary address changed",
           "profile_email_added": "Email address added",
           "profile_email_verified": "Email address confirmed",
-          "profile_email_removed": "Email address removed"
-        }
+          "profile_email_removed": "Email address removed",
+          "profile_updated": "Profile changed",
+          "profile_email_change_requested": "Email change requested",
+          "profile_email_change_confirmed": "Email change confirmed",
+          "external_identity_linked": "Sign-in linked",
+          "external_identity_unlinked": "Sign-in disconnected",
+          "membership_created": "Department assignment added",
+          "membership_role_changed": "Role changed",
+          "membership_removed": "Department assignment removed"
+        },
+        "loadMore": "Load more",
+        "loading": "Loading …",
+        "retention": "IP addresses and browser details are deleted after {days} days.",
+        "meta": {
+          "method": "Sign-in via {value}",
+          "mfa": "MFA: {value}",
+          "device": "{value}",
+          "ip": "IP {value}",
+          "actor": "Triggered by {name}",
+          "actorUnknown": "Triggered by an administrator",
+          "self": "By you",
+          "fields": "Changed: {fields}"
+        },
+        "authMethods": {
+          "password": "password",
+          "google": "Google",
+          "midata": "MiData",
+          "legacy": "existing session"
+        },
+        "mfaSources": {
+          "totp": "authenticator code",
+          "recovery_code": "recovery code",
+          "trusted_device": "trusted device"
+        },
+        "providers": {
+          "google": "Google",
+          "midata": "MiData"
+        },
+        "fields": {
+          "first_name": "First name",
+          "last_name": "Last name",
+          "nickname": "Scout name",
+          "avatar_initials": "Initials",
+          "language": "Language",
+          "background_color": "Background colour",
+          "text_color": "Text colour",
+          "global_admin_role": "Global role",
+          "admin_capabilities": "Administration rights"
+        },
+        "fullLog": "Full log",
+        "fullLogTitle": "Security log",
+        "filterType": "Event type",
+        "filterFrom": "From",
+        "filterTo": "To",
+        "filterAllTypes": "All events",
+        "filterApply": "Filter",
+        "filterReset": "Reset"
       },
       "totp": {
         "title": "Two-factor authentication",
@@ -2434,7 +2497,8 @@
       "title": "Edit profile",
       "firstName": "First name",
       "email": "Email",
-      "editEmailTitle": "Edit email",
+      "editEmailTitle": "Manage email addresses",
+      "emailManagedInSecurity": "Manage your primary address under “Security → Email addresses”.",
       "emailNewMustVerify": "The new email must be confirmed. Until then, your previous email stays valid.",
       "emailPendingSent": "Confirmation link sent for the new address: {pending}. Until confirmed, {current} stays active.",
       "nickname": "Nickname",

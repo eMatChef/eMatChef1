@@ -39,6 +39,13 @@ class AuditEvent
     #[ORM\Column(type: 'json')]
     private array $changes = [];
 
+    /** Nur serverseitig ermittelt (Trusted-Proxy-geprüft); nur bei Sicherheitsereignissen, nach der Aufbewahrungsfrist geleert. */
+    #[ORM\Column(name: 'ip_address', type: 'string', length: 45, nullable: true)]
+    private ?string $ipAddress = null;
+
+    #[ORM\Column(name: 'user_agent', type: 'string', length: 255, nullable: true)]
+    private ?string $userAgent = null;
+
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
 
@@ -132,6 +139,28 @@ class AuditEvent
     public function setChanges(array $changes): self
     {
         $this->changes = $changes;
+        return $this;
+    }
+
+    public function getIpAddress(): ?string
+    {
+        return $this->ipAddress;
+    }
+
+    public function setIpAddress(?string $ipAddress): self
+    {
+        $this->ipAddress = $ipAddress;
+        return $this;
+    }
+
+    public function getUserAgent(): ?string
+    {
+        return $this->userAgent;
+    }
+
+    public function setUserAgent(?string $userAgent): self
+    {
+        $this->userAgent = $userAgent;
         return $this;
     }
 
