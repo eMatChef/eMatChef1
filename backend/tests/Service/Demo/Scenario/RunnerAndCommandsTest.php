@@ -48,6 +48,7 @@ final class RunnerAndCommandsTest extends ScenarioTestCase
             new \App\Service\Demo\Scenario\MaterialverwaltungScenario($seeder),
             new \App\Service\Demo\Scenario\GrossanlassEventScenario($seeder, $origin),
             new \App\Service\Demo\Scenario\GrossanlassCampScenario($seeder, $origin),
+            new \App\Service\Demo\Scenario\GrossanlassSetupScenario($seeder, $origin),
         ] as $scenario) {
             self::assertFalse($scenario->supportsReset(), $scenario->key());
             try {

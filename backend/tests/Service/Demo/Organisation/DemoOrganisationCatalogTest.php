@@ -12,7 +12,7 @@ use PHPUnit\Framework\TestCase;
 
 final class DemoOrganisationCatalogTest extends TestCase
 {
-    public function testShippedCatalogIsValidAndCoversThreeScenariosWithSharedDemoUsers(): void
+    public function testShippedCatalogIsValidAndCoversAllScenariosWithSharedDemoUsers(): void
     {
         $catalog = new DemoOrganisationCatalog();
         self::assertMatchesRegularExpression('/^\d{4}\.\d+\.\d+$/', $catalog->version());
@@ -23,7 +23,10 @@ final class DemoOrganisationCatalogTest extends TestCase
             $s = $catalog->scenario($key);
             $orgNames[] = $s['organisation']['name'];
             $orgNames[] = $s['department']['name'];
-            self::assertNotEmpty($s['groups'], $key);
+            // Die Einrichtungs-Szenerie hat bewusst keine Ressorts: sie ist der noch nicht eingerichtete Grossanlass.
+            if ($key !== DemoScenarioKey::GROSSANLASS_SETUP) {
+                self::assertNotEmpty($s['groups'], $key);
+            }
             self::assertNotEmpty($s['members'], $key);
             // je Szenario und Department kein Konto doppelt
             $perScenario[$key] = array_map(static fn (array $m): string => ($m['department'] ?? 'main') . '|' . $m['account'], $s['members']);
@@ -156,7 +159,7 @@ final class DemoOrganisationCatalogTest extends TestCase
             unset($d['scenarios']['grossanlass-camp']);
 
             return $d;
-        }, 'drei Szenarien'];
+        }, 'genau die Szenarien'];
         yield 'global role with mw membership' => [static function (array $d): array {
             $d['scenarios']['grossanlass-camp']['members'][] = ['account' => 'superadmin', 'role' => 'mw', 'groups' => []];
 
@@ -233,5 +236,23 @@ final class DemoOrganisationCatalogTest extends TestCase
         } finally {
             unlink($file);
         }
+    }
+
+    public function testGrossanlassScenariosDeclareTheirTypeAndSetupState(): void
+    {
+        $catalog = new DemoOrganisationCatalog();
+        self::assertSame(['guestActivityType' => 'event', 'setupReleased' => true], $catalog->scenario('grossanlass-event')['grossanlass']);
+        self::assertSame(['guestActivityType' => 'camp', 'setupReleased' => true], $catalog->scenario('grossanlass-camp')['grossanlass']);
+        // Der noch nicht freigegebene Grossanlass für die Ersteinrichtung: ohne Ressorts, mit allen Rollen zum Testen der Sperre
+        $setup = $catalog->scenario('grossanlass-setup');
+        self::assertFalse($setup['grossanlass']['setupReleased']);
+        self::assertSame([], $setup['groups']);
+        $roles = array_column($setup['members'], 'role', 'account');
+        self::assertSame('mw', $roles['ga-mw']);
+        self::assertSame('cmw', $roles['ga-cmw']);
+        self::assertSame('dc', $roles['ga-ok']);
+        self::assertSame('bl', $roles['ga-bereich']);
+        self::assertSame('u', $roles['ga-helfer']);
+        self::assertNull($catalog->scenario('materialverwaltung')['grossanlass'] ?? null);
     }
 }

@@ -24,7 +24,7 @@ abstract class AbstractDemoScenarioCommand extends Command
 
     protected function addScenarioOptions(bool $allowAll): void
     {
-        $this->addOption('scenario', null, InputOption::VALUE_REQUIRED, 'Szenario-Schlüssel (materialverwaltung | grossanlass-event | grossanlass-camp)');
+        $this->addOption('scenario', null, InputOption::VALUE_REQUIRED, 'Szenario-Schlüssel (materialverwaltung | grossanlass-event | grossanlass-camp | grossanlass-setup)');
         if ($allowAll) {
             $this->addOption('all', null, InputOption::VALUE_NONE, 'Alle Szenarien');
         }

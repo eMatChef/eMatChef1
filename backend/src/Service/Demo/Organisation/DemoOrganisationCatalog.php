@@ -74,7 +74,7 @@ class DemoOrganisationCatalog
         }
         $scenarios = $d['scenarios'] ?? [];
         if (array_keys($scenarios) !== array_values(array_intersect(array_keys($scenarios), DemoScenarioKey::all())) || \count($scenarios) !== \count(DemoScenarioKey::all())) {
-            $fail('genau die drei Szenarien ' . implode(', ', DemoScenarioKey::all()) . ' erwartet.');
+            $fail('genau die Szenarien ' . implode(', ', DemoScenarioKey::all()) . ' erwartet.');
         }
 
         foreach ($d['sharedAccounts'] ?? [] as $account) {

@@ -15,6 +15,7 @@ Seeds erstellen zusammenhängende Szenarien mit realistischen Daten, Beziehungen
 | Materialverwaltung | `materialverwaltung` | Lager, Gruppen, Benutzer, mindestens eine Aktivität je vorhandenem Typ, Materialbedarf, Packen, Ausgabe, Rückgabe, Inventur, Werkstatt. [scenarios/DEPARTMENT.md](./scenarios/DEPARTMENT.md) |
 | Grossanlass Event | `grossanlass-event` | Bauprojekte, Ressorts, Beschaffung, Wareneingang, Packen, Logistik, Rückbau, Weiterverkauf. [scenarios/GROSSANLASS.md](./scenarios/GROSSANLASS.md) |
 | Grossanlass Camp | `grossanlass-camp` | Lagerinfrastruktur, Gruppen, Zelte, Küche, Materialverteilung, Transporte, Retouren. [scenarios/GROSSANLASS.md](./scenarios/GROSSANLASS.md) |
+| Grossanlass Einrichtung | `grossanlass-setup` | Noch nicht freigegebener Grossanlass für die Ersteinrichtung (Stammdaten, Ressorts, Mitglieder, Freigabe); bewusst ohne Material-, Pack- oder Rückgabedaten. [§7.12](#712-ga-typ-und-einrichtungsstand-der-grossanlässe-ist-katalog-2026105) |
 
 Gewünschtes Verhalten (SOLL, verbindlich für §7–§9):
 
@@ -184,8 +185,8 @@ Code unter `backend/src/Service/Demo/Scenario/`, Commands unter `backend/src/Com
 | Baustein | Stand | Marke |
 | --- | --- | --- |
 | `DemoScenarioInterface` (Tag `app.demo_scenario`): `key`, `label`, `expectsGrossanlass`, `supportsReset`, `sync`, `reset`, `verify`, `clockOrigin` | gebaut | **IST** |
-| `DemoScenarioRegistry`: nur die drei Schlüssel `materialverwaltung`, `grossanlass-event`, `grossanlass-camp`, je einmal; unbekannt oder doppelt → Fehler | gebaut | **IST** |
-| Die drei Szenarien (`MaterialverwaltungScenario`, `GrossanlassEventScenario`, `GrossanlassCampScenario`): seit Phase 2 synchronisieren sie die Organisationsstruktur (§7.11); Prozessdaten fehlen (**SOLL**, Phasen 4, 5), `supportsReset() = false` | gebaut | **TEILWEISE** |
+| `DemoScenarioRegistry`: nur die vier Schlüssel `materialverwaltung`, `grossanlass-event`, `grossanlass-camp`, `grossanlass-setup`, je einmal; unbekannt oder doppelt → Fehler | gebaut | **IST** |
+| Die vier Szenarien (`MaterialverwaltungScenario`, `GrossanlassEventScenario`, `GrossanlassCampScenario`, `GrossanlassSetupScenario`): seit Phase 2 synchronisieren sie die Organisationsstruktur (§7.11); Prozessdaten fehlen (**SOLL**, Phasen 4, 5), `supportsReset() = false` | gebaut | **TEILWEISE** |
 | `department.demo_scenario_key` (VARCHAR 40, NULL, eindeutiger Index `uniq_department_demo_scenario_key`, DB-CHECK «Schlüssel nur mit `demo_mode`»), Migration `Version20261008100000`, rein additiv | gebaut, gegen isolierte PG-16 validiert | **IST** |
 | `DemoScenarioIdentity::assign`: Schlüssel nur an Departments mit `demo_mode`, passendem Grossanlass-Typ, ohne anderen Schlüssel und nur, wenn der Schlüssel frei ist. Nie über Namen. Echte Departments werden abgewiesen. | gebaut | **IST** |
 | Ledger `demo_seed_record` (Entity `DemoSeedRecord`, `DemoSeedLedger`): `(scenario_key, seed_key)` eindeutig, Seed-Schlüssel müssen mit `<szenario>:` beginnen, `record()` ist idempotent und überschreibt nie einen fremden Eintrag, FK auf Department (`ON DELETE CASCADE`). Noch **kein** bestehender Seed schreibt hinein. | gebaut | **IST** (Nutzung ab Phase 2: **SOLL**) |
@@ -237,7 +238,7 @@ Skizze, kein Code. Ein Szenario ist eine Klasse mit Tag `app.demo_scenario`:
 
 | Mitglied | Aufgabe |
 | --- | --- |
-| `key()` | stabiler Schlüssel: `materialverwaltung`, `grossanlass-event`, `grossanlass-camp` |
+| `key()` | stabiler Schlüssel: `materialverwaltung`, `grossanlass-event`, `grossanlass-camp`, `grossanlass-setup` |
 | `dependencies()` | Schlüssel anderer Szenarien oder gemeinsamer Bausteine (nur `identities`, siehe §7.6); keine Abhängigkeit zwischen Szenarien |
 | `sync(SeedContext)` | additiv und idempotent (§7.6) |
 | `reset(SeedContext)` | löscht den Inhalt dieses Szenarios (§7.7) |
@@ -343,6 +344,7 @@ Code: `backend/src/Service/Demo/Organisation/`, Katalog: `backend/data/seeds/dev
 | `materialverwaltung` | Demo Organisation Materialverwaltung. Hierarchie: **Demo Kantonalverband** (selbst Department und Parent) → **Demo Materialverwaltung** (Szenario-Department) \| **Demo Abteilung Süd** → **Demo Abteilung Süd Aussenstelle** (drei Ebenen; zusätzliche Departments mit `demo_mode`, ohne Szenario-Schlüssel, ohne Prozessdaten) | Stufen (Biber, Wölfe, Pfadis, Pios, Rover), Materialteam | matwart `mw`, depchef `dc`, leader1–3 `l1`–`l3`, user `u`; **superadmin `u`** (nicht primär: der Superadmin startet im globalen Verwaltungskontext), **suborgchef `u`**; orgchef ohne Mitgliedschaft |
 | `grossanlass-event` | Demo Organisation Grossanlass Event / Demo Grossanlass Event; **Gast-Abteilung** *Demo Gast-Abteilung* (normales Department, als angenommener Teilnehmer `DepartmentGrossanlassParticipant` des Grossanlasses) | Infrastruktur › Material & Logistik, Bauten, Wasser & Sanitär | ga-mw `mw`, ga-cmw `cmw`, ga-ok `dc`, ga-komm `komm`, ga-spon `spon`, ga-lw `lw`, ga-clw `clw`, ga-bereich `bl`, ga-helfer `u`; **superadmin `lw`** (nicht primär); **matwart `mw` zusätzlich in der Gast-Abteilung** (Kontextwechsel zwischen Materialverwaltung und Gast-Abteilung) |
 | `grossanlass-camp` | Demo Organisation Grossanlass Camp / Demo Grossanlass Camp | Lagerinfrastruktur › Zelte, Küche; Material & Logistik › Materialverteilung, Transporte, Retouren; Lagergruppen › Gruppe A, Gruppe B | camp-mw `mw`, camp-lw `lw`, camp-bereich `bl`, camp-helfer `u`; **orgchef `u`**, **suborgchef `l2`** (beide nicht primär) |
+| `grossanlass-setup` | Demo Organisation Grossanlass Einrichtung / Demo Grossanlass Einrichtung | keine (die Ressorts sind Teil der Ersteinrichtung) | ga-mw `mw`, ga-cmw `cmw`, ga-ok `dc`, ga-bereich `bl`, ga-lw `lw`, ga-helfer `u` (alle ohne Primär) |
 
 **Verwaltungsbereiche (`adminScopes`, `roots` = Department-Wurzeln samt Unterbaum, `organisation` = die Organisation des Szenarios; kombinierbar, auch über Szenarien hinweg):** `orgchef` → Department *Demo Kantonalverband* (Kantonalverband, Materialverwaltung, Abteilung Süd, Aussenstelle) **und** Organisation *Demo Organisation Grossanlass Camp*; `suborgchef` → Department *Demo Abteilung Süd* (Abteilung Süd und Aussenstelle, **nicht** Kantonalverband oder Materialverwaltung) **und** Organisation *Demo Organisation Grossanlass Event* (Event und Gast-Abteilung). Jedes Szenario verwaltet im Profil nur den Anteil innerhalb seiner Organisation und Departments; fremde Einträge und von Hand ergänzte Zuweisungen bleiben unberührt, ein dort abweichend gesetzter Eintrag wird nie überschrieben. Der Orgchef ist im Camp zugleich normales Mitglied (`u`): Verwaltungs- und Mitgliedskontext sind getrennte Einträge. Superadmin hat keinen Scope (globaler Systemkontext, kein Department in der DB). **Ohne Zuweisung gäbe es keine Verwaltungsrechte**; kein Demo-Konto ausser den beiden hat eine Zuweisung. Orgchef und Suborgchef sind dadurch auf die Demo-Strukturen beschränkt (vorher: leerer Scope = unbeschränkt, also auch `Cevi ZH11`).
 
@@ -393,6 +395,22 @@ Verwaltete Felder: Organisationsname, Departmentname, Parent (zusätzliche Depar
 - Die alten Rollen-User aus Phase 0 liegen auf Develop womöglich in einem echten Department (P4): mit dem Demo-Passwort werden sie übernommen (Mitgliedschaft im fremden Department bleibt, Hinweis); mit geändertem Passwort bleiben sie ein Konflikt und müssen manuell bereinigt werden.
 - Anlagen- und Gruppen-IDs der Departments sind zufällig (`grp…`); stabil ist allein der Ledger-Schlüssel.
 - Dauer: ein Voll-Sync legt ca. 23 Benutzer (inkl. Lieferant) mit Passwort-Hash an; der Integrationstest braucht rund eine Minute.
+
+
+### 7.12 GA-Typ und Einrichtungsstand der Grossanlässe (IST, Katalog 2026.10.5)
+
+Jedes Grossanlass-Szenario deklariert im Katalog `grossanlass: {guestActivityType: camp|event, setupReleased: bool}`. Der Seed schreibt beides als verwaltete Daten (Ledger-Eintrag `<szenario>:config`, Dreiwege-Vergleich):
+
+| Szenario | GA-Typ | Ersteinrichtung |
+| --- | --- | --- |
+| `grossanlass-event` | `event` | freigegeben |
+| `grossanlass-camp` | `camp` | freigegeben |
+| `grossanlass-setup` (neu, ohne Prozessdaten) | `camp` | **offen** (nicht freigegeben, keine Ressorts) |
+
+- **Bestehende Departments:** Die Migration `Version20261011100000` setzt `setup_released_at` für alle bestehenden Grossanlässe, damit sie nicht gesperrt werden. Der Seed übernimmt vorhandene Event-/Camp-Departments ohne Ledger-Eintrag nur, wenn der GA-Typ noch der unveränderte Standard (`camp`) ist; ein manuell gesetzter anderer Typ bleibt und wird als Konflikt gemeldet.
+- **Manuelle Änderungen:** Wird `grossanlass-setup` von Hand freigegeben (oder der Typ geändert), setzt ein Sync den Stand nicht zurück, sondern meldet eine Abweichung. Ein erneuter Sync des unberührten Szenarios ändert nichts.
+- **Konten:** Das Setup-Szenario verwendet die vorhandenen `ga-*`-Konten (keine neuen Konten): `ga-mw` und `ga-ok` richten ein und geben frei, `ga-cmw` richtet ein, gibt aber nicht frei; `ga-bereich`, `ga-lw`, `ga-helfer` haben vor der Freigabe keinen GA-Zugang. Die Konten sind zugleich im Event-Szenario Mitglied (dort primär); das Setup-Department wird über das Benutzermenü gewählt. Früher automatisch gesäte MW-Rollen von Superadmin/Orgchef/Suborgchef werden auch hier nur bei unverändertem Seed-Stand entfernt (`retiredMembers`).
+- **Klickfolge zum Testen:** siehe öffentliche Seite «Grossanlass: Ersteinrichtung testen» in `eMatChef/documentation`.
 
 ## 8. Umgang mit bestehenden Commands und Daten (SOLL)
 

@@ -110,13 +110,14 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
                 self::assertSame(SeedResult::OK, $result->status, $key);
                 self::assertSame([], $result->notes, $key);
             }
-            self::assertSame($before['organisation'] + 3, $after['organisation']);
+            $scenarioCount = \count(DemoScenarioKey::all());
+            self::assertSame($before['organisation'] + $scenarioCount, $after['organisation']);
             $extraDepartments = 0;
             foreach (DemoScenarioKey::all() as $key) {
                 $extraDepartments += \count($catalog->scenario($key)['departments'] ?? []);
             }
-            self::assertSame($before['department'] + 3 + $extraDepartments, $after['department']);
-            self::assertSame(3, (int) $conn->fetchOne('SELECT count(*) FROM department WHERE demo_scenario_key IS NOT NULL AND demo_mode = true'));
+            self::assertSame($before['department'] + $scenarioCount + $extraDepartments, $after['department']);
+            self::assertSame($scenarioCount, (int) $conn->fetchOne('SELECT count(*) FROM department WHERE demo_scenario_key IS NOT NULL AND demo_mode = true'));
             $accounts = [];
             $memberships = 0;
             $expectedGroups = 0;
@@ -408,6 +409,41 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
         });
     }
 
+    public function testGrossanlassTypeAndSetupStateAreSeededAndProtected(): void
+    {
+        $this->withDb(function (DemoScenarioRunner $runner, DemoScenarioRegistry $registry, EntityManagerInterface $em, Connection $conn): void {
+            $this->syncAll($runner, $registry, $em);
+            $state = static fn (string $key): array => $conn->fetchAssociative(
+                "SELECT c.guest_activity_type AS type, c.setup_released_at IS NOT NULL AS released FROM department_grossanlass_config c JOIN department d ON d.id=c.department_id WHERE d.demo_scenario_key=?",
+                [$key],
+            );
+            self::assertEquals(['type' => 'event', 'released' => true], $state('grossanlass-event'));
+            self::assertEquals(['type' => 'camp', 'released' => true], $state('grossanlass-camp'));
+            // der Grossanlass für die Ersteinrichtung ist noch nicht freigegeben
+            self::assertEquals(['type' => 'camp', 'released' => false], $state('grossanlass-setup'));
+
+            // Wiederholter Sync ändert nichts
+            $results = $this->syncAll($runner, $registry, $em);
+            self::assertSame([], $results['grossanlass-setup']->notes);
+            self::assertEquals(['type' => 'camp', 'released' => false], $state('grossanlass-setup'));
+
+            // Von Hand freigegeben und auf Event gestellt: bleibt bestehen und wird als Abweichung gemeldet
+            $conn->executeStatement("UPDATE department_grossanlass_config SET setup_released_at=now(), guest_activity_type='event' WHERE department_id=(SELECT id FROM department WHERE demo_scenario_key='grossanlass-setup')");
+            $em->clear();
+            $results = $this->syncAll($runner, $registry, $em);
+            self::assertEquals(['type' => 'event', 'released' => true], $state('grossanlass-setup'));
+            self::assertNotEmpty(array_filter($results['grossanlass-setup']->notes, static fn (string $n): bool => str_contains($n, 'grossanlass-setup:config')));
+
+            // Ein bestehender Grossanlass ohne Ledger-Eintrag (Altbestand, bereits freigegeben) mit manuell gesetztem Typ wird nicht überschrieben
+            $conn->executeStatement("DELETE FROM demo_seed_record WHERE seed_key='grossanlass-camp:config'");
+            $conn->executeStatement("UPDATE department_grossanlass_config SET guest_activity_type='event' WHERE department_id=(SELECT id FROM department WHERE demo_scenario_key='grossanlass-camp')");
+            $em->clear();
+            $results = $this->syncAll($runner, $registry, $em);
+            self::assertSame('event', $state('grossanlass-camp')['type']);
+            self::assertNotEmpty(array_filter($results['grossanlass-camp']->notes, static fn (string $n): bool => str_contains($n, 'grossanlass-camp:config')));
+        });
+    }
+
     public function testProtectedStateSurvivesSync(): void
     {
         $this->withDb(function (DemoScenarioRunner $runner, DemoScenarioRegistry $registry, EntityManagerInterface $em, Connection $conn): void {
@@ -421,7 +457,7 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
             self::assertSame('von-hand-gesetzt', $conn->fetchOne("SELECT u.password FROM \"user\" u JOIN profile p ON p.id=u.profile_id WHERE p.email=?", [DemoAccounts::email('ga-mw')]));
             self::assertSame(123456, (int) $conn->fetchOne("SELECT demo_clock_offset_seconds FROM department WHERE demo_scenario_key='grossanlass-event'"));
             // manuell geänderte Rolle bleibt und wird als Abweichung gemeldet
-            self::assertSame('u', $conn->fetchOne("SELECT role FROM membership m JOIN \"user\" u ON u.id=m.user_id JOIN profile p ON p.id=u.profile_id WHERE p.email=?", [DemoAccounts::email('ga-ok')]));
+            self::assertSame('u', $conn->fetchOne("SELECT role FROM membership m JOIN \"user\" u ON u.id=m.user_id JOIN profile p ON p.id=u.profile_id WHERE p.email=? AND m.department_id=(SELECT id FROM department WHERE demo_scenario_key='grossanlass-event')", [DemoAccounts::email('ga-ok')]));
             self::assertNotEmpty(array_filter($results['grossanlass-event']->notes, static fn (string $n): bool => str_contains($n, 'membership:ga-ok')));
             self::assertSame([], $results['grossanlass-camp']->notes);
         });
@@ -676,7 +712,7 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
             $legacyNames = $conn->fetchAllAssociative("SELECT id,name FROM department WHERE id IN ('5f35b7cde9b5')  OR id IN ('3dc94912d836','72605b231274','7ae5770a1180','7aa39b221bab','638c8d301090') ORDER BY id");
             $this->syncAll($runner, $registry, $em);
             self::assertSame($legacyNames, $conn->fetchAllAssociative("SELECT id,name FROM department WHERE id IN ('5f35b7cde9b5')  OR id IN ('3dc94912d836','72605b231274','7ae5770a1180','7aa39b221bab','638c8d301090') ORDER BY id"));
-            self::assertSame(3, (int) $conn->fetchOne('SELECT count(*) FROM department WHERE demo_scenario_key IS NOT NULL'));
+            self::assertSame(\count(DemoScenarioKey::all()), (int) $conn->fetchOne('SELECT count(*) FROM department WHERE demo_scenario_key IS NOT NULL'));
             self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM demo_seed_record WHERE entity_id IN ('3dc94912d836','72605b231274','638c8d301090','7ae5770a1180','7aa39b221bab')"));
             self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM department WHERE name IN ('Demo Grossanlass','Demo-Grossanlass-Event','Demo-Grossanlass-Camp','Demo-Department-Parent')"));
 

@@ -84,7 +84,7 @@ final class ClockOriginAndWiringTest extends ScenarioTestCase
         self::assertSame(DemoScenarioKey::GROSSANLASS_EVENT, $keyed->getDemoScenarioKey());
     }
 
-    public function testCompiledContainerTagsTheThreeScenariosAndBothClockResolvers(): void
+    public function testCompiledContainerTagsAllScenariosAndBothClockResolvers(): void
     {
         FreshKernel::run(function (\App\Kernel $kernel): void {
             $container = $kernel->getContainer();
@@ -93,6 +93,7 @@ final class ClockOriginAndWiringTest extends ScenarioTestCase
                 \App\Service\Demo\Scenario\MaterialverwaltungScenario::class,
                 GrossanlassEventScenario::class,
                 \App\Service\Demo\Scenario\GrossanlassCampScenario::class,
+                \App\Service\Demo\Scenario\GrossanlassSetupScenario::class,
             ], $scenarios);
 
             $resolvers = $container->getParameter('wiring.tagged.app.clock_origin_resolver');

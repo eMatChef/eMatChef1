@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service\Demo\Organisation;
 
 use App\Entity\DemoSeedRecord;
+use App\Entity\DepartmentGrossanlassConfig;
 use App\Entity\DepartmentGrossanlassParticipant;
 use App\Entity\Department;
 use App\Entity\Group;
@@ -110,6 +111,11 @@ class DemoOrganisationSeeder
 
         $this->ensureDepartmentRecord($context, $report, $key, $department, $cat['department']['name'], $version);
         $expected[] = $key . ':department';
+
+        if (isset($cat['grossanlass']) && $scenario->expectsGrossanlass()) {
+            $expected[] = $key . ':config';
+            $this->ensureGrossanlassConfig($context, $report, $key, $department, $cat['grossanlass'], $users, $version);
+        }
 
         $departments = [DemoOrganisationCatalog::MAIN => $department];
         foreach ($cat['departments'] ?? [] as $def) {
@@ -689,6 +695,64 @@ class DemoOrganisationSeeder
             },
             desired: ['role' => (string) $gm['role'], 'is_primary' => (bool) ($gm['primary'] ?? false)],
             adopt: fn (): ?object => $find(''),
+        ), $version);
+    }
+
+    /**
+     * GA-Typ (Lager/Event) und Einrichtungsstand des Grossanlasses. Dreiwege-Vergleich wie alle verwalteten Daten: eine von
+     * Hand freigegebene (oder geänderte) Einrichtung wird nicht zurückgesetzt, sondern als Abweichung gemeldet. Ein
+     * vorhandenes Department ohne Ledger-Eintrag wird nur übernommen, wenn der Typ noch der unveränderte Standard ist.
+     *
+     * @param array<string, mixed>     $def   {guestActivityType: camp|event, setupReleased: bool}
+     * @param array<string, User|null> $users
+     */
+    private function ensureGrossanlassConfig(SeedContext $context, SyncReport $report, string $key, Department $department, array $def, array $users, string $version): void
+    {
+        $config = $department->getGrossanlassConfig();
+        if (!$config instanceof DepartmentGrossanlassConfig) {
+            $report->warnings[] = sprintf('Grossanlass-Konfiguration von «%s» fehlt; GA-Typ und Einrichtungsstand nicht gesetzt.', $key);
+
+            return;
+        }
+        $desired = [
+            'guest_activity_type' => (string) $def['guestActivityType'],
+            'setup_released' => (bool) ($def['setupReleased'] ?? true),
+        ];
+        $owner = null;
+        foreach ($users as $user) {
+            if ($user instanceof User) {
+                $owner = $user;
+                break;
+            }
+        }
+
+        $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $key . ':config',
+            create: static fn (): object => throw new \LogicException('Die Grossanlass-Konfiguration wird mit dem Department angelegt.'),
+            find: fn (string $id): ?object => $this->entityManager->find(DepartmentGrossanlassConfig::class, $id),
+            idOf: static fn (object $c): string => (string) $c->getDepartmentId(),
+            read: static fn (object $c): array => [
+                'guest_activity_type' => $c->getGuestActivityType(),
+                'setup_released' => $c->isSetupReleased(),
+            ],
+            write: static function (object $c, array $d) use ($owner): void {
+                $c->setGuestActivityType((string) $d['guest_activity_type']);
+                if ((bool) $d['setup_released'] && !$c->isSetupReleased()) {
+                    $c->setSetupReleased(new \DateTime(), $owner?->getId());
+                } elseif (!(bool) $d['setup_released'] && $c->isSetupReleased()) {
+                    $c->setSetupReleased(null);
+                }
+            },
+            desired: $desired,
+            adopt: static function () use ($config, $desired): object {
+                if ($config->getGuestActivityType() !== $desired['guest_activity_type']
+                    && $config->getGuestActivityType() !== DepartmentGrossanlassConfig::GUEST_ACTIVITY_CAMP
+                ) {
+                    throw new OwnershipConflictException('Der GA-Typ wurde manuell geändert und wird nicht überschrieben.');
+                }
+
+                return $config;
+            },
         ), $version);
     }
 
