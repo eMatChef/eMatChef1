@@ -5312,6 +5312,18 @@
       "previewEmailLine": "E-Mail: {email}",
       "previewSendMessageTitle": "Nachricht senden",
       "previewSendMessageHint": "Du hast diesen Artikel gefunden oder möchtest den Materialwart erreichen? Sende eine kurze Nachricht.",
+      "toastPrimaryRemoved": "Primärstatus entfernt. Die Mitgliedschaft bleibt bestehen.",
+      "removePrimary": "Primärstatus entfernen",
+      "primaryChange": {
+        "confirmTitle": "Primäres Department ändern?",
+        "confirmMessage": "Bisher primär: «{from}». Neu primär: «{to}». Es kann nur ein primäres Department geben; das bisherige verliert den Primärstatus (die Mitgliedschaft bleibt).",
+        "confirmAction": "Primär ändern"
+      },
+      "primaryRemove": {
+        "confirmTitle": "Primärstatus entfernen?",
+        "confirmMessage": "«{name}» ist danach nicht mehr primär. Die Mitgliedschaft bleibt bestehen.",
+        "confirmAction": "Entfernen"
+      },
       "previewYourName": "Dein Name",
       "previewOptionalParen": "(optional)",
       "previewYourEmail": "Deine E-Mail",

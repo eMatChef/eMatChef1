@@ -15,6 +15,7 @@ use App\Service\Admin\AdminUserUpdateDeniedException;
 use App\Service\Admin\AdminUserUpdatePolicy;
 use App\Service\SystemScopeVisibility;
 use App\Service\AuditLogger;
+use App\Service\PrimaryDepartmentService;
 use App\Service\Auth\UserSessionManager;
 use App\Service\MembershipRoleCatalog;
 use App\Util\E2eSmokeUser;
@@ -37,6 +38,7 @@ class UserController extends AbstractController
         private AdminUserUpdatePolicy $adminUserUpdatePolicy,
         private AdminUserEmailChangeRequester $adminUserEmailChangeRequester,
         private UserSessionManager $userSessionManager,
+        private PrimaryDepartmentService $primaryDepartments,
     ) {}
 
     private function isGlobalAdmin(User $user): bool
@@ -749,35 +751,25 @@ class UserController extends AbstractController
         }
 
         $data = json_decode($request->getContent(), true);
-        $departmentId = $data['department_id'] ?? null;
-
-        if (!$departmentId) {
+        if (!is_array($data) || !array_key_exists('department_id', $data)) {
             return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
         }
-
-        // Alle Memberships des Users laden
-        $memberships = $this->entityManager->getRepository(Membership::class)
-            ->findBy(['userId' => $id]);
-
-        $found = false;
-        foreach ($memberships as $membership) {
-            if ($membership->getDepartmentId() === $departmentId) {
-                $membership->setIsPrimary(true);
-                $found = true;
-            } else {
-                $membership->setIsPrimary(false);
-            }
+        // null entfernt den Primärstatus (Mitgliedschaften bleiben), sonst die ID des neuen Primär-Departments
+        $departmentId = $data['department_id'];
+        if ($departmentId !== null && (!is_string($departmentId) || trim($departmentId) === '')) {
+            return new JsonResponse(['error' => 'department_id ist ungültig'], 400);
         }
 
-        if (!$found) {
-            return new JsonResponse(['error' => 'Keine Mitgliedschaft in diesem Department'], 404);
+        try {
+            $result = $this->primaryDepartments->change($user->getId(), $departmentId === null ? null : trim($departmentId));
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 404);
         }
-
-        $this->entityManager->flush();
 
         return new JsonResponse([
             'success' => true,
-            'primary_department_id' => $departmentId
+            'primary_department_id' => $result['current'],
+            'previous_primary_department_id' => $result['previous'],
         ]);
     }
 }

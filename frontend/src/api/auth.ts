@@ -507,9 +507,10 @@ export async function loadUserMemberships(userId: string): Promise<{ departments
 }
 
 /**
- * Setzt das primäre Department für den User in der DB
+ * Setzt das primäre Department des Users in der DB. `null` entfernt den Primärstatus (Mitgliedschaften bleiben).
+ * Das bisherige Primär wird serverseitig atomar zurückgesetzt.
  */
-export async function setPrimaryDepartment(userId: string, departmentId: string): Promise<void> {
+export async function setPrimaryDepartment(userId: string, departmentId: string | null): Promise<void> {
   if (!userId) {
     throw new Error('Keine User-ID verfügbar')
   }
