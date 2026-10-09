@@ -1,6 +1,6 @@
 {
   "_comment": "Versionierter Seed-Katalog der Demo-Organisationen. Schlüssel (key) sind stabile Seed-Identitäten und werden nie umbenannt; Anzeigenamen dürfen sich ändern. Konten stammen aus demo-accounts.json. Demo-Benutzer sind reine Testdaten, gehören keinem Szenario und dürfen in mehreren Demo-Departments Mitglied sein. Globale Rollen (sa/org/sub) stehen in profile.roles und sind keine Mitgliedschaftsrolle: Superadmin, Orgchef und Suborgchef erhalten nie automatisch eine MW-Rolle; ihre Verwaltungszuständigkeit steht in adminScopes (roots = Department-Wurzeln samt Unterbaum, organisation = die Organisation des Szenarios; kombinierbar, auch über mehrere Szenarien; ohne Eintrag keine Verwaltungsrechte), operative Rollen nur ausdrücklich unter members. Zusätzliche Departments (departments) bilden nur die Hierarchie ab, ohne Prozessdaten. members[].department verweist auf einen Schlüssel aus departments (ohne Angabe: das Szenario-Department). retiredMembers nennt früher fälschlich gesäte Mitgliedschaften, die nur entfernt werden, wenn sie unverändert vom Seed stammen. Doku: docs/demo/SEED-KONZEPT.md §7.11.",
-  "catalogVersion": "2026.10.5",
+  "catalogVersion": "2026.10.6",
   "sharedAccounts": [
     "supplier"
   ],
@@ -484,6 +484,72 @@
           "role": "l2",
           "primary": false,
           "groups": []
+        },
+        {
+          "account": "ga-mw",
+          "role": "mw",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-cmw",
+          "role": "cmw",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-ok",
+          "role": "dc",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-komm",
+          "role": "komm",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-spon",
+          "role": "spon",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-lw",
+          "role": "lw",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-clw",
+          "role": "clw",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-bereich",
+          "role": "bl",
+          "primary": false,
+          "groups": [
+            {
+              "group": "lagergruppen",
+              "role": "leader",
+              "primary": true
+            }
+          ]
+        },
+        {
+          "account": "ga-helfer",
+          "role": "u",
+          "primary": false,
+          "groups": [
+            {
+              "group": "gruppe-a",
+              "role": "member",
+              "primary": true
+            }
+          ]
         }
       ],
       "retiredMembers": [
@@ -548,6 +614,24 @@
         {
           "account": "ga-helfer",
           "role": "u",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-komm",
+          "role": "komm",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-spon",
+          "role": "spon",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-clw",
+          "role": "clw",
           "primary": false,
           "groups": []
         }

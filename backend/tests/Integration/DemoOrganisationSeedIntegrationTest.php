@@ -508,7 +508,7 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
             // entfernt aus dem Katalog: gemeldet, aber nicht gelöscht
             self::assertNotEmpty(array_filter($result->notes, static fn (string $n): bool => str_contains($n, 'grossanlass-event:membership:ga-spon')));
             self::assertSame(1, (int) $conn->fetchOne('SELECT count(*) FROM profile WHERE email=?', [DemoAccounts::email('ga-spon')]));
-            self::assertSame(1, (int) $conn->fetchOne("SELECT count(*) FROM membership m JOIN \"user\" u ON u.id=m.user_id JOIN profile p ON p.id=u.profile_id WHERE p.email=?", [DemoAccounts::email('ga-spon')]));
+            self::assertSame(1, (int) $conn->fetchOne("SELECT count(*) FROM membership m JOIN \"user\" u ON u.id=m.user_id JOIN profile p ON p.id=u.profile_id WHERE p.email=? AND m.department_id=(SELECT id FROM department WHERE demo_scenario_key='grossanlass-event')", [DemoAccounts::email('ga-spon')]));
         });
     }
 

@@ -255,4 +255,31 @@ final class DemoOrganisationCatalogTest extends TestCase
         self::assertSame('u', $roles['ga-helfer']);
         self::assertNull($catalog->scenario('materialverwaltung')['grossanlass'] ?? null);
     }
+
+    public function testGaAccountsCanTestEveryGrossanlassScenarioWithTheirOwnRole(): void
+    {
+        $catalog = new DemoOrganisationCatalog();
+        $roles = static fn (string $key): array => array_column($catalog->scenario($key)['members'], 'role', 'account');
+        $event = $roles('grossanlass-event');
+        foreach (['ga-mw', 'ga-cmw', 'ga-ok', 'ga-komm', 'ga-spon', 'ga-lw', 'ga-clw', 'ga-bereich', 'ga-helfer'] as $account) {
+            // dieselbe Rolle im Event und im Camp: ein Login testet beide Anlässe nach seiner vorgesehenen Rolle
+            self::assertArrayHasKey($account, $roles('grossanlass-camp'), "$account im Camp");
+            self::assertSame($event[$account], $roles('grossanlass-camp')[$account], "$account Rolle im Camp");
+            // im Setup-Szenario sind alle Rollen vorhanden, damit die Sperre vor der Freigabe prüfbar ist
+            self::assertArrayHasKey($account, $roles('grossanlass-setup'), "$account im Setup");
+            self::assertSame($event[$account], $roles('grossanlass-setup')[$account], "$account Rolle im Setup");
+        }
+        // keine automatische Primär-Zuweisung: der Login startet weiter im Event
+        foreach (['grossanlass-camp', 'grossanlass-setup'] as $key) {
+            foreach ($catalog->scenario($key)['members'] as $member) {
+                if (str_starts_with($member['account'], 'ga-')) {
+                    self::assertFalse($member['primary'], $key . ' ' . $member['account']);
+                }
+            }
+        }
+        // Camp-Bereichsleitung und Helfer bekommen ein Ressort, damit «Mein Ressort» nicht leer ist
+        $camp = array_column($catalog->scenario('grossanlass-camp')['members'], null, 'account');
+        self::assertSame('lagergruppen', $camp['ga-bereich']['groups'][0]['group']);
+        self::assertSame('gruppe-a', $camp['ga-helfer']['groups'][0]['group']);
+    }
 }
