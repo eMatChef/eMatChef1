@@ -45,6 +45,8 @@ final class GrossanlassDepartmentSerializer
             'venue_address_id' => $config->getVenueAddressId(),
             'notes' => $config->getNotes(),
             'published_at' => $config->getPublishedAt()?->format(\DateTimeInterface::ATOM),
+            'setup_released' => $config->isSetupReleased(),
+            'setup_released_at' => $config->getSetupReleasedAt()?->format(\DateTimeInterface::ATOM),
             'guest_activity_type' => $config->getGuestActivityType(),
             'has_guest_departments' => $config->hasGuestDepartments(),
             'invite_group_ids' => $config->getInviteGroupIds(),
