@@ -25,6 +25,7 @@ final class GrossanlassCommitmentService
         private GrossanlassAccessService $access,
         private GrossanlassCostService $costService,
         private GrossanlassChargeMovementService $movements,
+        private GrossanlassAvailabilityService $availability,
     ) {}
 
     /**
@@ -91,9 +92,11 @@ final class GrossanlassCommitmentService
     {
         $this->assertManage($department, $user);
         $row = $this->find($department, $id);
-        $this->apply($row, $department, $data, false);
-        $this->syncCost($row, $data);
-        $this->entityManager->flush();
+        $this->availability->transactional(function () use ($row, $department, $data): void {
+            $this->apply($row, $department, $data, false);
+            $this->syncCost($row, $data);
+            $this->entityManager->flush();
+        });
 
         return $this->serialize($row);
     }
@@ -323,6 +326,11 @@ final class GrossanlassCommitmentService
                         $received,
                     ));
                 }
+            }
+            if (!$creating && $nextQty < $previousQty) {
+                // Weniger Menge darf bestehende Reservierungen nicht unterschreiten.
+                $this->availability->lock($row);
+                $this->availability->assertQuantityCoversBookings($row, $nextQty);
             }
             $row->setQuantity($nextQty);
         }

@@ -24,6 +24,7 @@ final class GrossanlassPackService
         private GrossanlassAccessService $access,
         private GrossanlassUserCardService $cards,
         private BusinessClock $clock,
+        private GrossanlassAvailabilityService $availability,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $appFrontendUrl,
         #[Autowire('%env(APP_PUBLIC_QR_URL)%')] private string $appPublicQrUrl,
     ) {}
@@ -144,12 +145,20 @@ final class GrossanlassPackService
         $this->assertTripStartable($einsatz, $pack);
         $vehicle = $einsatz->getCommitment()?->getFamily() === DepartmentGrossanlassCommitment::FAMILY_VEHICLE;
         $this->cards->assertMayDrive($department, $einsatz->getChauffeurUserId(), $vehicle);
-        $pack->setStatus(DepartmentGrossanlassPack::STATUS_IN_TRANSIT);
-        if ($einsatz->getStatus() !== DepartmentGrossanlassEinsatz::STATUS_ISSUED) {
-            $einsatz->setStatus(DepartmentGrossanlassEinsatz::STATUS_ISSUED);
-            $einsatz->setPlace(DepartmentGrossanlassEinsatz::PLACE_OUT);
-        }
-        $this->entityManager->flush();
+        $this->availability->transactional(function () use ($pack, $einsatz): void {
+            if ($einsatz->getStatus() !== DepartmentGrossanlassEinsatz::STATUS_ISSUED) {
+                // Der Pack-Scan gibt das Material aus: gleiche Bestandsregel wie die Ausgabe in der Übersicht.
+                $commitment = $einsatz->getCommitment();
+                if ($commitment instanceof DepartmentGrossanlassCommitment) {
+                    $this->availability->lock($commitment);
+                    $this->availability->assertIssuable($einsatz);
+                }
+                $einsatz->setStatus(DepartmentGrossanlassEinsatz::STATUS_ISSUED);
+                $einsatz->setPlace(DepartmentGrossanlassEinsatz::PLACE_OUT);
+            }
+            $pack->setStatus(DepartmentGrossanlassPack::STATUS_IN_TRANSIT);
+            $this->entityManager->flush();
+        });
 
         return $this->serializePack($pack);
     }
