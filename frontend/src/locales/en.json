@@ -4675,6 +4675,18 @@
   },
   "settings": {
     "myDepartment": {
+      "toastPrimaryRemoved": "Primary status removed. The membership remains.",
+      "removePrimary": "Remove primary status",
+      "primaryChange": {
+        "confirmTitle": "Change primary department?",
+        "confirmMessage": "Currently primary: “{from}”. New primary: “{to}”. There can only be one primary department; the current one loses its primary status (the membership remains).",
+        "confirmAction": "Change primary"
+      },
+      "primaryRemove": {
+        "confirmTitle": "Remove primary status?",
+        "confirmMessage": "“{name}” will no longer be primary. The membership remains.",
+        "confirmAction": "Remove"
+      },
       "notificationEmail": {
         "label": "Notification address",
         "hint": "Department and large-event notifications are sent to this address. Only your verified addresses can be chosen; login and primary address are not affected.",

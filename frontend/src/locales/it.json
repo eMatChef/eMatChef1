@@ -674,6 +674,18 @@
   },
   "settings": {
     "myDepartment": {
+      "toastPrimaryRemoved": "Stato principale rimosso. L’appartenenza resta.",
+      "removePrimary": "Rimuovi stato principale",
+      "primaryChange": {
+        "confirmTitle": "Cambiare il reparto principale?",
+        "confirmMessage": "Attualmente principale: «{from}». Nuovo principale: «{to}». Può esserci un solo reparto principale; quello attuale perde lo stato principale (l’appartenenza resta).",
+        "confirmAction": "Cambia principale"
+      },
+      "primaryRemove": {
+        "confirmTitle": "Rimuovere lo stato principale?",
+        "confirmMessage": "«{name}» non sarà più principale. L’appartenenza resta.",
+        "confirmAction": "Rimuovi"
+      },
       "notificationEmail": {
         "label": "Indirizzo di notifica",
         "hint": "Le notifiche del dipartimento e del grande evento vengono inviate a questo indirizzo. Si possono scegliere solo i tuoi indirizzi confermati; login e indirizzo principale non cambiano.",

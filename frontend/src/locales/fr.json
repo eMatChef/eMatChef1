@@ -784,6 +784,18 @@
   },
   "settings": {
     "myDepartment": {
+      "toastPrimaryRemoved": "Statut principal retiré. L’appartenance est conservée.",
+      "removePrimary": "Retirer le statut principal",
+      "primaryChange": {
+        "confirmTitle": "Changer le département principal ?",
+        "confirmMessage": "Actuellement principal : « {from} ». Nouveau principal : « {to} ». Il ne peut y avoir qu’un seul département principal ; l’actuel perd son statut principal (l’appartenance est conservée).",
+        "confirmAction": "Changer le principal"
+      },
+      "primaryRemove": {
+        "confirmTitle": "Retirer le statut principal ?",
+        "confirmMessage": "« {name} » ne sera plus principal. L’appartenance est conservée.",
+        "confirmAction": "Retirer"
+      },
       "notificationEmail": {
         "label": "Adresse de notification",
         "hint": "Les notifications du département et du grand événement sont envoyées à cette adresse. Seules tes adresses confirmées peuvent être choisies ; la connexion et l'adresse principale ne changent pas.",
