@@ -553,7 +553,11 @@ Diese Punkte beschreiben den aktuellen Code-Stand, nicht das Zielbild. Sie sind 
 
 ### Scope-Semantik leerer Scopes — behoben (Oktober 2026)
 
-Früher wertete `AdminCapabilityChecker` einen leeren Scope als «alle Organisationen/Departments» und schnitt Organisations- und Department-Zuweisungen (Schnittmenge). Jetzt gilt: Zuweisungen werden vereinigt, ein leerer Scope gibt **keine** hierarchischen Verwaltungsrechte, Organisationsebene verlangt eine Organisations-Zuweisung (`canAdministerOrganisation`), und Department-bezogene Schreib- und Lesezugriffe laufen über `canAdministerDepartment` bzw. `DepartmentAccessGuard`. Auswirkungen auf bestehende Konten zeigt `app:admin:scope-report`. Offen bleibt die Kandidatensuche `GET /api/departments/grossanlass/available-users` (Benutzersuche nicht auf den Bereich eingeschränkt).
+Früher wertete `AdminCapabilityChecker` einen leeren Scope als «alle Organisationen/Departments» und schnitt Organisations- und Department-Zuweisungen (Schnittmenge). Jetzt gilt: Zuweisungen werden vereinigt, ein leerer Scope gibt **keine** hierarchischen Verwaltungsrechte, Organisationsebene verlangt eine Organisations-Zuweisung (`canAdministerOrganisation`), und Department-bezogene Schreib- und Lesezugriffe laufen über `canAdministerDepartment` bzw. `DepartmentAccessGuard`. Auswirkungen auf bestehende Konten zeigt `app:admin:scope-report`.
+
+### Department-Daten, Benutzersuche, zentrale Inhalte — behoben (Oktober 2026)
+
+Lesen und Schreiben von Department-Daten wird getrennt autorisiert (`DepartmentAccessGuard`, Matrix in [ARCHITECTURE.md](./ARCHITECTURE.md)): Einstellungen, Kategorien und Department-Vorlagen waren für jeden angemeldeten Benutzer lesbar und änderbar; Mitgliederlisten (`GET /api/departments/{id}`, `/members`) und die Benutzersuche zeigten Benutzer, E-Mail-Adressen und Department-Namen über alle Organisationen. Zentrale Vorlagen und die globale Veröffentlichung im Druckkatalog sind systemweit und nur dem Superadmin vorbehalten. Offene fachliche Entscheidungen: siehe ARCHITECTURE.md (Einstellungen, Rollen `bl`/`komm`/`spon`/`lw`/`clw`, delegierte Capability für zentrale Inhalte).
 
 ### E-Mail-Wechsel bei unbestätigten Accounts im Profil
 

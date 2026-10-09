@@ -280,6 +280,55 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
         }
     }
 
+    public function testUserPickerQueryHidesUsersOfForeignOrganisationsInTheRealDatabase(): void
+    {
+        $this->withDb(function (DemoScenarioRunner $runner, DemoScenarioRegistry $registry, EntityManagerInterface $em, Connection $conn): void {
+            foreach ([['orgone000001', 'Org Eins'], ['orgtwo000001', 'Org Zwei']] as [$id, $name]) {
+                $conn->executeStatement('INSERT INTO organisation (id,name,created_at,updated_at) VALUES (?,?,now(),now())', [$id, $name]);
+            }
+            foreach ([['deptone00001', 'orgone000001', 'Pfadi Eins'], ['deptone00002', 'orgone000001', 'Pfadi Eins B'], ['depttwo00001', 'orgtwo000001', 'Fremdabteilung']] as [$id, $org, $name]) {
+                $conn->executeStatement('INSERT INTO department (id,organisation_id,name,created_at,updated_at,demo_mode,is_grossanlass) VALUES (?,?,?,now(),now(),false,false)', [$id, $org, $name]);
+            }
+            $person = static function (string $key, ?string $department) use ($conn): void {
+                $conn->executeStatement("INSERT INTO profile (id,email,first_name,last_name,nickname,roles,created_at,updated_at) VALUES (?,?,'Test',?,'T','[\"ROLE_USER\"]',now(),now())", ['p' . $key, $key . '@example.org', 'Muster' . $key]);
+                $conn->executeStatement("INSERT INTO \"user\" (id,profile_id,state,password,email_verified,created_at,updated_at) VALUES (?,?, 'active','pw',true,now(),now())", ['u' . $key, 'p' . $key]);
+                if ($department !== null) {
+                    $conn->executeStatement("INSERT INTO membership (user_id,department_id,role,is_primary) VALUES (?,?,'u',false)", ['u' . $key, $department]);
+                }
+            };
+            $person('caller00001', 'deptone00001'); // Mitglied in Org Eins
+            $person('sameorg0001', 'deptone00002'); // gleiche Organisation
+            $person('unassign001', null);           // ohne Mitgliedschaft
+            $person('foreign0001', 'depttwo00001'); // fremde Organisation
+
+            $checker = new \App\Service\Admin\AdminCapabilityChecker($em, new \App\Service\Admin\AdminCapabilityDepartmentScope($em));
+            $scope = new \App\Service\Security\UserPickerScope($em, $checker);
+            $caller = $em->find(\App\Entity\User::class, 'ucaller00001');
+            self::assertInstanceOf(\App\Entity\User::class, $caller);
+
+            $search = function (?array $visible, string $nameLike = '%Muster%') use ($em, $scope): array {
+                $qb = $em->getRepository(\App\Entity\User::class)->createQueryBuilder('u')
+                    ->innerJoin('u.profile', 'p')->where('p.lastName LIKE :n')->setParameter('n', $nameLike);
+                $scope->restrict($qb, $visible);
+
+                return array_map(static fn (\App\Entity\User $u): string => $u->getId(), $qb->getQuery()->getResult());
+            };
+            $ids = static function (array $found): array {
+                sort($found);
+
+                return $found;
+            };
+
+            // Mitglieder-Auswahl eines Departments von Org Eins: eigene Organisation und Kandidaten, nie die fremde
+            $visible = $scope->visibleDepartmentIds($caller, 'orgone000001');
+            self::assertSame(['ucaller00001', 'usameorg0001', 'uunassign001'], $ids($search($visible)));
+            // ohne Organisationsbezug nur die eigenen Departments plus Kandidaten
+            self::assertSame(['ucaller00001', 'uunassign001'], $ids($search($scope->visibleDepartmentIds($caller))));
+            // Superadmin: unbeschränkt
+            self::assertSame(['ucaller00001', 'uforeign0001', 'usameorg0001', 'uunassign001'], $ids($search(null)));
+        });
+    }
+
     public function testLegacyAutomaticMwMembershipsAreCorrectedOnlyWhenUntouched(): void
     {
         $this->withDb(function (DemoScenarioRunner $runner, DemoScenarioRegistry $registry, EntityManagerInterface $em, Connection $conn): void {

@@ -112,7 +112,7 @@ class DepartmentSettingController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function update(string $departmentId, Request $request): JsonResponse
     {
-        if ($denied = $this->departmentAccess->deny($this->getUser() instanceof User ? $this->getUser() : null, $departmentId)) {
+        if ($denied = $this->departmentAccess->denyManage($this->getUser() instanceof User ? $this->getUser() : null, $departmentId)) {
             return $denied;
         }
 

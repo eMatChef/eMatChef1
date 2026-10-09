@@ -29,6 +29,13 @@ class CategoryController extends AbstractController
         return $this->departmentAccess->deny($user instanceof User ? $user : null, $departmentId);
     }
 
+    private function denyManage(?string $departmentId): ?JsonResponse
+    {
+        $user = $this->getUser();
+
+        return $this->departmentAccess->denyManage($user instanceof User ? $user : null, $departmentId);
+    }
+
     /**
      * Liste aller Kategorien für ein Department
      */
@@ -131,7 +138,7 @@ class CategoryController extends AbstractController
         if (!$department) {
             return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
         }
-        if ($denied = $this->denyDepartment($department->getId())) {
+        if ($denied = $this->denyManage($department->getId())) {
             return $denied;
         }
 
@@ -190,7 +197,7 @@ class CategoryController extends AbstractController
         if (!$category) {
             return new JsonResponse(['error' => 'Kategorie nicht gefunden'], 404);
         }
-        if ($denied = $this->denyDepartment($category->getDepartmentId())) {
+        if ($denied = $this->denyManage($category->getDepartmentId())) {
             return $denied;
         }
 
@@ -252,7 +259,7 @@ class CategoryController extends AbstractController
         if (!$category) {
             return new JsonResponse(['error' => 'Kategorie nicht gefunden'], 404);
         }
-        if ($denied = $this->denyDepartment($category->getDepartmentId())) {
+        if ($denied = $this->denyManage($category->getDepartmentId())) {
             return $denied;
         }
 

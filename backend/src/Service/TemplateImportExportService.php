@@ -695,15 +695,10 @@ class TemplateImportExportService
         return $label !== '' ? $label : (string) $address->getId();
     }
 
+    /** Zentrale Vorlagen sind systemweit: nur Superadmin (nicht Orgchef/Suborgchef allein wegen ihrer Rolle). */
     private function canEditGlobalTemplates(User $user): bool
     {
-        foreach ($user->getRoles() as $role) {
-            if (in_array($role, ['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], true)) {
-                return true;
-            }
-        }
-
-        return false;
+        return $this->isGrantedSuperadmin($user);
     }
 
     private function isGrantedSuperadmin(User $user): bool

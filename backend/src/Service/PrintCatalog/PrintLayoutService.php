@@ -253,16 +253,7 @@ final class PrintLayoutService
     public function review(User $reviewer, PrintLayout $layout, string $action): PrintLayout
     {
         $roles = $reviewer->getRoles();
-        if (!PrintCatalogVisibility::isReviewer($roles)) {
-            throw new \RuntimeException('Keine Berechtigung zur Prüfung');
-        }
-        if (!PrintCatalogVisibility::canReviewItem(
-            $layout->getOrganisationId(),
-            $this->catalog->organisationIdsForUser($reviewer),
-            $this->catalog->canSeeAllOrganisations($reviewer),
-        )) {
-            throw new \RuntimeException('Keine Berechtigung für diese Organisation');
-        }
+        $this->catalog->assertCanReview($reviewer, $layout->getOrganisationId(), $action);
         $action = strtolower(trim($action));
         if (!\in_array($action, ['approve', 'reject', 'promote_global'], true)) {
             throw new \InvalidArgumentException('action muss approve, reject oder promote_global sein');
