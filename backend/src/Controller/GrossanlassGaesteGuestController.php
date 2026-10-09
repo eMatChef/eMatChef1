@@ -45,6 +45,28 @@ class GrossanlassGaesteGuestController extends AbstractController
         );
     }
 
+    #[Route('/{shareId}', name: 'update', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function update(string $departmentId, string $hostId, string $shareId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $d, User $u) => $this->gaeste->updateRelease($d, $u, $hostId, $shareId, $data),
+        );
+    }
+
+    #[Route('/{shareId}', name: 'withdraw', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function withdraw(string $departmentId, string $hostId, string $shareId): JsonResponse
+    {
+        return $this->handle(
+            $departmentId,
+            fn (Department $d, User $u) => $this->gaeste->withdrawRelease($d, $u, $hostId, $shareId),
+        );
+    }
+
     /**
      * @param callable(Department, User): mixed $fn
      */

@@ -14,6 +14,8 @@ final class GrossanlassAvailabilityConflict extends \DomainException
     public const KIND_UNIQUE = 'unique_overlap';
     public const KIND_NOT_ON_HAND = 'not_on_hand';
     public const KIND_BELOW_BOOKED = 'below_booked';
+    public const KIND_GUEST_STOCK = 'guest_stock';
+    public const KIND_IN_USE = 'in_use';
 
     /**
      * @param array<string, mixed> $details

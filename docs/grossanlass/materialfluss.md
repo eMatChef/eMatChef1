@@ -299,7 +299,8 @@ Der Einsatz ist die Reservierung. Der Server entscheidet verbindlich (`Grossanla
 
 **Nicht Teil der Regel (offen):**
 
-- Reservierungen gegen Material des Gast-Departments (`MaterialItem` im Gast-Department): GuestShare prüft den Bestand dort noch nicht.
+- Das Anlegen einer Aktivität im Gast-Department sperrt den Artikel nicht und prüft angenommene Gast-Zusagen nur über die Verfügbarkeits-API; zwei gleichzeitige Schreibvorgänge dort (Aktivität gegen Annahme) sind nicht serialisiert. Die Gast-Freigaben untereinander sind es.
+
 - Inbound-Einsätze sind nicht gekennzeichnet; vor der Verknüpfung mit der Charge zählen sie als normale Reservierung.
 - Teilrückgabe: ein zurückgenommener Einsatz gibt immer die ganze Menge frei ([§10](#10-rückbau-und-rücknahme-partial)).
 
@@ -355,11 +356,24 @@ Gast-Department gibt frei   kind=offer, status=offered
                             Menge, Zeitfenster, Bezug guest_share.commitment_id
 ```
 
-API: Gast `…/grossanlass/hosts/{hostId}/freigaben`, Grossanlass `…/grossanlass/gaeste` (+ `shares/{id}/accept`). Das ist die richtige Grundrichtung: Department → Freigabe → Grossanlass-Charge, ohne gemeinsame Pipeline. Keine weitere Übergabe-Entity daneben.
+API: Gast `…/grossanlass/hosts/{hostId}/freigaben` (`GET`, `POST`, `PATCH /{shareId}`, `DELETE /{shareId}`), Grossanlass `…/grossanlass/gaeste` (+ `shares/{id}/accept`). Das ist die richtige Grundrichtung: Department → Freigabe → Grossanlass-Charge, ohne gemeinsame Pipeline. Keine weitere Übergabe-Entity daneben.
+
+**Verbindliche Reservierung im Gast-Department (IST).** Es gibt keine zweite Bestandslogik: Die freie Menge eines Materials im Department rechnet eine einzige SQL-Rechnung (`MaterialAvailabilityReservationQuery::lateralReservedQtySql`, ausgeführt von `MaterialPeriodAvailability`; dieselbe Rechnung wie die Verfügbarkeits-API der Aktivitäten). Eine **angenommene** Gast-Zusage (`kind=offer`, `status=accepted`) ist dort ein weiterer Reservierungsposten: sie blockiert ihre Menge im Fenster der Zusage (ohne Fenster unbegrenzt), solange die Charge besteht und nicht an die Firma/das Department zurückgegeben ist (`returned_to_firm`). Löschen der Charge (FK `SET NULL`) oder Rückgabe gibt die Menge ohne weiteren Schritt frei.
+
+| Vorgang | Regel |
+| --- | --- |
+| Freigabe anlegen (`POST …/freigaben`) | Menge ≤ freie Menge im Fenster: Bestand abzüglich Aktivitäten (Bestellung und Pipeline), abzüglich angenommener Zusagen für andere Anlässe und abzüglich offener Angebote (kein doppeltes Anbieten desselben Materials). Ohne Fenster wird gegen jeden Zeitraum geprüft |
+| Annahme (`accept`) | Erst jetzt blockiert die Zusage. Unter der Sperre erneut prüfen (zwischenzeitlich geplante Aktivitäten); idempotent (eine Charge) |
+| Ändern (`PATCH`) | Angeboten: Menge und Fenster, neu geprüft. Angenommen: nur die Menge; Erhöhen wird gegen den Bestand geprüft, Verringern nie unter erhaltene oder reservierte Mengen (Charge folgt der Freigabe) |
+| Zurückziehen (`DELETE`) | Angeboten: wird abgelehnt. Angenommen: nur solange die Charge ungenutzt ist (kein Einsatz, kein Wareneingang, nicht gepackt); die Charge wird entfernt. Sonst 409 `in_use`, die Rückgabe wird im Grossanlass gebucht. Mehrfaches Zurückziehen ist ohne Wirkung |
+
+Der Artikel (`MaterialItem`) ist während jeder Prüfung mit `PESSIMISTIC_WRITE` gesperrt, in derselben Transaktion wie das Speichern. Eigene Aktivitäten sperren den Artikel beim Anlegen nicht (siehe offene Punkte). Fehlt der Bestand: HTTP 409, `conflict.kind=guest_stock` mit `available` und `requested`.
+
+**Herkunft und Eigentum bleiben nachvollziehbar:** die übernommene Charge hat `origin=loan`, `owner_kind=department`, `owner_department_id` = Gast-Department, `return_required=true` und `source` = Name des Departments. Der Grossanlass kann die Menge dieser Charge nicht über die Freigabe erhöhen (Menge bestimmt das Gast-Department). Ändern und Zurückziehen sind auf die eigene Freigabe des Gast-Departments beschränkt (Rolle für Gruppenverwaltung im Gast-Department; fremde Freigaben werden als nicht gefunden behandelt).
 
 ### 9.2 SOLL
 
-- Eigentümer (Department) als echte Relation statt Freitext in `source`
+- (IST seit Phase 2: Eigentümer als Relation `owner_department_id`, Reservierung im Gast-Department, Ändern und Zurückziehen — siehe oben.)
 - tatsächlich übergebene Menge (bestätigt)
 - Teilrückgabe und zurückgegebene Menge
 - Restmenge beim Grossanlass
@@ -467,7 +481,7 @@ Fachlich zu unterscheiden bleiben: GA-/Eigenbestand, Material eines Departments 
 | Wareneingang (mengenbasiert an der Charge) | IST |
 | Einsatz, Pack, Teilpack, Fahrt-Frei, unterwegs, Ankunft GA-Ort | IST |
 | Serverseitige Verfügbarkeit, Überbuchungssperre, Ausgabe nur physisch vorhandener Menge ([§7.4](#74-verfügbarkeit-und-überbuchungsschutz-ist)) | IST |
-| Verfügbarkeit gegen Material im Gast-Department | SOLL |
+| Gast-Freigabe gegen freien Bestand, Blockade im Gast-Department, Ändern/Zurückziehen ([§9.1](#91-ist-guestshare)) | IST |
 | Pack-QR, GA-Ort-QR, Charge-Barcode `ZS-…` | IST |
 | Charge-Code öffentlich auflösbar, Charge-Etikett | SOLL |
 | Druckinfrastruktur | IST |
