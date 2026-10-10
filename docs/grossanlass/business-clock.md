@@ -33,7 +33,7 @@ Kontext = `Department` oder Department-ID (aus Route/Entity, nie aus Frontend-St
 
 ## Demo-Ausgangspunkt und Seed-Zeitstrahl
 
-«Zurücksetzen» ist über `ClockOriginResolverInterface` (Tag `app.clock_origin_resolver`) vom Fachbereich getrennt. Heute gibt es einen Resolver: `GrossanlassClockOriginResolver` (Anlassbeginn minus 5 Tage, 09:00, Aufbauphase). Ein Demo-Department ohne Resolver wird auf die reale Zeit zurückgesetzt; ein eigener Ausgangspunkt für normale Demo-Departments ist über einen weiteren Resolver möglich, ohne neue Spalte (nicht gebaut).
+«Zurücksetzen» ist über `ClockOriginResolverInterface` (Tag `app.clock_origin_resolver`) vom Fachbereich getrennt. Es gibt zwei Resolver: `ScenarioClockOriginResolver` für Departments mit `demo_scenario_key` (delegiert an das Szenario, siehe [demo/SEED-KONZEPT.md §7.0](../demo/SEED-KONZEPT.md#70-phase-1-gebauter-stand-ist)) und `GrossanlassClockOriginResolver` für Grossanlass-Departments ohne Schlüssel (Anlassbeginn minus 5 Tage, 09:00, Aufbauphase). Ein Demo-Department ohne Resolver wird auf die reale Zeit zurückgesetzt; ein eigener Ausgangspunkt für normale Demo-Departments ist über einen weiteren Resolver möglich, ohne neue Spalte (nicht gebaut).
 
 `DemoGrossanlassSeedService` markiert das Department als `demo_mode` und setzt – nur wenn noch kein Offset gesetzt ist – die Uhr auf den Ausgangspunkt. Erneutes Seeden überschreibt eine verstellte Uhr nicht. Andere Dev-Departments (z. B. «Bootstrap Department») werden bewusst nicht als Demo markiert.
 
@@ -77,8 +77,8 @@ Offener Punkt für Phase 2: Sperre pro Adapter anhand von `demo_mode` (nicht des
 
 | Command | Bedeutung für die Demo-Zeit |
 | --- | --- |
-| `app:create-role-users [--skip-delete] --with-ga-demo` | **Bestehende Demo aktualisieren.** Verwendet `Demo Grossanlass` wieder, hält `demo_mode`, legt keine doppelten User/Memberships/Einsätze an. Eine verstellte Demo-Zeit bleibt erhalten; nur bei fehlendem Offset (frisches Department) wird der Ausgangspunkt gesetzt. Ohne `--skip-delete` werden Demo-User gelöscht und neu angelegt (neue User-IDs, Memberships der gelöschten User in anderen Departments entfallen). |
-| `app:demo-grossanlass:wipe` danach `app:create-role-users --with-ga-demo` | **Echter Demo-Reset.** Das Department wird gelöscht und frisch angelegt, inklusive Demo-Zeit am Ausgangspunkt. |
+| `app:create-role-users --with-ga-demo` | **Bestehende Demo aktualisieren** (seit Phase 0 löscht der Command nichts; Freigabe über `EMATCHEF_ENV_NAME`, siehe [demo/SEED-KONZEPT.md §3.2](../demo/SEED-KONZEPT.md#32-phase-0-absicherung-ist)). Verwendet `Demo Grossanlass` wieder, hält `demo_mode`, legt keine doppelten User/Memberships/Einsätze an. Eine verstellte Demo-Zeit bleibt erhalten; nur bei fehlendem Offset (frisches Department) wird der Ausgangspunkt gesetzt. Mit `--delete-demo-users` (nur local, oder develop mit `EMATCHEF_DEMO_DESTRUCTIVE=1`) werden Konten mit exakter Adresse aus `demo-accounts.json` gelöscht und neu angelegt (neue User-IDs, Memberships der gelöschten User in anderen Departments entfallen). |
+| `app:demo-grossanlass:wipe --confirm=<Name>` danach `app:create-role-users --with-ga-demo` | **Echter Demo-Reset** (Wipe nur für `demo_mode`-Departments und mit Freigabe für löschende Befehle). Das Department wird gelöscht und frisch angelegt, inklusive Demo-Zeit am Ausgangspunkt. |
 | Header-«Zurücksetzen» (`DELETE …/clock`) | Nur die Demo-Zeit, keine Daten. |
 | `app:dev-demo:reset` | Nur Rollen-User (ohne `--with-ga-demo`), berührt weder Department noch Demo-Zeit. |
 

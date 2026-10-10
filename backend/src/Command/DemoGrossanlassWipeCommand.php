@@ -6,7 +6,7 @@ namespace App\Command;
 
 use App\Service\Bootstrap\DemoGrossanlassSeedService;
 use App\Service\Bootstrap\DemoGrossanlassWipeService;
-use App\Service\DevEnvironmentService;
+use App\Service\Demo\DemoEnvironmentGuard;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -16,12 +16,12 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'app:demo-grossanlass:wipe',
-    description: 'Dev: Demo-Grossanlass-Department inkl. aller Daten löschen',
+    description: 'Dev: Demo-Grossanlass-Department (demo_mode) inkl. aller Daten löschen; gesperrt ohne Freigabe',
 )]
 final class DemoGrossanlassWipeCommand extends Command
 {
     public function __construct(
-        private DevEnvironmentService $devEnvironmentService,
+        private DemoEnvironmentGuard $environmentGuard,
         private DemoGrossanlassWipeService $wipeService,
     ) {
         parent::__construct();
@@ -29,6 +29,12 @@ final class DemoGrossanlassWipeCommand extends Command
 
     protected function configure(): void
     {
+        $this->addOption(
+            'confirm',
+            null,
+            InputOption::VALUE_REQUIRED,
+            'Muss dem Department-Namen entsprechen (Bestätigung)',
+        );
         $this->addOption(
             'name',
             null,
@@ -42,20 +48,30 @@ final class DemoGrossanlassWipeCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
 
-        if (!$this->devEnvironmentService->isDevToolsEnabled()) {
-            $io->error('Dev-Tools sind deaktiviert (EMATCHEF_DEV_TOOLS / APP_ENV). Abbruch.');
+        $denial = $this->environmentGuard->destructiveDenial();
+        if ($denial !== null) {
+            $io->error($denial);
 
             return Command::FAILURE;
         }
 
         $name = (string) $input->getOption('name');
+        if ((string) $input->getOption('confirm') !== $name) {
+            $io->error(sprintf('Bestätigung fehlt: --confirm="%s" angeben.', $name));
+
+            return Command::FAILURE;
+        }
 
         try {
             $result = $this->wipeService->wipeByName($name);
         } catch (\InvalidArgumentException $e) {
-            $io->warning($e->getMessage());
+            $io->error($e->getMessage());
 
-            return Command::SUCCESS;
+            return Command::FAILURE;
+        } catch (\RuntimeException $e) {
+            $io->error($e->getMessage());
+
+            return Command::FAILURE;
         }
 
         $io->success(sprintf(

@@ -14,6 +14,8 @@ use Doctrine\ORM\EntityManagerInterface;
  * (JwtAuthenticationSuccessSubscriber, GET /api/auth/session).
  *
  * Startkontext: gültiges last_used_department → primäres Department → erstes Department → null.
+ * `primary_department` nennt nur eine ausdrücklich als primär markierte Mitgliedschaft; das Ausweich-Department ohne Markierung
+ * steht allein in `last_used_department` (bei stabiler Reihenfolge nach Name).
  */
 final class SessionContextResolver
 {
@@ -42,8 +44,12 @@ final class SessionContextResolver
             ->getQuery()
             ->getResult();
 
+        // Die Abfrage ist ungeordnet: ohne feste Reihenfolge wäre das Ausweich-Department zufällig.
+        usort($memberships, static fn (Membership $a, Membership $b): int => [$a->getDepartment()->getName(), $a->getDepartmentId()] <=> [$b->getDepartment()->getName(), $b->getDepartmentId()]);
+
         $departments = [];
         $primaryDepartment = null;
+        $firstDepartment = null;
         foreach ($memberships as $m) {
             $deptSerialized = GrossanlassDepartmentSerializer::serializeDepartmentForMembership($m->getDepartment());
             $deptData = [
@@ -59,8 +65,9 @@ final class SessionContextResolver
             }
             $departments[] = $deptData;
 
-            // Primär: letzte Membership mit is_primary, sonst die erste.
-            if ($m->getIsPrimary() || !$primaryDepartment) {
+            $firstDepartment ??= $deptData;
+            // Primär: letzte Membership mit is_primary; ohne Markierung gibt es kein primäres Department.
+            if ($m->getIsPrimary()) {
                 $primaryDepartment = $deptData;
             }
         }
@@ -73,6 +80,8 @@ final class SessionContextResolver
             $lastUsedResolved = $storedLastUsedId;
         } elseif ($primaryDepartment !== null) {
             $lastUsedResolved = $primaryDepartment['id'];
+        } elseif ($firstDepartment !== null) {
+            $lastUsedResolved = $firstDepartment['id'];
         }
 
         return [

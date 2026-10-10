@@ -63,7 +63,7 @@ final class SessionContextResolverTest extends TestCase
         self::assertSame('dep_b', $context['last_used_department']);
     }
 
-    public function testWithoutPrimaryTheFirstDepartmentIsUsed(): void
+    public function testWithoutPrimaryOnlyTheFallbackStartDepartmentIsSetNotAPrimaryOne(): void
     {
         $a = $this->department('dep_a');
         $b = $this->department('dep_b');
@@ -74,7 +74,22 @@ final class SessionContextResolverTest extends TestCase
             $this->membership($user, $b, 'mw', false),
         ]);
 
-        self::assertSame('dep_a', $context['primary_department']);
+        self::assertNull($context['primary_department']);
+        self::assertSame('dep_a', $context['last_used_department']);
+    }
+
+    public function testFallbackIsIndependentOfQueryOrder(): void
+    {
+        $zeta = $this->department('dep_z');
+        $alpha = $this->department('dep_a');
+        $user = $this->user(null);
+
+        $context = $this->resolve($user, [
+            $this->membership($user, $zeta, 'u', false),
+            $this->membership($user, $alpha, 'mw', false),
+        ]);
+
+        self::assertNull($context['primary_department']);
         self::assertSame('dep_a', $context['last_used_department']);
     }
 

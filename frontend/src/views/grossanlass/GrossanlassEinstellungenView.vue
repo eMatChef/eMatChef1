@@ -12,7 +12,7 @@
         show-arrows
         @update:model-value="onTabChange"
       >
-        <v-tab v-for="tab in tabItems" :key="tab.id" :value="tab.id">
+        <v-tab v-for="tab in tabItems" :key="tab.id" :value="tab.id" :data-onboarding="`ga-setup-tab-${tab.id}`">
           <v-icon :icon="tab.icon" start size="18" />
           {{ tab.label }}
         </v-tab>
@@ -67,6 +67,10 @@ const tabItems = computed(() => {
     { id: 'teilnehmer', label: t('grossanlass.planung.tabTeilnehmer'), icon: 'mdi-account-group-outline' },
     { id: 'freigabe', label: t('grossanlass.planung.tabFreigabe'), icon: 'mdi-check-decagram-outline' },
   ]
+  // Offene Ersteinrichtung: nur Stammdaten und Ressorts (die übrigen Bereiche sind serverseitig gesperrt).
+  if (authStore.isGrossanlassSetupPending(departmentId.value)) {
+    return all.filter((tab) => tab.id === 'stammdaten' || tab.id === 'ressorts')
+  }
   if (!known.value || hasGuestDepartments.value) return all
   return all.filter((tab) => !GUEST_TABS.has(tab.id))
 })

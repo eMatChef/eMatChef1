@@ -53,6 +53,29 @@ export interface PasswordResetConfirmResponse {
   message: string
 }
 
+/**
+ * Wählbarer Verwaltungsbereich von Orgchef/Suborgchef: eine ausdrücklich zugewiesene Organisation
+ * (`kind: 'organisation'`, `department_id` null) oder eine Department-Wurzel samt Unterbaum (`kind: 'department'`).
+ */
+export interface AdminContextScope {
+  kind: 'organisation' | 'department'
+  organisation_id: string
+  department_id: string | null
+  name: string
+  parent_id: string | null
+}
+
+/**
+ * Verwaltungskontexte laut Backend: `global` = Superadmin (Systemkontext ohne Department),
+ * `scopes` = Zuweisungen von Orgchef/Suborgchef. Ohne Zuweisung ist die Liste leer (keine Verwaltungsrechte).
+ * Nur eine Auswahlhilfe; Berechtigungen prüft immer das Backend.
+ */
+export interface AdminContextsResponse {
+  global: boolean
+  role: 'superadmin' | 'org' | 'sub' | 'none'
+  scopes: AdminContextScope[]
+}
+
 export interface LoginResponse {
   token: string
   refresh_token?: string
@@ -95,8 +118,11 @@ export interface LoginResponse {
       planned_event_start: string
       planned_event_end?: string | null
       main_activity_id?: string | null
+      /** Ersteinrichtung freigegeben; fehlt bei älteren Antworten (dann gilt sie als freigegeben). */
+      setup_released?: boolean
     }
   }>
+  admin_contexts?: AdminContextsResponse
   primary_department: string | null
   last_used_department: string | null
   supplier_companies?: SupplierCompanySession[]
@@ -107,6 +133,7 @@ export interface ServerSessionResponse {
   user: LoginResponse['user']
   profile: LoginResponse['profile']
   departments: LoginResponse['departments']
+  admin_contexts?: AdminContextsResponse
   primary_department: string | null
   last_used_department: string | null
   supplier_companies?: SupplierCompanySession[]
@@ -192,6 +219,8 @@ export interface UserDepartmentResponse {
       planned_event_start: string
       planned_event_end?: string | null
       main_activity_id?: string | null
+      /** Ersteinrichtung freigegeben; fehlt bei älteren Antworten (dann gilt sie als freigegeben). */
+      setup_released?: boolean
     }
   }
 }
@@ -482,9 +511,10 @@ export async function loadUserMemberships(userId: string): Promise<{ departments
 }
 
 /**
- * Setzt das primäre Department für den User in der DB
+ * Setzt das primäre Department des Users in der DB. `null` entfernt den Primärstatus (Mitgliedschaften bleiben).
+ * Das bisherige Primär wird serverseitig atomar zurückgesetzt.
  */
-export async function setPrimaryDepartment(userId: string, departmentId: string): Promise<void> {
+export async function setPrimaryDepartment(userId: string, departmentId: string | null): Promise<void> {
   if (!userId) {
     throw new Error('Keine User-ID verfügbar')
   }

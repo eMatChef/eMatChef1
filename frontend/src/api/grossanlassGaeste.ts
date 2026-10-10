@@ -9,6 +9,8 @@ export type GaGuestInventoryItem = {
   family: 'vehicle' | 'material'
   bookable: boolean
   released?: boolean
+  /** Frei im Gast-Department (Bestand abzüglich Aktivitäten und angenommener Zusagen), ohne Zeitfenster. */
+  free_qty?: number
   share_id: string | null
   share_status: GaGuestShareStatus | null
 }
@@ -97,11 +99,40 @@ export async function listGrossanlassGuestReleases(
 export async function releaseGrossanlassGuestMaterial(
   guestDepartmentId: string,
   hostDepartmentId: string,
-  data: { material_item_id: string; qty?: number },
+  data: { material_item_id: string; qty?: number; from?: string | null; to?: string | null },
 ): Promise<{ items: GaGuestInventoryItem[]; releases: GaGuestShare[] }> {
   const response = await apiClient.post(
     `/api/departments/${guestDepartmentId}/grossanlass/hosts/${hostDepartmentId}/freigaben`,
     data,
+  )
+  return response.data
+}
+
+/**
+ * Das Gast-Department ändert seine eigene Freigabe. Angenommen: nur die Menge. Bei fehlendem Bestand antwortet der Server
+ * mit HTTP 409 (`code: availability_conflict`).
+ */
+export async function updateGrossanlassGuestRelease(
+  guestDepartmentId: string,
+  hostDepartmentId: string,
+  shareId: string,
+  data: { qty?: number; from?: string | null; to?: string | null },
+): Promise<{ items: GaGuestInventoryItem[]; releases: GaGuestShare[] }> {
+  const response = await apiClient.patch(
+    `/api/departments/${guestDepartmentId}/grossanlass/hosts/${hostDepartmentId}/freigaben/${shareId}`,
+    data,
+  )
+  return response.data
+}
+
+/** Zieht die Freigabe zurück; angenommene Freigaben nur, solange die Charge im Grossanlass ungenutzt ist (sonst 409). */
+export async function withdrawGrossanlassGuestRelease(
+  guestDepartmentId: string,
+  hostDepartmentId: string,
+  shareId: string,
+): Promise<{ items: GaGuestInventoryItem[]; releases: GaGuestShare[] }> {
+  const response = await apiClient.delete(
+    `/api/departments/${guestDepartmentId}/grossanlass/hosts/${hostDepartmentId}/freigaben/${shareId}`,
   )
   return response.data
 }

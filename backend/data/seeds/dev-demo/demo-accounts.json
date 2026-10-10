@@ -153,6 +153,34 @@
       "group": "grossanlass"
     },
     {
+      "key": "camp-mw",
+      "email": "camp-mw@demo.ematchef.ch",
+      "label": "Camp · Materialchef",
+      "role": "mw",
+      "group": "grossanlass"
+    },
+    {
+      "key": "camp-lw",
+      "email": "camp-lw@demo.ematchef.ch",
+      "label": "Camp · Logistikwart",
+      "role": "lw",
+      "group": "grossanlass"
+    },
+    {
+      "key": "camp-bereich",
+      "email": "camp-bereich@demo.ematchef.ch",
+      "label": "Camp · Bereichsleitung",
+      "role": "bl",
+      "group": "grossanlass"
+    },
+    {
+      "key": "camp-helfer",
+      "email": "camp-helfer@demo.ematchef.ch",
+      "label": "Camp · Helfer",
+      "role": "u",
+      "group": "grossanlass"
+    },
+    {
       "key": "supplier",
       "email": "supplier@demo.ematchef.ch",
       "legacyEmail": "supplier@ematchef.ch",

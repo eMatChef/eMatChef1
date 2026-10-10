@@ -1,8 +1,8 @@
-# Szenario: Normales Department
+# Szenario: Materialverwaltung (normales Department)
 
 **Stand:** 8. Oktober 2026. Demo-Szenario für die normale Materialverwaltung (Pfadi-Abteilung, Lager, Aktivitäten). Gemeinsame Regeln: [../README.md](../README.md), [../SEED-KONZEPT.md](../SEED-KONZEPT.md), [../BUSINESS-CLOCK.md](../BUSINESS-CLOCK.md). Marken **IST / TEILWEISE / SOLL / OFFEN** wie dort.
 
-**Status des Szenarios: SOLL.** Es gibt heute **kein** Demo-Department für ein normales Department und keinen Seed dafür. Die unten genannten Funktionen der Anwendung sind vorhanden (**IST**); es fehlen die Demo-Daten und der Seed. Der Ausbau folgt nach Grossanlass ([../README.md §6](../README.md#6-entwicklung-und-teststrategie)).
+**Status des Szenarios: SOLL.** Schlüssel `materialverwaltung`. Es gibt heute **kein** Demo-Department für ein normales Department und keinen Seed dafür. Die Rollen-User (siehe `demo-accounts.json`) existieren zwar, hängen aber heute am «ersten sichtbaren Department» der Datenbank (Befund P4 in [../SEED-KONZEPT.md §3.1](../SEED-KONZEPT.md#31-ist-probleme)); sie gehören künftig in dieses Demo-Department. Die unten genannten Funktionen der Anwendung sind vorhanden (**IST**); es fehlen die Demo-Daten und der Seed. Der Ausbau folgt nach Grossanlass ([../README.md §6](../README.md#6-entwicklung-und-teststrategie)).
 
 ## 1. Zweck
 
@@ -21,7 +21,9 @@ Ein realistisches Demo-Department zeigt die normale Materialverwaltung von Anfan
 | Wartungen und Reparaturen | Werkstatt-Tickets mit Phasen, Lieferanten-Reparatur | **IST** ([workshop](../../workshop/README.md), [supplier-portal](../../supplier/supplier-portal.md)) |
 | Weitere Department-Funktionen | Buchhaltung, Nachrichten, Geräte, Medien, öffentliche Seiten | **IST** ([accounting.md](../../accounting.md), [nachrichtenzentrale.md](../../nachrichtenzentrale.md)); Umfang pro Funktion **OFFEN** |
 
-Seed-Regeln (Isolation, Idempotenz, Mengenbilanz, Reset): [../SEED-KONZEPT.md](../SEED-KONZEPT.md). Das Szenario darf weder Grossanlass-Departments noch andere Departments verändern.
+**Mindestumfang (SOLL, beschlossen):** Lager, Gruppen, Benutzer, **mindestens eine Aktivität je vorhandenem Aktivitätstyp**, Materialbedarf, Packen, Ausgabe, Rückgabe, Inventur, Werkstatt. **OFFEN (E11):** `activity.type` ist ein String ohne zentrale Aufzählung; die Typen (und Packprofile über `profileForActivityType`) sind vor der Umsetzung zu inventarisieren, damit «je Typ» prüfbar ist.
+
+Seed-Regeln (Isolation, Idempotenz, Mengenbilanz, Reset): [../SEED-KONZEPT.md](../SEED-KONZEPT.md). Das Szenario darf weder Grossanlass-Departments noch andere Departments verändern. Es ist von Event und Camp **unabhängig**: eigenes Department, eigene Uhr, eigener Reset, keine gemeinsamen Datensätze.
 
 ## 3. Realistische Demo-Abläufe (SOLL)
 
@@ -64,7 +66,7 @@ Man reist mit der Header-Uhr durch diese Zeitpunkte, ohne neu zu seeden. Es gilt
 ## 6. BusinessClock
 
 - **IST:** Ein Demo-Department ohne Grossanlass kann den Offset nutzen und reisen ([../BUSINESS-CLOCK.md](../BUSINESS-CLOCK.md)).
-- **TEILWEISE:** Es gibt keinen Ausgangspunkt-Resolver; «Zurücksetzen» führt auf die reale Zeit. Ein Resolver für dieses Szenario ist ohne neue Spalte möglich (**SOLL**).
+- **TEILWEISE:** Es gibt keinen Ausgangspunkt-Resolver; «Zurücksetzen» führt auf die reale Zeit. **SOLL:** Ausgangspunkt über den szenariobasierten Resolver der Registry ([../SEED-KONZEPT.md §7.2](../SEED-KONZEPT.md#72-szenario-interface)); keine neue Uhr-Spalte, der Offset am Department genügt. Der Zuordnungsanker `demo_scenario_key` ist eine eigene (nicht die Uhr-)Spalte.
 - **SOLL:** Zeitabhängige Services des normalen Departments (Aktivitäts-Fristen, Rückgabe-Fälligkeit, Wartungsfälligkeit, Inventur, Werkstatt-Erinnerungen) migrieren auf die BusinessClock.
 
 ## 7. Abgrenzung zu Grossanlass
@@ -76,3 +78,6 @@ Kein gemeinsames Szenario. Gemeinsam sind Domain-Strukturen (Material, Chargen, 
 - **Frage 8:** Welche Services normaler Departments sind zeitabhängig und migrieren auf die BusinessClock (Inventur, Wartung, Ausleihe-Fristen, Werkstatt-Erinnerungen)? Je Stelle gegen den Code zu prüfen.
 - **Frage 3 (gemeinsam, siehe [../SEED-KONZEPT.md §7](../SEED-KONZEPT.md#7-szenario-registry-soll)):** Seed-Mechanik (`ensure*`-Services oder Fixtures/Registry) vor dem Ausbau dieses Szenarios entscheiden.
 - Welche Wartungs-/Inventur-Abläufe sind in der Anwendung heute vollständig genug für eine Vorführung? Noch nicht gegen den Code geprüft.
+- **Frage 3 (Empfehlung, Freigabe offen):** `ensure*`-Services hinter gemeinsamem Szenario-Interface mit Registry, keine Doctrine-Fixtures ([../SEED-KONZEPT.md §7.1](../SEED-KONZEPT.md#71-bewertung-der-optionen)).
+- **E8 (OFFEN):** Zuordnung von `InboxDemoSeedService` (Nachrichtenzentrale-Muster) zu diesem Szenario.
+- **E11 (OFFEN):** Inventar der Aktivitätstypen, siehe §2.

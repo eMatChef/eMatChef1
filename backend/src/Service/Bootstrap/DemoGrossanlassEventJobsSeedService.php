@@ -35,8 +35,12 @@ final class DemoGrossanlassEventJobsSeedService
     /**
      * @return array{department: string, jobs: int, wishes: int, created_jobs: int, created_wishes: int}
      */
-    public function seedByName(string $departmentName): array
+    public function seedByName(string $departmentName, bool $markDemo = false): array
     {
+        if (\App\Service\Demo\Legacy\LegacyDemoRename::hasPrefix($departmentName)) {
+            throw new \InvalidArgumentException(sprintf('«%s» ist ein ausgemustertes Legacy-Department (old-) und wird nicht mehr bespielt.', $departmentName));
+        }
+
         $department = $this->entityManager->getRepository(Department::class)->findOneBy([
             'name' => $departmentName,
         ]);
@@ -45,6 +49,17 @@ final class DemoGrossanlassEventJobsSeedService
                 'Grossanlass «%s» nicht gefunden.',
                 $departmentName,
             ));
+        }
+
+        if (!$department->isDemoMode()) {
+            if (!$markDemo) {
+                throw new \InvalidArgumentException(sprintf(
+                    'Grossanlass «%s» ist nicht als Demo (demo_mode) markiert; Seed schreibt nicht in fremde Departments. Mit --mark-demo ausdrücklich freigeben.',
+                    $departmentName,
+                ));
+            }
+            $department->setDemoMode(true);
+            $this->entityManager->flush();
         }
 
         return $this->seed($department);

@@ -6,6 +6,7 @@ use App\Entity\User;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
 use App\Service\Auth\CrossSubdomainAuthCookies;
+use App\Service\Auth\AdminContextResolver;
 use App\Service\Auth\SessionContextResolver;
 use App\Service\Supplier\SupplierCompanyAccessService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -27,6 +28,7 @@ class JwtAuthenticationSuccessSubscriber implements EventSubscriberInterface
         private CrossSubdomainAuthCookies $authCookies,
         private SupplierCompanyAccessService $supplierCompanyAccessService,
         private SessionContextResolver $sessionContextResolver,
+        private AdminContextResolver $adminContextResolver,
         private ?LoggerInterface $logger = null
     ) {}
 
@@ -108,6 +110,7 @@ class JwtAuthenticationSuccessSubscriber implements EventSubscriberInterface
             
             $context = $this->sessionContextResolver->resolve($user);
             $data['departments'] = $context['departments'];
+            $data['admin_contexts'] = $this->adminContextResolver->resolve($user);
             $data['primary_department'] = $context['primary_department'];
             $data['last_used_department'] = $context['last_used_department'];
             $data['user']['last_used_department'] = $context['last_used_department'];

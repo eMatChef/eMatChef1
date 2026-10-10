@@ -175,6 +175,7 @@ async function syncAutoCompletedTours() {
 const tourFilterOptions = computed(() => ({
   canCreateCamp: canCreateCampAndEvent.value,
   isGroupLeader: isGroupLeaderInDepartment.value,
+  isGrossanlass: authStore.isDepartmentGrossanlass(departmentId.value),
 }))
 
 const visibleTours = computed(() =>

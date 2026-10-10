@@ -220,6 +220,7 @@ import {
   type GaBauprojektTask,
 } from '@/api/grossanlassBauprojekt'
 import { updateGrossanlassEinsatz } from '@/api/grossanlassUebersicht'
+import { apiErrorMessage, isAvailabilityConflict } from '@/utils/apiErrorMessage'
 import { updateGrossanlassGroup, type GrossanlassGroup } from '@/api/grossanlassGroups'
 
 const emit = defineEmits<{
@@ -856,8 +857,9 @@ async function saveBlock(block: Block) {
       duration_minutes: block.durationMin,
     })
     await syncWindowFromTasks(block.groupId)
-  } catch {
-    toast.error(t('grossanlass.planung.ressorts.errorSave'))
+  } catch (e: unknown) {
+    // Verfügbarkeitskonflikte (HTTP 409) nennen Charge, Bestand und Menge; sonst die allgemeine Meldung.
+    toast.error(isAvailabilityConflict(e) ? apiErrorMessage(e, t('grossanlass.planung.ressorts.errorSave')) : t('grossanlass.planung.ressorts.errorSave'))
     await loadBlocks()
   }
 }

@@ -8,6 +8,7 @@ use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity]
 #[ORM\Table(name: 'department')]
+#[ORM\UniqueConstraint(name: 'uniq_department_demo_scenario_key', columns: ['demo_scenario_key'])]
 class Department
 {
     #[ORM\Id]
@@ -58,6 +59,13 @@ class Department
     /** Demo-Department: eigene, verstellbare Fachzeit (siehe BusinessClock). */
     #[ORM\Column(name: 'demo_mode', type: 'boolean', options: ['default' => false])]
     private bool $demoMode = false;
+
+    /**
+     * Stabile Szenario-Identität eines Demo-Departments (materialverwaltung | grossanlass-event | grossanlass-camp).
+     * Eindeutig; nur zusammen mit demo_mode (DB-CHECK). Nie aus dem Namen abgeleitet.
+     */
+    #[ORM\Column(name: 'demo_scenario_key', type: 'string', length: 40, nullable: true)]
+    private ?string $demoScenarioKey = null;
 
     /** Sekunden, die die Fachzeit gegenüber der realen Zeit vor-/nachgeht. Null = reale Zeit. */
     #[ORM\Column(name: 'demo_clock_offset_seconds', type: 'integer', nullable: true)]
@@ -248,6 +256,18 @@ class Department
     public function setDemoMode(bool $demoMode): self
     {
         $this->demoMode = $demoMode;
+
+        return $this;
+    }
+
+    public function getDemoScenarioKey(): ?string
+    {
+        return $this->demoScenarioKey;
+    }
+
+    public function setDemoScenarioKey(?string $demoScenarioKey): self
+    {
+        $this->demoScenarioKey = $demoScenarioKey;
 
         return $this;
     }

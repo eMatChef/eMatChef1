@@ -551,13 +551,13 @@ IST-Zustand und Zielzustand müssen bei der Umsetzung klar getrennt bleiben.
 
 Diese Punkte beschreiben den aktuellen Code-Stand, nicht das Zielbild. Sie sind bei der weiteren Umsetzung zu beheben.
 
-### Scope-Semantik leerer Organisationslisten — vor Phase 5 klären
+### Scope-Semantik leerer Scopes — behoben (Oktober 2026)
 
-`AdminCapabilityChecker` wertet eine leere `scope.organisation_ids`-Liste als Zugriff auf alle Organisationen. Der Admin-Scope-Editor speichert bei reiner Department-Auswahl genau eine leere Organisationsliste (`department_root_ids` gesetzt, `organisation_ids = []`).
+Früher wertete `AdminCapabilityChecker` einen leeren Scope als «alle Organisationen/Departments» und schnitt Organisations- und Department-Zuweisungen (Schnittmenge). Jetzt gilt: Zuweisungen werden vereinigt, ein leerer Scope gibt **keine** hierarchischen Verwaltungsrechte, Organisationsebene verlangt eine Organisations-Zuweisung (`canAdministerOrganisation`), und Department-bezogene Schreib- und Lesezugriffe laufen über `canAdministerDepartment` bzw. `DepartmentAccessGuard`. Auswirkungen auf bestehende Konten zeigt `app:admin:scope-report`.
 
-Folge: Ein Org-/Suborgchef mit ausschließlich `department_root_ids` erhält über `canAccessOrganisation()` organisationsübergreifenden Zugriff. Zudem kann ein auf Organisationen begrenzter Orgchef einen solchen Suborgchef über `PATCH /api/users/{id}/admin` nicht verwalten, weil dessen Organisationszugriff formal breiter ist.
+### Department-Daten, Benutzersuche, zentrale Inhalte — behoben (Oktober 2026)
 
-Muss vor Phase 5 (Admin-MFA/Step-up) separat untersucht und fachlich korrigiert werden.
+Lesen und Schreiben von Department-Daten wird getrennt autorisiert (`DepartmentAccessGuard`, Matrix in [ARCHITECTURE.md](./ARCHITECTURE.md)): Einstellungen, Kategorien und Department-Vorlagen waren für jeden angemeldeten Benutzer lesbar und änderbar; Mitgliederlisten (`GET /api/departments/{id}`, `/members`) und die Benutzersuche zeigten Benutzer, E-Mail-Adressen und Department-Namen über alle Organisationen. Zentrale Vorlagen und die globale Veröffentlichung im Druckkatalog sind systemweit und nur dem Superadmin vorbehalten. Offene fachliche Entscheidungen: siehe ARCHITECTURE.md (Einstellungen, Rollen `bl`/`komm`/`spon`/`lw`/`clw`, delegierte Capability für zentrale Inhalte).
 
 ### E-Mail-Wechsel bei unbestätigten Accounts im Profil
 

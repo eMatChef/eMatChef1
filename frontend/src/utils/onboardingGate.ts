@@ -55,8 +55,20 @@ export function canUseAdminTours(authStore: AuthStore): boolean {
   return isOrgOrSuborgRole(authStore.currentDepartmentRole)
 }
 
+/**
+ * Einrichtungs-Tour eines Grossanlasses: MW, Co-MW und OK-Leitung (dc) im Grossanlass-Department, jederzeit startbar.
+ * Unabhängig vom Freigabestatus des Grossanlasses (der Tour-Fortschritt gehört dem Benutzer).
+ */
+export function canUseGrossanlassSetupTour(authStore: AuthStore, departmentId: string): boolean {
+  if (!authStore.isLoggedIn || !departmentId || !authStore.profileId) return false
+  if (!authStore.isDepartmentGrossanlass(departmentId)) return false
+  const role = normalizeDeptRole(authStore.currentDepartmentRole)
+  return ['mw', 'cmw', 'dc', 'matwart', 'depchef'].includes(role)
+}
+
 /** Hub unter Hilfe → Touren (Department- und/oder Admin-Touren). */
 export function canUseHelpTours(authStore: AuthStore, departmentId: string): boolean {
+  if (canUseGrossanlassSetupTour(authStore, departmentId)) return true
   if (canUseAdminTours(authStore)) return true
   return canUseDepartmentTours(authStore, departmentId)
 }

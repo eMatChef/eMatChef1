@@ -64,11 +64,8 @@ const departmentId = computed(() => (route.params.departmentId as string) || aut
 
 const isSuperAdminUser = computed(() => authStore.userRoles.includes('ROLE_SUPERADMIN'))
 
-const canEditGlobalTemplates = computed(() =>
-  authStore.userRoles.includes('ROLE_SUPERADMIN') ||
-  authStore.userRoles.includes('ROLE_ORGANISATIONSCHEF') ||
-  authStore.userRoles.includes('ROLE_SUBORGCHEF')
-)
+// Zentrale Vorlagen sind systemweit: nur der Superadmin darf sie ändern (Backend erzwingt es).
+const canEditGlobalTemplates = computed(() => authStore.userRoles.includes('ROLE_SUPERADMIN'))
 
 const canManageOrganisations = computed(() => authStore.hasGlobalAdminAccess())
 

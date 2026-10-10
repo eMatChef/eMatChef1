@@ -77,9 +77,43 @@ class DepartmentGrossanlassConfig
     #[ORM\Column(name: 'logistics_group_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $logisticsGroupId = null;
 
+    /**
+     * Freigabe der Ersteinrichtung (unabhängig von `status`, der Freigabe an Gast-Departments). NULL = Einrichtung offen:
+     * nur MW/CMW/OK-Leitung dürfen einrichten, alle anderen GA-Rollen haben noch keinen Zugang. Bestehende Anlässe wurden
+     * bei der Einführung freigegeben.
+     */
+    #[ORM\Column(name: 'setup_released_at', type: 'datetime', nullable: true)]
+    private ?\DateTime $setupReleasedAt = null;
+
+    #[ORM\Column(name: 'setup_released_by_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $setupReleasedByUserId = null;
+
     #[ORM\ManyToOne(targetEntity: Group::class)]
     #[ORM\JoinColumn(name: 'logistics_group_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?Group $logisticsGroup = null;
+
+    public function isSetupReleased(): bool
+    {
+        return $this->setupReleasedAt !== null;
+    }
+
+    public function getSetupReleasedAt(): ?\DateTime
+    {
+        return $this->setupReleasedAt;
+    }
+
+    public function getSetupReleasedByUserId(): ?string
+    {
+        return $this->setupReleasedByUserId;
+    }
+
+    public function setSetupReleased(?\DateTime $at, ?string $byUserId = null): self
+    {
+        $this->setupReleasedAt = $at;
+        $this->setupReleasedByUserId = $at === null ? null : $byUserId;
+
+        return $this;
+    }
 
     public function getDepartmentId(): string
     {

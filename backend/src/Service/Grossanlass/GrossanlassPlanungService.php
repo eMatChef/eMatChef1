@@ -297,6 +297,9 @@ final class GrossanlassPlanungService
         if ($config->getStatus() === DepartmentGrossanlassConfig::STATUS_PUBLISHED) {
             return $this->overview($department, $user);
         }
+        if (!$config->isSetupReleased()) {
+            throw new \InvalidArgumentException('Zuerst die Ersteinrichtung freigeben (Grossanlass verwalten), dann die Gast-Departments einladen');
+        }
         $checks = $this->checks($department, $config);
         if (!$checks['period']) {
             throw new \InvalidArgumentException('Anlass-Zeitraum fehlt');

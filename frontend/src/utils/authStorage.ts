@@ -12,7 +12,7 @@ const LEGACY_SECRET_KEYS = [
 ] as const
 
 /** Beim Logout leeren (keine Secrets). */
-const SESSION_PREFERENCE_KEYS = ['session_last_activity_at', 'active_department_id'] as const
+const SESSION_PREFERENCE_KEYS = ['session_last_activity_at', 'active_department_id', 'active_context'] as const
 
 /** Entfernt veraltete JWT/IDs aus localStorage (einmalig pro Origin). */
 export function purgeLegacyAuthSecrets(): void {

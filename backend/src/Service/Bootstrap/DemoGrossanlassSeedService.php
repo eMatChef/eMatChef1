@@ -19,6 +19,7 @@ use App\Entity\Organisation;
 use App\Entity\User;
 use App\Service\Accounting\AccountingCostCenterBootstrapService;
 use App\Service\Clock\BusinessClock;
+use App\Service\Demo\Legacy\LegacyDemoRename;
 use App\Service\Grossanlass\GrossanlassDriveCategories;
 use App\Service\Grossanlass\GrossanlassPackService;
 use App\Service\Workshop\WorkshopSparePartsCategoryBootstrapService;
@@ -77,17 +78,26 @@ final class DemoGrossanlassSeedService
     ) {
     }
 
-    public function ensureDepartment(Organisation $organisation, User $createdBy): Department
+    public function ensureDepartment(Organisation $organisation, User $createdBy, string $name = self::DEPARTMENT_NAME): Department
     {
         $existing = $this->entityManager->getRepository(Department::class)->findOneBy([
             'organisationId' => $organisation->getId(),
-            'name' => self::DEPARTMENT_NAME,
+            'name' => $name,
         ]);
+        if ($existing instanceof Department && !$existing->isDemoMode()) {
+            // Gleichnamiges Department ohne Demo-Markierung gehört nicht dem Seed: nicht übernehmen, nicht markieren.
+            throw new \RuntimeException(sprintf(
+                'Department «%s» existiert, ist aber nicht als Demo (demo_mode) markiert. Abbruch ohne Änderung.',
+                $name,
+            ));
+        }
         if ($existing instanceof Department && $existing->isGrossanlass()) {
             $this->ensureDemoClock($existing);
 
             return $existing;
         }
+
+        $this->assertNameMayBeCreated($name);
 
         // Seed-Anker = echter Seed-Tag; die Fachzeit der Demo startet danach in der Aufbauphase.
         $start = (new \DateTime('today'))->modify('+' . self::EVENT_START_DAYS_AFTER_SEED . ' days');
@@ -95,7 +105,7 @@ final class DemoGrossanlassSeedService
 
         $department = new Department();
         $department->setId(IdGenerator::generateUnique($this->entityManager, Department::class));
-        $department->setName(self::DEPARTMENT_NAME);
+        $department->setName($name);
         $department->setOrganisation($organisation);
         $department->setIsGrossanlass(true);
         $department->setDemoMode(true);
@@ -147,6 +157,26 @@ final class DemoGrossanlassSeedService
         $this->workshopSparePartsCategoryBootstrap->ensure($department);
 
         return $department;
+    }
+
+    /**
+     * Legacy-Namen sind ausgemustert («old-»-Umbenennung): dieser Dienst legt unter ihnen nichts neu an.
+     * Neue Demo-Departments entstehen über app:demo:sync.
+     */
+    private function assertNameMayBeCreated(string $name): void
+    {
+        if (LegacyDemoRename::isRetiredName($name)) {
+            throw new \RuntimeException(sprintf('Der Name «%s» gehört zu den ausgemusterten Legacy-Demo-Strukturen; es wird nichts neu angelegt. Neue Demo-Daten: app:demo:sync.', $name));
+        }
+    }
+
+    /** Vorabprüfung für Aufrufer mit eigenen Schreibzugriffen: wäre ensureDepartment($org) erlaubt? */
+    public function assertLegacyDepartmentAvailable(Organisation $organisation, string $name = self::DEPARTMENT_NAME): void
+    {
+        $existing = $this->entityManager->getRepository(Department::class)->findOneBy(['organisationId' => $organisation->getId(), 'name' => $name]);
+        if (!$existing instanceof Department) {
+            $this->assertNameMayBeCreated($name);
+        }
     }
 
     /**

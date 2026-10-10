@@ -1,5 +1,5 @@
 <template>
-  <div class="grossanlass-ressorts">
+  <div class="grossanlass-ressorts" data-onboarding="ga-setup-ressorts">
     <div v-if="!isLoading && groups.length > 0" class="stats-bar">
       <div class="stat-item">
         <span class="stat-value">{{ rootCount }}</span>

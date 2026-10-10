@@ -132,6 +132,8 @@
         class="nav-divider"
       />
 
+      <!-- Grossanlass mit offener Ersteinrichtung: nur Dashboard, Grossanlass verwalten und Einstellungen -->
+      <template v-if="!gaSetupPending">
       <!-- Aktivitäten -->
       <router-link
         v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showActivitiesMenu && hasDepartmentContext && !isGrossanlassDept"
@@ -519,13 +521,28 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.supplierShop') }}</span>
       </router-link>
 
-      <template v-if="useGroupedGaNav && !isPendingAssignmentRoute">
+      </template>
+
+      <router-link
+        v-if="gaSetupPending && gaSetupRole && !isPendingAssignmentRoute"
+        :to="getLink('/einstellungen')"
+        class="nav-item"
+        :class="{ active: isGrossanlassEinstellungenNavActive }"
+        :title="grossanlassEinstellungenNavTitle"
+        data-onboarding="nav-ga-verwalten"
+      >
+        <v-icon icon="mdi-tune" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.grossanlassVerwalten') }}</span>
+      </router-link>
+
+      <template v-if="useGroupedGaNav && !isPendingAssignmentRoute && !gaSetupPending">
         <div class="nav-divider" />
         <router-link
           :to="getLink('/einstellungen')"
           class="nav-item"
           :class="{ active: isGrossanlassEinstellungenNavActive }"
           :title="grossanlassEinstellungenNavTitle"
+          data-onboarding="nav-ga-verwalten"
         >
           <v-icon icon="mdi-tune" class="nav-icon nav-icon--mdi" size="20" />
           <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.grossanlassVerwalten') }}</span>
@@ -533,7 +550,7 @@
       </template>
 
       <router-link
-        v-if="!isPendingAssignmentRoute && (showGrossanlassHelperNav ? showGrossanlassHelperSidebarLinks : showDeptContextSidebarLinks)"
+        v-if="!isPendingAssignmentRoute && (!gaSetupPending || gaSetupRole) && (showGrossanlassHelperNav ? showGrossanlassHelperSidebarLinks : showDeptContextSidebarLinks)"
         :to="getLink('/settings')"
         class="nav-item"
         :class="{ active: $route.path.includes('/settings') }"
@@ -551,6 +568,17 @@
       >
         <v-icon icon="mdi-flask-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.devUiPlayground') }}</span>
+      </router-link>
+
+      <!-- Grossanlass: eigene GA-Hilfe statt Department-Hilfe -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks && isGrossanlassDept"
+        :to="getLink('/help/ga')"
+        class="nav-item"
+        :class="{ active: $route.name === 'GrossanlassHilfe' }"
+      >
+        <v-icon icon="mdi-help-circle-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.help') }}</span>
       </router-link>
 
       <router-link
@@ -597,7 +625,7 @@ import {
 import { gaHomePath, gaHomeKind, gaIsRoleHomePath } from '@/utils/grossanlassHome'
 import { resolveVerwaltungLandingPath } from '@/utils/verwaltungNavigation'
 import { usePrintCart } from '@/composables/usePrintCart'
-import { canUseDepartmentOnboarding, canUseHelpEinrichtung } from '@/utils/onboardingGate'
+import { canUseDepartmentOnboarding, canUseGrossanlassSetupTour, canUseHelpEinrichtung } from '@/utils/onboardingGate'
 import { countOpenChecklistItems } from '@/utils/onboardingChecklist'
 import {
   isOnboardingDone,
@@ -923,8 +951,12 @@ const homeLink = computed(() => {
   if (isPendingAssignmentRoute.value) return '/pending-assignment'
   return mainDashboardLink.value
 })
-// SA/ORG/SUB kommen ausschließlich aus profile.roles, nicht aus Department-Membership
-const isSuperAdmin = computed(() => authStore.userRoles.includes('ROLE_SUPERADMIN'))
+// SA/ORG/SUB kommen ausschließlich aus profile.roles, nicht aus Department-Membership.
+// «isSuperAdmin» gilt nur im globalen Systemkontext: Ein Superadmin, der ein Department als normales Mitglied
+// gewählt hat, sieht die Navigation dieses Departments (seine ausdrücklich zugewiesene Rolle).
+const isSuperAdmin = computed(
+  () => authStore.userRoles.includes('ROLE_SUPERADMIN') && authStore.isAdminContextActive
+)
 const canEditPublicWebsite = computed(
   () =>
     authStore.userRoles.includes('ROLE_SUPERADMIN') ||
@@ -942,6 +974,11 @@ const hasGlobalAdminAccess = computed(() =>
 const showActivitiesMenu = computed(() => !isSuperAdmin.value)
 
 const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(departmentId.value))
+
+/** Offene Ersteinrichtung des Grossanlasses: die Navigation zeigt nur die Einrichtung (Server sperrt unabhängig davon). */
+const gaSetupPending = computed(() => authStore.isGrossanlassSetupPending(departmentId.value))
+/** MW, Co-MW, OK-Leitung: dürfen einrichten und sehen deshalb «Grossanlass verwalten» und die Einstellungen. */
+const gaSetupRole = computed(() => canUseGrossanlassSetupTour(authStore, departmentId.value))
 
 const showGrossanlassHelperNav = computed(
   () =>
@@ -1137,17 +1174,17 @@ watch(
 
 const helpNavLink = computed(() => {
   const depId = departmentId.value
-  if (!depId) return getLink('/help/dokumentation')
+  if (!depId) return getLink('/help/department')
   if (canUseDepartmentOnboarding(authStore, depId) && helpOnboardingBadgeCount.value > 0) {
     return getLink('/help/tours')
   }
   if (canUseHelpEinrichtung(authStore, depId)) {
     return getLink('/help/tours')
   }
-  return getLink('/help/dokumentation')
+  return getLink('/help/department')
 })
 
-const isHelpNavActive = computed(() => route.path.includes('/help'))
+const isHelpNavActive = computed(() => route.path.includes('/help') && route.name !== 'GrossanlassHilfe')
 
 const helpOnboardingBadgeCount = computed(() => {
   const depId = departmentId.value

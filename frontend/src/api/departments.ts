@@ -65,6 +65,8 @@ export interface GrossanlassConfig {
   venue_address_id?: string | null
   notes?: string
   published_at?: string | null
+  setup_released?: boolean
+  setup_released_at?: string | null
   guest_activity_type?: 'camp' | 'event'
   logistics_group_id?: string | null
 }

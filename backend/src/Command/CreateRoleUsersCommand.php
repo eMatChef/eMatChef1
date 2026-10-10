@@ -13,7 +13,7 @@ use App\Entity\Membership;
 use App\Enum\DepartmentRole;
 use App\Service\Auth\TotpService;
 use App\Service\Bootstrap\DevBootstrapContextService;
-use App\Service\DevEnvironmentService;
+use App\Service\Demo\DemoEnvironmentGuard;
 use App\Service\Bootstrap\DemoGrossanlassSeedService;
 use App\Service\Bootstrap\DemoSupplierSeedService;
 use App\Util\DemoAccounts;
@@ -31,7 +31,7 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 #[AsCommand(
     name: 'app:create-role-users',
-    description: 'Erstellt für jede Rolle einen Benutzer (löscht alte Test-User)'
+    description: 'Legt Demo-Konten (demo-accounts.json) an/aktualisiert sie; Löschen nur mit --delete-demo-users und Freigabe'
 )]
 class CreateRoleUsersCommand extends Command
 {
@@ -44,7 +44,7 @@ class CreateRoleUsersCommand extends Command
         private DevBootstrapContextService $bootstrapContext,
         private DemoSupplierSeedService $demoSupplierSeed,
         private DemoGrossanlassSeedService $demoGrossanlassSeed,
-        private DevEnvironmentService $devEnvironmentService,
+        private DemoEnvironmentGuard $environmentGuard,
         private TotpService $totpService,
     ) {
         parent::__construct();
@@ -56,7 +56,25 @@ class CreateRoleUsersCommand extends Command
             'skip-delete',
             null,
             InputOption::VALUE_NONE,
-            'Bestehende Demo-User (@' . DemoAccounts::domain() . ') nicht löschen (nur anlegen/aktualisieren)',
+            'Veraltet und wirkungslos: Löschen ist standardmässig aus (siehe --delete-demo-users)',
+        );
+        $this->addOption(
+            'delete-demo-users',
+            null,
+            InputOption::VALUE_NONE,
+            'Konten aus demo-accounts.json (exakte Adresse) vorher löschen und neu anlegen. Nur local/develop mit Freigabe (EMATCHEF_DEMO_DESTRUCTIVE=1 auf develop)',
+        );
+        $this->addOption(
+            'department',
+            null,
+            InputOption::VALUE_REQUIRED,
+            'ID des Demo-Departments für die Rollen-User (Standard: das eindeutige Department mit demo_mode)',
+        );
+        $this->addOption(
+            'mark-department-demo',
+            null,
+            InputOption::VALUE_NONE,
+            'Mit --department: das Department ausdrücklich als Demo (demo_mode) markieren',
         );
         $this->addOption(
             'with-ga-demo',
@@ -70,24 +88,56 @@ class CreateRoleUsersCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
 
-        if (!$this->devEnvironmentService->isDevToolsEnabled()) {
-            $io->error('Dev-Tools sind deaktiviert (EMATCHEF_DEV_TOOLS / APP_ENV). Demo-Konten werden nur auf Development/Staging angelegt.');
+        $denial = $this->environmentGuard->additiveDenial();
+        if ($denial !== null) {
+            $io->error($denial . ' Demo-Konten werden nur in freigegebenen Umgebungen angelegt.');
 
             return Command::FAILURE;
+        }
+        $deleteDemoUsers = (bool) $input->getOption('delete-demo-users');
+        if ($deleteDemoUsers) {
+            $denial = $this->environmentGuard->destructiveDenial();
+            if ($denial !== null) {
+                $io->error($denial);
+
+                return Command::FAILURE;
+            }
         }
 
         $io->title('Erstelle Benutzer für alle Rollen');
 
-        $this->migrateLegacyDemoEmails($io);
+        try {
+            [$organisation, $department] = $this->bootstrapContext->findOwnedDemoOrganisationAndDepartment(
+                ($input->getOption('department') ?: null),
+                (bool) $input->getOption('mark-department-demo'),
+            );
+        } catch (\RuntimeException $e) {
+            $io->error($e->getMessage());
 
-        // Hole oder erstelle sichtbare Organisation und Department (kein GLOBALORG001 mehr)
-        [$organisation, $department] = $this->bootstrapContext->findOrCreateOrganisationAndDepartment();
+            return Command::FAILURE;
+        }
 
-        if ($input->getOption('skip-delete')) {
-            $io->note('Überspringe Löschen bestehender Test-User (--skip-delete).');
+        if ($input->getOption('with-ga-demo')) {
+            try {
+                $this->demoGrossanlassSeed->assertLegacyDepartmentAvailable($organisation);
+            } catch (\RuntimeException $e) {
+                $io->error($e->getMessage());
+
+                return Command::FAILURE;
+            }
+        }
+
+        if ($this->environmentGuard->destructiveDenial() === null) {
+            $this->migrateLegacyDemoEmails($io);
         } else {
-        // Lösche alle bestehenden Test-User (außer Superadmin + E2E-Smoke)
-        $io->section('Lösche alte Test-User...');
+            $io->note('Umbenennung alter *@ematchef.ch-Konten übersprungen (nur local/develop mit Freigabe).');
+        }
+
+        if (!$deleteDemoUsers) {
+            $io->note('Bestehende Konten werden nicht gelöscht (nur anlegen/aktualisieren).');
+        } else {
+        // Nur Konten mit exakter Adresse aus demo-accounts.json (ausser Superadmin, Lieferant, E2E-Smoke)
+        $io->section('Lösche alte Demo-Konten...');
         $allUsers = $this->em->getRepository(User::class)->findAll();
         $deletedCount = 0;
         $superadminProfile = $this->em->getRepository(Profile::class)->findOneBy(['email' => DemoAccounts::email('superadmin')]);
@@ -96,7 +146,11 @@ class CreateRoleUsersCommand extends Command
             : null;
         foreach ($allUsers as $user) {
             $profile = $user->getProfile();
-            if (!$profile || !(DemoAccounts::isDemoEmail($profile->getEmail()) || str_ends_with($profile->getEmail(), '@ematchef.ch'))) {
+            if (!$profile || !DemoAccounts::isSeedOwnedEmail($profile->getEmail())) {
+                continue;
+            }
+            // Lieferant wird idempotent weiterverwendet (Supplier-Mitgliedschaft nicht anfassen)
+            if ($profile->getEmail() === DemoAccounts::email('supplier')) {
                 continue;
             }
             // Superadmin bleibt (created_by für GA-Runden u. a.)
@@ -246,6 +300,9 @@ class CreateRoleUsersCommand extends Command
     private function migrateLegacyDemoEmails(SymfonyStyle $io): void
     {
         foreach (DemoAccounts::all() as $account) {
+            if (!isset($account['legacyEmail'])) {
+                continue; // neuere Konten haben keine Altadresse
+            }
             $legacy = $this->em->getRepository(Profile::class)->findOneBy(['email' => $account['legacyEmail']]);
             if (!$legacy instanceof Profile) {
                 continue;
@@ -331,7 +388,7 @@ class CreateRoleUsersCommand extends Command
         
         $this->em->persist($user);
 
-        // Membership-Zuordnung erstellen (sa/org/sub werden als mw gespeichert)
+        // Membership-Zuordnung erstellen (sa/org/sub erhalten keine Mitgliedschaft)
         $this->createMembership($user, $department, $role, $isPrimary);
 
         return $user;
@@ -420,14 +477,17 @@ class CreateRoleUsersCommand extends Command
     }
 
     /**
-     * Membership-Rolle: nur mw, dc, l1, l2, l3, u. sa/org/sub werden als mw gespeichert.
+     * Globale Rollen (sa/org/sub) stehen in profile.roles und sind keine operative Rolle: sie erhalten nie
+     * automatisch eine Mitgliedschaft (insbesondere keine MW-Rolle). Operative Rollen: nur ausdrücklich zugewiesen.
      */
+    private function isGlobalOnlyRole(DepartmentRole $role): bool
+    {
+        return \in_array($role, [DepartmentRole::SUPERADMIN, DepartmentRole::ORGANISATIONSCHEF, DepartmentRole::SUBORGCHEF], true);
+    }
+
     private function getMembershipRole(DepartmentRole $role): string
     {
-        return match ($role) {
-            DepartmentRole::SUPERADMIN, DepartmentRole::ORGANISATIONSCHEF, DepartmentRole::SUBORGCHEF => 'mw',
-            default => $role->value,
-        };
+        return $role->value;
     }
 
     private function createMembership(
@@ -436,6 +496,9 @@ class CreateRoleUsersCommand extends Command
         DepartmentRole $role,
         bool $isPrimary
     ): void {
+        if ($this->isGlobalOnlyRole($role)) {
+            return; // bestehende Mitgliedschaften bleiben unangetastet, neue gibt es nicht
+        }
         // Prüfe ob bereits zugeordnet
         $existing = $this->em->getRepository(Membership::class)->findOneBy([
             'userId' => $user->getId(),
@@ -443,7 +506,7 @@ class CreateRoleUsersCommand extends Command
         ]);
         if ($existing) {
             $existing->setRole($this->getMembershipRole($role));
-            $existing->setIsPrimary($isPrimary);
+            $existing->setIsPrimary($isPrimary && !$this->hasOtherPrimaryMembership($user, $department));
             return;
         }
 
@@ -451,8 +514,26 @@ class CreateRoleUsersCommand extends Command
         $membership->setUser($user);
         $membership->setDepartment($department);
         $membership->setRole($this->getMembershipRole($role));
-        $membership->setIsPrimary($isPrimary);
+        $membership->setIsPrimary($isPrimary && !$this->hasOtherPrimaryMembership($user, $department));
         $this->em->persist($membership);
+    }
+
+    /**
+     * Fremde Primär-Mitgliedschaften werden nie angefasst; eine zweite Primäre wird nicht gesetzt
+     * (Schutz vor uniq_membership_one_primary_per_user und vor Umhängen echter Zuordnungen).
+     */
+    private function hasOtherPrimaryMembership(User $user, Department $department): bool
+    {
+        if ($user->getId() === null) {
+            return false;
+        }
+        foreach ($this->em->getRepository(Membership::class)->findBy(['userId' => $user->getId(), 'isPrimary' => true]) as $other) {
+            if ($other->getDepartmentId() !== $department->getId()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function updateMembership(
@@ -461,13 +542,16 @@ class CreateRoleUsersCommand extends Command
         DepartmentRole $role,
         bool $isPrimary
     ): void {
+        if ($this->isGlobalOnlyRole($role)) {
+            return;
+        }
         $existing = $this->em->getRepository(Membership::class)->findOneBy([
             'userId' => $user->getId(),
             'departmentId' => $department->getId()
         ]);
         if ($existing) {
             $existing->setRole($this->getMembershipRole($role));
-            $existing->setIsPrimary($isPrimary);
+            $existing->setIsPrimary($isPrimary && !$this->hasOtherPrimaryMembership($user, $department));
         } else {
             $this->createMembership($user, $department, $role, $isPrimary);
         }

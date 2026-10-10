@@ -116,12 +116,15 @@ final class AdminUserUpdatePolicyTest extends TestCase
         self::assertFalse($this->checker()->canAccessOrganisation($sub, 'org_1'));
     }
 
-    public function testCompletelyEmptyScopeStaysUnrestricted(): void
+    public function testCompletelyEmptyScopeMeansNoAdministrativeRights(): void
     {
         $org = $this->orgChef('org_open', [], []);
 
-        self::assertNull($this->checker()->getAccessibleOrganisationIds($org));
-        self::assertTrue($this->checker()->canAccessOrganisation($org, 'org_2'));
+        self::assertSame([], $this->checker()->getAccessibleOrganisationIds($org));
+        self::assertSame([], $this->checker()->getAccessibleDepartmentIds($org));
+        self::assertFalse($this->checker()->canAccessOrganisation($org, 'org_2'));
+        self::assertFalse($this->checker()->canAccessDepartment($org, 'dep_a1'));
+        self::assertFalse($this->checker()->hasAdministrativeScope($org));
     }
 
     public function testOrganisationScopedOrgMayEditSubWithSameOrganisationAndRootInside(): void
@@ -158,12 +161,14 @@ final class AdminUserUpdatePolicyTest extends TestCase
         $this->assertDenied(403, fn () => $this->policy()->assertUpdateAllowed($actor, $target, [], []));
     }
 
-    public function testOrgWithOrganisationAndRootScopeMayNotEditSubWithWholeOrganisation(): void
+    public function testOrganisationAndRootScopesAreUnitedSoTheWholeOrganisationIsInside(): void
     {
+        // Vereinigung statt Schnittmenge: Organisation org_1 gehört vollständig zum Bereich, die Wurzel ist darin enthalten
         $actor = $this->orgChef('org_actor', ['dep_a1'], ['org_1']);
         $target = $this->subOrgChef('sub_target', [], false, ['org_1']);
 
-        $this->assertDenied(403, fn () => $this->policy()->assertUpdateAllowed($actor, $target, [], []));
+        $this->policy()->assertUpdateAllowed($actor, $target, [], []);
+        $this->addToAssertionCount(1);
     }
 
     public function testOrgWithOrganisationAndRootScopeMayEditSubInsideRoot(): void

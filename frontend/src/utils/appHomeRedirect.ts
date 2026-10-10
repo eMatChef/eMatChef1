@@ -1,5 +1,6 @@
 import type { useAuthStore } from '@/stores/auth'
 import { gaHomePath } from '@/utils/grossanlassHome'
+import { adminContextHomePath } from '@/utils/adminContext'
 import {
   ONBOARDING_TOUR_QUERY,
   ONBOARDING_TOUR_STEP_QUERY,
@@ -63,6 +64,7 @@ type AuthStoreLike = Pick<
   ReturnType<typeof useAuthStore>,
   | 'userRoles'
   | 'activeDepartmentId'
+  | 'activeAdminContext'
   | 'departments'
   | 'hasSupplierAccess'
   | 'activeSupplierCompanies'
@@ -80,7 +82,12 @@ export function resolveDefaultSupplierPath(authStore: AuthStoreLike): string | n
 
 /** Ziel nach Login oder app.ematchef.ch/ — gleiche Priorität wie Router-Guard. */
 export function resolveAuthenticatedHomePath(authStore: AuthStoreLike): string {
-  if (authStore.userRoles?.includes('ROLE_SUPERADMIN')) {
+  // Verwaltungskontext (Superadmin global, Orgchef/Suborgchef Verwaltungsbereich) hat Vorrang vor Mitgliedschaften.
+  const adminContext = authStore.activeAdminContext
+  if (adminContext && !authStore.activeDepartmentId) {
+    return adminContextHomePath(adminContext)
+  }
+  if (authStore.userRoles?.includes('ROLE_SUPERADMIN') && !authStore.activeDepartmentId) {
     return '/dashboard'
   }
 

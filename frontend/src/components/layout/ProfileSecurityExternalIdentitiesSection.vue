@@ -41,8 +41,28 @@
           data-testid="disconnect"
           @click="disconnect(identity)"
         >
-          {{ t('layout.profileModal.externalIdentities.disconnect') }}
-        </EButton>
+          {{ row.identity ? t('layout.profileModal.externalIdentities.linked') : t('layout.profileModal.externalIdentities.notLinked') }}
+        </span>
+        <span v-if="row.identity" class="text-[0.78rem] text-slate-500">
+          {{ t('layout.profileModal.externalIdentities.linkedAt', { date: formatDate(row.identity.linked_at) }) }}
+        </span>
+        <template v-if="row.provider === 'midata'">
+          <EButton
+            v-if="row.identity"
+            variant="text"
+            size="small"
+            :loading="busy"
+            :disabled="busy || !row.identity.can_disconnect"
+            :title="row.identity.can_disconnect ? '' : t('layout.profileModal.externalIdentities.lastMethod')"
+            data-testid="disconnect-midata"
+            @click="disconnect(row.identity)"
+          >
+            {{ t('layout.profileModal.externalIdentities.disconnect') }}
+          </EButton>
+          <EButton v-else variant="text" size="small" data-testid="connect-midata" @click="connectMiData">
+            {{ t('layout.profileModal.externalIdentities.connect') }}
+          </EButton>
+        </template>
       </li>
     </ul>
 
@@ -88,6 +108,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { EButton } from '@/components/form/base'
+import { midataLinkStartUrl } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -190,6 +211,11 @@ async function connect(provider: string) {
     notice.value = errorText(e, 'layout.profileModal.externalIdentities.connectError')
     busy.value = false
   }
+}
+
+/** Bestehender MiData-Link-Flow (Session-Cookie); Rückkehr auf die aktuelle Seite. */
+function connectMiData() {
+  window.location.assign(midataLinkStartUrl(window.location.pathname))
 }
 
 async function disconnect(identity: ExternalIdentitySummary) {

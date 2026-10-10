@@ -9,10 +9,11 @@
   box-shadow: 4px 0 16px rgba(0, 0, 0, 0.2);
 }
 
-/* Kein eigener Scroll — nur v-main (.page-main) scrollt */
+/* Logo und Footer bleiben stehen; nur .sidebar-nav scrollt (bei niedrigen Fenstern, Zoom oder offenen Untermenüs) */
 .emc-sidebar-drawer :deep(.v-navigation-drawer__content) {
-  overflow: visible !important;
-  overflow-y: visible !important;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden !important;
 }
 
 .sidebar {
@@ -23,6 +24,7 @@
 }
 
 .sidebar-logo {
+  flex: 0 0 auto;
   padding: 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -53,9 +55,23 @@
 }
 
 .sidebar-nav {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 4px 0 16px;
-  overflow: visible;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
 }
 
 .nav-section {
@@ -226,6 +242,7 @@
 }
 
 .sidebar-footer {
+  flex: 0 0 auto;
   padding: 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }

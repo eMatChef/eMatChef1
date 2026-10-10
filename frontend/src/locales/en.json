@@ -105,6 +105,7 @@
         "grossanlassMaterialWeiterverkauf": "Resale · Material · eMatChef",
         "qrMaterialDemo": "Material · eMatChef",
         "grossanlassGastVorschau": "Guest view · Major event · eMatChef",
+        "grossanlassHilfe": "Major event help · eMatChef",
         "grossanlassBeschaffung": "Procurement · Major event · eMatChef",
         "grossanlassKosten": "Costs · Major event · eMatChef",
         "grossanlassLogistik": "Logistics · Major event · eMatChef",
@@ -1744,6 +1745,27 @@
       }
     },
     "tours": {
+        "gaSetup": {
+          "title": "Set up the large event",
+          "description": "Get to know the system and set up master data, areas and members.",
+          "ctaStay": "Stay here",
+          "step1Title": "Welcome to the large event",
+          "step1Body": "First get to know the system. We still need a few important details before you can start. Click “Manage large event”.",
+          "step2Title": "1. Master data",
+          "step2Body": "Name, date and place of the large event. These details are required.",
+          "step3Title": "Type: camp or event",
+          "step3Body": "Choose whether guests run a camp or an event. Participation of departments and material loans are independent of this and can be chosen freely later.",
+          "step4Title": "2. Areas",
+          "step4Body": "Switch to the areas.",
+          "step5Title": "Areas and responsibilities",
+          "step5Body": "Create at least one area and assign a lead to each.",
+          "step6Title": "3. Members",
+          "step6Body": "You manage members and the OK lead in the settings.",
+          "step7Title": "Users",
+          "step7Body": "Invite members and assign roles. At least one MW and one OK lead are needed.",
+          "step8Title": "Release",
+          "step8Body": "When all three areas are done, the MW or the OK lead releases the setup here. Only then is the large event open to all roles."
+        },
       "start": "Start tour",
       "restart": "Go through tour again",
       "next": "Next",
@@ -2259,6 +2281,13 @@
       "devicesScanner": "Warehouse scanner",
       "devicesScannerHint": "Handheld or gun scanner — piece by piece",
       "switchDepartment": "Switch department",
+      "adminContexts": "Administration",
+      "globalContext": "Global administration",
+      "globalContextHint": "Superadmin · whole system",
+      "managementHintOrgOrganisation": "Organisation chief · organisation",
+      "managementHintOrgDepartment": "Organisation chief · department administration",
+      "managementHintSubOrganisation": "Sub-organisation chief · organisation",
+      "managementHintSubDepartment": "Sub-organisation chief · department administration",
       "primary": "Primary",
       "primaryDepartment": "Primary department",
       "departmentSettings": "Department settings",
@@ -4709,6 +4738,18 @@
   },
   "settings": {
     "myDepartment": {
+      "toastPrimaryRemoved": "Primary status removed. The membership remains.",
+      "removePrimary": "Remove primary status",
+      "primaryChange": {
+        "confirmTitle": "Change primary department?",
+        "confirmMessage": "Currently primary: “{from}”. New primary: “{to}”. There can only be one primary department; the current one loses its primary status (the membership remains).",
+        "confirmAction": "Change primary"
+      },
+      "primaryRemove": {
+        "confirmTitle": "Remove primary status?",
+        "confirmMessage": "“{name}” will no longer be primary. The membership remains.",
+        "confirmAction": "Remove"
+      },
       "notificationEmail": {
         "label": "Notification address",
         "hint": "Department and large-event notifications are sent to this address. Only your verified addresses can be chosen; login and primary address are not affected.",
@@ -8167,6 +8208,43 @@
     }
   },
   "grossanlass": {
+      "setup": {
+        "title": "Initial setup",
+        "lead": "We need a few important details before the large event can start. After that you release it for all roles.",
+        "leadOther": "This large event is being set up. Once the MW or the OK lead releases it, your area becomes available.",
+        "pendingForRole": "The large event is still being set up and is not yet released for your role.",
+        "open": "Open",
+        "release": "Release setup",
+        "releasedToast": "The large event is released.",
+        "releaseError": "Release is not possible.",
+        "releaseBlocked": "The large event can only be released once all three areas are done.",
+        "releaseByMwOrOk": "The MW and the OK lead can release.",
+        "startTour": "Start introduction",
+        "steps": {
+          "stammdaten": {
+            "title": "Master data",
+            "hint": "Name, start of the event, place and type (camp or event)."
+          },
+          "ressorts": {
+            "title": "Departments and responsibilities",
+            "hint": "At least one area, each with a lead."
+          },
+          "mitglieder": {
+            "title": "Members and OK assignment",
+            "hint": "At least one material lead (MW) and one OK lead."
+          }
+        },
+        "missing": {
+          "name": "The name is missing.",
+          "location": "The place is missing.",
+          "type": "The type is not set.",
+          "period": "The end is before the start.",
+          "no_ressort": "There is no area yet.",
+          "ressort_without_leader": "Area “{name}” has no lead yet.",
+          "no_mw": "A material lead (MW) is missing.",
+          "no_ok": "An OK lead is missing."
+        }
+      },
     "displays": {
       "title": "Displays",
       "subtitle": "Control-room screens for large monitors (TV)",
@@ -11972,6 +12050,276 @@
         "saveSuccess": "Receipt saved",
         "errorLoad": "Could not load receipts",
         "errorSave": "Save failed"
+      }
+    }
+  },
+  "gaHelp": {
+    "modal": {
+      "eyebrow": "Help for this page",
+      "faqTitle": "Frequently asked questions",
+      "more": "Detailed major event help",
+      "close": "Close"
+    },
+    "page": {
+      "title": "Major event help",
+      "subtitle": "What the pages of the major event do and how the most common workflows work.",
+      "tocAria": "Chapters of the major event help",
+      "openPage": "Open page"
+    },
+    "hint": {
+      "aria": "Show explanation"
+    },
+    "groups": {
+      "start": "Getting started",
+      "setup": "Set up",
+      "planning": "Plan",
+      "procurement": "Procure",
+      "material": "Material",
+      "guest": "Guest departments"
+    },
+    "fields": {
+      "enoughOnHand": "The need is already covered, so no further inquiry is needed. State where the material comes from: your own stock or an agreement in the same major event.",
+      "cash": "Cash is the money that has gone out so far or still has to go out, for example purchase price, rent and deposit.",
+      "netto": "Net is the cost that remains with the event in the end: a returned deposit or sale proceeds reduce it, and a purchase booked as an asset counts as 0."
+    },
+    "topics": {
+      "overview": {
+        "title": "Major event – overview",
+        "summary": "A major event is its own department set up as a project: areas with build projects, planning, procurement, material and invited guest departments. What you see depends on your role.",
+        "faq": {
+          "roles": {
+            "q": "Why don't I see all menu items?",
+            "a": "The menu items depend on your role in the major event. If an area is missing, ask the material manager or your area lead."
+          },
+          "setupRelease": {
+            "q": "Why is the major event not released yet?",
+            "a": "A new major event is set up first: master data, areas with one lead each, and members (at least one material manager and one OK lead). After that the material manager or the OK lead releases it for all roles."
+          }
+        }
+      },
+      "stammdaten": {
+        "title": "Master data",
+        "summary": "Event name, period and event location. Here you also decide whether the event is a camp or an event and whether participating departments take part.",
+        "faq": {
+          "required": {
+            "q": "What is part of the initial setup?",
+            "a": "Name, start of the event, place and the type (camp or event). The end must not be before the start."
+          },
+          "locations": {
+            "q": "Where do I define the storage places for the material?",
+            "a": "Not here: the places for the material are under Locations in the settings."
+          }
+        }
+      },
+      "ressorts": {
+        "title": "Areas",
+        "summary": "Here you build the structure of the event: areas, sub-areas and build projects. You assign members and determine the lead.",
+        "faq": {
+          "levels": {
+            "q": "Which levels are there?",
+            "a": "An area is the top level. Below it are sub-areas, and below those the build projects."
+          },
+          "required": {
+            "q": "What does the initial setup need?",
+            "a": "At least one area, and every area needs a lead."
+          }
+        }
+      },
+      "standorte": {
+        "title": "Locations",
+        "summary": "The places of the event on the map: first the three core locations, then the event points.",
+        "faq": {
+          "order": {
+            "q": "Why can't I add event points yet?",
+            "a": "Event points are only possible once the event location, the delivery point (event) and the storage location are set."
+          },
+          "qr": {
+            "q": "What are event points for?",
+            "a": "Every event point has a QR code for a sign on site. Packing and helpers scan the same QR."
+          }
+        }
+      },
+      "kategorien": {
+        "title": "Categories",
+        "summary": "The areas used for demand, filters, company ticking and Gmail in procurement.",
+        "faq": {
+          "storage": {
+            "q": "Are these the categories of the material store?",
+            "a": "No. They are separate procurement categories, not the categories of the material store."
+          }
+        }
+      },
+      "anfragenEmail": {
+        "title": "Inquiries & email",
+        "summary": "Here you first set the default mail texts and then connect the mailbox for company inquiries.",
+        "faq": {
+          "mailbox": {
+            "q": "Which mailbox is used?",
+            "a": "The major event has one shared mailbox. Gmail is ready for production use (connect, templates, drafts, sync and send). Outlook is still in development and not a finished mailbox."
+          }
+        }
+      },
+      "teilnehmer": {
+        "title": "Participants",
+        "summary": "Who may invite, the organisation mode, then sub-camps and guest departments. Sub-camps are the parent-child structure of the participants, not the locations of the material.",
+        "faq": {
+          "invite": {
+            "q": "When are guest departments invited?",
+            "a": "Only when the event is published. Until then participants are only planned. On publishing, the invitation goes to the guest department's inbox and stays on “Invitation open” until they reply."
+          },
+          "unterlager": {
+            "q": "Are sub-camps storage places?",
+            "a": "No. A sub-camp structures the participants. You define the places for the material under Locations."
+          }
+        }
+      },
+      "freigabe": {
+        "title": "Publish",
+        "summary": "Guest departments are only invited after publishing. Until then the event stays internal.",
+        "faq": {
+          "effect": {
+            "q": "What happens when I publish?",
+            "a": "The event is published and all planned participants are invited. The period of the event must be set for this."
+          },
+          "undo": {
+            "q": "Can I take the release back?",
+            "a": "No, there is no way to undo it."
+          },
+          "setup": {
+            "q": "Is this the same release as in the initial setup?",
+            "a": "No. Releasing the initial setup opens the major event for all roles. This release invites the guest departments and requires the setup to be released."
+          }
+        }
+      },
+      "wuensche": {
+        "title": "Wishes & ideas",
+        "summary": "Here the areas report their needs. Only material wishes are later bundled into packages in procurement.",
+        "faq": {
+          "enoughOnHand": {
+            "q": "What does “Enough on hand” mean?",
+            "a": "The need is already covered and needs no further inquiry. You state whether the material comes from your own stock or from an agreement."
+          },
+          "selfOrganized": {
+            "q": "What does “self-organised” mean?",
+            "a": "The area procures the item itself. It therefore does not appear in the demand of procurement."
+          }
+        }
+      },
+      "bauauftraege": {
+        "title": "Build jobs",
+        "summary": "The build jobs of the event by area, as My jobs, area tree or All jobs. Here you plan windows, tasks and material.",
+        "faq": {
+          "status": {
+            "q": "Where does the state of a build job come from?",
+            "a": "If no state is set, it is derived from the project window and the calendar periods: without a window or before the window it is “planned”, after the window “done”. In between it depends on whether the event or the teardown is running."
+          }
+        }
+      },
+      "meinRessort": {
+        "title": "My department",
+        "summary": "Sub-areas, build projects and the material list in your branch of the area tree.",
+        "faq": {
+          "noRessort": {
+            "q": "Why does it say “No area assigned”?",
+            "a": "You have not been assigned to an area yet. Ask the material manager or the area lead to assign you."
+          },
+          "scan": {
+            "q": "How does scanning work?",
+            "a": "First scan the QR of the pallet (pack), then the destination. If a code is not recognised, scan a pack or an event point. Codes from another event are rejected."
+          }
+        }
+      },
+      "bedarf": {
+        "title": "Demand",
+        "summary": "Here you bundle wishes into procurement items or enter an article yourself as demand.",
+        "faq": {
+          "partnerBuy": {
+            "q": "Where do I decide whether to buy or to borrow from a partner?",
+            "a": "On the demand item, not on the wish. Inquiries apply to both ways."
+          },
+          "direct": {
+            "q": "May an area procure by itself?",
+            "a": "Yes, with the “may procure” permission in the area branch. These people maintain direct demand and their own quotes. Choosing a quote, setting the budget and ordering stay with the material manager."
+          }
+        }
+      },
+      "anfragen": {
+        "title": "Inquiries",
+        "summary": "Here you manage the companies that are asked, with or without a mail account.",
+        "faq": {
+          "mailAccount": {
+            "q": "Do I need a connected mail account?",
+            "a": "No. Without an account you enter the company and set the state yourself (asked, reply, agreement). With an account the first mail contains the wanted articles from the demand, without quantity and size, and the PDFs of the event. After the agreement a mail with the list follows."
+          }
+        }
+      },
+      "offerten": {
+        "title": "Quotes",
+        "summary": "For each item you enter several quotes and choose one for the budget. Orders follow.",
+        "faq": {
+          "later": {
+            "q": "Can I add quotes after choosing one?",
+            "a": "Yes. Even after choosing, and even when already ordered, you add supplements from the same company here as a further quote."
+          }
+        }
+      },
+      "zusagen": {
+        "title": "Agreements",
+        "summary": "The coordination with the company: window, handover, return and quantity.",
+        "faq": {
+          "stock": {
+            "q": "Is the borrowed material then in stock?",
+            "a": "No. Only the loan batch is created here. It counts as “arrived” once it is booked in at goods in."
+          }
+        }
+      },
+      "bestellungen": {
+        "title": "Orders",
+        "summary": "Here you order the chosen quote and enter the actual costs. The quote stays visible.",
+        "faq": {
+          "empty": {
+            "q": "Why do I see no items to order?",
+            "a": "A quote has to be chosen first. Choose it in the Quotes tab, then the item appears here."
+          }
+        }
+      },
+      "kosten": {
+        "title": "Costs",
+        "summary": "The budget, the quotes and the actual costs of the event, in total and by payer.",
+        "faq": {
+          "cashNetto": {
+            "q": "What is the difference between cash and net?",
+            "a": "Cash is the money that has gone out so far or still has to go out. Net is the cost of the event: a returned deposit or sale proceeds reduce it, a purchase booked as an asset counts as 0, ancillary costs count in full."
+          },
+          "payer": {
+            "q": "Who pays the costs?",
+            "a": "Logistics organises, but the payer can be another area. The budget is set by the OK and the material manager."
+          }
+        }
+      },
+      "wareneingang": {
+        "title": "Goods in",
+        "summary": "The ramp for trucks and pick-ups. The arrival day comes from the agreement or the order. Here you mark what has arrived and attach the QR.",
+        "faq": {
+          "partial": {
+            "q": "Can I book in a partial delivery?",
+            "a": "Yes. You book partial or remaining quantities per batch with quantity, receiving place and note. A larger quantity than expected is rejected."
+          }
+        }
+      },
+      "gastVorschau": {
+        "title": "Guest view",
+        "summary": "This is how an invited department sees the event, as a preview without switching login. You choose the department you play and see the invitation, acceptance or decline.",
+        "faq": {
+          "preview": {
+            "q": "Is this already the real guest view?",
+            "a": "No. The page is a preview with a rough design and no function yet. It only shows something once the event has been published."
+          },
+          "real": {
+            "q": "How does the guest department really see the event?",
+            "a": "The invitation arrives in the guest department's inbox. The event then appears in its activities list, but only after publishing. The guest department does not see build-up and teardown there."
+          }
+        }
       }
     }
   }
