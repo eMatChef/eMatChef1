@@ -2,6 +2,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useDetailTabsStore } from '@/stores/detailTabs'
+import { useGaHelp } from '@/composables/useGaHelp'
 import { canUseDepartmentOnboarding, canUseHelpTours } from '@/utils/onboardingGate'
 import { isOnboardingDone, readOnboardingState } from '@/utils/departmentOnboarding'
 import { countOpenChecklistItems } from '@/utils/onboardingChecklist'
@@ -29,14 +30,14 @@ export function useHelpShortcut() {
 
   const helpPath = computed(() => {
     const depId = departmentId.value
-    if (!depId) return '/help/dokumentation'
+    if (!depId) return '/help/department'
 
     const preferTours =
       canUseDepartmentOnboarding(authStore, depId) && openChecklistCount(depId) > 0
     if (preferTours || canUseHelpTours(authStore, depId)) {
       return `/${depId}/help/tours`
     }
-    return `/${depId}/help/dokumentation`
+    return `/${depId}/help/department`
   })
 
   function openChecklistCount(depId: string): number {
@@ -47,7 +48,9 @@ export function useHelpShortcut() {
     return countOpenChecklistItems(state.completed, state.skipped || {})
   }
 
-  const isOnHelpRoute = computed(() => route.path.includes('/help'))
+  const gaHelp = useGaHelp()
+
+  const isOnHelpRoute = computed(() => route.path.includes('/help') || gaHelp.isGaHelpPage.value)
 
   const showFloatingButton = computed(() => {
     void helpShortcutHiddenTick.value
@@ -71,6 +74,11 @@ export function useHelpShortcut() {
   }
 
   function openHelp(): void {
+    // GA-Seite: Hilfe als Modal über der Seite, ohne Navigation (ungespeicherte Eingaben bleiben erhalten).
+    if (gaHelp.topicId.value) {
+      gaHelp.open()
+      return
+    }
     const path = helpPath.value
     if (hasUnsavedDetailTabs()) {
       const href = router.resolve(path).href

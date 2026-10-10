@@ -570,6 +570,17 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.devUiPlayground') }}</span>
       </router-link>
 
+      <!-- Grossanlass: eigene GA-Hilfe statt Department-Hilfe -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks && isGrossanlassDept"
+        :to="getLink('/help/ga')"
+        class="nav-item"
+        :class="{ active: $route.name === 'GrossanlassHilfe' }"
+      >
+        <v-icon icon="mdi-help-circle-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.help') }}</span>
+      </router-link>
+
       <router-link
         v-if="!isPendingAssignmentRoute && showStandardDeptSidebarLinks"
         :to="helpNavLink"
@@ -1163,17 +1174,17 @@ watch(
 
 const helpNavLink = computed(() => {
   const depId = departmentId.value
-  if (!depId) return getLink('/help/dokumentation')
+  if (!depId) return getLink('/help/department')
   if (canUseDepartmentOnboarding(authStore, depId) && helpOnboardingBadgeCount.value > 0) {
     return getLink('/help/tours')
   }
   if (canUseHelpEinrichtung(authStore, depId)) {
     return getLink('/help/tours')
   }
-  return getLink('/help/dokumentation')
+  return getLink('/help/department')
 })
 
-const isHelpNavActive = computed(() => route.path.includes('/help'))
+const isHelpNavActive = computed(() => route.path.includes('/help') && route.name !== 'GrossanlassHilfe')
 
 const helpOnboardingBadgeCount = computed(() => {
   const depId = departmentId.value

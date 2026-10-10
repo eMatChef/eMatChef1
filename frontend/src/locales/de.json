@@ -129,6 +129,7 @@
         "grossanlassMaterialWeiterverkauf": "Weiterverkauf · Material · eMatChef",
         "qrMaterialDemo": "Material · eMatChef",
         "grossanlassGastVorschau": "Gast-Sicht · Grossanlass · eMatChef",
+        "grossanlassHilfe": "Grossanlass-Hilfe · eMatChef",
         "grossanlassBeschaffung": "Beschaffung · Grossanlass · eMatChef",
         "grossanlassKosten": "Kosten · Grossanlass · eMatChef",
         "grossanlassLogistik": "Logistik · Grossanlass · eMatChef",
@@ -14820,6 +14821,276 @@
         "saveSuccess": "Empfang gespeichert",
         "errorLoad": "Empfang konnte nicht geladen werden",
         "errorSave": "Speichern fehlgeschlagen"
+      }
+    }
+  },
+  "gaHelp": {
+    "modal": {
+      "eyebrow": "Hilfe zu dieser Seite",
+      "faqTitle": "Häufige Fragen",
+      "more": "Ausführliche Grossanlass-Hilfe",
+      "close": "Schliessen"
+    },
+    "page": {
+      "title": "Grossanlass-Hilfe",
+      "subtitle": "Was die Seiten des Grossanlasses tun und wie die häufigsten Abläufe funktionieren.",
+      "tocAria": "Kapitel der Grossanlass-Hilfe",
+      "openPage": "Seite öffnen"
+    },
+    "hint": {
+      "aria": "Erklärung anzeigen"
+    },
+    "groups": {
+      "start": "Einstieg",
+      "setup": "Einrichten",
+      "planning": "Planen",
+      "procurement": "Beschaffen",
+      "material": "Material",
+      "guest": "Gast-Abteilungen"
+    },
+    "fields": {
+      "enoughOnHand": "Der Bedarf ist schon gedeckt, es braucht keine weitere Anfrage. Gib an, woher das Material kommt: aus dem Eigenbestand oder aus einer Zusage im selben Grossanlass.",
+      "cash": "Cash ist das Geld, das bis jetzt aus der Kasse geflossen ist oder fliessen muss, zum Beispiel Kaufpreis, Miete und Depot.",
+      "netto": "Netto sind die Kosten, die am Ende beim Anlass bleiben: ein Depot zurück oder ein Verkaufserlös verringern sie, ein als Anlage verbuchter Einkauf zählt mit 0."
+    },
+    "topics": {
+      "overview": {
+        "title": "Grossanlass – Überblick",
+        "summary": "Der Grossanlass ist ein eigenes Department als Projekt: Ressorts mit Bauprojekten, Planung, Beschaffung, Material und eingeladene Gast-Abteilungen. Was du siehst, hängt von deiner Rolle ab.",
+        "faq": {
+          "roles": {
+            "q": "Warum sehe ich nicht alle Menüpunkte?",
+            "a": "Die Menüpunkte hängen von deiner Rolle im Grossanlass ab. Fehlt dir ein Bereich, frage den Materialchef oder deine Ressort-Leitung."
+          },
+          "setupRelease": {
+            "q": "Warum ist der Grossanlass noch nicht freigegeben?",
+            "a": "Ein neuer Grossanlass wird zuerst eingerichtet: Stammdaten, Ressorts mit je einer Leitung, Mitglieder (mindestens ein Materialchef und eine OK-Leitung). Danach schaltet ihn der Materialchef oder die OK-Leitung für alle Rollen frei."
+          }
+        }
+      },
+      "stammdaten": {
+        "title": "Stammdaten",
+        "summary": "Anlassname, Zeitraum und Eventstandort. Hier legst du auch fest, ob der Anlass ein Lager oder ein Event ist und ob Teilnehmer-Abteilungen dabei sind.",
+        "faq": {
+          "required": {
+            "q": "Was gehört zur Ersteinrichtung?",
+            "a": "Name, Beginn des Anlasses, Ort und der Typ (Lager oder Event). Das Ende darf nicht vor dem Beginn liegen."
+          },
+          "locations": {
+            "q": "Wo lege ich die Lagerplätze für das Material fest?",
+            "a": "Nicht hier: Die Plätze für das Material sind in den Einstellungen unter Standorte."
+          }
+        }
+      },
+      "ressorts": {
+        "title": "Ressorts",
+        "summary": "Hier baust du die Gliederung des Anlasses auf: Ressorts, Unterressorts oder Bereiche und Bauprojekte. Du weist Mitglieder zu und bestimmst die Leitung.",
+        "faq": {
+          "levels": {
+            "q": "Welche Ebenen gibt es?",
+            "a": "Ein Ressort ist die oberste Ebene. Darunter liegen Unterressorts (Bereiche) und darunter die Bauprojekte."
+          },
+          "required": {
+            "q": "Was braucht die Ersteinrichtung?",
+            "a": "Mindestens ein Ressort, und jedes Ressort braucht eine Leitung."
+          }
+        }
+      },
+      "standorte": {
+        "title": "Standorte",
+        "summary": "Die Orte des Anlasses auf der Karte: zuerst die drei Kernstandorte, danach die Event-Punkte (GA-Orte).",
+        "faq": {
+          "order": {
+            "q": "Warum kann ich noch keine Event-Punkte anlegen?",
+            "a": "Event-Punkte gibt es erst, wenn Eventstandort, Zustellpunkt (Event) und Lagerstandort gesetzt sind."
+          },
+          "qr": {
+            "q": "Wofür sind die Event-Punkte?",
+            "a": "Jeder Event-Punkt hat einen QR-Code für ein Schild vor Ort. Packen und Helfer scannen denselben QR."
+          }
+        }
+      },
+      "kategorien": {
+        "title": "Kategorien",
+        "summary": "Die Bereiche für Bedarf, Filter, Firmen-Anhaken und Gmail in der Beschaffung.",
+        "faq": {
+          "storage": {
+            "q": "Sind das die Kategorien des Materiallagers?",
+            "a": "Nein. Es sind eigene Kategorien der Beschaffung, nicht die Kategorien des Materiallagers."
+          }
+        }
+      },
+      "anfragenEmail": {
+        "title": "Anfragen & E-Mail",
+        "summary": "Hier stellst du zuerst die Standard-Mailtexte ein und verbindest danach das Postfach für Firmenanfragen.",
+        "faq": {
+          "mailbox": {
+            "q": "Welches Postfach wird verwendet?",
+            "a": "Der Grossanlass hat ein gemeinsames Postfach. Produktiv nutzbar ist Gmail (verbinden, Vorlagen, Entwürfe, Sync und Senden). Outlook ist noch in Entwicklung und kein fertiges Postfach."
+          }
+        }
+      },
+      "teilnehmer": {
+        "title": "Teilnehmer",
+        "summary": "Wer einladen darf, der Organisationsmodus, dann Unterlager und Gast-Abteilungen. Unterlager sind die Eltern-Kind-Struktur der Teilnehmer, nicht die Standorte des Materials.",
+        "faq": {
+          "invite": {
+            "q": "Wann werden Gast-Abteilungen eingeladen?",
+            "a": "Erst mit der Freigabe des Anlasses. Bis dahin sind die Teilnehmer nur geplant. Mit der Freigabe geht die Einladung in die Inbox der Gast-Abteilung, bis zur Antwort steht sie auf «Einladung offen»."
+          },
+          "unterlager": {
+            "q": "Sind Unterlager Lagerplätze?",
+            "a": "Nein. Ein Unterlager gliedert die Teilnehmer. Die Orte für das Material legst du unter Standorte fest."
+          }
+        }
+      },
+      "freigabe": {
+        "title": "Freigabe",
+        "summary": "Erst nach der Freigabe werden Gast-Abteilungen eingeladen. Bis dahin bleibt der Anlass intern.",
+        "faq": {
+          "effect": {
+            "q": "Was passiert bei der Freigabe?",
+            "a": "Der Anlass wird veröffentlicht und alle geplanten Teilnehmer werden eingeladen. Dafür muss der Zeitraum des Anlasses gesetzt sein."
+          },
+          "undo": {
+            "q": "Kann ich die Freigabe zurücknehmen?",
+            "a": "Nein, eine Rücknahme gibt es nicht."
+          },
+          "setup": {
+            "q": "Ist das dieselbe Freigabe wie bei der Ersteinrichtung?",
+            "a": "Nein. Die Freigabe der Ersteinrichtung schaltet den Grossanlass für alle Rollen frei. Diese Freigabe lädt die Gast-Abteilungen ein und setzt die freigegebene Einrichtung voraus."
+          }
+        }
+      },
+      "wuensche": {
+        "title": "Wünsche & Ideen",
+        "summary": "Hier melden die Ressorts ihren Bedarf. Nur Materialwünsche werden später in der Beschaffung zu Paketen gebündelt.",
+        "faq": {
+          "enoughOnHand": {
+            "q": "Was heisst «Genug vorhanden»?",
+            "a": "Der Bedarf ist schon gedeckt und braucht keine weitere Anfrage. Du gibst an, ob das Material aus dem Eigenbestand kommt oder aus einer Zusage."
+          },
+          "selfOrganized": {
+            "q": "Was bedeutet «selbst organisiert»?",
+            "a": "Das Ressort beschafft die Position selbst. Sie landet deshalb nicht im Bedarf der Beschaffung."
+          }
+        }
+      },
+      "bauauftraege": {
+        "title": "Bauaufträge",
+        "summary": "Die Bauaufträge des Anlasses nach Ressort und Bereich, als Meine Aufträge, Ressortbaum oder Alle Aufträge. Hier planst du Fenster, Aufgaben und Material.",
+        "faq": {
+          "status": {
+            "q": "Woher kommt der Stand eines Bauauftrags?",
+            "a": "Ist kein Stand gesetzt, wird er aus dem Projektfenster und den Kalenderzeiträumen abgeleitet: ohne Fenster oder vor dem Fenster gilt «geplant», nach dem Fenster «erledigt». Dazwischen entscheidet, ob gerade der Anlass oder der Abbau läuft."
+          }
+        }
+      },
+      "meinRessort": {
+        "title": "Mein Ressort",
+        "summary": "Unterressorts oder Bereiche, Bauprojekte und die Materialliste in deinem Ressort-Zweig.",
+        "faq": {
+          "noRessort": {
+            "q": "Warum steht hier «Kein Ressort zugeteilt»?",
+            "a": "Du bist noch keinem Ressort zugewiesen. Bitte den Materialchef oder die Ressort-Leitung, dich zuzuteilen."
+          },
+          "scan": {
+            "q": "Wie funktioniert das Scannen?",
+            "a": "Scanne zuerst den QR der Palette (Pack) und danach den Zielort. Wird ein Code nicht erkannt, scanne einen Pack oder einen Event-Punkt (GA-Ort). Codes eines anderen Anlasses werden abgewiesen."
+          }
+        }
+      },
+      "bedarf": {
+        "title": "Bedarf",
+        "summary": "Hier bündelst du Wünsche zu Beschaffungspositionen oder erfasst einen Artikel selbst als Bedarf.",
+        "faq": {
+          "partnerBuy": {
+            "q": "Wo lege ich fest, ob gekauft oder bei einem Partner geholt wird?",
+            "a": "An der Bedarfsposition, nicht am Wunsch. Anfragen gelten für beide Wege."
+          },
+          "direct": {
+            "q": "Darf ein Ressort selbst beschaffen?",
+            "a": "Ja, mit der Freigabe «darf beschaffen» im Ressort-Zweig. Diese Personen pflegen Direkt-Bedarf und eigene Offerten. Offerte wählen, Budget setzen und bestellen bleibt beim Materialchef."
+          }
+        }
+      },
+      "anfragen": {
+        "title": "Anfragen",
+        "summary": "Hier führst du die Firmen, bei denen angefragt wird, mit oder ohne Mailkonto.",
+        "faq": {
+          "mailAccount": {
+            "q": "Brauche ich ein verbundenes Mailkonto?",
+            "a": "Nein. Ohne Konto erfasst du die Firma und setzt den Stand selbst (angefragt, Antwort, Zusage). Mit Konto enthält die erste Mail die gewünschten Artikel aus dem Bedarf, ohne Stückzahl und Mass, und die PDFs des Anlasses. Nach der Zusage folgt eine Mail mit der Liste."
+          }
+        }
+      },
+      "offerten": {
+        "title": "Offerten",
+        "summary": "Pro Position erfasst du mehrere Offerten und wählst eine für das Budget. Danach folgen die Bestellungen.",
+        "faq": {
+          "later": {
+            "q": "Kann ich nach der Wahl noch Offerten ergänzen?",
+            "a": "Ja. Auch nach der Wahl, und selbst wenn schon bestellt ist, trägst du Nachträge derselben Firma als weitere Offerte hier nach."
+          }
+        }
+      },
+      "zusagen": {
+        "title": "Absprachen",
+        "summary": "Die Koordination mit der Firma: Fenster, Übernahme, Rückgabe und Menge.",
+        "faq": {
+          "stock": {
+            "q": "Ist das Leihmaterial damit im Lager?",
+            "a": "Nein. Hier entsteht nur die Leih-Charge. Als «da» gilt sie erst, wenn sie im Wareneingang eingebucht wird."
+          }
+        }
+      },
+      "bestellungen": {
+        "title": "Bestellungen",
+        "summary": "Hier bestellst du die gewählte Offerte und erfasst die Ist-Kosten. Die Offerte bleibt sichtbar.",
+        "faq": {
+          "empty": {
+            "q": "Warum sehe ich keine bestellbaren Positionen?",
+            "a": "Es braucht zuerst eine gewählte Offerte. Wähle sie im Tab Offerten, danach erscheint die Position hier."
+          }
+        }
+      },
+      "kosten": {
+        "title": "Kosten",
+        "summary": "Der Rahmen, die Offerten und die Ist-Kosten des Anlasses, gesamt und nach Zahler.",
+        "faq": {
+          "cashNetto": {
+            "q": "Was ist der Unterschied zwischen Cash und Netto?",
+            "a": "Cash ist das Geld, das bis jetzt geflossen ist oder fliessen muss. Netto sind die Anlasskosten: Ein zurückgezahltes Depot oder ein Verkaufserlös verringert sie, ein als Anlage verbuchter Einkauf zählt mit 0, Nebenkosten zählen voll."
+          },
+          "payer": {
+            "q": "Wer zahlt die Kosten?",
+            "a": "Die Logistik organisiert, der Zahler kann aber ein anderes Ressort sein. Den Rahmen setzen OK und Materialchef."
+          }
+        }
+      },
+      "wareneingang": {
+        "title": "Wareneingang",
+        "summary": "Die Rampe für Camion und Abholung. Den Ankunftstag liefert die Absprache oder die Bestellung. Hier markierst du, was da ist, und klebst den QR.",
+        "faq": {
+          "partial": {
+            "q": "Kann ich eine Teillieferung einbuchen?",
+            "a": "Ja. Du buchst Teil- oder Restmengen pro Charge mit Menge, Annahmeort und Notiz. Eine grössere Menge als erwartet wird abgelehnt."
+          }
+        }
+      },
+      "gastVorschau": {
+        "title": "Gast-Sicht",
+        "summary": "So sieht eine eingeladene Abteilung den Anlass, als Vorschau ohne Login-Wechsel. Du wählst die Abteilung, die du spielst, und siehst Einladung, Zusage oder Absage.",
+        "faq": {
+          "preview": {
+            "q": "Ist das schon die echte Gast-Ansicht?",
+            "a": "Nein. Die Seite ist eine Vorschau mit grobem Design und noch ohne Funktion. Sie zeigt erst nach der Freigabe des Anlasses etwas an."
+          },
+          "real": {
+            "q": "Wie sieht die Gast-Abteilung den Anlass wirklich?",
+            "a": "Die Einladung kommt in die Inbox der Gast-Abteilung. Der Anlass erscheint bei ihr in der Aktivitäten-Liste, aber erst nach der Freigabe. Aufbau und Abbau sieht die Gast-Abteilung dort nicht."
+          }
+        }
       }
     }
   }

@@ -922,6 +922,25 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'help/ga/:topic?',
+        name: 'GrossanlassHilfe',
+        component: () => import('@/views/grossanlass/GrossanlassHilfeView.vue'),
+        meta: {
+          requiresGrossanlassDepartment: true,
+          ...routeHead('grossanlassHilfe'),
+        },
+      },
+      {
+        // Alter Pfad (Bookmarks, Links): bleibt als Weiterleitung erhalten.
+        path: 'ga-hilfe/:topic?',
+        redirect: (to) => ({
+          name: 'GrossanlassHilfe',
+          params: { departmentId: to.params.departmentId, ...(to.params.topic ? { topic: to.params.topic } : {}) },
+          query: to.query,
+          hash: to.hash,
+        }),
+      },
+      {
         path: 'planung',
         component: () => import('@/views/grossanlass/GrossanlassPlanungView.vue'),
         meta: {
@@ -2327,11 +2346,20 @@ const routes: RouteRecordRaw[] = [
             },
           },
           {
-            path: 'dokumentation',
+            path: 'department/:topic?',
             name: 'HelpDokumentation',
-            alias: 'overview',
             component: () => import('@/views/help/HelpDokumentationView.vue'),
             meta: routeHead('helpOverview'),
+          },
+          {
+            // Alte Pfade (Bookmarks, Links): Weiterleitung auf die Department-Hilfe.
+            path: ':legacy(dokumentation|overview)',
+            redirect: (to) => ({
+              name: 'HelpDokumentation',
+              params: { departmentId: to.params.departmentId },
+              query: to.query,
+              hash: to.hash,
+            }),
           },
         ],
       },

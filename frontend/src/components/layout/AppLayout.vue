@@ -47,6 +47,8 @@
     <span>{{ t('layout.header.helpTitle') }}</span>
   </button>
 
+  <GaHelpModal />
+
   <OnboardingTourOverlay v-if="canUseTours" />
 </template>
 
@@ -61,6 +63,7 @@ import { useDepartmentOnboardingAccess } from '@/composables/useDepartmentOnboar
 import { useHelpShortcut } from '@/composables/useHelpShortcut'
 import { refreshOnboardingCompletionStatus } from '@/utils/onboardingChecklist'
 import OnboardingTourOverlay from '@/components/onboarding/OnboardingTourOverlay.vue'
+import GaHelpModal from '@/components/grossanlass/GaHelpModal.vue'
 import { provideGaEventPeriod } from '@/composables/useGaEventPeriod'
 import SidebarNavigation from './SidebarNavigation.vue'
 import TopHeader from './TopHeader.vue'
