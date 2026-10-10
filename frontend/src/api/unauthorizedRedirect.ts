@@ -7,6 +7,8 @@ export function isAuthFormPath(pathname: string): boolean {
   return (
     pathname === '/login' ||
     pathname.startsWith('/register') ||
+    pathname === '/forgot-password' ||
+    pathname === '/reset-password' ||
     pathname.startsWith('/verify') ||
     pathname.includes('password-reset')
   )

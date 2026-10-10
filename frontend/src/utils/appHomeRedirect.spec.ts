@@ -24,6 +24,12 @@ describe('login redirect without onboarding tour', () => {
     expect(departmentDashboardPathFromFullPath('/abc-dept/materials?foo=1')).toBe('/abc-dept')
   })
 
+  it('rejects open-redirect shapes', () => {
+    for (const bad of ['//evil.com', '/\\evil.com', '/\t/evil.com', 'https://evil.com', 'javascript:alert(1)']) {
+      expect(parseInternalRedirectPath(bad)).toBeNull()
+    }
+  })
+
   it('keeps normal redirects', () => {
     expect(parseInternalRedirectPath('/abc-dept/activities')).toBe('/abc-dept/activities')
     expect(sanitizeLoginRedirectPath('/abc-dept/help/tours')).toBe('/abc-dept/help/tours')

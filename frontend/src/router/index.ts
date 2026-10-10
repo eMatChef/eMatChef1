@@ -49,6 +49,25 @@ import { isMiDataOnboardingLanding } from '@/utils/midataOnboarding'
 import { carryOAuthReturnParams, PROFILE_SECURITY_RETURN_PARAM } from '@/utils/oauthReturnParams'
 import { PROFILE_FROM_PARAM, isProfilePath, profileFromForEntry, sanitizeProfileFrom } from '@/utils/profileReturn'
 
+const AUTH_ENTRY_PATHS = ['/login', '/register', '/forgot-password', '/reset-password']
+
+function isAuthEntryPath(path: string): boolean {
+  return AUTH_ENTRY_PATHS.includes(path)
+}
+
+/** Alte Links (/login?register=1, /login?forgot=1 aus E-Mails) → globale Auth-URLs. */
+function legacyAuthQueryRedirect(to: RouteLocationNormalized) {
+  const flag = (v: unknown) => {
+    const x = Array.isArray(v) ? v[0] : v
+    return x === '1' || (typeof x === 'string' && x.toLowerCase() === 'true')
+  }
+  const target = flag(to.query.register) ? '/register' : flag(to.query.forgot) ? '/reset-password' : null
+  if (!target) return true
+  const query = { ...to.query }
+  delete query.register
+  return { path: target, query, hash: to.hash, replace: true }
+}
+
 /** Login-Redirect ohne Tour-Query (sonst nach Relogin Tour-URL statt Dashboard). */
 function loginAuthRedirectQuery(fullPath: string): Record<string, string> {
   const target = sanitizeLoginRedirectPath(fullPath)
@@ -386,11 +405,31 @@ const routes: RouteRecordRaw[] = [
     path: '/login',
     name: 'Login',
     component: () => import('@/views/LoginView.vue'),
+    beforeEnter: (to) => legacyAuthQueryRedirect(to),
     meta: {
       requiresAuth: false,
       publicMarketing: true,
       ...routeHead('login', 'login'),
     }
+  },
+  // Global auth entry points: same LoginView, no department in the URL.
+  {
+    path: '/register',
+    name: 'Register',
+    component: () => import('@/views/LoginView.vue'),
+    meta: { requiresAuth: false, publicMarketing: true, ...routeHead('login', 'login') },
+  },
+  {
+    path: '/forgot-password',
+    name: 'ForgotPassword',
+    component: () => import('@/views/LoginView.vue'),
+    meta: { requiresAuth: false, publicMarketing: true, ...routeHead('login', 'login') },
+  },
+  {
+    path: '/reset-password',
+    name: 'ResetPassword',
+    component: () => import('@/views/LoginView.vue'),
+    meta: { requiresAuth: false, publicMarketing: true, ...routeHead('login', 'login') },
   },
   {
     path: '/sandbox',
@@ -2435,7 +2474,7 @@ function applyQrHostRedirects(to: RouteLocationNormalized): boolean {
   }
 
   // Start & Login → Hauptdomain (ematchef.*), nicht app.*
-  if ((path === '/' || path === '/login') && mainSite) {
+  if ((path === '/' || isAuthEntryPath(path)) && mainSite) {
     window.location.replace(`${mainSite}${to.fullPath}`)
     return true
   }
@@ -2481,9 +2520,9 @@ async function handleAppOriginRouting(
 ): Promise<boolean> {
   if (!isAppOrigin()) return false
 
-  const isEntryPath = to.path === '/' || to.path === '/login'
+  const isEntryPath = to.path === '/' || isAuthEntryPath(to.path)
 
-  if (!isEntryPath && to.meta.publicMarketing && to.path !== '/login') {
+  if (!isEntryPath && to.meta.publicMarketing) {
     const mainSiteOrigin = getMainSiteOrigin()
     if (mainSiteOrigin) {
       window.location.replace(mainSiteOrigin + to.fullPath)
@@ -2505,7 +2544,7 @@ async function handleAppOriginRouting(
 
   if (authStore.isLoggedIn) {
     const redirectQuery = parseInternalRedirectPath(to.query.redirect)
-    if (redirectQuery && to.path === '/login') {
+    if (redirectQuery && isAuthEntryPath(to.path) && !isAuthEntryPath(redirectQuery.split(/[?#]/)[0] || '')) {
       next(redirectQuery)
       return true
     }
@@ -2694,7 +2733,7 @@ router.beforeEach(async (to, from, nextRaw) => {
         const siteEditorRoute = to.matched.some((r) => r.meta.requiresSiteEditor)
         if (siteEditorRoute && canEditPublicSite()) {
           /* Webseiten-Editor ohne Abteilung (z. B. Superadmin) */
-        } else if (to.meta.requiresAuth || to.path === '/login') {
+        } else if (to.meta.requiresAuth || isAuthEntryPath(to.path)) {
           const inviteLanding = departmentInviteLandingPath(to)
           if (inviteLanding) return next(inviteLanding)
           return next('/pending-assignment')
@@ -2728,7 +2767,7 @@ router.beforeEach(async (to, from, nextRaw) => {
     }
 
     // App-/Devices-Login-Root: eingeloggt → Abteilung oder Dashboard (Hauptdomain-„/“ bleibt Landing)
-    const appLoginOrRoot = (isAppOrigin() && to.path === '/') || to.path === '/login'
+    const appLoginOrRoot = (isAppOrigin() && to.path === '/') || isAuthEntryPath(to.path)
     if (appLoginOrRoot && isSuperAdmin()) {
       return next('/dashboard')
     }
@@ -2744,7 +2783,7 @@ router.beforeEach(async (to, from, nextRaw) => {
       if (supplierHome) return next(supplierHome)
     }
 
-    if (isDevicesHost() && (to.path === '/' || to.path === '/login')) {
+    if (isDevicesHost() && (to.path === '/' || isAuthEntryPath(to.path))) {
       const pinned =
         getPinnedDepartmentId() ||
         primaryDepartmentId ||

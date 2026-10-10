@@ -379,6 +379,10 @@ Ein Passwort-Reset:
 - entfernt OAuth-Verknüpfungen nicht;
 - umgeht Admin-2FA nicht.
 
+### Globale Auth-URLs
+
+Anmeldung, Registrierung und Passwortverwaltung sind department-unabhängig unter `/login`, `/register`, `/forgot-password` und `/reset-password` erreichbar (alle rendern `LoginView`; die URL folgt dem sichtbaren Formular). Alte Links `/login?register=1` und `/login?forgot=1` (E-Mails) werden auf `/register` bzw. `/reset-password` umgeleitet. `redirect`/`next` werden über `parseInternalRedirectPath` nur als interne Pfade akzeptiert (kein `//`, kein Backslash, keine Steuerzeichen).
+
 ---
 
 ## 15. Trusted Devices / MFA Trust

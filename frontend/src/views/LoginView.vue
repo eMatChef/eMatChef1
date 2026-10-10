@@ -521,7 +521,23 @@ const route = useRoute()
 const authStore = useAuthStore()
 const { t } = useI18n()
 
-const mode = ref<'login' | 'register' | 'forgot'>('login')
+type AuthMode = 'login' | 'register' | 'forgot'
+
+const AUTH_MODE_PATHS = {
+  login: '/login',
+  register: '/register',
+  forgot: '/forgot-password',
+  reset: '/reset-password',
+} as const
+const AUTH_PATHS: string[] = Object.values(AUTH_MODE_PATHS)
+
+function modeFromRoutePath(path: string): AuthMode {
+  if (path === AUTH_MODE_PATHS.register) return 'register'
+  if (path === AUTH_MODE_PATHS.forgot || path === AUTH_MODE_PATHS.reset) return 'forgot'
+  return 'login'
+}
+
+const mode = ref<AuthMode>(modeFromRoutePath(route.path))
 const claimingExistingAccount = ref(false)
 const email = ref('')
 const password = ref('')
@@ -735,7 +751,7 @@ function queryParamFirst(v: unknown): string {
 
 function applyRegisterPrefillFromQuery() {
   const reg = queryParamFirst(route.query.register)
-  const wantsRegister = reg === '1' || reg.toLowerCase() === 'true'
+  const wantsRegister = reg === '1' || reg.toLowerCase() === 'true' || route.path === AUTH_MODE_PATHS.register
   const orgId = queryParamFirst(route.query.org_id).trim()
   const orgName = queryParamFirst(route.query.org_name).trim()
   const deptName = queryParamFirst(route.query.dept_name).trim()
@@ -783,9 +799,39 @@ function stripForgotQueryFromRoute() {
   router.replace({ path: route.path, query: nextQuery })
 }
 
+function pathForMode(m: AuthMode): string {
+  if (m === 'register') return AUTH_MODE_PATHS.register
+  if (m === 'forgot') {
+    return forgotStep.value === 'confirm' ? AUTH_MODE_PATHS.reset : AUTH_MODE_PATHS.forgot
+  }
+  return AUTH_MODE_PATHS.login
+}
+
+/** Keeps the address bar on the global auth URL that matches the visible form. */
+function syncRouteToMode() {
+  const target = pathForMode(mode.value)
+  if (route.path === target || !AUTH_PATHS.includes(route.path)) return
+  const query = { ...route.query }
+  delete query.register
+  delete query.forgot
+  void router.replace({ path: target, query, hash: route.hash })
+}
+
+watch([mode, forgotStep], syncRouteToMode)
+
+watch(
+  () => route.path,
+  (path) => {
+    if (!AUTH_PATHS.includes(path)) return
+    if (path === AUTH_MODE_PATHS.reset) forgotStep.value = 'confirm'
+    const next = modeFromRoutePath(path)
+    if (next !== mode.value) mode.value = next
+  }
+)
+
 function applyForgotPrefillFromQuery() {
   const forgot = queryParamFirst(route.query.forgot)
-  const wantsForgot = forgot === '1' || forgot.toLowerCase() === 'true'
+  const wantsForgot = forgot === '1' || forgot.toLowerCase() === 'true' || route.path === AUTH_MODE_PATHS.reset
   const emailParam = queryParamFirst(route.query.email).trim().toLowerCase()
   if (!wantsForgot) return
 
