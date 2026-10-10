@@ -7,6 +7,7 @@
     :scrollable="scrollable"
     :retain-focus="retainFocus"
     :z-index="zIndex"
+    :content-class="contentClass"
     @update:model-value="onUpdate"
     @click:outside="onOutside"
   >
@@ -50,6 +51,8 @@ const props = withDefaults(
     /** Tour-Spotlight: Target auf der ganzen Dialog-Karte (inkl. Actions) */
     dataOnboarding?: string
     zIndex?: number
+    /** Klasse(n) auf dem Overlay-Inhalt (z. B. Position/Höhe eines grossen Dialogs). */
+    contentClass?: string
     /** false verhindert das Schliessen (z. B. ungespeicherte Eingaben). */
     beforeClose?: () => boolean | Promise<boolean>
   }>(),

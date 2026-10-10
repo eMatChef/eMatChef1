@@ -1,5 +1,5 @@
 <template>
-  <form class="profile-basics" @submit.prevent="onSubmit">
+  <form class="profile-basics" :class="`profile-basics--${context.mode}`" @submit.prevent="onSubmit">
     <div class="profile-top-row" data-onboarding="profile-identity">
       <UserAvatarBadge class="profile-avatar-preview" :user="profilePreviewAvatarUser" variant="profile" size="lg" :show-tooltip="false" />
       <div class="profile-top-fields">
@@ -353,6 +353,10 @@ onMounted(() => void load())
 </script>
 
 <style scoped>
+.profile-basics--page {
+  max-width: 960px;
+}
+
 .profile-top-row {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -525,6 +529,14 @@ onMounted(() => void load())
   gap: 8px;
   padding-top: 12px;
   border-top: 1px solid var(--color-border);
+}
+
+/* Im Dialog bleiben Speichern/Abbrechen beim Scrollen des Inhalts sichtbar */
+.profile-basics--modal .profile-basics__footer {
+  position: sticky;
+  bottom: 0;
+  padding-bottom: 12px;
+  background: rgb(var(--v-theme-surface));
 }
 
 .profile-status-hint {

@@ -1,6 +1,5 @@
 <template>
   <div class="profile-container" :class="`profile-container--${mode}`" data-onboarding="profile-page">
-    <ProfileTabs :mode="mode" :active="activeTab" :query="tabQuery" @select="selectTab" />
     <section class="profile-container__panel" role="tabpanel">
       <router-view v-if="mode === 'page'" />
       <template v-else>
@@ -30,7 +29,6 @@ import {
   type ProfileTab,
 } from '@/composables/useProfileContext'
 import { PROFILE_FROM_PARAM, profileFallbackPath, profileFromQuery } from '@/utils/profileReturn'
-import ProfileTabs from '@/components/profile/ProfileTabs.vue'
 
 const props = withDefaults(defineProps<{ mode: 'page' | 'modal'; tab?: ProfileTab }>(), { tab: 'basics' })
 const emit = defineEmits<{
@@ -65,10 +63,6 @@ const tabQuery = computed(() => {
   return query
 })
 
-function selectTab(tab: ProfileTab) {
-  emit('update:tab', tab)
-}
-
 const context: ProfileContext = {
   get mode() {
     return props.mode
@@ -96,15 +90,7 @@ provide(PROFILE_CONTEXT_KEY, context)
 </script>
 
 <style scoped>
-.profile-container__panel {
-  padding: 16px 0 0;
-}
-
-.profile-container--page .profile-container__panel {
-  padding: 16px;
-  border: 1px solid var(--color-border);
-  border-top: 0;
-  border-radius: 0 0 10px 10px;
-  background: rgb(var(--v-theme-surface));
+.profile-container--modal .profile-container__panel {
+  padding-top: 16px;
 }
 </style>

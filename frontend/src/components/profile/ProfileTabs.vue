@@ -1,76 +1,58 @@
 <template>
-  <nav class="profile-tabs" role="tablist" :aria-label="t('profile.page.tabsAria')">
-    <component
-      :is="mode === 'page' ? 'router-link' : 'button'"
+  <v-tabs
+    :model-value="active"
+    class="materials-view-tabs profile-tabs"
+    color="primary"
+    show-arrows
+    role="tablist"
+    :aria-label="t('profile.page.tabsAria')"
+  >
+    <v-tab
       v-for="item in PROFILE_TABS"
       :key="item.tab"
+      :value="item.tab"
       v-bind="itemProps(item)"
-      class="profile-tabs__tab"
-      :class="{ 'profile-tabs__tab--active': item.tab === active }"
-      role="tab"
-      :aria-selected="item.tab === active"
       :data-testid="`profile-tab-${item.tab}`"
       @click="mode === 'modal' && emit('select', item.tab)"
     >
       {{ t(`profile.page.tabs.${item.tab}`) }}
-    </component>
-  </nav>
+    </v-tab>
+  </v-tabs>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { PROFILE_TABS, type ProfileTab } from '@/composables/useProfileContext'
+import { useRoute } from 'vue-router'
+import { ONBOARDING_TOUR_QUERY, ONBOARDING_TOUR_STEP_QUERY } from '@/config/onboardingTours'
+import { PROFILE_TABS, profileTabForRouteName, type ProfileTab } from '@/composables/useProfileContext'
+import { PROFILE_FROM_PARAM, profileFromQuery } from '@/utils/profileReturn'
+import '@/styles/views/materials-view-tabs.css'
 
 const props = defineProps<{
   mode: 'page' | 'modal'
-  active: ProfileTab
-  /** Query kept across the routed tabs (return path, running tour). */
-  query?: Record<string, string>
+  /** Modal: active area (the routed page derives it from the route). */
+  tab?: ProfileTab
 }>()
 const emit = defineEmits<{ (e: 'select', tab: ProfileTab): void }>()
 const { t } = useI18n()
+const route = useRoute()
+
+const active = computed<ProfileTab>(() => (props.mode === 'page' ? profileTabForRouteName(route.name) : (props.tab ?? 'basics')))
+
+/** Routed tabs keep the validated return path and a running onboarding tour. */
+const routedQuery = computed(() => {
+  const query: Record<string, string> = {}
+  const from = profileFromQuery(route.query)
+  if (from) query[PROFILE_FROM_PARAM] = from
+  for (const key of [ONBOARDING_TOUR_QUERY, ONBOARDING_TOUR_STEP_QUERY]) {
+    const value = route.query[key]
+    if (typeof value === 'string') query[key] = value
+  }
+  return query
+})
 
 function itemProps(item: { tab: ProfileTab; routeName: string }) {
-  return props.mode === 'page' ? { to: { name: item.routeName, query: props.query } } : { type: 'button' }
+  return props.mode === 'page' ? { to: { name: item.routeName, query: routedQuery.value } } : {}
 }
 </script>
-
-<style scoped>
-.profile-tabs {
-  display: flex;
-  gap: 4px;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--color-border);
-  scrollbar-width: thin;
-}
-
-.profile-tabs__tab {
-  flex: 0 0 auto;
-  padding: 10px 14px;
-  margin-bottom: -1px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  text-decoration: none;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.profile-tabs__tab:hover {
-  color: var(--color-text);
-}
-
-.profile-tabs__tab:focus-visible {
-  outline: 2px solid var(--color-primary-light);
-  outline-offset: -2px;
-}
-
-.profile-tabs__tab--active {
-  color: var(--color-primary-dark);
-  border-bottom-color: var(--color-primary);
-}
-</style>

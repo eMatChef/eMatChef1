@@ -2331,6 +2331,7 @@
   "profile": {
     "page": {
       "title": "Profil",
+      "subtitle": "Persönliche Angaben, Sicherheit, E-Mail-Adressen, verknüpfte Anmeldungen und Departments.",
       "back": "Zurück",
       "tabsAria": "Profilbereiche",
       "tabs": {

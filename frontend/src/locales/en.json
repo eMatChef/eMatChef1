@@ -2202,6 +2202,7 @@
   "profile": {
     "page": {
       "title": "Profile",
+      "subtitle": "Personal details, security, email addresses, connected sign-ins and departments.",
       "back": "Back",
       "tabsAria": "Profile sections",
       "tabs": {
