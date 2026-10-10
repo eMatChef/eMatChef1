@@ -25,13 +25,13 @@ export function gaHomePath(
   const id = departmentId.replace(/^\/+|\/+$/g, '')
   switch (gaHomeKind(role, options)) {
     case 'uebersicht':
-      return `/${id}/material`
+      return `/${id}/ga/material`
     case 'mailbox':
-      return `/${id}/beschaffung/anfragen`
+      return `/${id}/ga/beschaffung/anfragen`
     case 'mein-bereich':
-      return `/${id}/mein-ressort`
+      return `/${id}/ga/mein-ressort`
     default:
-      return `/${id}`
+      return `/${id}/ga/dashboard`
   }
 }
 
@@ -46,13 +46,13 @@ export function gaIsRoleHomePath(
   const p = (path.split('?')[0] || '').replace(/\/$/, '') || '/'
   switch (gaHomeKind(role, options)) {
     case 'uebersicht':
-      return p.includes(`/${id}/material`)
+      return p.includes(`/${id}/ga/material`)
     case 'mailbox':
-      return p.includes(`/${id}/beschaffung/anfragen`)
+      return p.includes(`/${id}/ga/beschaffung/anfragen`)
     case 'mein-bereich':
-      return p.includes(`/${id}/mein-ressort`)
+      return p.includes(`/${id}/ga/mein-ressort`)
     default:
-      return p === `/${id}` || p === `/${id}/dashboard`
+      return p === `/${id}/ga/dashboard`
   }
 }
 

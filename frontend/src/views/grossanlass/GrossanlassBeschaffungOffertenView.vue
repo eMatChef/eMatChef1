@@ -323,7 +323,7 @@ function goToOrder(line: GrossanlassProcurementLine) {
   const id = departmentId()
   if (!id) return
   void router.push({
-    path: `/${id}/beschaffung/bestellungen`,
+    path: `/${id}/ga/beschaffung/bestellungen`,
     query: { line: line.id },
   })
 }

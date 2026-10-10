@@ -317,11 +317,11 @@ function resetFilters() {
 
 // Detail View
 function openContactDetail(contact: Address) {
-  router.push(`/${currentDepartmentId.value}/contacts/${contact.id}`)
+  router.push(`/${currentDepartmentId.value}/dept/contacts/${contact.id}`)
 }
 
 function closeDetailView() {
-  router.push(`/${currentDepartmentId.value}/contacts`)
+  router.push(`/${currentDepartmentId.value}/dept/contacts`)
 }
 
 async function handleContactUpdated() {
@@ -346,7 +346,7 @@ async function handleCreated(addr: Address) {
   showCreateModal.value = false
   await loadContacts()
   if (addr?.id) {
-    router.push(`/${currentDepartmentId.value}/contacts/${addr.id}`)
+    router.push(`/${currentDepartmentId.value}/dept/contacts/${addr.id}`)
   }
 }
 
@@ -378,7 +378,7 @@ watch(showDeleted, () => {
 
 watch(currentDepartmentId, () => {
   if (selectedContactId.value) {
-    router.replace(`/${currentDepartmentId.value}/contacts`)
+    router.replace(`/${currentDepartmentId.value}/dept/contacts`)
   }
   loadContacts()
 })

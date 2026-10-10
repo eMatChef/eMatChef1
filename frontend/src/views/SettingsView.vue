@@ -95,7 +95,7 @@ const departmentId = computed(() => {
 
 function getSettingsLink(path: string): string {
   if (!departmentId.value) return '#'
-  return `/${departmentId.value}/settings${path}`
+  return `/${departmentId.value}/dept/settings${path}`
 }
 
 function navLinkForItem(itemId: string): string {
@@ -103,7 +103,7 @@ function navLinkForItem(itemId: string): string {
 }
 
 function isSettingsItemActive(itemId: string): boolean {
-  const base = departmentId.value ? `/${departmentId.value}/settings`.replace(/\/$/, '') : ''
+  const base = departmentId.value ? `/${departmentId.value}/dept/settings`.replace(/\/$/, '') : ''
   const p = (route.path || '').replace(/\/$/, '') || '/'
   if (itemId === 'my-department') {
     return (

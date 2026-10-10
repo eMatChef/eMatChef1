@@ -180,7 +180,7 @@ class DepartmentMediaBrowserService
                     $departmentId,
                     $id,
                     $label,
-                    '/materials/' . $id,
+                    '/dept/materials/' . $id,
                     $photo,
                 );
                 if ($mapped !== null) {
@@ -214,12 +214,12 @@ class DepartmentMediaBrowserService
                 [
                     'kind' => 'workshop',
                     'label' => $ticket->getTitle(),
-                    'path' => '/workshop?ticket=' . rawurlencode($id),
+                    'path' => '/dept/workshop?ticket=' . rawurlencode($id),
                 ],
                 [
                     'kind' => 'material',
                     'label' => $material->getName(),
-                    'path' => '/materials/' . $material->getId(),
+                    'path' => '/dept/materials/' . $material->getId(),
                 ],
             ];
             foreach ($this->photoNormalizer->normalizeOutgoing($ticket->getPhotos()) as $photo) {
@@ -228,7 +228,7 @@ class DepartmentMediaBrowserService
                     $departmentId,
                     $id,
                     $ticket->getTitle(),
-                    '/workshop?ticket=' . rawurlencode($id),
+                    '/dept/workshop?ticket=' . rawurlencode($id),
                     $photo,
                     null,
                     $links,
@@ -265,14 +265,14 @@ class DepartmentMediaBrowserService
             $links = [[
                 'kind' => 'activity',
                 'label' => $label,
-                'path' => '/activities/' . $activityId,
+                'path' => '/dept/activities/' . $activityId,
             ]];
             $material = $report->getMaterialItem();
             if ($material !== null) {
                 $links[] = [
                     'kind' => 'material',
                     'label' => $material->getName(),
-                    'path' => '/materials/' . $material->getId(),
+                    'path' => '/dept/materials/' . $material->getId(),
                 ];
             }
             foreach ($this->photoNormalizer->normalizeOutgoing($report->getPhotos()) as $photo) {
@@ -281,7 +281,7 @@ class DepartmentMediaBrowserService
                     $departmentId,
                     $id,
                     $label,
-                    '/activities/' . $activityId,
+                    '/dept/activities/' . $activityId,
                     $photo,
                     null,
                     $links,
@@ -318,7 +318,7 @@ class DepartmentMediaBrowserService
                     $departmentId,
                     $id,
                     $label,
-                    '/accounting/bookings',
+                    '/dept/accounting/bookings',
                     $photo,
                 );
                 if ($mapped !== null) {
@@ -353,7 +353,7 @@ class DepartmentMediaBrowserService
                     $departmentId,
                     $id,
                     $label,
-                    '/accounting/bookings',
+                    '/dept/accounting/bookings',
                     $photo,
                 );
                 if ($mapped !== null) {
@@ -393,7 +393,7 @@ class DepartmentMediaBrowserService
                 $departmentId,
                 $orderId,
                 $activity->getName() . ' (J+S)',
-                '/activities/' . $activity->getId(),
+                '/dept/activities/' . $activity->getId(),
                 [
                     'id' => $mediaId,
                     'filename' => $filename,
@@ -435,7 +435,7 @@ class DepartmentMediaBrowserService
                 $departmentId,
                 $quote->getId(),
                 $quote->getSupplier(),
-                '/beschaffung/offerten',
+                '/ga/beschaffung/offerten',
                 [
                     'filename' => $filename,
                     'original_filename' => $filename,

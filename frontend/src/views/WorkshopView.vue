@@ -1634,14 +1634,14 @@ function registerWorkshopDetailTab(ticket: WorkshopTicket) {
     type: 'workshop',
     label: ticket.title?.trim() || t('workshop.fallbackTabLabel', { id: ticket.id }),
     departmentId: dept,
-    path: `/${dept}/workshop?ticket=${encodeURIComponent(ticket.id)}`,
+    path: `/${dept}/dept/workshop?ticket=${encodeURIComponent(ticket.id)}`,
   })
 }
 
 function openActivityDryingQueue(activityId: string): void {
   const dept = currentDepartmentId.value
   if (!dept || !activityId) return
-  void router.push(`/${dept}/activities/${activityId}/pack-journey/store`)
+  void router.push(`/${dept}/dept/activities/${activityId}/pack-journey/store`)
 }
 
 async function openTicketDetail(ticket: WorkshopTicket) {

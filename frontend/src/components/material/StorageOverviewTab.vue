@@ -42,7 +42,7 @@
           <div class="combo-derived-card-head">
             <router-link
               class="combo-derived-parent-link"
-              :to="`/${departmentId}/materials/${block.parent_material_id}`"
+              :to="`/${departmentId}/dept/materials/${block.parent_material_id}`"
             >
               {{ block.parent_name }}
             </router-link>
@@ -1476,7 +1476,7 @@ function navigateToContainerContentTab(containerBatchId: string) {
     })
     return
   }
-  router.push({ path: `/${deptId}/materials/${materialId}`, query })
+  router.push({ path: `/${deptId}/dept/materials/${materialId}`, query })
 }
 
 function openContainerMaterialFromStoredItem(item: StorageSlotContent) {
@@ -1558,7 +1558,7 @@ function openMaterial(item: StorageSlotContent) {
   if (deptId) {
     const query =
       props.openMaterialWithoutBatchQuery || !item.batch_id ? {} : { batch: item.batch_id }
-    router.push({ path: `/${deptId}/materials/${item.material_id}`, query })
+    router.push({ path: `/${deptId}/dept/materials/${item.material_id}`, query })
   }
 }
 

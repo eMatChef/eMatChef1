@@ -2,23 +2,14 @@
   <div class="settings-page">
     <div class="header">
       <h1>{{ t('settings.displayScreens.title') }}</h1>
-      <p class="description">{{ t('settings.displayScreens.description') }}</p>
-      <p class="muted path-hint">{{ t('settings.displayScreens.pathHint') }}</p>
-      <p class="muted path-hint">
-        {{ t('settings.displayScreens.kioskEntryHint') }}
-        <code class="inline-code">{{ kioskEntryUrl }}</code>
+      <p class="description">
+        {{ isGrossanlassDept ? t('settings.displayScreens.descriptionGa') : t('settings.displayScreens.description') }}
       </p>
-    </div>
-
-    <div v-if="userDepartments.length > 1" class="card card--narrow-select">
-      <ESelect
-        id="department-select"
-        v-model="selectedDepartmentId"
-        :items="departmentSelectItems"
-        :label="t('settings.common.selectDepartment')"
-        hide-details
-        @update:model-value="onDepartmentChange"
-      />
+      <p v-if="isGrossanlassDept" class="muted path-hint">
+        <router-link :to="{ name: 'GrossanlassDisplaysDemo', params: { departmentId: String(route.params.departmentId || '') } }">
+          {{ t('settings.displayScreens.gaDemoLink') }}
+        </router-link>
+      </p>
     </div>
 
     <div v-if="!canManage" class="card">
@@ -28,25 +19,35 @@
     <template v-else>
       <div class="card create-card">
         <h3 class="section-heading">{{ t('settings.displayScreens.createTitle') }}</h3>
-        <div class="create-row">
-          <ETextField
-            v-model="newScreenName"
-            class="create-row__name"
-            :label="t('settings.displayScreens.nameLabel')"
-            :placeholder="t('settings.displayScreens.namePlaceholder')"
-            :disabled="creating"
-            maxlength="120"
-            hide-details
-          />
-          <EButton
-            variant="primary"
-            :disabled="creating || !newScreenName.trim()"
-            :loading="creating"
-            @click="createScreen"
-          >
-            {{ t('common.create') }}
-          </EButton>
+        <p class="muted">{{ t('settings.displayScreens.addHint') }}</p>
+        <div class="create-actions">
+          <EButton variant="primary" @click="openPairNew">{{ t('settings.displayScreens.add') }}</EButton>
         </div>
+        <details class="settings-accordion manual-create">
+          <summary>{{ t('settings.displayScreens.createWithoutScanner') }}</summary>
+          <div class="accordion-body">
+            <p class="muted">{{ t('settings.displayScreens.createWithoutScannerHint') }}</p>
+            <div class="create-row">
+              <ETextField
+                v-model="newScreenName"
+                class="create-row__name"
+                :label="t('settings.displayScreens.nameLabel')"
+                :placeholder="t('settings.displayScreens.namePlaceholder')"
+                :disabled="creating"
+                maxlength="120"
+                hide-details
+              />
+              <EButton
+                variant="secondary"
+                :disabled="creating || !newScreenName.trim()"
+                :loading="creating"
+                @click="createScreen"
+              >
+                {{ t('common.create') }}
+              </EButton>
+            </div>
+          </div>
+        </details>
       </div>
 
       <ELoadingState v-if="loading" variant="inline" :message="t('settings.displayScreens.loading')" />
@@ -75,6 +76,13 @@
             <div class="screen-columns">
               <section class="settings-block settings-block--content">
                 <h4 class="block-title">{{ t('settings.displayScreens.contentSectionTitle') }}</h4>
+                <ETextField
+                  v-model="drafts[screen.id].name"
+                  class="name-field"
+                  :label="t('settings.displayScreens.screenNameLabel')"
+                  maxlength="120"
+                  hide-details
+                />
                 <ETextarea
                   :id="`subtitle-${screen.id}`"
                   v-model="drafts[screen.id].subtitle_text"
@@ -87,6 +95,8 @@
                 />
                 <p class="muted field-hint">{{ t('settings.displayScreens.subtitleHint') }}</p>
 
+                <p v-if="isGrossanlassDept" class="muted field-hint">{{ t('settings.displayScreens.gaContentHint') }}</p>
+                <template v-else>
                 <p class="label label--tight content-label">{{ t('settings.displayScreens.showPanelsLabel') }}</p>
 
                 <details class="settings-accordion">
@@ -158,6 +168,8 @@
                   </div>
                 </details>
 
+                </template>
+
                 <EButton
                   variant="primary"
                   size="small"
@@ -171,54 +183,34 @@
 
               <section class="settings-block settings-block--access">
                 <h4 class="block-title">{{ t('settings.displayScreens.accessSectionTitle') }}</h4>
-                <div class="access-layout">
-                  <div class="access-main">
-                    <label class="label label--tight">{{ t('settings.displayScreens.urlLabel') }}</label>
-                    <div class="url-row url-row--compact">
-                      <ETextField
-                        class="url-input-field"
-                        :model-value="screen.display_url"
-                        readonly
-                        hide-details
-                        @focus="selectInputText"
-                      />
-                      <div class="url-actions">
-                        <EButton variant="secondary" size="small" @click="copyUrl(screen.display_url)">
-                          {{ t('settings.displayScreens.copyUrl') }}
-                        </EButton>
-                        <EButton variant="secondary" size="small" @click="openDisplayUrl(screen.display_url)">
-                          {{ t('settings.displayScreens.openDisplay') }}
-                        </EButton>
-                      </div>
-                    </div>
-                    <p class="muted setup-hint">{{ t('settings.displayScreens.setupHint') }}</p>
-                    <div v-if="screen.access_code_hint || screen.last_used_at" class="meta-row">
-                      <span v-if="screen.access_code_hint" class="muted meta-item">
-                        {{ t('settings.displayScreens.codeHint', { hint: screen.access_code_hint }) }}
-                      </span>
-                      <span v-if="screen.last_used_at" class="muted meta-item">
-                        {{ t('settings.displayScreens.lastUsed', { date: formatDate(screen.last_used_at) }) }}
-                      </span>
-                    </div>
-                  </div>
-                  <div v-if="screenQrById[screen.id]" class="qr-block qr-block--side">
-                    <img :src="screenQrById[screen.id]" :alt="t('settings.displayScreens.qrAlt')" />
-                    <p class="muted qr-caption">{{ t('settings.displayScreens.qrCaption') }}</p>
-                  </div>
+                <div class="access-actions">
+                  <EButton variant="primary" size="small" @click="openPairExisting(screen)">
+                    {{ t('settings.displayScreens.connectScreen') }}
+                  </EButton>
+                  <EButton
+                    variant="secondary"
+                    size="small"
+                    :title="t('settings.displayScreens.previewHint')"
+                    @click="openPreview(screen)"
+                  >
+                    {{ t('settings.displayScreens.previewOpen') }}
+                  </EButton>
+                  <EButton variant="secondary" size="small" @click="manualScreen = screen">
+                    {{ t('settings.displayScreens.manualAccess') }}
+                  </EButton>
                 </div>
+                <p class="muted setup-hint">{{ t('settings.displayScreens.connectHint') }}</p>
+                <h4 class="block-title devices-title">{{ t('display.devices.title') }}</h4>
+                <DisplayDeviceList
+                  :department-id="selectedDepartmentId || ''"
+                  :devices="devicesByScreen[screen.id] || []"
+                  :targets="activeScreens.filter((x) => x.id !== screen.id && !x.revoked_at).map((x) => ({ id: x.id, name: x.name }))"
+                  @changed="reloadDevices"
+                />
               </section>
             </div>
 
             <div class="screen-footer">
-              <EButton
-                variant="secondary"
-                size="small"
-                :disabled="rotatingId === screen.id"
-                :loading="rotatingId === screen.id"
-                @click="rotateCode(screen)"
-              >
-                {{ t('settings.displayScreens.rotateCode') }}
-              </EButton>
               <EButton
                 variant="danger"
                 size="small"
@@ -234,7 +226,6 @@
           <div v-else class="revoked-line">
             <p class="muted revoked-meta">
               <span class="badge revoked">{{ t('settings.displayScreens.revoked') }}</span>
-              <span class="revoked-url">{{ screen.display_url }}</span>
             </p>
             <EButton
               variant="primary"
@@ -244,6 +235,9 @@
               @click="reactivateScreen(screen)"
             >
               {{ t('settings.displayScreens.reactivate') }}
+            </EButton>
+            <EButton variant="danger" size="small" @click="deleteTarget = screen; deleteConfirmName = ''">
+              {{ t('settings.displayScreens.deletePermanently') }}
             </EButton>
           </div>
         </div>
@@ -256,6 +250,62 @@
       />
     </template>
 
+    <DisplayPairDialog
+      v-model="pairDialogOpen"
+      :department-id="selectedDepartmentId || ''"
+      :screen="pairTarget"
+      @paired="onPaired"
+    />
+
+    <EDialog v-model="manualDialogOpen" :max-width="560" :title="t('settings.displayScreens.manualAccess')">
+      <template v-if="manualScreen">
+        <p class="muted">{{ t('settings.displayScreens.manualHint') }}</p>
+        <p class="label label--tight">{{ t('settings.displayScreens.manualEntryLabel') }}</p>
+        <code class="inline-code">{{ kioskEntryUrl }}</code>
+        <p class="label label--tight mt-3">{{ t('settings.displayScreens.idLabel') }}</p>
+        <code class="inline-code">{{ manualScreen.public_id }}</code>
+        <p v-if="manualScreen.access_code_hint" class="muted mt-3">
+          {{ t('settings.displayScreens.codeHint', { hint: manualScreen.access_code_hint }) }}
+        </p>
+        <p class="muted">{{ t('settings.displayScreens.manualCodeNote') }}</p>
+      </template>
+      <template #actions>
+        <EButton
+          variant="secondary"
+          size="small"
+          :disabled="!manualScreen || rotatingId === manualScreen.id"
+          @click="manualScreen && rotateCode(manualScreen)"
+        >
+          {{ t('settings.displayScreens.rotateCode') }}
+        </EButton>
+        <EButton variant="secondary" size="small" @click="manualScreen = null">{{ t('common.close') }}</EButton>
+      </template>
+    </EDialog>
+
+    <EDialog v-model="deleteDialogOpen" :max-width="480" :title="t('settings.displayScreens.deleteTitle')">
+      <template v-if="deleteTarget">
+        <p>{{ t('settings.displayScreens.deleteMessage', { name: deleteTarget.name }) }}</p>
+        <ETextField
+          v-model="deleteConfirmName"
+          :label="t('settings.displayScreens.deleteConfirmLabel')"
+          autocomplete="off"
+          hide-details
+        />
+      </template>
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="deleteTarget = null">{{ t('common.cancel') }}</EButton>
+        <EButton
+          variant="danger"
+          size="small"
+          :disabled="!deleteTarget || deleteConfirmName.trim() !== deleteTarget.name || deleting"
+          :loading="deleting"
+          @click="deletePermanently"
+        >
+          {{ t('settings.displayScreens.deletePermanently') }}
+        </EButton>
+      </template>
+    </EDialog>
+
     <EDialog
       v-model="setupDialogOpen"
       :max-width="640"
@@ -263,33 +313,16 @@
     >
       <p class="muted">{{ t('settings.displayScreens.setupModalHint') }}</p>
 
-      <ETextField
-        class="mt-3 url-input-field"
-        :model-value="revealedSetup?.url ?? ''"
-        :label="t('settings.displayScreens.urlLabel')"
-        readonly
-        hide-details
-        @focus="selectInputText"
-      />
-      <div class="url-actions mt-2">
-        <EButton variant="primary" size="small" :disabled="!revealedSetup" @click="copyUrl(revealedSetup!.url)">
-          {{ t('settings.displayScreens.copyUrl') }}
-        </EButton>
-        <EButton variant="secondary" size="small" :disabled="!revealedSetup" @click="openDisplayUrl(revealedSetup!.url)">
-          {{ t('settings.displayScreens.openDisplay') }}
-        </EButton>
-      </div>
+      <p class="label label--tight">{{ t('settings.displayScreens.manualEntryLabel') }}</p>
+      <code class="inline-code">{{ kioskEntryUrl }}</code>
+      <p v-if="revealedSetup?.publicId" class="label label--tight mt-3">{{ t('settings.displayScreens.idLabel') }}</p>
+      <code v-if="revealedSetup?.publicId" class="inline-code">{{ revealedSetup.publicId }}</code>
 
       <p class="label code-label">{{ t('settings.displayScreens.accessCodeLabel') }}</p>
       <code class="access-code">{{ revealedSetup?.code }}</code>
 
-      <div v-if="setupQrDataUrl" class="qr-block modal-qr">
-        <img :src="setupQrDataUrl" :alt="t('settings.displayScreens.qrAlt')" />
-      </div>
-
       <template #actions>
-        <EButton variant="primary" size="small" @click="copySetupBundle">{{ t('settings.displayScreens.copyAll') }}</EButton>
-        <EButton variant="secondary" size="small" @click="copyCode">{{ t('settings.displayScreens.copyCode') }}</EButton>
+        <EButton variant="primary" size="small" @click="copyCode">{{ t('settings.displayScreens.copyCode') }}</EButton>
         <EButton variant="secondary" size="small" @click="dismissRevealedSetup">{{ t('common.close') }}</EButton>
       </template>
     </EDialog>
@@ -297,20 +330,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import QRCode from 'qrcode'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { copyTextToClipboard } from '@/utils/clipboard'
-import { assignPathAfterDepartmentSwitch } from '@/utils/departmentRoute'
+import { getDisplayOrigin } from '@/utils/displayHost'
+import DisplayPairDialog from '@/components/display/DisplayPairDialog.vue'
+import DisplayDeviceList from '@/components/display/DisplayDeviceList.vue'
+import { listDisplayDevices, type DisplayDeviceRow } from '@/api/displayDevice'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
-import { EButton, ECheckbox, EDialog, ESelect, ETextField, ETextarea } from '@/components/form/base'
+import { EButton, ECheckbox, EDialog, ETextField, ETextarea } from '@/components/form/base'
 import {
   createDisplayScreen,
+  deleteDisplayScreen,
   listDisplayScreens,
   reactivateDisplayScreen,
   revokeDisplayScreen,
@@ -337,6 +373,7 @@ const displayActivityStatuses = DISPLAY_ACTIVITY_STATUSES
 const displayWorkshopStatuses = DISPLAY_WORKSHOP_STATUSES
 
 interface ScreenDraft {
+  name: string
   subtitle_text: string
   show_activities: boolean
   show_workshop: boolean
@@ -348,6 +385,7 @@ interface ScreenDraft {
 
 function draftFromScreen(screen: DisplayScreenSettings): ScreenDraft {
   return {
+    name: screen.name,
     subtitle_text: screen.subtitle_text || '',
     show_activities: screen.show_activities !== false,
     show_workshop: screen.show_workshop !== false,
@@ -365,12 +403,14 @@ function draftFromScreen(screen: DisplayScreenSettings): ScreenDraft {
 }
 
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const toast = useToast()
 const confirm = useConfirm()
-const { t, locale } = useI18n()
+const { t } = useI18n()
 
-const selectedDepartmentId = ref<string | null>(null)
+/** Das Department kommt ausschliesslich aus der Route (/{departmentId}/dept/… bzw. /{departmentId}/ga/…). */
+const selectedDepartmentId = computed<string | null>(() => String(route.params.departmentId || '') || null)
 const screens = ref<DisplayScreenSettings[]>([])
 const loading = ref(false)
 const creating = ref(false)
@@ -378,28 +418,54 @@ const newScreenName = ref('')
 const rotatingId = ref<string | null>(null)
 const revokingId = ref<string | null>(null)
 const reactivatingId = ref<string | null>(null)
-const revealedSetup = ref<{ url: string; code: string } | null>(null)
-const setupQrDataUrl = ref('')
-const screenQrById = ref<Record<string, string>>({})
+const revealedSetup = ref<{ publicId: string; code: string } | null>(null)
+const devices = ref<DisplayDeviceRow[]>([])
+let devicePoll: ReturnType<typeof setInterval> | null = null
 const expandedIds = ref<Set<string>>(new Set())
 const drafts = ref<Record<string, ScreenDraft>>({})
 const savingSettingsId = ref<string | null>(null)
+const pairDialogOpen = ref(false)
+const pairTarget = ref<DisplayScreenSettings | null>(null)
+const manualScreen = ref<DisplayScreenSettings | null>(null)
+const deleteTarget = ref<DisplayScreenSettings | null>(null)
+const deleteConfirmName = ref('')
+const deleting = ref(false)
+
+const manualDialogOpen = computed({
+  get: () => manualScreen.value !== null,
+  set: (open: boolean) => {
+    if (!open) manualScreen.value = null
+  },
+})
+const deleteDialogOpen = computed({
+  get: () => deleteTarget.value !== null,
+  set: (open: boolean) => {
+    if (!open) deleteTarget.value = null
+  },
+})
 
 const kioskEntryUrl = computed(() => {
+  const displayOrigin = getDisplayOrigin()
+  if (displayOrigin) return displayOrigin
   const origin = (import.meta.env.VITE_APP_ORIGIN || '').trim().replace(/\/$/, '')
   if (origin) return `${origin}/display`
   if (typeof window !== 'undefined') return `${window.location.origin}/display`
   return '/display'
 })
 
+const isGrossanlassRoute = computed(() => route.path.includes('/ga/'))
+/** Fachliche Unterscheidung: Grossanlässe haben keine Department-Anzeigebereiche (Vorlagen folgen). */
+const isGrossanlassDept = computed(
+  () => isGrossanlassRoute.value || authStore.isDepartmentGrossanlass(selectedDepartmentId.value),
+)
+const devicesByScreen = computed(() => {
+  const map: Record<string, DisplayDeviceRow[]> = {}
+  for (const d of devices.value) (map[d.screen_id] ??= []).push(d)
+  return map
+})
+
 const userDepartments = computed(() => authStore.departments || [])
 
-const departmentSelectItems = computed(() =>
-  userDepartments.value.map((dept) => ({
-    title: dept.department?.name || dept.department_id,
-    value: dept.department_id,
-  })),
-)
 
 const setupDialogOpen = computed({
   get: () => revealedSetup.value !== null,
@@ -408,21 +474,57 @@ const setupDialogOpen = computed({
   },
 })
 
-function selectInputText(event: FocusEvent) {
-  const el = event.target as HTMLInputElement | null
-  el?.select?.()
+/** Vorschau im neuen Tab: gleiche Anzeige-Engine, Daten über die normale User-Berechtigung. */
+function openPreview(screen: DisplayScreenSettings) {
+  const href = router.resolve({
+    name: 'DisplayPreview',
+    params: { departmentId: screen.department_id, screenId: screen.id },
+    query: { back: route.fullPath },
+  }).href
+  window.open(href, '_blank')
 }
 
-function openDisplayUrl(url: string) {
-  if (!url) return
-  window.open(url, '_blank', 'noopener,noreferrer')
+function openPairNew() {
+  pairTarget.value = null
+  pairDialogOpen.value = true
 }
+
+function openPairExisting(screen: DisplayScreenSettings) {
+  pairTarget.value = screen
+  pairDialogOpen.value = true
+}
+
+async function onPaired() {
+  if (selectedDepartmentId.value) await loadScreens(selectedDepartmentId.value)
+  toast.success(t('settings.displayScreens.toastPaired'))
+  // Das Gerät entsteht erst, wenn der Fernseher die Freigabe abholt (Polling alle 2 s): danach nachladen.
+  setTimeout(() => void reloadDevices(), 4000)
+}
+
+async function deletePermanently() {
+  const target = deleteTarget.value
+  if (!target || !selectedDepartmentId.value || deleteConfirmName.value.trim() !== target.name) return
+  deleting.value = true
+  try {
+    await deleteDisplayScreen(selectedDepartmentId.value, target.id)
+    screens.value = screens.value.filter((s) => s.id !== target.id)
+    deleteTarget.value = null
+    toast.success(t('settings.displayScreens.toastDeleted'))
+  } catch (err: unknown) {
+    const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+    toast.error(msg || t('settings.displayScreens.toastDeleteError'))
+  } finally {
+    deleting.value = false
+  }
+}
+
 const currentRole = computed(() => {
   if (!selectedDepartmentId.value) return 'user'
   const dept = userDepartments.value.find((d) => d.department_id === selectedDepartmentId.value)
   return dept?.role || 'user'
 })
 const canManage = computed(() => {
+  if ((authStore.userRoles || []).includes('ROLE_SUPERADMIN')) return true
   const normalizedRole = String(currentRole.value || '').toLowerCase().trim()
   return ['dc', 'depchef', 'mw', 'matwart', 'sa', 'superadmin', 'org', 'organisationschef', 'sub', 'suborgchef'].includes(
     normalizedRole,
@@ -445,8 +547,8 @@ function toggleExpanded(screenId: string) {
   expandedIds.value = next
 }
 
-function syncExpandedFromScreens(_list: DisplayScreenSettings[]) {
-  expandedIds.value = new Set()
+function syncExpandedFromScreens(list: DisplayScreenSettings[]) {
+  expandedIds.value = new Set([...expandedIds.value].filter((id) => list.some((s) => s.id === id)))
 }
 
 function initDraftsFromScreens(list: DisplayScreenSettings[]) {
@@ -461,26 +563,31 @@ async function saveSettings(screen: DisplayScreenSettings) {
   if (!selectedDepartmentId.value || screen.revoked_at) return
   const draft = drafts.value[screen.id]
   if (!draft) return
-  if (!draft.show_activities && !draft.show_workshop && !draft.show_statistics) {
+  if (!draft.name.trim()) return
+  if (!isGrossanlassDept.value && !draft.show_activities && !draft.show_workshop && !draft.show_statistics) {
     toast.error(t('settings.displayScreens.errorNoPanel'))
     return
   }
-  if (draft.show_activities && listFromRecord(DISPLAY_ACTIVITY_TYPES, draft.activity_types).length === 0) {
+  if (!isGrossanlassDept.value && draft.show_activities && listFromRecord(DISPLAY_ACTIVITY_TYPES, draft.activity_types).length === 0) {
     toast.error(t('settings.displayScreens.errorNoActivityType'))
     return
   }
-  if (draft.show_activities && listFromRecord(DISPLAY_ACTIVITY_STATUSES, draft.activity_statuses).length === 0) {
+  if (!isGrossanlassDept.value && draft.show_activities && listFromRecord(DISPLAY_ACTIVITY_STATUSES, draft.activity_statuses).length === 0) {
     toast.error(t('settings.displayScreens.errorNoActivityStatus'))
     return
   }
-  if (draft.show_workshop && listFromRecord(DISPLAY_WORKSHOP_STATUSES, draft.workshop_statuses).length === 0) {
+  if (!isGrossanlassDept.value && draft.show_workshop && listFromRecord(DISPLAY_WORKSHOP_STATUSES, draft.workshop_statuses).length === 0) {
     toast.error(t('settings.displayScreens.errorNoWorkshopStatus'))
     return
   }
 
   savingSettingsId.value = screen.id
   try {
-    const updated = await updateDisplayScreenSettings(selectedDepartmentId.value, screen.id, {
+    const updated = await updateDisplayScreenSettings(selectedDepartmentId.value, screen.id, isGrossanlassDept.value ? {
+      name: draft.name.trim(),
+      subtitle_text: draft.subtitle_text.trim() || null,
+    } : {
+      name: draft.name.trim(),
       subtitle_text: draft.subtitle_text.trim() || null,
       show_activities: draft.show_activities,
       show_workshop: draft.show_workshop,
@@ -500,56 +607,36 @@ async function saveSettings(screen: DisplayScreenSettings) {
   }
 }
 
-async function buildQrDataUrl(url: string): Promise<string> {
-  const payload = url.trim()
-  if (!payload) return ''
-  return QRCode.toDataURL(payload, { width: 128, margin: 1 })
-}
-
-async function refreshScreenQrs(list: DisplayScreenSettings[]) {
-  const next: Record<string, string> = {}
-  await Promise.all(
-    list
-      .filter((s) => !s.revoked_at && s.display_url)
-      .map(async (s) => {
-        next[s.id] = await buildQrDataUrl(s.display_url)
-      }),
-  )
-  screenQrById.value = next
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  const tag = String(locale.value ?? '').startsWith('de') ? 'de-CH' : 'en-CH'
-  return d.toLocaleString(tag, { dateStyle: 'medium', timeStyle: 'short' })
-}
-
-async function showRevealedSetup(url: string, code: string) {
-  revealedSetup.value = { url, code }
-  setupQrDataUrl.value = await buildQrDataUrl(url)
+function showRevealedSetup(publicId: string, code: string) {
+  revealedSetup.value = { publicId, code }
 }
 
 function dismissRevealedSetup() {
   revealedSetup.value = null
-  setupQrDataUrl.value = ''
+}
+
+async function reloadDevices() {
+  if (!selectedDepartmentId.value || !canManage.value) return
+  try {
+    devices.value = await listDisplayDevices(selectedDepartmentId.value)
+  } catch {
+    devices.value = []
+  }
 }
 
 async function loadScreens(deptId: string) {
   if (!canManage.value) {
     screens.value = []
-    screenQrById.value = {}
     return
   }
   loading.value = true
   try {
     screens.value = await listDisplayScreens(deptId)
+    await reloadDevices()
     initDraftsFromScreens(screens.value)
     syncExpandedFromScreens(screens.value)
-    await refreshScreenQrs(screens.value)
   } catch {
     screens.value = []
-    screenQrById.value = {}
     toast.error(t('settings.displayScreens.toastLoadError'))
   } finally {
     loading.value = false
@@ -565,10 +652,7 @@ async function createScreen() {
     initDraftsFromScreens(screens.value)
     syncExpandedFromScreens(screens.value)
     newScreenName.value = ''
-    if (created.access_code && created.display_url) {
-      await showRevealedSetup(created.display_url, created.access_code)
-    }
-    await refreshScreenQrs(screens.value)
+    if (created.access_code) showRevealedSetup(created.public_id, created.access_code)
     toast.success(t('settings.displayScreens.toastCreated'))
   } catch (err: unknown) {
     const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
@@ -593,10 +677,7 @@ async function rotateCode(screen: DisplayScreenSettings) {
   try {
     const updated = await rotateDisplayScreenCode(selectedDepartmentId.value, screen.id)
     screens.value = screens.value.map((s) => (s.id === screen.id ? updated : s))
-    if (updated.access_code && updated.display_url) {
-      await showRevealedSetup(updated.display_url, updated.access_code)
-    }
-    await refreshScreenQrs(screens.value)
+    if (updated.access_code) showRevealedSetup(updated.public_id, updated.access_code)
     toast.success(t('settings.displayScreens.toastRotated'))
   } catch {
     toast.error(t('settings.displayScreens.toastRotateError'))
@@ -620,7 +701,6 @@ async function revokeScreen(screen: DisplayScreenSettings) {
   try {
     const updated = await revokeDisplayScreen(selectedDepartmentId.value, screen.id)
     screens.value = screens.value.map((s) => (s.id === screen.id ? updated : s))
-    await refreshScreenQrs(screens.value)
     toast.success(t('settings.displayScreens.toastRevoked'))
   } catch {
     toast.error(t('settings.displayScreens.toastRevokeError'))
@@ -646,22 +726,13 @@ async function reactivateScreen(screen: DisplayScreenSettings) {
     screens.value = screens.value.map((s) => (s.id === screen.id ? updated : s))
     initDraftsFromScreens(screens.value)
     syncExpandedFromScreens(screens.value)
-    if (updated.access_code && updated.display_url) {
-      await showRevealedSetup(updated.display_url, updated.access_code)
-    }
-    await refreshScreenQrs(screens.value)
+    if (updated.access_code) showRevealedSetup(updated.public_id, updated.access_code)
     toast.success(t('settings.displayScreens.toastReactivated'))
   } catch {
     toast.error(t('settings.displayScreens.toastReactivateError'))
   } finally {
     reactivatingId.value = null
   }
-}
-
-async function copyUrl(url: string) {
-  const ok = await copyTextToClipboard(url)
-  if (ok) toast.success(t('settings.displayScreens.toastCopiedUrl'))
-  else toast.error(t('settings.addressModal.clipboardDenied'))
 }
 
 async function copyCode() {
@@ -671,33 +742,37 @@ async function copyCode() {
   else toast.error(t('settings.addressModal.clipboardDenied'))
 }
 
-async function copySetupBundle() {
-  if (!revealedSetup.value) return
-  const text = `${t('settings.displayScreens.urlLabel')}: ${revealedSetup.value.url}\n${t('settings.displayScreens.accessCodeLabel')}: ${revealedSetup.value.code}`
-  const ok = await copyTextToClipboard(text)
-  if (ok) toast.success(t('settings.displayScreens.toastCopiedAll'))
-  else toast.error(t('settings.addressModal.clipboardDenied'))
-}
-
-async function onDepartmentChange() {
-  if (!selectedDepartmentId.value) return
-  const newDeptId = selectedDepartmentId.value
-  await authStore.setActiveDepartment(newDeptId)
-  const oldDeptId = route.params.departmentId as string | undefined
-  if (oldDeptId && oldDeptId !== newDeptId) {
-    assignPathAfterDepartmentSwitch(route.path, oldDeptId, newDeptId)
-    return
-  }
-  await loadScreens(newDeptId)
-}
-
 onMounted(async () => {
-  selectedDepartmentId.value = authStore.activeDepartmentId || (userDepartments.value[0]?.department_id ?? null)
   if (selectedDepartmentId.value) await loadScreens(selectedDepartmentId.value)
+  // Online-Status der Geräte laufend aktualisieren.
+  devicePoll = setInterval(() => void reloadDevices(), 30_000)
+})
+
+onBeforeUnmount(() => {
+  if (devicePoll) clearInterval(devicePoll)
+})
+
+watch(selectedDepartmentId, async (deptId) => {
+  if (deptId) await loadScreens(deptId)
 })
 </script>
 
 <style scoped>
+.devices-title {
+  margin-top: 16px;
+}
+.create-card .muted {
+  font-size: 14px;
+  margin: 4px 0 10px;
+}
+.create-actions {
+  margin-bottom: 8px;
+}
+.access-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .settings-page {
   display: flex;
   flex-direction: column;

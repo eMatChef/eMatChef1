@@ -708,7 +708,7 @@ function costKindLabel(kind: string | null | undefined): string {
 }
 
 function goCategorySettings() {
-  void router.push(`/${departmentId.value}/einstellungen/kategorien`)
+  void router.push(`/${departmentId.value}/ga/einstellungen/kategorien`)
 }
 
 const pool = ref<GrossanlassProcurementPoolWish[]>([])

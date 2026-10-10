@@ -379,6 +379,10 @@ Ein Passwort-Reset:
 - entfernt OAuth-Verknüpfungen nicht;
 - umgeht Admin-2FA nicht.
 
+### Globale Auth-URLs
+
+Anmeldung, Registrierung und Passwortverwaltung sind department-unabhängig unter `/login`, `/register`, `/forgot-password` und `/reset-password` erreichbar (alle rendern `LoginView`; die URL folgt dem sichtbaren Formular). Alte Links `/login?register=1` und `/login?forgot=1` (E-Mails) werden auf `/register` bzw. `/reset-password` umgeleitet. Zuordnung der URLs, Rücksprung (`redirect`/`next`/`from`) und OAuth-Rückweg: siehe [ARCHITECTURE.md → URL-Struktur](./ARCHITECTURE.md). `redirect`/`next` werden über `parseInternalRedirectPath` nur als interne Pfade akzeptiert (kein `//`, kein Backslash, keine Steuerzeichen).
+
 ---
 
 ## 15. Trusted Devices / MFA Trust
@@ -567,7 +571,7 @@ Der Admin-Endpoint `PATCH /api/users/{id}/admin` lehnt E-Mail-Änderungen für u
 
 ---
 
-## Offene Folgeaufgaben (Profil → Sicherheit)
+## Offene Folgeaufgaben (Profil)
 
 - **Server-Cron fehlt:** `app:security-activity:purge-context` (IP/User-Agent nach 90 Tagen leeren) ist dokumentiert (`deploy/SERVER-UPDATE.md`), aber auf Staging/Prod noch nicht eingerichtet.
 - **Google Link/Unlink:** umgesetzt (siehe `ARCHITECTURE.md`, «Verknüpfte Anmeldungen»); Praxistests gegen echtes Google/MiData stehen aus (mehrere Konten pro Anbieter, Abbruch, Konflikt, Rückkehr ins Profil).

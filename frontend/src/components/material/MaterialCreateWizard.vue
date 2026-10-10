@@ -300,7 +300,7 @@
                     </button>
                     <RouterLink
                       class="btn-secondary btn-sm name-duplicate-hint__link"
-                      :to="`/${departmentId}/materials/${duplicateNameMaterial.id}`"
+                      :to="`/${departmentId}/dept/materials/${duplicateNameMaterial.id}`"
                     >
                       {{ t('components.materialCreateWizard.btnToMaterial') }}
                     </RouterLink>
@@ -1059,7 +1059,7 @@
                             </button>
                             <RouterLink
                               class="btn-secondary btn-sm name-duplicate-hint__link"
-                              :to="`/${departmentId}/materials/${mat._duplicateMaterial.id}`"
+                              :to="`/${departmentId}/dept/materials/${mat._duplicateMaterial.id}`"
                             >
                               {{ t('components.materialCreateWizard.btnToMaterial') }}
                             </RouterLink>

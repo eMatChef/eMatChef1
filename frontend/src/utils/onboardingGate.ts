@@ -93,8 +93,7 @@ export const HELP_EINRICHTUNG_ROLES = HELP_TOURS_ROLES
 export function isHelpToursPath(path: string, departmentId: string): boolean {
   const normalized = path.replace(/\/$/, '') || '/'
   return (
-    normalized === `/${departmentId}/help/tours` ||
-    normalized === `/${departmentId}/help/einrichtung`
+    normalized === `/${departmentId}/dept/help/tours`
   )
 }
 
@@ -109,7 +108,7 @@ export function isOnboardingHubPath(path: string, departmentId: string): boolean
 }
 
 export function isDepartmentHomePath(path: string, departmentId: string): boolean {
-  return path === `/${departmentId}` || path === `/${departmentId}/` || path === `/${departmentId}/dashboard`
+  return path === `/${departmentId}` || path === `/${departmentId}/dept/dashboard` || path === `/${departmentId}/ga/dashboard`
 }
 
 const doneCache = new Map<string, { done: boolean | null; at: number }>()

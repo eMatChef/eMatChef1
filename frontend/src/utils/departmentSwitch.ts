@@ -32,10 +32,10 @@ export function departmentDisplayName(
   return isGrossanlassDepartment(dept) ? `${base} (${grossanlassLabel})` : base
 }
 
-/** Ziel nach Dept-Wechsel: Grossanlass- und Pfadi-Home ist /{deptId} (Dashboard). */
-export function departmentHomePath(departmentId: string): string {
+/** Dashboard des Departments: /{id}/ga/dashboard (Grossanlass) bzw. /{id}/dept/dashboard. */
+export function departmentHomePath(departmentId: string, isGrossanlass: boolean): string {
   if (!isValidEntityId(departmentId)) {
     return '/'
   }
-  return `/${departmentId}`
+  return `/${departmentId}/${isGrossanlass ? 'ga' : 'dept'}/dashboard`
 }

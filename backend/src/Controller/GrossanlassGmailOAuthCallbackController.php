@@ -68,7 +68,7 @@ final class GrossanlassGmailOAuthCallbackController extends AbstractController
     private function finish(string $departmentId, string $status, ?string $reason = null): RedirectResponse
     {
         $path = $departmentId !== ''
-            ? '/' . $departmentId . '/einstellungen/anfragen-email'
+            ? '/' . $departmentId . '/ga/einstellungen/anfragen-email'
             : '/login';
         $query = ['gmail' => $status];
         if ($reason) {

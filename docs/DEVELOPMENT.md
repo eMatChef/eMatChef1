@@ -23,7 +23,7 @@ Lokal: `docker compose up` im Repo-Root (Postgres, Backend, Frontend, Nginx). Ho
 | HTTP-Endpunkt | bestehender Controller unter `backend/src/Controller/`, Logik in `backend/src/Service/` |
 | Tabelle / Beziehung | Entity + Doctrine-Migration in `backend/migrations/` |
 | API-Aufruf im Client | `frontend/src/api/<ressource>.ts` |
-| Seite | `frontend/src/views/…` und Route in `frontend/src/router/index.ts` |
+| Seite | `frontend/src/views/…` und Route in `frontend/src/router/index.ts` — Pfadkonvention (`/dept/…`, `/ga/…`, global) in [ARCHITECTURE.md → URL-Struktur](./ARCHITECTURE.md) |
 | Wiederverwendbare UI | `frontend/src/components/`, Konventionen [ui/vuetify-standards.md](./ui/vuetify-standards.md) |
 | Sichtbarer Text | zuerst `frontend/src/locales/de.json` |
 | Department-Rolle | `DepartmentRole`, `MembershipRoleCatalog`, Router-Guards in `useDepartmentMemberRole.ts` |
@@ -46,6 +46,12 @@ Migrationen gegen eine Wegwerf-DB, ohne die lokale `mvdb` zu verändern:
 ./scripts/test-migrations.sh
 ```
 
+Tests mit Datenbankzugriff (Infoscreen-Geräte, Kopplung und Erinnerungen, Grossanlass, Demo-Seeds) liegen unter `backend/tests/Integration/` und nutzen `IsolatedDatabase`. Sie laufen nur mit `EMATCHEF_TEST_DB_URL` gegen eine isolierte, migrierte Datenbank (Name `val_*` oder `*_test`, nie `mvdb`) und sind ohne die Variable übersprungen. Der CI-Job «Backend» stellt dafür eine Wegwerf-PostgreSQL (`val_ci`) bereit, migriert sie und führt `phpunit --fail-on-skipped` aus: ein übersprungener Test macht den Check rot. Jeder Test legt seine Departments selbst an und endet mit Rollback:
+
+```bash
+EMATCHEF_TEST_DB_URL='postgresql://val:val@127.0.0.1:55432/val_display?serverVersion=16&charset=utf8' ./vendor/bin/phpunit tests/Integration
+```
+
 Frontend (auf dem Host in `frontend/`, oder im Container wenn der Stack läuft):
 
 ```bash
@@ -64,6 +70,34 @@ bash scripts/check-locales.sh
 Playwright gegen die laufende Develop-App, nicht gegen localhost: [E2E.md](./E2E.md).
 
 Git-Hooks (Pre-Push ohne Playwright, Prepare-Commit-Msg): `./scripts/install-git-hooks.sh`.
+
+**Pre-Push** (`.githooks/pre-push`, gleiche Checks wie `ci.yml`, ohne Playwright): Locales, danach Frontend (ESLint, Vitest, vue-tsc, Vite-Build) und Backend (`composer validate`, PHPUnit mit Integrationstests und `--fail-on-skipped`, PHPStan). Frontend und Backend laufen über `scripts/hooks/docker-checks.sh frontend|backend`, das in jedem Worktree funktioniert:
+
+- Sind die Werkzeuge im Worktree vorhanden (`frontend/node_modules/.bin`, bzw. `backend/vendor/bin` plus gesetztes `EMATCHEF_TEST_DB_URL`), laufen sie lokal.
+- Sonst (typisch in zusätzlichen Worktrees, wo `node_modules`/`vendor` nur leere Docker-Mountpunkte sind) läuft ein kurzlebiger Container (`docker run --rm`) aus den Images `ematchef-frontend` / `ematchef-backend`. Der Quellcode ist der **aktuelle Worktree**, schreibgeschützt eingehängt und in ein tmpfs kopiert (kein Schreiben in den Worktree, kein Bezug zum Haupt-Worktree). Die Abhängigkeiten kommen aus den Volumes `ematchef_frontend_node_modules` und `ematchef_backend_vendor` des Dev-Stacks (Dev-Stack einmal mit `docker compose up -d` gestartet haben).
+- Das Backend nutzt eine Wegwerf-PostgreSQL (`postgres:16`, Datenbank `val_hook`, eigenes Docker-Netz, nach dem Lauf entfernt), migriert sie und führt Unit- und Integrationstests aus; `mvdb` wird nie berührt.
+- Fehlt Docker, ein Image oder ein Volume, bricht der Hook mit Meldung ab; nichts wird still übersprungen. Namen sind per `EMATCHEF_HOOK_*`-Variablen überschreibbar (siehe Kopf von `docker-checks.sh`). Das Dev-Image läuft mit Node 18, daher gibt ESLint im Container JSON aus (Ergebnis und Exit-Code unverändert).
+- Dauer ca. 5 Minuten je Bereich.
+
+## Lokalen Docker-Stack auf einen Worktree umstellen
+
+Der lokale Stack (`https://app.ematchef.test`) bindet `./backend` und `./frontend` per Bind-Mount ein; Datenbank (`ematchef_postgres_data`), `backend_vendor` und `frontend_node_modules` sind benannte Volumes und bleiben erhalten. Um einen anderen Worktree zu zeigen, im Worktree ausführen (Projektname kommt aus `COMPOSE_PROJECT_NAME` der `.env`):
+
+```bash
+cp -a <haupt>/.env <haupt>/docker-compose.override.yml .
+cp -a <haupt>/backend/.env.local backend/
+mkdir -p backend/config/jwt docker/certs && cp -a <haupt>/backend/config/jwt/. backend/config/jwt/ && cp -a <haupt>/docker/certs/. docker/certs/
+docker compose -p ematchef up -d --no-deps --force-recreate backend frontend
+docker exec ematchef-nginx-1 nginx -s reload   # Upstream-IPs neu auflösen, sonst 502
+```
+
+- Der Entrypoint des Backends führt beim Start `doctrine:migrations:migrate` gegen die gemeinsame Datenbank aus. Kennt der Worktree Migrationen nicht, die bereits angewendet sind (anderer Branch), meldet Doctrine nur eine Warnung.
+- Zurück zum Hauptworktree: derselbe `up`-Befehl im Hauptverzeichnis.
+- Kein `node_modules`-Symlink im Worktree anlegen (liegt im Volume); Tests im Container ausführen: `docker exec ematchef-frontend-1 sh -c "cd /app && npx vitest run"`.
+
+## Infoscreen-Domain lokal
+
+`display.ematchef.test` braucht einen Hosts-Eintrag (Windows, Administrator: `127.0.0.1 display.ematchef.test`); das mkcert-Wildcard-Zertifikat deckt die Subdomain ab. Nach Änderung an Vite-/Nginx-Konfiguration Frontend-Container neu starten und Nginx neu laden; wenn der Nginx die Konfiguration eines anderen Worktrees mountet, `scripts/dev-nginx-display.sh` ausführen. Erinnerungen: `php bin/console app:display:expiry-reminders`. Details: [devices/infoscreen.md](./devices/infoscreen.md).
 
 ## Tests
 

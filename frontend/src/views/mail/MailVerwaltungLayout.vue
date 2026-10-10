@@ -45,7 +45,7 @@ const isProdBuild = import.meta.env.PROD
 const mailBase = computed(() => {
   const raw = route.params.departmentId
   if (typeof raw === 'string' && raw.trim()) {
-    return `/${raw}/verwaltung/mail`
+    return `/${raw}/dept/verwaltung/mail`
   }
   return '/admin-dashboard/verwaltung/mail'
 })

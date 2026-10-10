@@ -8,6 +8,11 @@
   "router": {
     "meta": {
       "titles": {
+        "profile": "Profile · eMatChef",
+        "profileSecurity": "Profile · Security · eMatChef",
+        "profileEmails": "Profile · Email addresses · eMatChef",
+        "profileIdentities": "Profile · Connected sign-ins · eMatChef",
+        "profileDepartments": "Profile · Departments · eMatChef",
         "publicLookup": "Item info · eMatChef",
         "landingHome": "eMatChef · inventory management",
         "tos": "Terms & privacy · eMatChef",
@@ -168,6 +173,96 @@
     }
   },
   "display": {
+    "devices": {
+      "title": "Connected devices",
+      "none": "No device connected yet.",
+      "online": "Online",
+      "offline": "Offline",
+      "state": { "active": "Approved", "expired": "Approval expired", "revoked": "Revoked" },
+      "validUntil": "Approved until {date} ({days} days left)",
+      "expiredAt": "Expired on {date}",
+      "revokedAt": "Revoked on {date}",
+      "lastContact": "Last contact: {date}",
+      "neverContacted": "No contact yet",
+      "via": { "manual": "Signed in manually", "migrated": "Taken over from earlier sign-in", "pairing": "Paired by QR" },
+      "rename": "Rename",
+      "extend": "Extend approval",
+      "reapprove": "Approve again",
+      "reassign": "Assign to another info display",
+      "reassignHint": "The device will then show the chosen info display of this department, without pairing again.",
+      "reassignTarget": "Info display",
+      "revoke": "Revoke",
+      "delete": "Delete permanently",
+      "revokedHint": "New QR pairing required.",
+      "confirmRevokeTitle": "Revoke device",
+      "confirmRevokeMessage": "“{name}” stops showing content as soon as it reaches the server. Connecting it again requires a new QR pairing.",
+      "confirmDeleteTitle": "Delete device permanently",
+      "confirmDeleteMessage": "“{name}” will be deleted permanently. The device ID is never reused.",
+      "toastRenamed": "Device renamed.",
+      "toastExtended": "Approval extended by 90 days.",
+      "toastReassigned": "Device assigned.",
+      "toastRevoked": "Device revoked.",
+      "toastDeleted": "Device deleted.",
+      "error": "Action failed."
+    },
+    "offline": {
+      "banner": "Offline – data may be out of date",
+      "lastUpdate": "Last update: {time}"
+    },
+    "expired": {
+      "title": "Approval expired",
+      "text": "The approval of this device “{name}” has expired.",
+      "waiting": "The device is waiting for the responsible people to approve it again and will then start automatically."
+    },
+    "gaTemplatePending": "No display template has been published for this large event yet.",
+    "pairDialog": {
+      "titleNew": "Add info display",
+      "titleExisting": "Connect screen",
+      "scanHint": "Open the display address on the TV and scan its QR code with the camera.",
+      "scannerHint": "Hold the TV's QR code in view.",
+      "pasteLabel": "Or paste the pairing link",
+      "pastePlaceholder": "https://…/connect-display/…",
+      "pasteSubmit": "Continue",
+      "notDisplayQr": "This is not an info display QR code.",
+      "expired": "The QR code has expired or was already used. A new one appears on the TV.",
+      "failed": "That did not work. Please try again.",
+      "verify": "Make sure this code is shown on the TV:",
+      "connectExisting": "The TV will be connected to “{name}”.",
+      "rescan": "Scan again",
+      "deviceName": "Device name",
+      "deviceNamePlaceholder": "e.g. Entrance TV",
+      "confirm": "Connect"
+    },
+    "home": {
+      "title": "eMatChef Infoscreen",
+      "lead": "Connect this screen with your phone",
+      "step1": "Scan the QR code with your phone.",
+      "step2": "Sign in to eMatChef if asked.",
+      "step3": "Choose the info display and confirm the pairing.",
+      "verifyCode": "Check code, also shown on your phone:",
+      "manual": "Enter ID and access code instead",
+      "qrAlt": "QR code to connect this info display",
+      "preparing": "Preparing QR code…",
+      "startError": "Could not reach the server. Retrying automatically."
+    },
+    "pair": {
+      "title": "Connect info display",
+      "loading": "Checking pairing request…",
+      "verify": "Make sure this code is shown on the screen:",
+      "noScreens": "You do not manage an info display yet. Create one first under Settings → Info displays.",
+      "selectScreen": "Info display",
+      "grossanlass": "Large event",
+      "confirm": "Confirm pairing",
+      "done": "Connected. The screen starts in a few seconds.",
+      "expired": "The pairing request has expired or was already used.",
+      "retryHint": "A new QR code appears on the screen automatically.",
+      "forbidden": "You are not allowed to pair this info display.",
+      "failed": "Pairing failed. Please try again."
+    },
+    "preview": {
+      "badge": "Preview",
+      "back": "Back to settings"
+    },
     "title": "Info display",
     "subtitle": "Events and workshop at a glance — scan the QR code with a phone to open the public info page for guests and helpers",
     "upcomingActivities": "Upcoming activities",
@@ -2211,9 +2306,65 @@
       }
     },
     "settings": {
+    "displayScreens": {
+      "title": "Info displays",
+      "description": "Department screens: events and workshop with QR codes. New screens are connected by QR code using your phone or scanner and stay signed in afterwards.",
+      "descriptionGa": "Large-event screens. New screens are connected by QR code using the scanner and stay signed in afterwards.",
+      "add": "Add info display",
+      "addHint": "Open the display address on the TV, then scan the QR code shown there. Name it and confirm; the screen starts automatically.",
+      "createWithoutScanner": "Create without scanner (manual access)",
+      "createWithoutScannerHint": "Creates the info display and shows address and access code once for manual entry.",
+      "connectScreen": "Connect screen",
+      "connectHint": "Connects this info display to another or a new TV by QR code.",
+      "manualAccess": "Manual access",
+      "manualHint": "Address for opening it manually. The access code is shown only once, when created or renewed.",
+      "manualEntryLabel": "Entry on the device (enter ID and access code):",
+      "manualCodeNote": "Use “Renew code” for a new access code: existing sign-ins become invalid.",
+      "toastPaired": "Info display connected.",
+      "deletePermanently": "Delete permanently",
+      "deleteTitle": "Delete info display permanently",
+      "deleteMessage": "“{name}” will be deleted irreversibly with its configuration and access. The ID is never reused.",
+      "deleteConfirmLabel": "Type the name to confirm",
+      "toastDeleted": "Info display deleted.",
+      "toastDeleteError": "The info display could not be deleted.",
+      "kioskEntryHint": "Connect a new screen: open the display address on the TV and scan the QR code with your phone. Manual entry (ID and code):",
+      "previewOpen": "Open preview",
+      "screenNameLabel": "Info display name",
+      "gaContentHint": "Large events have no department display areas. Display content will follow via templates; until then you can change name and subtitle.",
+      "idLabel": "Info display ID",
+      "previewHint": "Shows the info display with the saved configuration in a new tab, without pairing or code.",
+      "gaDemoLink": "Large-event display examples"
+    },
       "title": "Setup",
       "progress": "{done} of {total} steps done",
       "openHub": "Open Help → Setup"
+    }
+  },
+  "profile": {
+    "page": {
+      "title": "Profile",
+      "subtitle": "Personal details, security, email addresses, connected sign-ins and departments.",
+      "back": "Back",
+      "tabsAria": "Profile sections",
+      "tabs": {
+        "basics": "Personal",
+        "security": "Security",
+        "emails": "Email addresses",
+        "identities": "Connected sign-ins",
+        "departments": "Departments"
+      },
+      "addressNeedsDepartment": "The address is stored in the active department. Select a department first to edit it."
+    },
+    "modal": {
+      "openAsPage": "Open as page"
+    },
+    "departments": {
+      "title": "My departments",
+      "hint": "Your memberships. Changes are made in the settings of the respective department.",
+      "empty": "You are not assigned to a department yet.",
+      "primary": "Primary",
+      "active": "Active",
+      "grossanlass": "Major event"
     }
   },
   "layout": {
@@ -2556,7 +2707,7 @@
       "firstName": "First name",
       "email": "Email",
       "editEmailTitle": "Manage email addresses",
-      "emailManagedInSecurity": "Manage your primary address under “Security → Email addresses”.",
+      "emailManagedInSecurity": "You manage the main address in the «Email addresses» section.",
       "emailNewMustVerify": "The new email must be confirmed. Until then, your previous email stays valid.",
       "emailPendingSent": "Confirmation link sent for the new address: {pending}. Until confirmed, {current} stays active.",
       "nickname": "Nickname",

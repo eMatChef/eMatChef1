@@ -192,7 +192,7 @@ Beide können `device_id` teilen, sind aber getrennte Tabellen/Konzepte.
 
 | | Infoscreen | Gekoppeltes Lager-Gerät |
 |--|------------|-------------------------|
-| Host | `app.…/display/{publicId}` | `devices.…` |
+| Host | `display.…` (alt: `app.…/display/{publicId}`) | `devices.…` |
 | Auth | PIN am Screen, **kein** User-JWT | Geräte-Cookie + **User + PIN** → User-Session |
 | Rechte | nur Anzeige | Pack-/Scan-APIs wie heute |
 | Audit | Display-Events | User + Gerät an Workflow-Aktionen |

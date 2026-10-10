@@ -195,6 +195,6 @@ final class JoinRequestManagerNotificationService implements JoinRequestNotifier
 
     private function buildDepartmentUsersSettingsUrl(string $departmentId): string
     {
-        return rtrim($this->frontendUrl, '/') . '/' . $departmentId . '/settings/users';
+        return rtrim($this->frontendUrl, '/') . '/' . $departmentId . '/dept/settings/users';
     }
 }

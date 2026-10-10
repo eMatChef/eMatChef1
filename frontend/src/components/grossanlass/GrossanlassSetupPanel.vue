@@ -86,9 +86,9 @@ const canTour = computed(() => canUseGrossanlassSetupTour(authStore, props.depar
 
 function stepLink(step: GaSetupStepId): string {
   const base = `/${props.departmentId}`
-  if (step === 'stammdaten') return `${base}/einstellungen/stammdaten`
-  if (step === 'ressorts') return `${base}/einstellungen/ressorts`
-  return `${base}/settings/users`
+  if (step === 'stammdaten') return `${base}/ga/einstellungen/stammdaten`
+  if (step === 'ressorts') return `${base}/ga/einstellungen/ressorts`
+  return `${base}/dept/settings/users`
 }
 
 function missingLabel(missing: GaSetupMissing): string {

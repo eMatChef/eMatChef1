@@ -47,7 +47,7 @@ Nicht Teil von Phase D5. Phase D5 im [rollout-plan.md](./rollout-plan.md) ist da
 | Anlass-QR | `qr.ematchef.ch/i/a/{activityCode}` |
 | **Lager-Packen** | `devices.ematchef.ch/{dept}/pack/{activityId}` |
 | Scanner tippt URL | Parser auf `devices.` — **kein** Wechsel zu `qr.` |
-| Infoscreen (Kiosk) | `app.ematchef.ch/display/{publicId}` |
+| Infoscreen (Kiosk) | `display.ematchef.ch` (QR-Kopplung), `display.ematchef.ch/display/{publicId}` — siehe [infoscreen.md](./infoscreen.md) |
 | Volle Verwaltung | `app.ematchef.ch` |
 
 ---

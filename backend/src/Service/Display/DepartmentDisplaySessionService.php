@@ -9,17 +9,23 @@ use Symfony\Component\HttpFoundation\Request;
 
 /**
  * Signierte HttpOnly-Cookie-Session für Infoscreens (kein User-JWT).
+ *
+ * Pro Screen ein eigenes, hostgebundenes Cookie (Name mit publicId, Pfad auf die Screen-API
+ * begrenzt), damit mehrere Displays im selben Browser sich nicht überschreiben und das Cookie
+ * nie an andere Subdomains oder an die normale App-API gesendet wird.
  */
 final class DepartmentDisplaySessionService
 {
-    public const COOKIE_NAME = 'EMC_DISPLAY_SESSION';
+    /** Altes, domainweites Sammel-Cookie (nur noch lesend akzeptiert, bis es abläuft). */
+    public const LEGACY_COOKIE_NAME = 'EMC_DISPLAY_SESSION';
+    public const COOKIE_PREFIX = 'EMC_DISPLAY_';
 
     private const TTL_SECONDS = 7776000; // 90 Tage
 
     public function __construct(
         #[Autowire('%env(APP_SECRET)%')] private string $appSecret,
-        #[Autowire('%env(default::AUTH_COOKIE_DOMAIN)%')] private string $cookieDomain,
         #[Autowire('%env(bool:AUTH_COOKIE_SECURE)%')] private bool $cookieSecure,
+        #[Autowire('%env(default::AUTH_COOKIE_DOMAIN)%')] private ?string $legacyCookieDomain = null,
     ) {
     }
 
@@ -32,30 +38,51 @@ final class DepartmentDisplaySessionService
             'exp' => time() + self::TTL_SECONDS,
         ]);
 
-        return Cookie::create(self::COOKIE_NAME)
+        return Cookie::create(self::cookieName($screen->getPublicId()))
             ->withValue($value)
             ->withExpires(new \DateTimeImmutable('+' . self::TTL_SECONDS . ' seconds'))
-            ->withPath('/')
+            ->withPath(self::cookiePath($screen->getPublicId()))
             ->withSecure($this->cookieSecure)
             ->withHttpOnly(true)
-            ->withSameSite(Cookie::SAMESITE_LAX)
-            ->withDomain($this->cookieDomain !== '' ? $this->cookieDomain : null);
+            ->withSameSite(Cookie::SAMESITE_LAX);
     }
 
-    public function createClearCookie(): Cookie
+    public function createClearCookie(string $publicId): Cookie
     {
-        return Cookie::create(self::COOKIE_NAME)
+        return Cookie::create(self::cookieName($publicId))
+            ->withValue('')
+            ->withExpires(new \DateTimeImmutable('-1 day'))
+            ->withPath(self::cookiePath($publicId))
+            ->withSecure($this->cookieSecure)
+            ->withHttpOnly(true)
+            ->withSameSite(Cookie::SAMESITE_LAX);
+    }
+
+    /** Räumt nach der Migration auf ein Gerät das domainweite Alt-Cookie ab (sonst könnte es ein widerrufenes Gerät neu erzeugen). */
+    public function createLegacyClearCookie(): Cookie
+    {
+        return Cookie::create(self::LEGACY_COOKIE_NAME)
             ->withValue('')
             ->withExpires(new \DateTimeImmutable('-1 day'))
             ->withPath('/')
             ->withSecure($this->cookieSecure)
             ->withHttpOnly(true)
             ->withSameSite(Cookie::SAMESITE_LAX)
-            ->withDomain($this->cookieDomain !== '' ? $this->cookieDomain : null);
+            ->withDomain($this->legacyCookieDomain !== null && $this->legacyCookieDomain !== '' ? $this->legacyCookieDomain : null);
+    }
+
+    public static function cookieName(string $publicId): string
+    {
+        return self::COOKIE_PREFIX . strtolower($publicId);
+    }
+
+    public static function cookiePath(string $publicId): string
+    {
+        return '/api/public/display/' . rawurlencode($publicId);
     }
 
     /**
-     * @return array{screen: DepartmentDisplayScreen}|null
+     * @return array{screen: DepartmentDisplayScreen, exp: int}|null
      */
     public function resolveScreenFromRequest(
         Request $request,
@@ -70,7 +97,10 @@ final class DepartmentDisplaySessionService
             return null;
         }
 
-        $raw = (string) $request->cookies->get(self::COOKIE_NAME, '');
+        $raw = (string) $request->cookies->get(self::cookieName($publicId), '');
+        if ($raw === '') {
+            $raw = (string) $request->cookies->get(self::LEGACY_COOKIE_NAME, '');
+        }
         $payload = $this->verifySignedValue($raw);
         if ($payload === null) {
             return null;
@@ -89,7 +119,7 @@ final class DepartmentDisplaySessionService
             return null;
         }
 
-        return ['screen' => $screen];
+        return ['screen' => $screen, 'exp' => (int) $payload['exp']];
     }
 
     /**

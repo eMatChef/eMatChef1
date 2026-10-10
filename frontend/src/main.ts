@@ -29,6 +29,7 @@ import '@mdi/font/css/materialdesignicons.css'
 import './styles/views/activities/pack-workflow-modals.css'
 import App from './App.vue'
 import router from './router'
+import { profileEntryQuery } from '@/utils/profileReturn'
 import { syncDocumentHead } from './composables/usePageHead'
 import { createPinia } from 'pinia'
 import { useAuthStore } from './stores/auth'
@@ -84,7 +85,11 @@ setAdminMfaHandlers({
   stepUp: () => useStepUpStore().request(),
   setupRequired: (message) => {
     useToastStore().warning(message || i18n.global.t('layout.totpRequiredNotice'), 8000)
-    window.dispatchEvent(new CustomEvent('emc-open-profile-security'))
+    // Zuverlässig auf die Sicherheitsseite, ohne Schleife, wenn sie schon offen ist.
+    const current = router.currentRoute.value
+    if (current.name !== 'ProfileSecurity') {
+      void router.push({ name: 'ProfileSecurity', query: profileEntryQuery(current) })
+    }
   },
 })
 

@@ -26,9 +26,9 @@ final class AuthIntentTest extends TestCase
         yield 'QR code / join code' => ['/pending-assignment?join_code=AB12CD34', AuthIntent::JOIN_CODE];
         yield 'MiData onboarding offer' => ['/pending-assignment?midata_onboarding=0a1b2c3d4e5f', AuthIntent::MIDATA_ONBOARDING];
         yield 'MiData candidate' => ['/pending-assignment?midata_candidate=0a1b2c3d4e5f', AuthIntent::MIDATA_ONBOARDING];
-        yield 'protected department route' => ['/d0000000001/materials?x=1', AuthIntent::PROTECTED_ROUTE];
+        yield 'protected department route' => ['/d0000000001/dept/materials?x=1', AuthIntent::PROTECTED_ROUTE];
         yield 'pending page without intent' => ['/pending-assignment', AuthIntent::PROTECTED_ROUTE];
-        yield 'group import settings' => ['/settings/my-department?midata_group_import=d1', AuthIntent::PROTECTED_ROUTE];
+        yield 'group import settings' => ['/d0000000001/dept/settings/my-department?midata_group_import=d1', AuthIntent::PROTECTED_ROUTE];
     }
 
     #[DataProvider('redirects')]

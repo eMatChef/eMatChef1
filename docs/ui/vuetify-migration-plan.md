@@ -383,7 +383,7 @@ Die Schritte **013–017** waren ein Zwischenstand (`v-app` nur in `AppLayout`).
 | **Packliste:** Mind. 1 Modal öffnen/schliessen (`EDialog`, X in Titelzeile) | [x] | [x] |
 | **Sandbox** `/{id}/sandbox` → Zeitraum-Demo (optional Referenz) | [x] | [x] |
 
-**Referenz-Routen:** `/{departmentId}/activities`, `/{departmentId}/activities/:id`, `/{departmentId}/sandbox`.
+**Referenz-Routen:** `/{departmentId}/dept/activities`, `/{departmentId}/dept/activities/:id`, `/{departmentId}/sandbox`.
 
 ### Review-Stopp Phase 6 (Schritt 084)
 
@@ -438,7 +438,7 @@ Für die PR-Beschreibung Screenshots / Kurztest:
 | Bild: `MaterialImagePicker` Menü (Upload/URL) | [x] | [x] |
 | Import (Settings): Tabs Import/Export, Datei-Upload | [x] | [x] |
 
-**Referenz-Routen:** `/{departmentId}/materials`, `/{departmentId}/materials/:id`, `/{departmentId}/settings/material-import`.
+**Referenz-Routen:** `/{departmentId}/dept/materials`, `/{departmentId}/dept/materials/:id`, `/{departmentId}/dept/settings/material-import`.
 
 **Rest Phase 7 (2026-05-31):** Chargen/Serien/Archiv/Werkstatt/Vermietung → `v-data-table` (`Material*DataTable`); Action-Icons → `TableIconButton` + MDI; Modals → `EDialog` (Batch/Split/Move/Import/RemoveComposition, Combo/Template-Options); `@mdi/js` + Rental-Accordion-Chevrons; `AutoSaveFieldShell` Diskette → `mdi-content-save`. Optional offen: weitere Detail-SVG → `EEmptyState` (Used-in, History, QR-Chevron).
 
@@ -462,7 +462,7 @@ Für die PR-Beschreibung Screenshots / Kurztest:
 | Inbox: Posteingang/Gesendet `v-tabs`, Compose, Detail-Modals | [x] | [x] |
 | `NotificationSenderBlock` Markenfarben | [x] | [x] |
 
-**Referenz-Routen:** `/{departmentId}/contacts`, `/{departmentId}/tasks`, `/{departmentId}/notifications`.
+**Referenz-Routen:** `/{departmentId}/dept/contacts`, `/{departmentId}/dept/tasks`, `/{departmentId}/dept/notifications`.
 
 **Rest Phase 8 (später):** `TasksPrintView` (Druck-Tab); tote `.contacts-table`-Selektoren in `tables.css`.
 
@@ -506,7 +506,7 @@ Für die PR-Beschreibung Screenshots / Kurztest:
 | Buchhaltung: Tabs, Kostenstellen, Buchungen, Budget-Modal | ☐ | ☐ |
 | Werkstatt: Filter, Ticket-Detail-`EDialog`, Abschluss | ☐ | ☐ |
 
-**Referenz-Routen:** `/supplier/:companyId/profile`, `/{departmentId}/accounting`, `/{departmentId}/workshop`, `/{departmentId}/shop`.
+**Referenz-Routen:** `/supplier/:companyId/profile`, `/{departmentId}/dept/accounting`, `/{departmentId}/dept/workshop`, `/{departmentId}/shop`.
 
 **Freigabe:** Phase 11 (bereits umgesetzt) bzw. Phase 12 nach Review 120.
 
@@ -524,7 +524,7 @@ Für die PR-Beschreibung Screenshots / Kurztest:
 | Mail-Vorlagen + Outbound | ☐ | ☐ |
 | Admin-Dashboard | ☐ | ☐ |
 
-**Referenz-Routen:** `/admin-dashboard/verwaltung`, `/{departmentId}/verwaltung`.
+**Referenz-Routen:** `/admin-dashboard/verwaltung`, `/{departmentId}/dept/verwaltung`.
 
 **Freigabe:** Phase 12 (Aufräumen).
 
@@ -540,7 +540,7 @@ Für die PR-Beschreibung Screenshots / Kurztest:
 | Onboarding-Wizard: `EDialog`, Schritte navigierbar | ☐ | ☐ |
 | `AddressModal` / `CategoryModal` öffnen & speichern | ☐ | ☐ |
 
-**Referenz-Routen:** `/{departmentId}/settings`, `/{departmentId}/settings/my-department/display-screens`.
+**Referenz-Routen:** `/{departmentId}/dept/settings`, `/{departmentId}/dept/settings/my-department/display-screens`.
 
 **Freigabe:** Phase 10 (Supplier).
 

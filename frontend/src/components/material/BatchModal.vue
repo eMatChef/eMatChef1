@@ -1131,7 +1131,7 @@ const isEditMode = computed(() => !!props.batch)
 const comboDetailRoute = computed(() => {
   const id = props.comboStorageContext?.parentMaterialId
   if (!id) return { path: '/' }
-  return { path: `/${props.departmentId}/materials/${id}` }
+  return { path: `/${props.departmentId}/dept/materials/${id}` }
 })
 
 const dialogOpen = ref(true)

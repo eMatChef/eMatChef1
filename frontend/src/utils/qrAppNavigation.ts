@@ -13,7 +13,7 @@ export function navigateToAppMaterialDetail(
   materialId: string,
   batchId?: string | null
 ): void {
-  const path = `/${departmentId}/materials/${materialId}`
+  const path = `/${departmentId}/dept/materials/${materialId}`
   const linkOrigin = resolvePublicLinkOrigin()
 
   if (linkOrigin && isQrPublicHost()) {
@@ -40,7 +40,7 @@ export function navigateToAppActivityDetail(
   departmentId: string,
   activityId: string,
 ): void {
-  const path = `/${departmentId}/activities/${activityId}`
+  const path = `/${departmentId}/dept/activities/${activityId}`
   const linkOrigin = resolvePublicLinkOrigin()
 
   if (linkOrigin && isQrPublicHost()) {
@@ -59,7 +59,7 @@ export function navigateToAppWorkshopTicket(
   departmentId: string,
   ticketId: string,
 ): void {
-  const path = `/${departmentId}/workshop`
+  const path = `/${departmentId}/dept/workshop`
   const query = `?ticket=${encodeURIComponent(ticketId)}`
   const linkOrigin = resolvePublicLinkOrigin()
 
@@ -75,7 +75,7 @@ export function navigateToAppGrossanlassCards(
   router: Router,
   departmentId: string,
 ): void {
-  const path = `/${departmentId}/settings/user-karten`
+  const path = `/${departmentId}/dept/settings/user-karten`
   const linkOrigin = resolvePublicLinkOrigin()
 
   if (linkOrigin && isQrPublicHost()) {

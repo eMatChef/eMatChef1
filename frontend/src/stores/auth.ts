@@ -609,7 +609,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
 
     await setActiveDepartment(deptId)
-    window.location.assign(`/${deptId}/settings/my-department`)
+    window.location.assign(`/${deptId}/dept/settings/my-department`)
   }
 
   const activeDepartmentName = computed(() => {

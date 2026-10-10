@@ -70,7 +70,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
@@ -83,6 +83,7 @@ import QRCode from 'qrcode'
 import { assignPathAfterDepartmentSwitch } from '@/utils/departmentRoute'
 
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const roleLabelsStore = useDepartmentRoleLabelsStore()
 const toast = useToast()
@@ -199,7 +200,10 @@ async function onDepartmentChange() {
   await authStore.setActiveDepartment(newDeptId)
   const oldDeptId = route.params.departmentId as string | undefined
   if (oldDeptId && oldDeptId !== newDeptId) {
-    assignPathAfterDepartmentSwitch(route.path, oldDeptId, newDeptId)
+    await assignPathAfterDepartmentSwitch(router, route.path, route.query, oldDeptId, newDeptId, {
+      oldIsGrossanlass: authStore.isDepartmentGrossanlass(oldDeptId),
+      newIsGrossanlass: authStore.isDepartmentGrossanlass(newDeptId),
+    })
     return
   }
   await loadInviteCode(newDeptId)

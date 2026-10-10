@@ -30,6 +30,8 @@ export interface PublicDisplaySession {
 }
 
 export type PublicDisplayData = DepartmentDisplayData & {
+  /** department | grossanlass: bestimmt künftig die verfügbaren Inhaltsmodule. */
+  scope?: 'department' | 'grossanlass'
   screen_name?: string
   department_name?: string
   subtitle_text?: string | null
@@ -42,6 +44,7 @@ export type PublicDisplayData = DepartmentDisplayData & {
 }
 
 export interface DisplayScreenSettingsUpdate {
+  name?: string
   subtitle_text?: string | null
   show_activities?: boolean
   show_workshop?: boolean
@@ -141,17 +144,13 @@ export async function authenticatePublicDisplay(
   return res.data
 }
 
-type PublicDisplayDataResponse = PublicDisplayData & {
+export type PublicDisplayDataResponse = PublicDisplayData & {
   workshop_tickets?: PublicDisplayData['workshopTickets']
 }
 
-export async function getPublicDisplayData(publicId: string): Promise<PublicDisplayData> {
-  const res = await apiClient.get<PublicDisplayDataResponse>(
-    `/api/public/display/${encodeURIComponent(publicId)}/data`,
-    { withCredentials: true },
-  )
-  const data = res.data
+export function mapDisplayPayload(data: PublicDisplayDataResponse): PublicDisplayData {
   return {
+    scope: data.scope,
     activities: data.activities || [],
     workshopTickets: data.workshop_tickets || data.workshopTickets || [],
     department_name: data.department_name,
@@ -165,4 +164,36 @@ export async function getPublicDisplayData(publicId: string): Promise<PublicDisp
     show_statistics: data.show_statistics === true,
     statistics: data.statistics ?? null,
   }
+}
+
+/** Vorschau für Verwalter: gleicher Payload wie der echte Infoscreen, über die normale User-Anmeldung. */
+export async function getDisplayPreviewData(
+  departmentId: string,
+  screenId: string,
+): Promise<PublicDisplayData> {
+  const res = await apiClient.get<PublicDisplayDataResponse>(
+    `/api/departments/${encodeURIComponent(departmentId)}/display-screens/${encodeURIComponent(screenId)}/preview-data`,
+  )
+  return mapDisplayPayload(res.data)
+}
+
+/** Neuen Infoscreen im Department anlegen und mit dem gescannten Fernseher koppeln (alles oder nichts). */
+export async function createAndPairDisplayScreen(
+  departmentId: string,
+  token: string,
+  name: string,
+  deviceName: string,
+): Promise<DisplayScreenSettings> {
+  const res = await apiClient.post<DisplayScreenSettings>(
+    `/api/departments/${encodeURIComponent(departmentId)}/display-screens/pairing`,
+    { token, name, device_name: deviceName },
+  )
+  return res.data
+}
+
+/** Widerrufenen Infoscreen endgültig löschen. */
+export async function deleteDisplayScreen(departmentId: string, screenId: string): Promise<void> {
+  await apiClient.delete(
+    `/api/departments/${encodeURIComponent(departmentId)}/display-screens/${encodeURIComponent(screenId)}`,
+  )
 }

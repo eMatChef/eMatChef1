@@ -478,7 +478,7 @@
             {{ t('activities.packList.unpackWarehouseBody') }}
             <router-link
               v-if="departmentId"
-              :to="`/${departmentId}/materials`"
+              :to="`/${departmentId}/dept/materials`"
               class="pack-return-stock-hint-link"
             >{{ t('activities.packList.materialsLink') }}</router-link>
           </p>

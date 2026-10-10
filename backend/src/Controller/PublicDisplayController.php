@@ -2,7 +2,8 @@
 
 namespace App\Controller;
 
-use App\Service\Display\DepartmentDisplayDataService;
+use App\Entity\DepartmentDisplayDevice;
+use App\Service\Display\DepartmentDisplayDeviceService;
 use App\Service\Display\DepartmentDisplayScreenService;
 use App\Service\Display\DepartmentDisplaySessionService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -20,7 +21,7 @@ class PublicDisplayController extends AbstractController
     public function __construct(
         private DepartmentDisplayScreenService $displayScreenService,
         private DepartmentDisplaySessionService $sessionService,
-        private DepartmentDisplayDataService $displayDataService,
+        private DepartmentDisplayDeviceService $deviceService,
         private CacheItemPoolInterface $cache,
     ) {
     }
@@ -36,6 +37,11 @@ class PublicDisplayController extends AbstractController
         return new JsonResponse(['valid' => true]);
     }
 
+    /**
+     * Übergang aus Phase 5.1: ein gültiges Alt-Cookie dieses Browsers wird einmalig in ein eigenes Gerät überführt
+     * (Freigabe höchstens bis zum bisherigen Ablauf, nie länger). Jeder Browser behält seine eigene Identität;
+     * es werden keine Geräte zusammengeführt. Danach werden die Alt-Cookies gelöscht.
+     */
     #[Route('/{publicId}/session', name: 'session', methods: ['GET'])]
     public function session(string $publicId, Request $request): JsonResponse
     {
@@ -49,11 +55,25 @@ class PublicDisplayController extends AbstractController
             return new JsonResponse(['authenticated' => false], 401);
         }
 
-        return new JsonResponse([
+        $expires = min($resolved['exp'], time() + DepartmentDisplayDeviceService::APPROVAL_DAYS * 86400);
+        $created = $this->deviceService->create(
+            $screen,
+            'Migriertes Gerät ' . (new \DateTime())->format('d.m.Y'),
+            DepartmentDisplayDevice::VIA_MIGRATED,
+            null,
+            (new \DateTime())->setTimestamp($expires),
+        );
+
+        $response = new JsonResponse([
             'authenticated' => true,
             'screen_name' => $screen->getName(),
             'public_id' => $screen->getPublicId(),
         ]);
+        $response->headers->setCookie($this->deviceService->buildCookie($created['device'], $created['secret']));
+        $response->headers->setCookie($this->sessionService->createClearCookie($publicId));
+        $response->headers->setCookie($this->sessionService->createLegacyClearCookie());
+
+        return $response;
     }
 
     #[Route('/{publicId}/authenticate', name: 'authenticate', methods: ['POST'])]
@@ -80,38 +100,28 @@ class PublicDisplayController extends AbstractController
         $this->clearPinFailures($request, $publicId);
         $this->displayScreenService->touchLastUsed($screen);
 
-        $cookie = $this->sessionService->createCookie($screen);
+        // Manuelle Anmeldung (ID + Code): es entsteht ein eigenes Gerät mit 90 Tagen Freigabe.
+        $created = $this->deviceService->create(
+            $screen,
+            'Manuell ' . (new \DateTime())->format('d.m.Y H:i'),
+            DepartmentDisplayDevice::VIA_MANUAL,
+        );
         $response = new JsonResponse([
             'authenticated' => true,
             'screen_name' => $screen->getName(),
             'public_id' => $screen->getPublicId(),
         ]);
-        $response->headers->setCookie($cookie);
+        $response->headers->setCookie($this->deviceService->buildCookie($created['device'], $created['secret']));
 
         return $response;
-    }
-
-    #[Route('/{publicId}/data', name: 'data', methods: ['GET'])]
-    public function data(string $publicId, Request $request): JsonResponse
-    {
-        $screen = $this->displayScreenService->findByPublicId($publicId);
-        if ($screen === null || $screen->isRevoked()) {
-            return new JsonResponse(['error' => 'Screen nicht gefunden'], 404);
-        }
-
-        $resolved = $this->sessionService->resolveScreenFromRequest($request, $publicId, $screen);
-        if ($resolved === null) {
-            return new JsonResponse(['error' => 'Nicht angemeldet'], 401);
-        }
-
-        return new JsonResponse($this->displayDataService->buildPayloadForScreen($screen));
     }
 
     #[Route('/{publicId}/logout', name: 'logout', methods: ['POST'])]
     public function logout(string $publicId): JsonResponse
     {
         $response = new JsonResponse(['success' => true]);
-        $response->headers->setCookie($this->sessionService->createClearCookie());
+        $response->headers->setCookie($this->sessionService->createClearCookie($publicId));
+        $response->headers->setCookie($this->deviceService->clearCookie());
 
         return $response;
     }

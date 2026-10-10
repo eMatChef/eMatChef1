@@ -11,7 +11,7 @@
       <p class="ds__existing">
         <v-icon icon="mdi-information-outline" size="16" />
         {{ t('grossanlass.displays.existing') }}
-        <router-link :to="`/${departmentId}/settings/my-department/display-screens`">{{ t('grossanlass.displays.existingLink') }}</router-link>
+        <router-link :to="`/${departmentId}/dept/settings/my-department/display-screens`">{{ t('grossanlass.displays.existingLink') }}</router-link>
       </p>
 
       <div class="ds__grid">

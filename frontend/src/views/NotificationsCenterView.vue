@@ -706,7 +706,7 @@ async function openGrossanlassRoundOpened(note: GrossanlassRoundOpenedNotificati
   await router.push(
     note.round_id
       ? grossanlassOpenRoundWishRoute(note.department_id, note.round_id)
-      : (note.planung_url || `/${note.department_id}/planung`),
+      : (note.planung_url || `/${note.department_id}/ga/planung`),
   )
 }
 
@@ -774,7 +774,7 @@ async function onCampInviteDecided(decision: 'accepted' | 'rejected') {
 function goToTasksPage(query?: Record<string, string>) {
   if (!departmentId.value) return
   void router.push({
-    path: `/${departmentId.value}/tasks`,
+    path: `/${departmentId.value}/dept/tasks`,
     query,
   })
 }
@@ -1063,7 +1063,7 @@ function openFoundMaterial(msg: PublicFoundItemMessage) {
   const q: Record<string, string> = {}
   if (msg.batch_id) q.batch = msg.batch_id
   void router.push({
-    path: `/${departmentId.value}/materials/${msg.material_id}`,
+    path: `/${departmentId.value}/dept/materials/${msg.material_id}`,
     query: Object.keys(q).length ? q : undefined,
   })
 }

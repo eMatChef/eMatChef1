@@ -45,11 +45,11 @@ export function listPathForDetailTab(tab: Pick<DetailTab, 'type' | 'departmentId
   const base = `/${tab.departmentId}`
   switch (tab.type) {
     case 'material':
-      return `${base}/materials`
+      return `${base}/dept/materials`
     case 'activity':
-      return `${base}/activities`
+      return `${base}/dept/activities`
     case 'workshop':
-      return `${base}/workshop`
+      return `${base}/dept/workshop`
     default:
       return base
   }

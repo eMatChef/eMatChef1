@@ -1295,7 +1295,7 @@ function goBack() {
   }
   const parentId = contact.value?.parent_id
   if (parentId && !asModal.value) {
-    router.push(`/${props.departmentId}/contacts/${parentId}`)
+    router.push(`/${props.departmentId}/dept/contacts/${parentId}`)
     return
   }
   emit('close')

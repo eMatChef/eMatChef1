@@ -37,7 +37,7 @@
     <div v-if="departmentId" class="quick-actions">
       <router-link
         v-if="showMaterialCreate"
-        :to="{ path: getLink('/materials'), query: { new: '1', from: 'dashboard' } }"
+        :to="{ path: getLink('/dept/materials'), query: { new: '1', from: 'dashboard' } }"
         class="quick-action-btn primary"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
@@ -47,7 +47,7 @@
       </router-link>
       <router-link
         v-if="showCreateActivity"
-        :to="{ path: getLink('/activities'), query: { new: '1', from: 'dashboard' } }"
+        :to="{ path: getLink('/dept/activities'), query: { new: '1', from: 'dashboard' } }"
         class="quick-action-btn primary"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24" aria-hidden="true">
@@ -121,13 +121,13 @@
         <h2 class="section-title">{{ t('dashboard.myActiveActivities') }}</h2>
         <div v-if="activeActivities.length === 0" class="widget-empty">
           <p>{{ t('dashboard.noActiveActivities') }}</p>
-          <router-link :to="getLink('/activities')" class="btn-link">{{ t('dashboard.showActivities') }}</router-link>
+          <router-link :to="getLink('/dept/activities')" class="btn-link">{{ t('dashboard.showActivities') }}</router-link>
         </div>
         <div v-else class="activity-list">
           <router-link
             v-for="a in activeActivities.slice(0, 5)"
             :key="a.id"
-            :to="getLink(`/activities/${a.id}`)"
+            :to="getLink(`/dept/activities/${a.id}`)"
             class="activity-card"
           >
             <span class="status-dot" :class="activityStatusClass(a.status)"></span>
@@ -144,7 +144,7 @@
             </svg>
           </router-link>
         </div>
-        <router-link v-if="activeActivities.length > 0" :to="getLink('/activities')" class="section-link">
+        <router-link v-if="activeActivities.length > 0" :to="getLink('/dept/activities')" class="section-link">
           {{ t('dashboard.showAllActivities') }}
         </router-link>
       </section>
@@ -162,7 +162,7 @@
             <span class="stat-label">{{ t('dashboard.submitted') }}</span>
           </div>
         </div>
-        <router-link :to="getLink('/activities')" class="section-link">{{ t('dashboard.reviewActivities') }}</router-link>
+        <router-link :to="getLink('/dept/activities')" class="section-link">{{ t('dashboard.reviewActivities') }}</router-link>
       </section>
 
       <!-- DC / MW: Übersicht -->
@@ -206,7 +206,7 @@
           </div>
           <router-link
             class="stat-card warning"
-            :to="{ path: getLink('/workshop'), query: { qf: 'waiting_quote' } }"
+            :to="{ path: getLink('/dept/workshop'), query: { qf: 'waiting_quote' } }"
             style="text-decoration:none; color:inherit;"
             :title="t('dashboard.tooltipQuotesOpen')"
           >
@@ -215,7 +215,7 @@
           </router-link>
           <router-link
             class="stat-card warning"
-            :to="{ path: getLink('/workshop'), query: { qf: 'missing_estimated_cost' } }"
+            :to="{ path: getLink('/dept/workshop'), query: { qf: 'missing_estimated_cost' } }"
             style="text-decoration:none; color:inherit;"
             :title="t('dashboard.tooltipMissingPrice')"
           >
@@ -223,14 +223,14 @@
             <span class="stat-label">{{ t('dashboard.priceMissing') }}</span>
           </router-link>
         </div>
-        <router-link :to="getLink('/workshop')" class="section-link">{{ t('dashboard.toWorkshop') }}</router-link>
+        <router-link :to="getLink('/dept/workshop')" class="section-link">{{ t('dashboard.toWorkshop') }}</router-link>
       </section>
 
       <!-- Infoscreen (MW / DC) -->
       <section v-if="showDisplayLink" class="dashboard-section">
         <h2 class="section-title">{{ t('display.title') }}</h2>
         <p class="display-dashboard-hint">{{ t('display.subtitle') }}</p>
-        <router-link :to="getLink('/settings/my-department/display-screens')" class="section-link">
+        <router-link :to="getLink('/dept/settings/my-department/display-screens')" class="section-link">
           {{ t('dashboard.toDisplay') }}
         </router-link>
       </section>
@@ -241,17 +241,17 @@
         class="dashboard-section"
       >
         <h2 class="section-title">
-          <router-link :to="getLink('/settings/users')" class="section-title-link">
+          <router-link :to="getLink('/dept/settings/users')" class="section-title-link">
             {{ t('dashboard.openDepartmentJoinRequests') }}
           </router-link>
         </h2>
         <div class="stat-cards">
-          <router-link :to="getLink('/settings/users')" class="stat-card submitted join-request-stat-link">
+          <router-link :to="getLink('/dept/settings/users')" class="stat-card submitted join-request-stat-link">
             <span class="stat-value">{{ pendingJoinRequests.length }}</span>
             <span class="stat-label">{{ t('dashboard.openDepartmentJoinRequestsCount') }}</span>
           </router-link>
         </div>
-        <router-link :to="getLink('/settings/users')" class="section-link">{{ t('dashboard.toDepartmentUsers') }}</router-link>
+        <router-link :to="getLink('/dept/settings/users')" class="section-link">{{ t('dashboard.toDepartmentUsers') }}</router-link>
       </section>
 
       <!-- Offene Support-/Admin-Anfragen (SA/OrgChef/SubOrgChef) -->
@@ -281,7 +281,7 @@
           <router-link
             v-for="a in todayActivities.slice(0, 5)"
             :key="a.id"
-            :to="getLink(`/activities/${a.id}`)"
+            :to="getLink(`/dept/activities/${a.id}`)"
             class="activity-card"
           >
             <span class="status-dot" :class="activityStatusClass(a.status)"></span>
@@ -294,7 +294,7 @@
             </svg>
           </router-link>
         </div>
-        <router-link :to="getLink('/activities')" class="section-link">{{ t('dashboard.allActivitiesArrow') }}</router-link>
+        <router-link :to="getLink('/dept/activities')" class="section-link">{{ t('dashboard.allActivitiesArrow') }}</router-link>
       </section>
 
       <!-- Kommende Termine (alle Rollen) -->
@@ -304,7 +304,7 @@
           <router-link
             v-for="a in upcomingActivities.slice(0, 5)"
             :key="a.id"
-            :to="getLink(`/activities/${a.id}`)"
+            :to="getLink(`/dept/activities/${a.id}`)"
             class="activity-card compact"
           >
             <span class="status-dot" :class="activityStatusClass(a.status)"></span>
@@ -494,7 +494,7 @@ function getLink(path: string): string {
     return '#'
   }
   if (hasSupportAdminRole.value && (path === '/jobs' || path === '/support-requests')) {
-    return `/${id}/verwaltung${path}`
+    return `/${id}/dept/verwaltung${path}`
   }
   return `/${id}${path}`
 }
@@ -613,7 +613,7 @@ watch(
   () => route.name,
   (name, prevName) => {
     if (name !== 'Dashboard' || !departmentId.value) return
-    if (prevName && prevName !== 'Dashboard') void load({ silent: true })
+    if (prevName && prevName !== 'Dashboard' && prevName !== 'GrossanlassDashboard') void load({ silent: true })
   },
 )
 

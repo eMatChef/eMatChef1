@@ -17,7 +17,7 @@ mkdir -p "$CERT_DIR"
 mkcert -install
 mkcert -cert-file "$CERT_FILE" -key-file "$KEY_FILE" \
   "ematchef.test" "*.ematchef.test" \
-  "app.ematchef.test" "qr.ematchef.test" "devices.ematchef.test" \
+  "app.ematchef.test" "qr.ematchef.test" "devices.ematchef.test" "display.ematchef.test" \
   "localhost" "127.0.0.1"
 
 echo

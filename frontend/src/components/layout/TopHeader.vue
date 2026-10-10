@@ -315,7 +315,7 @@
           type="button"
           class="user-info"
           :title="t('layout.userMenu.editProfile')"
-          @click="editProfile"
+          @click="openProfile"
         >
           <UserAvatarBadge
             :user="headerAvatarUser"
@@ -413,7 +413,7 @@
           type="button"
           class="dropdown-item"
           data-onboarding="header-edit-profile"
-          @click="editProfile"
+          @click="openProfile"
         >
           <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -457,313 +457,10 @@
     </div>
   </v-app-bar>
 
-  <Teleport to="body">
-    <div v-if="showEditProfileModal" class="profile-modal-overlay">
-      <div class="profile-modal">
-        <div class="profile-modal-header">
-          <h3>{{ t('layout.profileModal.title') }}</h3>
-          <button class="modal-close-btn" @click="requestCloseEditProfileModal" :aria-label="t('layout.profileModal.closeAria')">×</button>
-        </div>
-
-        <form class="profile-modal-form" @submit.prevent="saveProfile">
-          <div class="profile-modal-content">
-            <div class="profile-top-row" data-onboarding="profile-identity">
-            <UserAvatarBadge
-              class="profile-avatar-preview"
-              :user="profilePreviewAvatarUser"
-              variant="profile"
-              size="lg"
-              :show-tooltip="false"
-            />
-            <div class="profile-top-fields">
-              <label class="form-field">
-                <span>{{ t('layout.profileModal.lastName') }}</span>
-                <input v-model="profileForm.last_name" type="text" maxlength="100" />
-              </label>
-
-              <label class="form-field">
-                <span>{{ t('layout.profileModal.firstName') }}</span>
-                <input v-model="profileForm.first_name" type="text" maxlength="100" />
-              </label>
-
-              <label class="form-field">
-                <span>{{ t('layout.profileModal.email') }}</span>
-                <div class="email-edit-row">
-                  <input
-                    v-model="profileForm.email"
-                    type="email"
-                    maxlength="180"
-                    autocomplete="username"
-                    disabled
-                    class="is-readonly"
-                  />
-                  <button
-                    type="button"
-                    class="email-edit-btn"
-                    data-testid="manage-emails"
-                    @click="openEmailManagement"
-                    :title="t('layout.profileModal.editEmailTitle')"
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                      <path d="M12 20h9" stroke-width="2" stroke-linecap="round" />
-                      <path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" stroke-width="2" stroke-linejoin="round" />
-                    </svg>
-                  </button>
-                </div>
-                <small class="email-edit-hint">
-                  {{ t('layout.profileModal.emailManagedInSecurity') }}
-                </small>
-                <small v-if="pendingEmailTarget" class="email-pending-hint">
-                  {{
-                    t('layout.profileModal.emailPendingSent', {
-                      pending: pendingEmailTarget,
-                      current: authStore.profile?.email || profileForm.email,
-                    })
-                  }}
-                </small>
-              </label>
-            </div>
-            </div>
-
-            <div class="profile-form-grid" data-onboarding="profile-personal">
-
-            <label class="form-field">
-              <span>{{ t('layout.profileModal.nickname') }}</span>
-              <input v-model="profileForm.nickname" type="text" maxlength="50" :placeholder="t('layout.profileModal.nicknamePlaceholder')" />
-            </label>
-
-            <label class="form-field">
-              <span>{{ t('layout.profileModal.initialsMax2') }}</span>
-              <input
-                v-model="profileForm.avatar_initials"
-                type="text"
-                maxlength="2"
-                :placeholder="generatedInitialsTemplate"
-                @input="profileForm.avatar_initials = profileForm.avatar_initials.toUpperCase()"
-              />
-            </label>
-
-            <label class="form-field">
-              <span>{{ t('layout.profileModal.language') }}</span>
-              <select v-model="profileForm.language">
-                <option value="de">{{ t('languageNames.de') }}</option>
-                <option value="en">{{ t('languageNames.en') }}</option>
-                <option value="fr">{{ t('languageNames.fr') }}</option>
-                <option value="it">{{ t('languageNames.it') }}</option>
-              </select>
-            </label>
-            </div>
-
-            <details
-              class="profile-accordion"
-              data-onboarding="profile-password"
-              :open="profileAccordion.password"
-              @toggle="onProfileAccordionToggle('password', $event)"
-            >
-              <summary class="profile-accordion__summary">{{ t('layout.profileModal.passwordSection') }}</summary>
-              <div class="profile-accordion__body">
-              <!-- Chrome-Autofill ablenken -->
-              <input
-                type="text"
-                name="emc-username-decoy"
-                autocomplete="username"
-                tabindex="-1"
-                aria-hidden="true"
-                class="profile-autofill-decoy"
-              />
-              <input
-                type="password"
-                name="emc-password-decoy"
-                autocomplete="new-password"
-                tabindex="-1"
-                aria-hidden="true"
-                class="profile-autofill-decoy"
-              />
-              <div class="profile-form-grid">
-                <label class="form-field">
-                  <span>{{ t('layout.profileModal.currentPassword') }}</span>
-                  <input
-                    v-model="passwordForm.current_password"
-                    type="password"
-                    name="emc-current-password"
-                    autocomplete="off"
-                    data-lpignore="true"
-                    data-1p-ignore="true"
-                    :placeholder="t('layout.profileModal.currentPasswordPlaceholder')"
-                  />
-                </label>
-                <label class="form-field">
-                  <span>{{ t('layout.profileModal.newPassword') }}</span>
-                  <input
-                    v-model="passwordForm.new_password"
-                    type="password"
-                    name="emc-new-password"
-                    autocomplete="new-password"
-                    data-lpignore="true"
-                    data-1p-ignore="true"
-                    :placeholder="t('layout.profileModal.newPasswordPlaceholder')"
-                  />
-                </label>
-                <label class="form-field form-field-full">
-                  <span>{{ t('layout.profileModal.confirmNewPassword') }}</span>
-                  <input
-                    v-model="passwordForm.confirm_new_password"
-                    type="password"
-                    name="emc-confirm-password"
-                    autocomplete="new-password"
-                    data-lpignore="true"
-                    data-1p-ignore="true"
-                    :placeholder="t('layout.profileModal.confirmNewPasswordPlaceholder')"
-                  />
-                </label>
-              </div>
-              <small v-if="passwordInlineError" class="password-inline-error">{{ passwordInlineError }}</small>
-              <small v-else-if="passwordInlineSuccess" class="password-inline-success">{{ t('layout.profileModal.passwordOk') }}</small>
-              </div>
-            </details>
-
-            <details
-              class="profile-accordion"
-              data-onboarding="profile-address"
-              :open="profileAccordion.address"
-              @toggle="onProfileAccordionToggle('address', $event)"
-            >
-              <summary class="profile-accordion__summary">{{ t('layout.profileModal.addressSection') }}</summary>
-              <div class="profile-accordion__body">
-              <p class="profile-address-hint">{{ t('layout.profileModal.addressHintJs') }}</p>
-              <div class="profile-form-grid">
-                <label class="form-field form-field-full">
-                  <span>{{ t('layout.profileModal.street') }}</span>
-                  <input
-                    v-model="addressForm.street"
-                    type="text"
-                    autocomplete="street-address"
-                    :placeholder="t('layout.profileModal.streetPlaceholder')"
-                  />
-                </label>
-                <label class="form-field">
-                  <span>{{ t('layout.profileModal.streetNumber') }}</span>
-                  <input v-model="addressForm.street_number" type="text" autocomplete="off" />
-                </label>
-                <label class="form-field">
-                  <span>{{ t('layout.profileModal.postalCode') }}</span>
-                  <input v-model="addressForm.postal_code" type="text" autocomplete="postal-code" />
-                </label>
-                <label class="form-field">
-                  <span>{{ t('layout.profileModal.city') }}</span>
-                  <input v-model="addressForm.city" type="text" autocomplete="address-level2" />
-                </label>
-                <label class="form-field">
-                  <span>{{ t('layout.profileModal.canton') }}</span>
-                  <select v-model="addressForm.canton">
-                    <option value="">{{ t('layout.profileModal.cantonEmpty') }}</option>
-                    <option v-for="(label, code) in swissCantons" :key="code" :value="code">
-                      {{ code }} – {{ label }}
-                    </option>
-                  </select>
-                </label>
-              </div>
-              </div>
-            </details>
-
-            <ProfileSecurityEmailsAccordion
-              :open="showEditProfileModal"
-              :expanded="profileSecurityExpanded"
-              @primary-changed="syncPrimaryEmail"
-            />
-            <ProfileDriveLicenseAccordion :open="showEditProfileModal" />
-            <ProfileMiDataMembershipsAccordion :open="showEditProfileModal" />
-
-            <details
-              class="profile-accordion"
-              data-onboarding="profile-colors"
-              :open="profileAccordion.colors"
-              @toggle="onProfileAccordionToggle('colors', $event)"
-            >
-              <summary class="profile-accordion__summary">{{ t('layout.profileModal.colorCombinations') }}</summary>
-              <div class="profile-accordion__body">
-              <div class="avatar-palette-wrap">
-                <div class="palette-row-label">{{ t('layout.profileModal.paletteWhiteInitials') }}</div>
-                <div class="avatar-palette-row">
-                  <button
-                    v-for="color in avatarPaletteColors"
-                    :key="`w-${color}`"
-                    type="button"
-                    class="avatar-color-chip"
-                    :class="{ selected: isSelectedAvatarColor(color, '#FFFFFF') }"
-                    :style="{ backgroundColor: color, color: '#FFFFFF' }"
-                    @click="applyAvatarColor(color, '#FFFFFF')"
-                  >
-                    {{ profilePreviewInitials }}
-                  </button>
-                </div>
-                <div class="palette-row-label">{{ t('layout.profileModal.paletteBlackInitials') }}</div>
-                <div class="avatar-palette-row">
-                  <button
-                    v-for="color in avatarPaletteColors"
-                    :key="`b-${color}`"
-                    type="button"
-                    class="avatar-color-chip"
-                    :class="{ selected: isSelectedAvatarColor(color, '#111111') }"
-                    :style="{ backgroundColor: color, color: '#111111' }"
-                    @click="applyAvatarColor(color, '#111111')"
-                  >
-                    {{ profilePreviewInitials }}
-                  </button>
-                </div>
-              </div>
-
-              <label class="form-field">
-                <span>{{ t('layout.profileModal.backgroundColor') }}</span>
-                <div class="color-field">
-                  <input v-model="profileForm.background_color" type="color" />
-                  <input
-                    v-model="profileForm.background_color"
-                    type="text"
-                    maxlength="7"
-                    :placeholder="t('layout.profileModal.backgroundColorPlaceholder')"
-                  />
-                </div>
-              </label>
-
-              <label class="form-field">
-                <span>{{ t('layout.profileModal.textColor') }}</span>
-                <div class="color-field">
-                  <input v-model="profileForm.text_color" type="color" />
-                  <input
-                    v-model="profileForm.text_color"
-                    type="text"
-                    maxlength="7"
-                    :placeholder="t('layout.profileModal.textColorPlaceholder')"
-                  />
-                </div>
-              </label>
-              </div>
-            </details>
-          </div>
-
-          <div class="profile-modal-footer">
-            <div class="profile-status-hint" :class="{ visible: hasUnsavedProfileChanges || hasAddressChanges }">
-              <span v-if="hasUnsavedProfileChanges || hasAddressChanges">{{ t('layout.profileModal.unsavedChanges') }}</span>
-            </div>
-            <button type="button" class="btn-secondary btn-sm" @click="requestCloseEditProfileModal" :disabled="savingProfile">{{ t('common.cancel') }}</button>
-            <button
-              type="submit"
-              class="btn-primary btn-sm"
-              data-onboarding="profile-save"
-              :disabled="savingProfile || (!isTourProfileSaveStep && !hasUnsavedProfileChanges && !hasPasswordInput && !hasAddressChanges) || !!passwordInlineError"
-            >
-              {{ savingProfile ? t('layout.profileModal.saving') : t('common.save') }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onUnmounted, watch, reactive } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { useDisplay } from 'vuetify'
@@ -773,21 +470,10 @@ import {
   ONBOARDING_TOUR_STEP_QUERY,
 } from '@/config/onboardingTours'
 import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
-import { changePassword, login as apiLogin, updateProfile } from '../../api/auth'
-import {
-  createAddress,
-  getAddresses,
-  updateAddress,
-  SWISS_CANTONS,
-} from '@/api/addresses'
-import {
-  findAddressForProfile,
-  profileAddressMarker,
-  USER_ADDRESS_TYPE,
-} from '@/utils/profileUserAddress'
 import { useToast } from '../../composables/useToast'
-import { takeExternalIdentityLinkResult } from '@/api/profileSecurity'
 import { useConfirm } from '../../composables/useConfirm'
+import { isProfilePath, profileEntryQuery } from '@/utils/profileReturn'
+import { useProfileModal } from '@/composables/useProfileContext'
 import { useUnsavedLeaveGuard } from '../../composables/useUnsavedLeaveGuard'
 import {
   getPendingDepartmentActivityInvites,
@@ -815,9 +501,6 @@ import {
 import GlobalSearchInput from '../common/GlobalSearchInput.vue'
 import ClockControl from '@/components/layout/ClockControl.vue'
 import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
-import ProfileDriveLicenseAccordion from '@/components/layout/ProfileDriveLicenseAccordion.vue'
-import ProfileSecurityEmailsAccordion from '@/components/layout/ProfileSecurityEmailsAccordion.vue'
-import ProfileMiDataMembershipsAccordion from '@/components/layout/ProfileMiDataMembershipsAccordion.vue'
 import type { UserAvatarFields } from '@/utils/userAvatar'
 import {
   useDetailTabsStore,
@@ -842,7 +525,7 @@ import {
 import { listAcquisitionFollowups } from '@/api/accountingAcquisitionFollowups'
 import { departmentHasAccountingRole } from '@/composables/useCostBookingFollowUp'
 import { useActivityNotificationText } from '@/composables/useActivityNotificationText'
-import { departmentHomePath } from '@/utils/departmentSwitch'
+import { assignPathAfterDepartmentSwitch } from '@/utils/departmentRoute'
 import { adminContextHomePath } from '@/utils/adminContext'
 import { routeForInboxActivityNotification } from '@/utils/inboxPackJourneyDeepLink'
 import { appVersionLabel } from '@/config/appVersion'
@@ -878,6 +561,7 @@ const headerNotificationsStore = useHeaderNotificationsStore()
 const route = useRoute()
 const authStore = useAuthStore()
 const roleLabelsStore = useDepartmentRoleLabelsStore()
+const { open: openProfileModal } = useProfileModal()
 
 function departmentRoleLabel(role: string, departmentId?: string | null): string {
   return roleLabelsStore.labelFor(role, departmentId || authStore.activeDepartmentId, t, {
@@ -965,46 +649,6 @@ const tourKeepsUserMenuOpen = computed(() => {
   return step === '11' || step === '12'
 })
 
-const isTourProfileSaveStep = computed(
-  () =>
-    route.query[ONBOARDING_TOUR_QUERY] === 'profile-overview' &&
-    route.query[ONBOARDING_TOUR_STEP_QUERY] === '18'
-)
-
-const profileAccordion = reactive({
-  password: false,
-  address: false,
-  colors: false,
-})
-
-watch(
-  () => [route.query[ONBOARDING_TOUR_QUERY], route.query[ONBOARDING_TOUR_STEP_QUERY]] as const,
-  ([tour, step]) => {
-    if (tour !== 'profile-overview') return
-    if (step === '15') {
-      profileAccordion.password = true
-      profileAccordion.address = false
-      profileAccordion.colors = false
-    } else if (step === '16') {
-      profileAccordion.password = false
-      profileAccordion.address = true
-      profileAccordion.colors = false
-    } else if (step === '17') {
-      profileAccordion.password = false
-      profileAccordion.address = false
-      profileAccordion.colors = true
-    }
-  },
-  { immediate: true }
-)
-
-function onProfileAccordionToggle(key: 'password' | 'address' | 'colors', event: Event) {
-  const el = event.target as HTMLDetailsElement
-  if (el?.tagName === 'DETAILS') {
-    profileAccordion[key] = el.open
-  }
-}
-
 watch(
   tourKeepsUserMenuOpen,
   async (keepOpen) => {
@@ -1023,8 +667,6 @@ const searchDepartmentId = computed(() => {
   const deptId = route.params.departmentId as string | undefined
   return deptId || authStore.activeDepartmentId || ''
 })
-const showEditProfileModal = ref(false)
-const savingProfile = ref(false)
 const unreadCount = ref(0)
 const showNotifications = ref(false)
 const isLoadingNotifications = ref(false)
@@ -1050,45 +692,6 @@ useUnreadDocumentTitleAlert(unreadCount)
 
 const trialDays = ref(29)
 const showTrialWarning = ref(true)
-const profileForm = ref({
-  first_name: '',
-  last_name: '',
-  email: '',
-  nickname: '',
-  avatar_initials: '',
-  language: 'de',
-  background_color: '#EC4899',
-  text_color: '#FFFFFF',
-})
-const passwordForm = ref({
-  current_password: '',
-  new_password: '',
-  confirm_new_password: '',
-})
-const addressForm = ref({
-  street: '',
-  street_number: '',
-  postal_code: '',
-  city: '',
-  canton: '',
-})
-const addressRecordId = ref<string | null>(null)
-const initialAddressSnapshot = ref('')
-const swissCantons = SWISS_CANTONS
-const initialProfileFormSnapshot = ref('')
-const avatarPaletteColors = [
-  '#2563EB',
-  '#0EA5E9',
-  '#14B8A6',
-  '#22C55E',
-  '#EAB308',
-  '#F97316',
-  '#EF4444',
-  '#EC4899',
-  '#A855F7',
-  '#6B7280',
-]
-
 const userInitials = computed(() => authStore.userInitials)
 const userName = computed(() => {
   if (!authStore.profile) return t('layout.userFallback')
@@ -1114,60 +717,6 @@ const headerAvatarUser = computed((): UserAvatarFields => {
     text_color: authStore.userColors.text,
   }
 })
-
-const profilePreviewInitials = computed(() => {
-  return buildAvatarInitials(
-    profileForm.value.avatar_initials,
-    profileForm.value.nickname,
-    profileForm.value.first_name,
-    profileForm.value.last_name
-  )
-})
-const generatedInitialsTemplate = computed(() =>
-  buildAvatarInitials('', profileForm.value.nickname, profileForm.value.first_name, profileForm.value.last_name)
-)
-const profilePreviewAvatarUser = computed((): UserAvatarFields => ({
-  first_name: profileForm.value.first_name,
-  last_name: profileForm.value.last_name,
-  nickname: profileForm.value.nickname,
-  avatar_initials: profileForm.value.avatar_initials,
-  background_color: profileForm.value.background_color,
-  text_color: profileForm.value.text_color,
-}))
-const hasUnsavedProfileChanges = computed(() => {
-  if (!initialProfileFormSnapshot.value) return false
-  return serializeProfileForm(profileForm.value) !== initialProfileFormSnapshot.value
-})
-const hasAddressChanges = computed(() => {
-  if (!initialAddressSnapshot.value) return false
-  return serializeAddressForm(addressForm.value) !== initialAddressSnapshot.value
-})
-const hasPasswordInput = computed(() =>
-  !!passwordForm.value.new_password || !!passwordForm.value.confirm_new_password
-)
-const passwordInlineError = computed(() => {
-  // Nur validieren, wenn wirklich ein Passwort-Wechsel gestartet wurde
-  // (Autofill füllt oft nur «aktuelles Passwort» → sonst Blockade / Fehler)
-  if (!hasPasswordInput.value) return ''
-  const currentPassword = passwordForm.value.current_password
-  const newPassword = passwordForm.value.new_password
-  const confirmPassword = passwordForm.value.confirm_new_password
-
-  if (!currentPassword || !newPassword || !confirmPassword) {
-    return t('layout.passwordValidation.fillAll')
-  }
-  if (newPassword.length < 8) {
-    return t('layout.passwordValidation.minLength')
-  }
-  if (newPassword !== confirmPassword) {
-    return t('layout.passwordValidation.mismatch')
-  }
-  return ''
-})
-const passwordInlineSuccess = computed(() => hasPasswordInput.value && !passwordInlineError.value)
-const pendingEmailTarget = computed(() =>
-  (authStore.profile?.pendingEmail || authStore.profile?.pending_email || '').trim()
-)
 
 const notificationPreviewInvites = computed(() =>
   pendingDepartmentInvites.value
@@ -1322,7 +871,7 @@ function navigateToTab(tab: DetailTab) {
   if (tab.type === 'workshop') {
     const ticketId = ticketIdFromWorkshopTabPath(tab.path)
     router.push({
-      path: `/${tab.departmentId}/workshop`,
+      path: `/${tab.departmentId}/dept/workshop`,
       query: ticketId ? { ticket: ticketId } : {},
     })
     return
@@ -1388,7 +937,7 @@ function goToNotificationsCenter() {
     (route.params.departmentId as string | undefined) || authStore.activeDepartmentId || ''
   if (!deptId) return
   showNotifications.value = false
-  router.push(`/${deptId}/notifications`)
+  router.push(`/${deptId}/dept/notifications`)
 }
 
 async function dismissActivityBellEntry(entry: BellActivityEntry) {
@@ -1565,7 +1114,7 @@ function goToAccountingAssign() {
   const n = pendingFollowUpCount.value
   if (n > 0) decrementUnreadCount(n)
   void router.push({
-    path: `/${deptId}/tasks`,
+    path: `/${deptId}/dept/tasks`,
     query: { open: 'accounting_followup:all' },
   })
 }
@@ -1590,7 +1139,7 @@ async function openGrossanlassRoundFromBell(note: GrossanlassRoundOpenedNotifica
   } catch {
     /* navigate anyway */
   }
-  const path = note.planung_url || `/${note.department_id}/planung`
+  const path = note.planung_url || `/${note.department_id}/ga/planung`
   void router.push(
     note.round_id
       ? grossanlassOpenRoundWishRoute(note.department_id, note.round_id)
@@ -1639,14 +1188,14 @@ async function openDepartmentInviteFromBell(inv: ReceivedDepartmentInviteNotific
       /* navigate anyway */
     }
   }
-  void router.push({ path: `/${deptId}/notifications` })
+  void router.push({ path: `/${deptId}/dept/notifications` })
 }
 
 function openCampInviteFromBell(invite: PendingDepartmentActivityInvite) {
   const deptId = authStore.activeDepartmentId
   if (!deptId) return
   showNotifications.value = false
-  void router.push({ path: `/${deptId}/notifications` })
+  void router.push({ path: `/${deptId}/dept/notifications` })
 }
 
 function inviteAcceptedBellTitle(note: InviteAcceptedNotification): string {
@@ -1675,7 +1224,7 @@ async function openInviteAcceptedFromBell(note: InviteAcceptedNotification) {
       /* navigate anyway */
     }
   }
-  void router.push({ path: `/${deptId}/notifications` })
+  void router.push({ path: `/${deptId}/dept/notifications` })
 }
 
 /** Glocke: nur ungelesene Nachrichten + offene Aufgaben (QR, Einladungen). */
@@ -1864,7 +1413,7 @@ async function openUserMessageFromBell(msg: UserDirectMessage) {
     /* navigate anyway */
   }
   void router.push({
-    path: `/${deptId}/notifications`,
+    path: `/${deptId}/dept/notifications`,
     query: { openMessage: msg.id },
   })
 }
@@ -1874,7 +1423,7 @@ async function openFoundMessageFromBell(msg: PublicFoundItemMessage) {
   if (!deptId) return
   showNotifications.value = false
   void router.push({
-    path: `/${deptId}/notifications`,
+    path: `/${deptId}/dept/notifications`,
     query: { highlight: msg.id },
   })
 }
@@ -1920,31 +1469,24 @@ function goAbteilungsmat() {
   void router.push({ name: 'GrossanlassAbteilungsmat', params: { departmentId: id } })
 }
 
-const profileSecurityExpanded = ref(false)
-
-/** Aus dem apiClient (mfa_setup_required): Profil öffnen, Bereich Sicherheit aufklappen. */
-function openProfileSecurity() {
-  profileSecurityExpanded.value = true
-  if (!showEditProfileModal.value) editProfile()
-}
-
-function editProfile() {
-  const profile = authStore.profile
-  profileForm.value = {
-    first_name: profile?.firstName || profile?.first_name || '',
-    last_name: profile?.lastName || profile?.last_name || '',
-    email: profile?.email || '',
-    nickname: profile?.nickname || '',
-    avatar_initials: (profile?.avatarInitials || profile?.avatar_initials || '').toUpperCase().slice(0, 2),
-    language: profile?.language || 'de',
-    background_color: profile?.backgroundColor || profile?.background_color || '#EC4899',
-    text_color: profile?.textColor || profile?.text_color || '#FFFFFF',
-  }
-  initialProfileFormSnapshot.value = serializeProfileForm(profileForm.value)
-  resetPasswordForm()
-  showEditProfileModal.value = true
+/**
+ * «Profil bearbeiten»: Dialog über der aktuellen Seite (Seite bleibt erhalten). Die URL-Ansicht (/profile) ist der
+ * kanonische Einstieg: wer schon im Profil ist oder die Onboarding-Tour läuft, navigiert dorthin (Rücksprung `from`
+ * und Tour-Parameter bleiben erhalten).
+ */
+function openProfile() {
   showUserDropdown.value = false
-  void loadProfileUserAddress()
+  const tourActive = route.query[ONBOARDING_TOUR_QUERY] === 'profile-overview'
+  if (!tourActive && !isProfilePath(route.path)) {
+    openProfileModal()
+    return
+  }
+  const query: Record<string, string> = { ...(profileEntryQuery(route) as Record<string, string>) }
+  for (const key of [ONBOARDING_TOUR_QUERY, ONBOARDING_TOUR_STEP_QUERY]) {
+    const value = route.query[key]
+    if (typeof value === 'string') query[key] = value
+  }
+  void router.push({ name: 'Profile', query })
 }
 
 async function selectAdminContext(key: string) {
@@ -1968,8 +1510,12 @@ async function selectDepartment(departmentId: string) {
   const canLeave = await confirmLeaveIfDirty(t)
   if (!canLeave) return
   showUserDropdown.value = false
+  const oldDepartmentId = (route.params.departmentId as string | undefined) || undefined
   await authStore.setActiveDepartment(departmentId)
-  window.location.assign(departmentHomePath(departmentId))
+  await assignPathAfterDepartmentSwitch(router, route.path, route.query, oldDepartmentId, departmentId, {
+    oldIsGrossanlass: oldDepartmentId ? authStore.isDepartmentGrossanlass(oldDepartmentId) : false,
+    newIsGrossanlass: authStore.isDepartmentGrossanlass(departmentId),
+  })
 }
 
 function switchSupplierCompany() {
@@ -1989,287 +1535,6 @@ async function doLogout() {
 
 function activateLicense() {
   // License activation
-}
-
-/** Hauptadresse wurde in Sicherheit geändert: oberes Feld und gespeicherter Snapshot nachziehen. */
-function syncPrimaryEmail() {
-  const email = authStore.profile?.email
-  if (!email) return
-  profileForm.value.email = email
-  initialProfileFormSnapshot.value = serializeProfileForm(profileForm.value)
-}
-
-function closeEditProfileModal() {
-  profileSecurityExpanded.value = false
-  showEditProfileModal.value = false
-  initialProfileFormSnapshot.value = ''
-  initialAddressSnapshot.value = ''
-  addressRecordId.value = null
-  resetPasswordForm()
-  resetAddressForm()
-}
-
-function resetPasswordForm() {
-  passwordForm.value.current_password = ''
-  passwordForm.value.new_password = ''
-  passwordForm.value.confirm_new_password = ''
-}
-
-function resetAddressForm() {
-  addressForm.value = {
-    street: '',
-    street_number: '',
-    postal_code: '',
-    city: '',
-    canton: '',
-  }
-}
-
-function serializeAddressForm(form: typeof addressForm.value): string {
-  return JSON.stringify({
-    street: form.street.trim(),
-    street_number: form.street_number.trim(),
-    postal_code: form.postal_code.trim(),
-    city: form.city.trim(),
-    canton: form.canton.trim(),
-  })
-}
-
-async function loadProfileUserAddress() {
-  resetAddressForm()
-  addressRecordId.value = null
-  initialAddressSnapshot.value = serializeAddressForm(addressForm.value)
-  const profileId = authStore.profileId
-  const departmentId = authStore.activeDepartmentId
-  if (!profileId || !departmentId) return
-  try {
-    const { addresses } = await getAddresses(departmentId, { type: USER_ADDRESS_TYPE })
-    const match = findAddressForProfile(addresses, profileId)
-    if (!match) return
-    addressRecordId.value = match.id
-    addressForm.value = {
-      street: match.street || '',
-      street_number: match.street_number || '',
-      postal_code: match.postal_code || '',
-      city: match.city || '',
-      canton: match.canton || '',
-    }
-    initialAddressSnapshot.value = serializeAddressForm(addressForm.value)
-  } catch {
-    /* Adresse optional — Fehler nicht blockierend */
-  }
-}
-
-async function requestCloseEditProfileModal() {
-  if (savingProfile.value) return
-  if (hasUnsavedProfileChanges.value || hasAddressChanges.value) {
-    const shouldClose = await confirm.confirm({
-      title: t('layout.confirm.unsavedTitle'),
-      message: t('layout.confirm.unsavedMessage'),
-      confirmText: t('common.close'),
-      cancelText: t('layout.confirm.back'),
-      variant: 'warning',
-    })
-    if (!shouldClose) return
-  }
-  closeEditProfileModal()
-}
-
-function normalizeHexColor(value: string, fallback: string): string {
-  const normalized = value.trim().toUpperCase()
-  if (/^#[0-9A-F]{6}$/.test(normalized)) {
-    return normalized
-  }
-  return fallback
-}
-
-/** Einziger Bearbeitungsweg für E-Mail-Adressen: Profil → Sicherheit → E-Mail-Adressen (Profile.email wird dort verwaltet). */
-function openEmailManagement() {
-  const details = document.querySelector<HTMLDetailsElement>('[data-onboarding="profile-security"]')
-  if (!details) return
-  details.open = true
-  void nextTick(() => document.getElementById('profile-email-management')?.scrollIntoView({ block: 'center', behavior: 'smooth' }))
-}
-
-function applyAvatarColor(backgroundColor: string, textColor: string) {
-  profileForm.value.background_color = backgroundColor
-  profileForm.value.text_color = textColor
-}
-
-function isSelectedAvatarColor(backgroundColor: string, textColor: string): boolean {
-  return (
-    normalizeHexColor(profileForm.value.background_color, '#EC4899') === backgroundColor &&
-    normalizeHexColor(profileForm.value.text_color, '#FFFFFF') === textColor
-  )
-}
-
-function serializeProfileForm(form: typeof profileForm.value): string {
-  return JSON.stringify({
-    first_name: form.first_name.trim(),
-    last_name: form.last_name.trim(),
-    email: form.email.trim(),
-    nickname: form.nickname.trim(),
-    avatar_initials: form.avatar_initials.trim().toUpperCase().slice(0, 2),
-    language: form.language,
-    background_color: normalizeHexColor(form.background_color, '#EC4899'),
-    text_color: normalizeHexColor(form.text_color, '#FFFFFF'),
-  })
-}
-
-function buildAvatarInitials(explicitInitials: string, nickname: string, firstName: string, lastName: string): string {
-  const explicit = explicitInitials.trim()
-  if (explicit.length > 0) {
-    return explicit.slice(0, 2).toUpperCase()
-  }
-  const nick = nickname.trim()
-  if (nick.length > 0) {
-    const cleanedNick = nick.replace(/\s+/g, '')
-    return cleanedNick.slice(0, 2).toUpperCase()
-  }
-  const first = firstName.trim().charAt(0)
-  const last = lastName.trim().charAt(0)
-  return (first + last).toUpperCase() || '??'
-}
-
-async function saveProfile() {
-  const profileId = authStore.profileId
-  if (!profileId) {
-    toast.error(t('layout.toast.profileLoadFailed'))
-    return
-  }
-  const shouldUpdateProfile = hasUnsavedProfileChanges.value
-  const shouldChangePassword = hasPasswordInput.value
-  const shouldSaveAddress = hasAddressChanges.value
-  if (!shouldUpdateProfile && !shouldChangePassword && !shouldSaveAddress) {
-    if (isTourProfileSaveStep.value) {
-      closeEditProfileModal()
-      return
-    }
-    toast.info(t('layout.toast.noChanges'))
-    return
-  }
-
-  savingProfile.value = true
-  try {
-    if (shouldUpdateProfile) {
-      const email = profileForm.value.email.trim()
-      if (!email) {
-        toast.error(t('layout.toast.enterEmail'))
-        return
-      }
-
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      if (!emailRegex.test(email)) {
-        toast.error(t('layout.toast.invalidEmail'))
-        return
-      }
-
-      const payload = {
-        email: authStore.profile?.email || email,
-        first_name: profileForm.value.first_name.trim(),
-        last_name: profileForm.value.last_name.trim(),
-        nickname: profileForm.value.nickname.trim(),
-        avatar_initials: profileForm.value.avatar_initials.trim().toUpperCase().slice(0, 2),
-        language: profileForm.value.language,
-        background_color: normalizeHexColor(profileForm.value.background_color, '#EC4899'),
-        text_color: normalizeHexColor(profileForm.value.text_color, '#FFFFFF'),
-      }
-
-      const updatedProfile = await updateProfile(profileId, payload)
-      authStore.profile = updatedProfile
-    }
-
-    if (shouldChangePassword) {
-      const currentPassword = passwordForm.value.current_password
-      const newPassword = passwordForm.value.new_password
-      const confirmPassword = passwordForm.value.confirm_new_password
-
-      if (passwordInlineError.value) {
-        toast.error(passwordInlineError.value)
-        return
-      }
-
-      const result = await changePassword(profileId, {
-        current_password: currentPassword,
-        new_password: newPassword,
-        confirm_new_password: confirmPassword,
-      })
-      if (result.message) {
-        toast.success(result.message)
-      }
-      const loginEmail = (authStore.profile?.email || profileForm.value.email || '').trim().toLowerCase()
-      if (loginEmail) {
-        try {
-          await apiLogin(loginEmail, newPassword)
-          await authStore.loadUserSessionFromCookie(true)
-          toast.success(t('layout.toast.reloginSuccess'))
-        } catch {
-          // Falls Re-Login fehlschlaegt, bleibt die aktuelle Session bestehen solange der Token gueltig ist.
-        }
-      }
-      resetPasswordForm()
-    }
-
-    if (shouldSaveAddress) {
-      const departmentId = authStore.activeDepartmentId
-      if (!departmentId) {
-        toast.error(t('layout.toast.profileSaveFailed'))
-        return
-      }
-      const street = addressForm.value.street.trim()
-      const postal = addressForm.value.postal_code.trim()
-      const city = addressForm.value.city.trim()
-      const hasAny =
-        street ||
-        postal ||
-        city ||
-        addressForm.value.street_number.trim() ||
-        addressForm.value.canton.trim()
-      if (hasAny && (!street || !postal || !city)) {
-        toast.error(t('layout.profileModal.addressIncomplete'))
-        return
-      }
-      if (hasAny) {
-        const payload = {
-          department_id: departmentId,
-          type: USER_ADDRESS_TYPE,
-          name: t('layout.profileModal.addressContactName', {
-            name: `${profileForm.value.first_name} ${profileForm.value.last_name}`.trim() || 'Profil',
-          }),
-          street,
-          street_number: addressForm.value.street_number.trim() || null,
-          postal_code: postal,
-          city,
-          canton: addressForm.value.canton.trim() || null,
-          country: 'Schweiz',
-          contact_first_name: profileForm.value.first_name.trim() || null,
-          contact_last_name: profileForm.value.last_name.trim() || null,
-          email: (authStore.profile?.email || profileForm.value.email || '').trim() || null,
-          additional_info: profileAddressMarker(profileId),
-        }
-        if (addressRecordId.value) {
-          await updateAddress(addressRecordId.value, payload)
-        } else {
-          const created = await createAddress(payload)
-          addressRecordId.value = created.address.id
-        }
-        initialAddressSnapshot.value = serializeAddressForm(addressForm.value)
-      }
-    }
-
-    if (shouldUpdateProfile && shouldChangePassword) {
-      toast.success(t('layout.toast.profileAndPasswordSaved'))
-    } else if (shouldUpdateProfile || shouldSaveAddress) {
-      toast.success(t('layout.toast.profileSaved'))
-    }
-
-    closeEditProfileModal()
-  } catch (error: any) {
-    const message = error?.response?.data?.error || t('layout.toast.profileSaveFailed')
-    toast.error(message)
-  } finally {
-    savingProfile.value = false
-  }
 }
 
 function handleClickOutside(event: MouseEvent) {
@@ -2302,12 +1567,11 @@ function startNotificationsPolling() {
 }
 
 /**
- * Rückweg aus dem OAuth-Link-Flow (Google/MiData): ?profile_security=1&oauth=linked|error&provider=…&reason=…
- * Profil → Sicherheit öffnen, Ergebnis melden, Parameter entfernen. Ohne das Profil neu zu laden.
+ * MiData-Link aus Onboarding/Gruppenimport wurde von der Sicherheitsregel abgelehnt (Step-up bzw. neu anmelden nötig).
+ * Der Rückweg aus dem Verknüpfen im Profil (profile_security=1) wird auf /profile/identities ausgewertet.
  */
-async function handleProfileSecurityReturn() {
+async function handleMiDataDeniedReturn() {
   const query = route.query
-  // MiData-Link aus Onboarding/Gruppenimport wurde von der Sicherheitsregel abgelehnt (Step-up bzw. neu anmelden nötig).
   const denied = typeof query.reason === 'string' ? query.reason : ''
   if (
     query.profile_security !== '1' &&
@@ -2321,61 +1585,18 @@ async function handleProfileSecurityReturn() {
     void _r
     await router.replace({ path: route.path, query: others, hash: route.hash })
     toast.error(t(`layout.profileModal.externalIdentities.errors.${denied}`))
-    return
   }
-  if (query.profile_security !== '1') return
-  // Die URL ist nur ein Hinweis: Erfolg/Fehler holt die App vom Server (einmalig, an die Sitzung gebunden).
-  // Ohne serverseitiges Ergebnis (präparierte URL, Neuladen, normaler Login) passiert nichts, das Profil bleibt zu.
-  const { profile_security: _ps, oauth: _po, provider: _pp, reason: _pr, ...rest } = query
-  void _ps
-  void _po
-  void _pp
-  void _pr
-  await router.replace({ path: route.path, query: rest, hash: route.hash })
-  // Nach dem Rücksprung lädt die App neu: erst abfragen, wenn das Profil geladen ist.
-  if (!authStore.profile) {
-    await new Promise<void>((resolve) => {
-      const stop = watch(
-        () => authStore.profile,
-        (profile) => {
-          if (profile) {
-            stop()
-            resolve()
-          }
-        },
-        { immediate: true },
-      )
-    })
-  }
-  const profileId = authStore.profileId || authStore.profile?.id || ''
-  let result: Awaited<ReturnType<typeof takeExternalIdentityLinkResult>> = null
-  try {
-    result = profileId ? await takeExternalIdentityLinkResult(profileId) : null
-  } catch {
-    result = null
-  }
-  if (!result) return
-  openProfileSecurity()
-  await nextTick()
-  window.dispatchEvent(
-    new CustomEvent('emc-profile-security-link-result', {
-      detail: { status: result.status, reason: result.reason, provider: result.provider },
-    }),
-  )
-  if (result.status === 'linked') toast.success(t('layout.profileModal.externalIdentities.linkedToast'))
 }
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
-  window.addEventListener('emc-open-profile-security', openProfileSecurity)
-  void handleProfileSecurityReturn()
+  void handleMiDataDeniedReturn()
   void loadDepartmentInvites()
   startNotificationsPolling()
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
-  window.removeEventListener('emc-open-profile-security', openProfileSecurity)
   if (notificationsPollTimer) {
     clearInterval(notificationsPollTimer)
     notificationsPollTimer = null
@@ -3255,288 +2476,4 @@ watch(
   flex-shrink: 0;
 }
 
-.profile-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2000;
-  padding: 12px;
-}
-
-.profile-modal {
-  width: 100%;
-  max-width: 620px;
-  max-height: calc(100vh - 24px);
-  background: #fff;
-  border-radius: 10px;
-  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.25);
-  overflow: auto;
-}
-
-.profile-modal-form {
-  margin: 0;
-}
-
-.profile-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.profile-modal-header h3 {
-  margin: 0;
-  font-size: 16px;
-  color: #1f2937;
-}
-
-.modal-close-btn {
-  border: none;
-  background: transparent;
-  font-size: 24px;
-  line-height: 1;
-  cursor: pointer;
-  color: #6b7280;
-}
-
-.profile-modal-content {
-  padding: 14px 16px;
-}
-
-.profile-avatar-preview-wrap {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 12px;
-}
-
-.profile-top-row {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 12px;
-  align-items: start;
-  margin-bottom: 10px;
-}
-
-.profile-top-fields {
-  display: grid;
-  gap: 7px;
-}
-
-.profile-form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px;
-}
-
-.form-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.form-field-full {
-  grid-column: 1 / -1;
-}
-
-.form-field span {
-  font-size: 11px;
-  color: #6b7280;
-}
-
-.form-field input,
-.form-field select {
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  padding: 8px 9px;
-  font-size: 13px;
-  background: #fff;
-}
-
-.form-field input.is-readonly {
-  background: #f9fafb;
-  color: #6b7280;
-}
-
-.form-field input:focus,
-.form-field select:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-}
-
-.color-field {
-  display: flex;
-  gap: 8px;
-}
-
-.color-field input[type='color'] {
-  width: 40px;
-  min-width: 40px;
-  padding: 2px;
-  cursor: pointer;
-}
-
-.email-edit-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.email-edit-row input {
-  flex: 1;
-}
-
-.email-edit-btn {
-  width: 32px;
-  height: 32px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  background: #fff;
-  color: #4b5563;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.email-edit-btn svg {
-  width: 14px;
-  height: 14px;
-}
-
-.email-edit-btn.active {
-  border-color: #2563eb;
-  color: #2563eb;
-  background: #eff6ff;
-}
-
-.email-edit-hint {
-  color: #92400e;
-  font-size: 11px;
-}
-
-.email-pending-hint {
-  color: #1d4ed8;
-  font-size: 11px;
-}
-
-.password-inline-error {
-  color: #b91c1c;
-  font-size: 11px;
-}
-
-.profile-address-hint {
-  margin: 4px 0 10px;
-  font-size: 12px;
-  line-height: 1.4;
-  color: #64748b;
-}
-
-.profile-accordion {
-  margin: 0 0 10px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  background: #fafafa;
-  overflow: hidden;
-}
-
-.profile-accordion__summary {
-  cursor: pointer;
-  list-style: none;
-  padding: 12px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #334155;
-  user-select: none;
-}
-
-.profile-accordion__summary::-webkit-details-marker {
-  display: none;
-}
-
-.profile-accordion__summary::after {
-  content: '▾';
-  float: right;
-  color: #94a3b8;
-  transition: transform 0.15s ease;
-}
-
-.profile-accordion[open] > .profile-accordion__summary::after {
-  transform: rotate(-180deg);
-}
-
-.profile-accordion__body {
-  padding: 0 14px 14px;
-  background: #fff;
-  border-top: 1px solid #e5e7eb;
-}
-
-.password-inline-success {
-  color: #166534;
-  font-size: 11px;
-}
-
-.avatar-palette-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.palette-row-label {
-  font-size: 11px;
-  color: #6b7280;
-}
-
-.avatar-palette-row {
-  display: grid;
-  grid-template-columns: repeat(10, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.avatar-color-chip {
-  width: 30px;
-  height: 30px;
-  border-radius: 9999px;
-  border: 2px solid transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  font-weight: 700;
-  cursor: pointer;
-  padding: 0;
-}
-
-.avatar-color-chip.selected {
-  border-color: #111827;
-  box-shadow: 0 0 0 2px rgba(17, 24, 39, 0.15);
-}
-
-.profile-modal-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 12px 16px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.profile-status-hint {
-  margin-right: auto;
-  font-size: 11px;
-  color: #d97706;
-  min-height: 16px;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-
-.profile-status-hint.visible {
-  opacity: 1;
-}
-
-/* Profile modal footer buttons use shared ui/buttons.css */
 </style>

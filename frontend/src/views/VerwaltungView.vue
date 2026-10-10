@@ -88,7 +88,7 @@ const canEditPublicWebsite = computed(
 function getVerwaltungLink(suffix: string): string {
   if (isAdminDashboardRoute.value) return `/admin-dashboard/verwaltung${suffix}`
   if (!departmentId.value) return '#'
-  return `/${departmentId.value}/verwaltung${suffix}`
+  return `/${departmentId.value}/dept/verwaltung${suffix}`
 }
 
 function resolveItemTo(item: MenuItem): string {

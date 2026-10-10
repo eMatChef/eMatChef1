@@ -55,7 +55,7 @@
             @updated="loadRentalAddresses"
           />
           <p v-if="venueAddressId && canManage" class="hint venue-standorte-link">
-            <router-link :to="`/${departmentId}/einstellungen/standorte`">
+            <router-link :to="`/${departmentId}/ga/einstellungen/standorte`">
               {{ t('grossanlass.planung.stammdaten.locationStandorteLink') }}
             </router-link>
           </p>
@@ -117,7 +117,7 @@
           <router-link
             v-if="canManage"
             class="logistics-link"
-            :to="`/${departmentId}/einstellungen/ressorts`"
+            :to="`/${departmentId}/ga/einstellungen/ressorts`"
           >
             {{ t('grossanlass.planung.stammdaten.logisticsNodeOpenRessorts') }}
           </router-link>

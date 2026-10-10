@@ -80,14 +80,14 @@ describe('help button', () => {
     at('Activities')
     useHelpShortcut().openHelp()
     expect(useGaHelp().modalOpen.value).toBe(false)
-    expect(push).toHaveBeenCalledWith('/ga1/help/department')
+    expect(push).toHaveBeenCalledWith('/ga1/dept/help/department')
   })
 
   it('keeps the department help in a guest department, also on GA-named pages', () => {
     at('GrossanlassGastVorschau', 'pfadi1')
     useHelpShortcut().openHelp()
     expect(useGaHelp().modalOpen.value).toBe(false)
-    expect(push).toHaveBeenCalledWith('/pfadi1/help/department')
+    expect(push).toHaveBeenCalledWith('/pfadi1/dept/help/department')
   })
 
   it('hides the floating button on the GA help page', () => {

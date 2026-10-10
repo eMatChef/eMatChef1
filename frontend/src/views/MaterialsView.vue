@@ -523,7 +523,7 @@ function openPostCreateComboStorageTab() {
   }
   closePostCreateComboGuideModal()
   router.push({
-    path: `/${currentDepartmentId.value}/materials/${m.id}`,
+    path: `/${currentDepartmentId.value}/dept/materials/${m.id}`,
     query: { tab: 'stored-in' },
   })
 }
@@ -970,11 +970,11 @@ async function handleMaterialCreated(material: Material) {
     postCreateComboGuideMaterial.value = mergedMaterial
     showPostCreateComboGuideModal.value = true
     router.push({
-      path: `/${currentDepartmentId.value}/materials/${material.id}`,
+      path: `/${currentDepartmentId.value}/dept/materials/${material.id}`,
       query: { tab: 'composition' },
     })
   } else if (material?.id && currentDepartmentId.value) {
-    router.push(`/${currentDepartmentId.value}/materials/${material.id}`)
+    router.push(`/${currentDepartmentId.value}/dept/materials/${material.id}`)
   }
 
   if (route.query.from === 'dashboard') {
@@ -985,11 +985,11 @@ async function handleMaterialCreated(material: Material) {
 }
 
 function openMaterialDetail(material: Material) {
-  router.push(`/${currentDepartmentId.value}/materials/${material.id}`)
+  router.push(`/${currentDepartmentId.value}/dept/materials/${material.id}`)
 }
 
 function openMaterialDetailById(materialId: string) {
-  router.push(`/${currentDepartmentId.value}/materials/${materialId}`)
+  router.push(`/${currentDepartmentId.value}/dept/materials/${materialId}`)
 }
 
 function closeDetailView() {
@@ -1024,7 +1024,7 @@ watch(
       type: 'material',
       label: m?.name || t('materialsView.fallbackTabLabel', { id: matId }),
       departmentId: deptId,
-      path: `/${deptId}/materials/${matId}`,
+      path: `/${deptId}/dept/materials/${matId}`,
     })
   },
   { immediate: true }

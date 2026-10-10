@@ -13,6 +13,7 @@ import {
   sanitizeLoginRedirectPath,
 } from '@/utils/appHomeRedirect'
 import { shouldProbeUserSession } from '@/api/unauthorizedRedirect'
+import { isDisplayHost } from '@/utils/displayHost'
 import {
   applyDevicesHostRedirects,
   canAccessDevicesWarehouse,
@@ -48,7 +49,27 @@ import {
 import { gaHomePath, gaResolveHomePath } from '@/utils/grossanlassHome'
 import { resolveVerwaltungLandingPath } from '@/utils/verwaltungNavigation'
 import { isMiDataOnboardingLanding } from '@/utils/midataOnboarding'
-import { carryOAuthReturnParams } from '@/utils/oauthReturnParams'
+import { carryOAuthReturnParams, PROFILE_SECURITY_RETURN_PARAM } from '@/utils/oauthReturnParams'
+import { PROFILE_FROM_PARAM, isProfilePath, profileFromForEntry, sanitizeProfileFrom } from '@/utils/profileReturn'
+
+const AUTH_ENTRY_PATHS = ['/login', '/register', '/forgot-password', '/reset-password']
+
+function isAuthEntryPath(path: string): boolean {
+  return AUTH_ENTRY_PATHS.includes(path)
+}
+
+/** Alte Links (/login?register=1, /login?forgot=1 aus E-Mails) → globale Auth-URLs. */
+function legacyAuthQueryRedirect(to: RouteLocationNormalized) {
+  const flag = (v: unknown) => {
+    const x = Array.isArray(v) ? v[0] : v
+    return x === '1' || (typeof x === 'string' && x.toLowerCase() === 'true')
+  }
+  const target = flag(to.query.register) ? '/register' : flag(to.query.forgot) ? '/reset-password' : null
+  if (!target) return true
+  const query = { ...to.query }
+  delete query.register
+  return { path: target, query, hash: to.hash, replace: true }
+}
 
 /** Login-Redirect ohne Tour-Query (sonst nach Relogin Tour-URL statt Dashboard). */
 function loginAuthRedirectQuery(fullPath: string): Record<string, string> {
@@ -159,13 +180,13 @@ function devicesModeHostGuard(
       if (to.name === 'Dashboard') {
         return next()
       }
-      return next({ name: 'Dashboard', params: { departmentId: deptId }, replace: true })
+      return next({ name: 'DepartmentEntry', params: { departmentId: deptId }, replace: true })
     }
     return next({ path: '/', replace: true })
   }
   const deptId = String(to.params.departmentId || '')
   if (deptId && !devicesWarehouseRoleOk(deptId)) {
-    return next({ path: `/${deptId}/settings`, replace: true })
+    return next({ path: `/${deptId}/dept/settings`, replace: true })
   }
   return next()
 }
@@ -304,6 +325,49 @@ const routes: RouteRecordRaw[] = [
     },
   },
   {
+    // Startseite von display.ematchef.ch (Host-Guard leitet "/" hierher): TV zeigt den Kopplungs-QR.
+    path: '/display/connect',
+    name: 'DisplayHome',
+    component: () => import('@/views/DisplayHomeView.vue'),
+    meta: {
+      requiresAuth: false,
+      ...routeHead('displayEntry', 'displayEntry'),
+    },
+  },
+  {
+    // Anzeige eines gekoppelten Geräts (Credential-Cookie): Autostart, Warteseite, Offline-Betrieb.
+    path: '/display/device',
+    name: 'DisplayDevice',
+    component: () => import('@/views/DepartmentDisplayView.vue'),
+    meta: {
+      requiresAuth: false,
+      displayDevice: true,
+      ...routeHead('departmentDisplay', 'departmentDisplay'),
+    },
+  },
+  {
+    // Smartphone: QR-Kopplung bestätigen (normale App-Anmeldung). Bewusst nicht unter /display/…,
+    // dort gilt der Kiosk-Modus ohne User-Session.
+    path: '/connect-display/:token',
+    name: 'DisplayPairConfirm',
+    component: () => import('@/views/DisplayPairConfirmView.vue'),
+    meta: {
+      requiresAuth: true,
+      ...routeHead('displayEntry', 'displayEntry'),
+    },
+  },
+  {
+    // Vorschau für Verwalter: gleiche Anzeige-Engine, Daten über User-Berechtigung, keine Display-Sitzung.
+    path: '/display-preview/:departmentId/:screenId',
+    name: 'DisplayPreview',
+    component: () => import('@/views/DepartmentDisplayView.vue'),
+    meta: {
+      requiresAuth: true,
+      displayPreview: true,
+      ...routeHead('departmentDisplay', 'departmentDisplay'),
+    },
+  },
+  {
     path: '/display/:publicId',
     name: 'PublicDepartmentDisplay',
     component: () => import('@/views/DepartmentDisplayView.vue'),
@@ -387,11 +451,31 @@ const routes: RouteRecordRaw[] = [
     path: '/login',
     name: 'Login',
     component: () => import('@/views/LoginView.vue'),
+    beforeEnter: (to) => legacyAuthQueryRedirect(to),
     meta: {
       requiresAuth: false,
       publicMarketing: true,
       ...routeHead('login', 'login'),
     }
+  },
+  // Global auth entry points: same LoginView, no department in the URL.
+  {
+    path: '/register',
+    name: 'Register',
+    component: () => import('@/views/LoginView.vue'),
+    meta: { requiresAuth: false, publicMarketing: true, ...routeHead('login', 'login') },
+  },
+  {
+    path: '/forgot-password',
+    name: 'ForgotPassword',
+    component: () => import('@/views/LoginView.vue'),
+    meta: { requiresAuth: false, publicMarketing: true, ...routeHead('login', 'login') },
+  },
+  {
+    path: '/reset-password',
+    name: 'ResetPassword',
+    component: () => import('@/views/LoginView.vue'),
+    meta: { requiresAuth: false, publicMarketing: true, ...routeHead('login', 'login') },
   },
   {
     path: '/sandbox',
@@ -815,7 +899,53 @@ const routes: RouteRecordRaw[] = [
     ],
   },
   {
-    path: '/:departmentId/pack/:activityId',
+    // Globales Profil: unabhängig von Department und Grossanlass, nur Anmeldung nötig.
+    // Steht vor '/:departmentId', damit «profile» nie als Department-ID gelesen wird.
+    path: '/profile',
+    component: () => import('@/components/layout/AppLayout.vue'),
+    meta: { requiresAuth: true, globalProfile: true },
+    children: [
+      {
+        path: '',
+        component: () => import('@/views/profile/ProfileLayout.vue'),
+        meta: { globalProfile: true },
+        children: [
+          {
+            path: '',
+            name: 'Profile',
+            component: () => import('@/views/profile/ProfileBasicsView.vue'),
+            meta: { globalProfile: true, ...routeHead('profile') },
+          },
+          {
+            path: 'security',
+            name: 'ProfileSecurity',
+            component: () => import('@/views/profile/ProfileSecurityView.vue'),
+            meta: { globalProfile: true, ...routeHead('profileSecurity') },
+          },
+          {
+            path: 'emails',
+            name: 'ProfileEmails',
+            component: () => import('@/views/profile/ProfileEmailsView.vue'),
+            meta: { globalProfile: true, ...routeHead('profileEmails') },
+          },
+          {
+            path: 'identities',
+            name: 'ProfileIdentities',
+            component: () => import('@/views/profile/ProfileIdentitiesView.vue'),
+            meta: { globalProfile: true, ...routeHead('profileIdentities') },
+          },
+          {
+            path: 'departments',
+            name: 'ProfileDepartments',
+            component: () => import('@/views/profile/ProfileDepartmentsView.vue'),
+            meta: { globalProfile: true, ...routeHead('profileDepartments') },
+          },
+        ],
+      },
+    ],
+  },
+  {
+    path: '/:departmentId/dept/pack/:activityId',
     name: 'DevicesPackSession',
     component: () => import('@/views/devices/DevicesPackSessionView.vue'),
     meta: {
@@ -832,104 +962,22 @@ const routes: RouteRecordRaw[] = [
     children: [
       {
         path: '',
-        alias: 'dashboard',
-        name: 'Dashboard',
+        name: 'DepartmentEntry',
         component: () => import('@/views/DashboardView.vue'),
-        meta: {
-          ...routeHead('dashboard'),
-        },
+        // Echter Einstieg: wählt abhängig vom Department-Typ die kanonische Start-URL (GA oder Department).
         beforeEnter: async (to) => {
           const authStore = useAuthStore()
           const deptId = String(to.params.departmentId || '')
-          if (!deptId || !authStore.isDepartmentGrossanlass(deptId)) return true
+          if (!deptId) return true
+          if (!authStore.isDepartmentGrossanlass(deptId)) {
+            return { path: `/${deptId}/dept/dashboard`, query: to.query, hash: to.hash, replace: true }
+          }
           const home = await gaResolveHomePath(
             deptId,
             authStore.currentDepartmentRole,
             authStore.userId,
           )
-          if (home !== `/${deptId}`) {
-            return { path: home, replace: true }
-          }
-          return true
-        },
-      },
-      {
-        path: 'ressorts',
-        redirect: (to) => ({ path: `/${to.params.departmentId}/einstellungen/ressorts` }),
-      },
-      {
-        path: 'abteilungsmat',
-        name: 'GrossanlassAbteilungsmat',
-        component: () => import('@/views/grossanlass/GrossanlassAbteilungsmatView.vue'),
-        meta: {
-          ...routeHead('grossanlassAbteilungsmat'),
-        },
-      },
-      {
-        path: 'mein-ressort',
-        name: 'GrossanlassMeinRessort',
-        component: () => import('@/views/grossanlass/GrossanlassMeinRessortView.vue'),
-        meta: {
-          requiresGrossanlassDepartment: true,
-          ...routeHead('grossanlassMeinRessort'),
-        },
-      },
-      {
-        path: 'meine-einsaetze',
-        name: 'GrossanlassMeineEinsaetze',
-        component: () => import('@/views/grossanlass/GrossanlassMeineEinsaetzeView.vue'),
-        meta: {
-          requiresGrossanlassDepartment: true,
-          requiredRoles: [...GA_HELPER_ROUTE_ROLES],
-          ...routeHead('grossanlassMeineEinsaetze'),
-        },
-      },
-      {
-        path: 'helferauftrag/:groupId',
-        name: 'GrossanlassHelferauftragPrint',
-        component: () => import('@/views/grossanlass/GrossanlassHelferauftragPrintView.vue'),
-        meta: {
-          requiresGrossanlassDepartment: true,
-          ...routeHead('grossanlassHelferauftrag'),
-        },
-      },
-      {
-        path: 'planung/fahrzeuge',
-        name: 'GrossanlassFahrzeugWuensche',
-        component: () => import('@/views/grossanlass/GrossanlassFahrzeugWuenscheView.vue'),
-        meta: {
-          requiresGrossanlassDepartment: true,
-          requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-          ...routeHead('grossanlassRoundDetail'),
-        },
-      },
-      {
-        path: 'planung/runden/:roundId',
-        name: 'GrossanlassRoundDetail',
-        component: () => import('@/views/grossanlass/GrossanlassRoundDetailView.vue'),
-        meta: {
-          requiresGrossanlassDepartment: true,
-          requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-          ...routeHead('grossanlassRoundDetail'),
-        },
-      },
-      {
-        path: 'gast-vorschau',
-        name: 'GrossanlassGastVorschau',
-        component: () => import('@/views/grossanlass/GrossanlassGastVorschauView.vue'),
-        meta: {
-          requiresGrossanlassDepartment: true,
-          requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
-          ...routeHead('grossanlassGastVorschau'),
-        },
-      },
-      {
-        path: 'help/ga/:topic?',
-        name: 'GrossanlassHilfe',
-        component: () => import('@/views/grossanlass/GrossanlassHilfeView.vue'),
-        meta: {
-          requiresGrossanlassDepartment: true,
-          ...routeHead('grossanlassHilfe'),
+          return { path: home, query: to.query, hash: to.hash, replace: true }
         },
       },
       {
@@ -943,1425 +991,1356 @@ const routes: RouteRecordRaw[] = [
         }),
       },
       {
-        path: 'planung',
-        component: () => import('@/views/grossanlass/GrossanlassPlanungView.vue'),
-        meta: {
-          requiresGrossanlassDepartment: true,
-          requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-          ...routeHead('grossanlassPlanung'),
-        },
+        path: 'ga',
         children: [
           {
-            path: '',
-            name: 'GrossanlassPlanung',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/planung/wuensche` }),
-          },
-          {
-            path: 'wuensche',
-            name: 'GrossanlassPlanungWuensche',
-            component: () => import('@/views/grossanlass/GrossanlassPlanungRoundsPane.vue'),
+            path: 'dashboard',
+            name: 'GrossanlassDashboard',
+            component: () => import('@/views/DashboardView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-              planungTab: 'wuensche',
-              ...routeHead('grossanlassPlanungWuensche'),
+              ...routeHead('dashboard'),
             },
           },
           {
-            path: 'auftraege',
-            name: 'GrossanlassPlanungAuftraege',
-            component: () => import('@/views/grossanlass/auftraege/GrossanlassAuftraegeView.vue'),
+            path: 'abteilungsmat',
+            name: 'GrossanlassAbteilungsmat',
+            component: () => import('@/views/grossanlass/GrossanlassAbteilungsmatView.vue'),
+            meta: {
+              ...routeHead('grossanlassAbteilungsmat'),
+            },
+          },
+          {
+            path: 'mein-ressort',
+            name: 'GrossanlassMeinRessort',
+            component: () => import('@/views/grossanlass/GrossanlassMeinRessortView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-              planungTab: 'auftraege',
-              ...routeHead('grossanlassPlanungAuftraege'),
+              ...routeHead('grossanlassMeinRessort'),
             },
           },
           {
-            path: 'bauauftraege',
-            name: 'GrossanlassPlanungBauauftraege',
-            component: () => import('@/views/grossanlass/GrossanlassBauauftraegeView.vue'),
+            path: 'meine-einsaetze',
+            name: 'GrossanlassMeineEinsaetze',
+            component: () => import('@/views/grossanlass/GrossanlassMeineEinsaetzeView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-              planungTab: 'bauauftraege',
-              ...routeHead('grossanlassPlanungBauauftraege'),
+              requiredRoles: [...GA_HELPER_ROUTE_ROLES],
+              ...routeHead('grossanlassMeineEinsaetze'),
             },
           },
           {
-            path: 'transporte',
-            name: 'GrossanlassPlanungTransporte',
-            component: () => import('@/views/grossanlass/GrossanlassFahrauftraegeView.vue'),
+            path: 'helferauftrag/:groupId',
+            name: 'GrossanlassHelferauftragPrint',
+            component: () => import('@/views/grossanlass/GrossanlassHelferauftragPrintView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-              planungTab: 'transporte',
-              ...routeHead('grossanlassPlanungTransporte'),
+              ...routeHead('grossanlassHelferauftrag'),
             },
           },
           {
-            path: 'fahrauftraege',
-            redirect: (to) => ({
-              path: `/${to.params.departmentId}/planung/transporte`,
-              query: to.query,
-            }),
-          },
-          {
-            path: 'abholen',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/tasks/allgemein` }),
-          },
-          {
-            path: 'belegung',
-            name: 'GrossanlassPlanungBelegung',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialEinsaetzeView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-              planungTab: 'belegung',
-              ...routeHead('grossanlassPlanungBelegung'),
-            },
-          },
-          {
-            path: 'einsaetze',
-            redirect: (to) => {
-              if (String(to.query.delivery || '') === 'trip') {
-                return {
-                  path: `/${to.params.departmentId}/planung/transporte`,
-                  query: to.query,
-                }
-              }
-              return {
-                path: `/${to.params.departmentId}/planung/belegung`,
-                query: to.query,
-              }
-            },
-          },
-          {
-            path: 'konflikte',
-            name: 'GrossanlassPlanungKonflikte',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialKonflikteView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-              planungTab: 'konflikte',
-              ...routeHead('grossanlassPlanungKonflikte'),
-            },
-          },
-        ],
-      },
-      {
-        path: 'einstellungen',
-        component: () => import('@/views/grossanlass/GrossanlassEinstellungenView.vue'),
-        meta: {
-          requiresGrossanlassDepartment: true,
-          ...routeHead('grossanlassEinstellungen'),
-        },
-        children: [
-          {
-            path: '',
-            redirect: (to) => {
-              const authStore = useAuthStore()
-              const deptId = String(to.params.departmentId)
-              if (gaIsMailboxOnly(authStore.currentDepartmentRole)) {
-                return { path: `/${deptId}/einstellungen/anfragen-email` }
-              }
-              return { name: 'GrossanlassPlanungStammdaten' }
-            },
-          },
-          {
-            path: 'stammdaten',
-            name: 'GrossanlassPlanungStammdaten',
-            component: () => import('@/views/grossanlass/GrossanlassPlanungStammdatenView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
-              einstellungenTab: 'stammdaten',
-              ...routeHead('grossanlassPlanungStammdaten'),
-            },
-          },
-          {
-            path: 'ressorts',
-            name: 'GrossanlassRessorts',
-            component: () => import('@/views/grossanlass/GrossanlassRessortsTab.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
-              einstellungenTab: 'ressorts',
-              ...routeHead('grossanlassRessorts'),
-            },
-          },
-          {
-            path: 'karten',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/settings/user-karten` }),
-          },
-          {
-            path: 'standorte',
-            name: 'GrossanlassEinstellungenStandorte',
-            component: () => import('@/views/grossanlass/GrossanlassEinstellungenStandorteView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
-              einstellungenTab: 'standorte',
-              ...routeHead('grossanlassEinstellungenStandorte'),
-            },
-          },
-          {
-            path: 'kategorien',
-            name: 'GrossanlassEinstellungenKategorien',
-            component: () => import('@/views/grossanlass/GrossanlassEinstellungenKategorienView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_PROCUREMENT_ROUTE_ROLES],
-              einstellungenTab: 'kategorien',
-              ...routeHead('grossanlassEinstellungenKategorien'),
-            },
-          },
-          {
-            path: 'anfragen-email',
-            name: 'GrossanlassEinstellungenAnfragenEmail',
-            component: () => import('@/views/grossanlass/GrossanlassEinstellungenAnfragenEmailView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MAIL_SETTINGS_ROUTE_ROLES],
-              einstellungenTab: 'anfragen-email',
-              ...routeHead('grossanlassEinstellungenAnfragenEmail'),
-            },
-          },
-          {
-            path: 'teilnehmer',
-            name: 'GrossanlassPlanungStruktur',
-            component: () => import('@/views/grossanlass/GrossanlassPlanungStrukturView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
-              einstellungenTab: 'teilnehmer',
-              ...routeHead('grossanlassPlanungStruktur'),
-            },
-          },
-          {
-            path: 'struktur',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/einstellungen/teilnehmer` }),
-          },
-          {
-            path: 'activities',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/einstellungen/teilnehmer` }),
-          },
-          {
-            path: 'freigabe',
-            name: 'GrossanlassPlanungFreigabe',
-            component: () => import('@/views/grossanlass/GrossanlassPlanungFreigabeView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
-              einstellungenTab: 'freigabe',
-              ...routeHead('grossanlassPlanungFreigabe'),
-            },
-          },
-        ],
-      },
-      {
-        path: 'planung/ressorts',
-        redirect: (to) => ({ path: `/${to.params.departmentId}/einstellungen/ressorts` }),
-      },
-      {
-        path: 'planung/stammdaten',
-        redirect: (to) => ({ path: `/${to.params.departmentId}/einstellungen/stammdaten` }),
-      },
-      {
-        path: 'planung/struktur',
-        redirect: (to) => ({ path: `/${to.params.departmentId}/einstellungen/teilnehmer` }),
-      },
-      {
-        path: 'planung/activities',
-        redirect: (to) => ({ path: `/${to.params.departmentId}/einstellungen/teilnehmer` }),
-      },
-      {
-        path: 'planung/freigabe',
-        redirect: (to) => ({ path: `/${to.params.departmentId}/einstellungen/freigabe` }),
-      },
-      {
-        path: 'planungsrunden',
-        redirect: (to) => ({ path: `/${to.params.departmentId}/planung` }),
-      },
-      {
-        path: 'planung/rounds',
-        redirect: (to) => ({ path: `/${to.params.departmentId}/planung` }),
-      },
-      {
-        path: 'planung/rounds/:roundId',
-        redirect: (to) => ({ path: `/${to.params.departmentId}/planung/runden/${to.params.roundId}` }),
-      },
-      {
-        path: 'kosten',
-        name: 'GrossanlassKosten',
-        component: () => import('@/views/grossanlass/GrossanlassBeschaffungFinanzenView.vue'),
-        meta: {
-          requiresGrossanlassDepartment: true,
-          requiredRoles: [...GA_PROCUREMENT_ROUTE_ROLES],
-          ...routeHead('grossanlassKosten'),
-        },
-      },
-      {
-        path: 'beschaffung',
-        component: () => import('@/views/grossanlass/GrossanlassBeschaffungView.vue'),
-        meta: {
-          requiresGrossanlassDepartment: true,
-          ...routeHead('grossanlassBeschaffung'),
-        },
-        children: [
-          {
-            path: '',
-            redirect: (to) => {
-              const authStore = useAuthStore()
-              const deptId = String(to.params.departmentId)
-              if (gaIsMailboxOnly(authStore.currentDepartmentRole)) {
-                return { path: `/${deptId}/beschaffung/anfragen` }
-              }
-              return { name: 'GrossanlassBeschaffungBedarf' }
-            },
-          },
-          {
-            path: 'uebersicht',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/kosten` }),
-          },
-          {
-            path: 'finanzen',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/kosten` }),
-          },
-          {
-            path: 'bedarf',
-            name: 'GrossanlassBeschaffungBedarf',
-            component: () => import('@/views/grossanlass/GrossanlassBeschaffungBedarfView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_PROCUREMENT_ROUTE_ROLES],
-              beschaffungTab: 'bedarf',
-              ...routeHead('grossanlassBeschaffungBedarf'),
-            },
-          },
-          {
-            path: 'anfragen',
-            name: 'GrossanlassBeschaffungAnfragen',
-            component: () => import('@/views/grossanlass/GrossanlassBeschaffungAnfragenView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MAILBOX_ROUTE_ROLES],
-              beschaffungTab: 'anfragen',
-              ...routeHead('grossanlassBeschaffungAnfragen'),
-            },
-          },
-          {
-            path: 'offerten',
-            name: 'GrossanlassBeschaffungOfferten',
-            component: () => import('@/views/grossanlass/GrossanlassBeschaffungOffertenView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              beschaffungTab: 'offerten',
-              ...routeHead('grossanlassBeschaffungOfferten'),
-            },
-          },
-          {
-            path: 'zusagen',
-            name: 'GrossanlassBeschaffungZusagen',
-            component: () => import('@/views/grossanlass/GrossanlassBeschaffungZusagenView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_PROCUREMENT_ROUTE_ROLES],
-              beschaffungTab: 'zusagen',
-              ...routeHead('grossanlassBeschaffungZusagen'),
-            },
-          },
-          {
-            path: 'bestellungen',
-            name: 'GrossanlassBeschaffungBestellungen',
-            component: () => import('@/views/grossanlass/GrossanlassBeschaffungBestellungenView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_PROCUREMENT_ROUTE_ROLES],
-              beschaffungTab: 'bestellungen',
-              ...routeHead('grossanlassBeschaffungBestellungen'),
-            },
-          },
-          {
-            path: 'erhalten',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/material/wareneingang` }),
-          },
-        ],
-      },
-      {
-        path: 'fahrzeuge',
-        component: () => import('@/views/grossanlass/GrossanlassFahrzeugeShell.vue'),
-        meta: {
-          requiresGrossanlassDepartment: true,
-          requiredRoles: [...GA_MATERIALS_ROUTE_ROLES],
-          ...routeHead('grossanlassFahrzeuge'),
-        },
-        children: [
-          {
-            path: '',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/fahrzeuge/wuensche` }),
-          },
-          {
-            path: 'wuensche',
-            name: 'GrossanlassFahrzeugeWuensche',
+            path: 'planung/fahrzeuge',
+            name: 'GrossanlassFahrzeugWuensche',
             component: () => import('@/views/grossanlass/GrossanlassFahrzeugWuenscheView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIALS_ROUTE_ROLES],
-              fahrzeugeTab: 'wuensche',
-              ...routeHead('grossanlassFahrzeuge'),
+              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+              ...routeHead('grossanlassRoundDetail'),
             },
           },
           {
-            path: 'fuhrpark',
-            name: 'GrossanlassFahrzeugeFuhrpark',
-            component: () => import('@/views/grossanlass/GrossanlassFahrzeugeView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIALS_ROUTE_ROLES],
-              fahrzeugeTab: 'fuhrpark',
-              ...routeHead('grossanlassFahrzeuge'),
-            },
-          },
-          {
-            path: 'artikel/:itemId',
-            name: 'GrossanlassFahrzeugArtikel',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialsPreviewDetail.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIALS_ROUTE_ROLES],
-              ...routeHead('grossanlassFahrzeuge'),
-            },
-          },
-        ],
-      },
-      {
-        path: 'materialien',
-        redirect: (to) => ({
-          path: `/${to.params.departmentId}/material/bestand`,
-          query: to.query,
-        }),
-      },
-      {
-        path: 'materialien/uebersicht',
-        redirect: (to) => ({
-          path: `/${to.params.departmentId}/material/bestand`,
-          query: to.query,
-        }),
-      },
-      {
-        path: 'materialien/eigen',
-        redirect: (to) => ({
-          path: `/${to.params.departmentId}/material/bestand/eigen`,
-          query: to.query,
-        }),
-      },
-      {
-        path: 'materialien/leihweise',
-        redirect: (to) => ({
-          path: `/${to.params.departmentId}/material/bestand/leihweise`,
-          query: to.query,
-        }),
-      },
-      {
-        path: 'materialien/gaeste',
-        redirect: (to) => ({
-          path: `/${to.params.departmentId}/material/bestand/gaeste`,
-          query: to.query,
-        }),
-      },
-      {
-        path: 'materialien/js',
-        redirect: (to) => ({
-          path: `/${to.params.departmentId}/material/bestand/js`,
-          query: to.query,
-        }),
-      },
-      {
-        path: 'materialien/fahrzeuge',
-        redirect: (to) => ({ path: `/${to.params.departmentId}/fahrzeuge` }),
-      },
-      {
-        path: 'materialien/artikel/:itemId',
-        redirect: (to) => ({
-          path: `/${to.params.departmentId}/material/artikel/${to.params.itemId}`,
-          query: to.query,
-        }),
-      },
-      {
-        path: 'material/:rest(.*)*',
-        redirect: (to) => {
-          const rest = Array.isArray(to.params.rest) ? to.params.rest.join('/') : String(to.params.rest || '')
-          return { path: `/${to.params.departmentId}/material${rest ? `/${rest}` : ''}`, query: to.query, hash: to.hash }
-        },
-      },
-      {
-        path: 'material',
-        component: () => import('@/views/grossanlass/GrossanlassMaterialView.vue'),
-        meta: {
-          requiresGrossanlassDepartment: true,
-          requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-          ...routeHead('grossanlassMaterial'),
-        },
-        children: [
-          {
-            path: '',
-            redirect: (to) => ({
-              path: `/${to.params.departmentId}/material/bestand`,
-              query: to.query,
-            }),
-          },
-          {
-            path: 'bestand',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialBestandView.vue'),
+            path: 'planung/runden/:roundId',
+            name: 'GrossanlassRoundDetail',
+            component: () => import('@/views/grossanlass/GrossanlassRoundDetailView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
               requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-              materialTab: 'bestand',
+              ...routeHead('grossanlassRoundDetail'),
+            },
+          },
+          {
+            path: 'gast-vorschau',
+            name: 'GrossanlassGastVorschau',
+            component: () => import('@/views/grossanlass/GrossanlassGastVorschauView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
+              ...routeHead('grossanlassGastVorschau'),
+            },
+          },
+          {
+            path: 'help/ga/:topic?',
+            name: 'GrossanlassHilfe',
+            component: () => import('@/views/grossanlass/GrossanlassHilfeView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              ...routeHead('grossanlassHilfe'),
+            },
+          },
+          {
+            path: 'planung',
+            component: () => import('@/views/grossanlass/GrossanlassPlanungView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+              ...routeHead('grossanlassPlanung'),
+            },
+            children: [
+              {
+                path: '',
+                name: 'GrossanlassPlanung',
+                redirect: (to) => ({ path: `/${to.params.departmentId}/ga/planung/wuensche` }),
+              },
+              {
+                path: 'wuensche',
+                name: 'GrossanlassPlanungWuensche',
+                component: () => import('@/views/grossanlass/GrossanlassPlanungRoundsPane.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+                  planungTab: 'wuensche',
+                  ...routeHead('grossanlassPlanungWuensche'),
+                },
+              },
+              {
+                path: 'auftraege',
+                name: 'GrossanlassPlanungAuftraege',
+                component: () => import('@/views/grossanlass/auftraege/GrossanlassAuftraegeView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+                  planungTab: 'auftraege',
+                  ...routeHead('grossanlassPlanungAuftraege'),
+                },
+              },
+              {
+                path: 'bauauftraege',
+                name: 'GrossanlassPlanungBauauftraege',
+                component: () => import('@/views/grossanlass/GrossanlassBauauftraegeView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+                  planungTab: 'bauauftraege',
+                  ...routeHead('grossanlassPlanungBauauftraege'),
+                },
+              },
+              {
+                path: 'transporte',
+                name: 'GrossanlassPlanungTransporte',
+                component: () => import('@/views/grossanlass/GrossanlassFahrauftraegeView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+                  planungTab: 'transporte',
+                  ...routeHead('grossanlassPlanungTransporte'),
+                },
+              },
+              {
+                path: 'belegung',
+                name: 'GrossanlassPlanungBelegung',
+                component: () => import('@/views/grossanlass/GrossanlassMaterialEinsaetzeView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+                  planungTab: 'belegung',
+                  ...routeHead('grossanlassPlanungBelegung'),
+                },
+              },
+              {
+                path: 'konflikte',
+                name: 'GrossanlassPlanungKonflikte',
+                component: () => import('@/views/grossanlass/GrossanlassMaterialKonflikteView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+                  planungTab: 'konflikte',
+                  ...routeHead('grossanlassPlanungKonflikte'),
+                },
+              },
+            ],
+          },
+          {
+            path: 'einstellungen',
+            component: () => import('@/views/grossanlass/GrossanlassEinstellungenView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              ...routeHead('grossanlassEinstellungen'),
+            },
+            children: [
+              {
+                path: '',
+                redirect: (to) => {
+                  const authStore = useAuthStore()
+                  const deptId = String(to.params.departmentId)
+                  if (gaIsMailboxOnly(authStore.currentDepartmentRole)) {
+                    return { path: `/${deptId}/ga/einstellungen/anfragen-email` }
+                  }
+                  return { name: 'GrossanlassPlanungStammdaten' }
+                },
+              },
+              {
+                path: 'stammdaten',
+                name: 'GrossanlassPlanungStammdaten',
+                component: () => import('@/views/grossanlass/GrossanlassPlanungStammdatenView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
+                  einstellungenTab: 'stammdaten',
+                  ...routeHead('grossanlassPlanungStammdaten'),
+                },
+              },
+              {
+                path: 'ressorts',
+                name: 'GrossanlassRessorts',
+                component: () => import('@/views/grossanlass/GrossanlassRessortsTab.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
+                  einstellungenTab: 'ressorts',
+                  ...routeHead('grossanlassRessorts'),
+                },
+              },
+              {
+                path: 'standorte',
+                name: 'GrossanlassEinstellungenStandorte',
+                component: () => import('@/views/grossanlass/GrossanlassEinstellungenStandorteView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
+                  einstellungenTab: 'standorte',
+                  ...routeHead('grossanlassEinstellungenStandorte'),
+                },
+              },
+              {
+                path: 'kategorien',
+                name: 'GrossanlassEinstellungenKategorien',
+                component: () => import('@/views/grossanlass/GrossanlassEinstellungenKategorienView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_PROCUREMENT_ROUTE_ROLES],
+                  einstellungenTab: 'kategorien',
+                  ...routeHead('grossanlassEinstellungenKategorien'),
+                },
+              },
+              {
+                path: 'anfragen-email',
+                name: 'GrossanlassEinstellungenAnfragenEmail',
+                component: () => import('@/views/grossanlass/GrossanlassEinstellungenAnfragenEmailView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_MAIL_SETTINGS_ROUTE_ROLES],
+                  einstellungenTab: 'anfragen-email',
+                  ...routeHead('grossanlassEinstellungenAnfragenEmail'),
+                },
+              },
+              {
+                path: 'teilnehmer',
+                name: 'GrossanlassPlanungStruktur',
+                component: () => import('@/views/grossanlass/GrossanlassPlanungStrukturView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
+                  einstellungenTab: 'teilnehmer',
+                  ...routeHead('grossanlassPlanungStruktur'),
+                },
+              },
+              {
+                path: 'freigabe',
+                name: 'GrossanlassPlanungFreigabe',
+                component: () => import('@/views/grossanlass/GrossanlassPlanungFreigabeView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
+                  einstellungenTab: 'freigabe',
+                  ...routeHead('grossanlassPlanungFreigabe'),
+                },
+              },
+            ],
+          },
+          {
+            path: 'kosten',
+            name: 'GrossanlassKosten',
+            component: () => import('@/views/grossanlass/GrossanlassBeschaffungFinanzenView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: [...GA_PROCUREMENT_ROUTE_ROLES],
+              ...routeHead('grossanlassKosten'),
+            },
+          },
+          {
+            path: 'beschaffung',
+            component: () => import('@/views/grossanlass/GrossanlassBeschaffungView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              ...routeHead('grossanlassBeschaffung'),
+            },
+            children: [
+              {
+                path: '',
+                redirect: (to) => {
+                  const authStore = useAuthStore()
+                  const deptId = String(to.params.departmentId)
+                  if (gaIsMailboxOnly(authStore.currentDepartmentRole)) {
+                    return { path: `/${deptId}/ga/beschaffung/anfragen` }
+                  }
+                  return { name: 'GrossanlassBeschaffungBedarf' }
+                },
+              },
+              {
+                path: 'bedarf',
+                name: 'GrossanlassBeschaffungBedarf',
+                component: () => import('@/views/grossanlass/GrossanlassBeschaffungBedarfView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_PROCUREMENT_ROUTE_ROLES],
+                  beschaffungTab: 'bedarf',
+                  ...routeHead('grossanlassBeschaffungBedarf'),
+                },
+              },
+              {
+                path: 'anfragen',
+                name: 'GrossanlassBeschaffungAnfragen',
+                component: () => import('@/views/grossanlass/GrossanlassBeschaffungAnfragenView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_MAILBOX_ROUTE_ROLES],
+                  beschaffungTab: 'anfragen',
+                  ...routeHead('grossanlassBeschaffungAnfragen'),
+                },
+              },
+              {
+                path: 'offerten',
+                name: 'GrossanlassBeschaffungOfferten',
+                component: () => import('@/views/grossanlass/GrossanlassBeschaffungOffertenView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  beschaffungTab: 'offerten',
+                  ...routeHead('grossanlassBeschaffungOfferten'),
+                },
+              },
+              {
+                path: 'zusagen',
+                name: 'GrossanlassBeschaffungZusagen',
+                component: () => import('@/views/grossanlass/GrossanlassBeschaffungZusagenView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_PROCUREMENT_ROUTE_ROLES],
+                  beschaffungTab: 'zusagen',
+                  ...routeHead('grossanlassBeschaffungZusagen'),
+                },
+              },
+              {
+                path: 'bestellungen',
+                name: 'GrossanlassBeschaffungBestellungen',
+                component: () => import('@/views/grossanlass/GrossanlassBeschaffungBestellungenView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_PROCUREMENT_ROUTE_ROLES],
+                  beschaffungTab: 'bestellungen',
+                  ...routeHead('grossanlassBeschaffungBestellungen'),
+                },
+              },
+            ],
+          },
+          {
+            path: 'fahrzeuge',
+            component: () => import('@/views/grossanlass/GrossanlassFahrzeugeShell.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: [...GA_MATERIALS_ROUTE_ROLES],
+              ...routeHead('grossanlassFahrzeuge'),
+            },
+            children: [
+              {
+                path: '',
+                redirect: (to) => ({ path: `/${to.params.departmentId}/ga/fahrzeuge/wuensche` }),
+              },
+              {
+                path: 'wuensche',
+                name: 'GrossanlassFahrzeugeWuensche',
+                component: () => import('@/views/grossanlass/GrossanlassFahrzeugWuenscheView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_MATERIALS_ROUTE_ROLES],
+                  fahrzeugeTab: 'wuensche',
+                  ...routeHead('grossanlassFahrzeuge'),
+                },
+              },
+              {
+                path: 'fuhrpark',
+                name: 'GrossanlassFahrzeugeFuhrpark',
+                component: () => import('@/views/grossanlass/GrossanlassFahrzeugeView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_MATERIALS_ROUTE_ROLES],
+                  fahrzeugeTab: 'fuhrpark',
+                  ...routeHead('grossanlassFahrzeuge'),
+                },
+              },
+              {
+                path: 'artikel/:itemId',
+                name: 'GrossanlassFahrzeugArtikel',
+                component: () => import('@/views/grossanlass/GrossanlassMaterialsPreviewDetail.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_MATERIALS_ROUTE_ROLES],
+                  ...routeHead('grossanlassFahrzeuge'),
+                },
+              },
+            ],
+          },
+          {
+            path: 'material',
+            component: () => import('@/views/grossanlass/GrossanlassMaterialView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
               ...routeHead('grossanlassMaterial'),
             },
             children: [
               {
                 path: '',
-                name: 'GrossanlassMaterial',
-                component: () => import('@/views/grossanlass/GrossanlassMaterialBestandAllesView.vue'),
+                redirect: (to) => ({
+                  path: `/${to.params.departmentId}/ga/material/bestand`,
+                  query: to.query,
+                }),
+              },
+              {
+                path: 'bestand',
+                component: () => import('@/views/grossanlass/GrossanlassMaterialBestandView.vue'),
                 meta: {
                   requiresGrossanlassDepartment: true,
                   requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
                   materialTab: 'bestand',
-                  bestandSubTab: 'alles',
                   ...routeHead('grossanlassMaterial'),
                 },
+                children: [
+                  {
+                    path: '',
+                    name: 'GrossanlassMaterial',
+                    component: () => import('@/views/grossanlass/GrossanlassMaterialBestandAllesView.vue'),
+                    meta: {
+                      requiresGrossanlassDepartment: true,
+                      requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+                      materialTab: 'bestand',
+                      bestandSubTab: 'alles',
+                      ...routeHead('grossanlassMaterial'),
+                    },
+                  },
+                  {
+                    path: 'eigen',
+                    name: 'GrossanlassMaterials',
+                    component: () => import('@/views/grossanlass/GrossanlassMaterialsTab.vue'),
+                    meta: {
+                      requiresGrossanlassDepartment: true,
+                      requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+                      materialTab: 'bestand',
+                      materialsTab: 'eigen',
+                      bestandSubTab: 'eigen',
+                      ...routeHead('grossanlassMaterials'),
+                    },
+                  },
+                  {
+                    path: 'leihweise',
+                    name: 'GrossanlassMaterialsLeihweise',
+                    component: () => import('@/views/grossanlass/GrossanlassMaterialsTab.vue'),
+                    meta: {
+                      requiresGrossanlassDepartment: true,
+                      requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+                      materialTab: 'bestand',
+                      materialsTab: 'leihweise',
+                      bestandSubTab: 'leihweise',
+                      ...routeHead('grossanlassMaterialsLeihweise'),
+                    },
+                  },
+                  {
+                    path: 'gaeste',
+                    name: 'GrossanlassMaterialsGaeste',
+                    component: () => import('@/views/grossanlass/GrossanlassMaterialsGaesteView.vue'),
+                    meta: {
+                      requiresGrossanlassDepartment: true,
+                      requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+                      materialTab: 'bestand',
+                      materialsTab: 'gaeste',
+                      bestandSubTab: 'gaeste',
+                      ...routeHead('grossanlassMaterialsGaeste'),
+                    },
+                  },
+                  {
+                    path: 'js',
+                    name: 'GrossanlassMaterialsJs',
+                    component: () => import('@/views/grossanlass/GrossanlassMaterialsJsView.vue'),
+                    meta: {
+                      requiresGrossanlassDepartment: true,
+                      requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+                      materialTab: 'bestand',
+                      materialsTab: 'js',
+                      bestandSubTab: 'js',
+                      ...routeHead('grossanlassMaterialsJs'),
+                    },
+                  },
+                ],
               },
               {
-                path: 'eigen',
-                name: 'GrossanlassMaterials',
-                component: () => import('@/views/grossanlass/GrossanlassMaterialsTab.vue'),
+                path: 'artikel/:itemId',
+                name: 'GrossanlassMaterialsArtikel',
+                component: () => import('@/views/grossanlass/GrossanlassMaterialsPreviewDetail.vue'),
                 meta: {
                   requiresGrossanlassDepartment: true,
                   requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-                  materialTab: 'bestand',
-                  materialsTab: 'eigen',
-                  bestandSubTab: 'eigen',
-                  ...routeHead('grossanlassMaterials'),
+                  materialsTab: 'detail',
+                  ...routeHead('grossanlassMaterialsArtikel'),
                 },
               },
               {
-                path: 'leihweise',
-                name: 'GrossanlassMaterialsLeihweise',
-                component: () => import('@/views/grossanlass/GrossanlassMaterialsTab.vue'),
+                path: 'wareneingang',
+                name: 'GrossanlassMaterialWareneingang',
+                component: () => import('@/views/grossanlass/GrossanlassMaterialWareneingangView.vue'),
                 meta: {
                   requiresGrossanlassDepartment: true,
                   requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-                  materialTab: 'bestand',
-                  materialsTab: 'leihweise',
-                  bestandSubTab: 'leihweise',
-                  ...routeHead('grossanlassMaterialsLeihweise'),
+                  materialTab: 'wareneingang',
+                  ...routeHead('grossanlassMaterialWareneingang'),
                 },
               },
               {
-                path: 'gaeste',
-                name: 'GrossanlassMaterialsGaeste',
-                component: () => import('@/views/grossanlass/GrossanlassMaterialsGaesteView.vue'),
+                path: 'ausgabe',
+                name: 'GrossanlassMaterialAusgabe',
+                component: () => import('@/views/grossanlass/GrossanlassMaterialAusgabeView.vue'),
                 meta: {
                   requiresGrossanlassDepartment: true,
-                  requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-                  materialTab: 'bestand',
-                  materialsTab: 'gaeste',
-                  bestandSubTab: 'gaeste',
-                  ...routeHead('grossanlassMaterialsGaeste'),
+                  requiredRoles: [...GA_PROCUREMENT_ROUTE_ROLES],
+                  materialTab: 'ausgabe',
+                  ...routeHead('grossanlassMaterialAusgabe'),
                 },
               },
               {
-                path: 'js',
-                name: 'GrossanlassMaterialsJs',
-                component: () => import('@/views/grossanlass/GrossanlassMaterialsJsView.vue'),
+                path: 'pack',
+                name: 'GrossanlassMaterialPack',
+                component: () => import('@/views/grossanlass/GrossanlassMaterialPackView.vue'),
                 meta: {
                   requiresGrossanlassDepartment: true,
                   requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-                  materialTab: 'bestand',
-                  materialsTab: 'js',
-                  bestandSubTab: 'js',
-                  ...routeHead('grossanlassMaterialsJs'),
+                  materialTab: 'pack',
+                  ...routeHead('grossanlassMaterialPack'),
+                },
+              },
+              {
+                path: 'weiterverkauf',
+                name: 'GrossanlassMaterialWeiterverkauf',
+                component: () => import('@/views/grossanlass/weiterverkauf/GrossanlassMaterialWeiterverkaufView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+                  materialTab: 'weiterverkauf',
+                  ...routeHead('grossanlassMaterialWeiterverkauf'),
+                },
+              },
+              {
+                path: 'rueckbau',
+                name: 'GrossanlassMaterialRueckbau',
+                component: () => import('@/views/grossanlass/GrossanlassMaterialRueckbauView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+                  materialTab: 'rueckbau',
+                  ...routeHead('grossanlassMaterialRueckbau'),
                 },
               },
             ],
           },
           {
-            path: 'artikel/:itemId',
-            name: 'GrossanlassMaterialsArtikel',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialsPreviewDetail.vue'),
+            // Zentrale Infoscreen-Verwaltung (gleiche Komponente wie in den Department-Einstellungen).
+            path: 'displays',
+            name: 'GrossanlassDisplays',
+            component: () => import('@/views/settings/MyDepartmentDisplayScreensView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
               requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-              materialsTab: 'detail',
-              ...routeHead('grossanlassMaterialsArtikel'),
+              ...routeHead('grossanlassDisplays'),
             },
           },
           {
-            path: 'einsaetze',
-            redirect: (to) => {
-              if (String(to.query.delivery || '') === 'trip') {
-                return {
-                  path: `/${to.params.departmentId}/planung/transporte`,
-                  query: to.query,
-                }
-              }
-              return {
-                path: `/${to.params.departmentId}/planung/belegung`,
-                query: to.query,
-              }
-            },
-          },
-          {
-            path: 'bauauftraege',
-            redirect: (to) => ({
-              path: `/${to.params.departmentId}/planung/bauauftraege`,
-              query: to.query,
-            }),
-          },
-          {
-            path: 'fahrauftraege',
-            redirect: (to) => ({
-              path: `/${to.params.departmentId}/planung/transporte`,
-              query: to.query,
-            }),
-          },
-          {
-            path: 'wareneingang',
-            name: 'GrossanlassMaterialWareneingang',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialWareneingangView.vue'),
+            // Bisherige GA-Demo-Displays (Mock-Daten), bis die Live-Anbindung in Phase 5.2 folgt.
+            path: 'displays/demo',
+            name: 'GrossanlassDisplaysDemo',
+            component: () => import('@/views/grossanlass/displays/GrossanlassDisplaysView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
               requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-              materialTab: 'wareneingang',
-              ...routeHead('grossanlassMaterialWareneingang'),
+              ...routeHead('grossanlassDisplays'),
             },
           },
           {
-            path: 'konflikte',
-            redirect: (to) => ({
-              path: `/${to.params.departmentId}/planung/konflikte`,
-              query: to.query,
-            }),
-          },
-          {
-            path: 'ausgabe',
-            name: 'GrossanlassMaterialAusgabe',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialAusgabeView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_PROCUREMENT_ROUTE_ROLES],
-              materialTab: 'ausgabe',
-              ...routeHead('grossanlassMaterialAusgabe'),
-            },
-          },
-          {
-            path: 'pack',
-            name: 'GrossanlassMaterialPack',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialPackView.vue'),
+            path: 'helferpool',
+            name: 'GrossanlassHelferpool',
+            component: () => import('@/views/grossanlass/helferpool/GrossanlassHelferpoolView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
               requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-              materialTab: 'pack',
-              ...routeHead('grossanlassMaterialPack'),
+              ...routeHead('grossanlassHelferpool'),
             },
           },
           {
-            path: 'weiterverkauf',
-            name: 'GrossanlassMaterialWeiterverkauf',
-            component: () => import('@/views/grossanlass/weiterverkauf/GrossanlassMaterialWeiterverkaufView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-              materialTab: 'weiterverkauf',
-              ...routeHead('grossanlassMaterialWeiterverkauf'),
-            },
-          },
-          {
-            path: 'rueckbau',
-            name: 'GrossanlassMaterialRueckbau',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialRueckbauView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-              materialTab: 'rueckbau',
-              ...routeHead('grossanlassMaterialRueckbau'),
-            },
-          },
-          {
-            path: 'retour',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/material/rueckbau`, query: to.query }),
-          },
-        ],
-      },
-      {
-        path: 'displays',
-        name: 'GrossanlassDisplays',
-        component: () => import('@/views/grossanlass/displays/GrossanlassDisplaysView.vue'),
-        meta: {
-          requiresGrossanlassDepartment: true,
-          requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-          ...routeHead('grossanlassDisplays'),
-        },
-      },
-      {
-        path: 'helferpool',
-        name: 'GrossanlassHelferpool',
-        component: () => import('@/views/grossanlass/helferpool/GrossanlassHelferpoolView.vue'),
-        meta: {
-          requiresGrossanlassDepartment: true,
-          requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-          ...routeHead('grossanlassHelferpool'),
-        },
-      },
-      {
-        path: 'logistik',
-        component: () => import('@/views/grossanlass/GrossanlassLogistikView.vue'),
-        meta: {
-          requiresGrossanlassDepartment: true,
-          requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
-          denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-          ...routeHead('grossanlassLogistik'),
-        },
-        children: [
-          {
-            path: '',
-            name: 'GrossanlassLogistik',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/logistik/disposition` }),
-          },
-          {
-            path: 'disposition',
-            name: 'GrossanlassLogistikDisposition',
-            component: () => import('@/views/grossanlass/logistik/GrossanlassDispositionView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              ...routeHead('grossanlassLogistikDisposition'),
-            },
-          },
-        ],
-      },
-      {
-        path: 'werkstatt',
-        name: 'GrossanlassWerkstatt',
-        component: () => import('@/views/grossanlass/GrossanlassWerkstattView.vue'),
-        meta: {
-          requiresGrossanlassDepartment: true,
-          requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
-          denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-          ...routeHead('grossanlassWerkstatt'),
-        },
-      },
-      {
-        path: 'verwaltung',
-        component: () => import('@/views/VerwaltungView.vue'),
-        children: [
-          {
-            path: '',
-            redirect: (to) => {
-              const authStore = useAuthStore()
-              const departmentId = to.params.departmentId as string | undefined
-              return resolveVerwaltungLandingPath(authStore, { departmentId })
-            },
-          },
-          {
-            path: 'global-addresses',
-            name: 'DepartmentGlobalAddresses',
-            component: () => import('@/views/GlobalAddressesView.vue'),
-            meta: {
-              requiredRoles: ['superadmin'],
-              ...routeHead('globalAddresses'),
-            }
-          },
-          {
-            path: 'jobs',
-            name: 'Jobs',
-            component: () => import('@/views/JobsView.vue'),
-            meta: {
-              requiredRoles: ['superadmin'],
-              ...routeHead('systemJobs'),
-            }
-          },
-          {
-            path: 'support-requests',
-            name: 'SupportRequests',
-            component: () => import('@/views/SupportRequestsView.vue'),
-            meta: {
-              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
-              ...routeHead('supportRequests'),
-            }
-          },
-          {
-            path: 'organisations',
-            name: 'DepartmentVerwaltungOrganisations',
-            component: () => import('@/views/settings/OrganisationsSettingsView.vue'),
-            meta: {
-              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
-              ...routeHead('organisations'),
-            }
-          },
-          {
-            path: 'departments',
-            name: 'DepartmentVerwaltungDepartments',
-            component: () => import('@/views/settings/DepartmentsSettingsView.vue'),
-            meta: {
-              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
-              ...routeHead('departments'),
-            }
-          },
-          {
-            path: 'mail-templates',
-            redirect: (to) => ({ path: to.path.replace(/\/mail-templates\/?$/, '/mail/versand') }),
-          },
-          {
-            path: 'mail',
-            component: () => import('@/views/mail/MailVerwaltungLayout.vue'),
-            redirect: { name: 'DepartmentMailVersand' },
-            meta: {
-              requiredRoles: ['superadmin'],
-              ...routeHead('mailRoot'),
-            },
-            children: [
-              {
-                path: 'versand',
-                name: 'DepartmentMailVersand',
-                component: () => import('@/views/settings/MailTemplatesSettingsView.vue'),
-                meta: {
-                  requiredRoles: ['superadmin'],
-                  ...routeHead('mailTemplates'),
-                },
-              },
-              {
-                path: 'einstellungen',
-                name: 'DepartmentMailEinstellungen',
-                component: () => import('@/views/mail/MailOutboundSettingsView.vue'),
-                meta: {
-                  requiredRoles: ['superadmin'],
-                  ...routeHead('mailSettings'),
-                },
-              },
-              {
-                path: 'log',
-                name: 'DepartmentMailLog',
-                component: () => import('@/views/mail/MailSendLogView.vue'),
-                meta: {
-                  requiredRoles: ['superadmin'],
-                  ...routeHead('mailLog'),
-                },
-              },
-            ],
-          },
-          {
-            path: 'permissions',
-            name: 'DepartmentVerwaltungPermissions',
-            component: () => import('@/views/settings/PermissionsSettingsView.vue'),
-            meta: {
-              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
-              ...routeHead('permissions'),
-            }
-          },
-          {
-            path: 'supplier-global-review',
-            redirect: '/admin-dashboard/verwaltung/supplier-global-review',
-          },
-          {
-            path: 'js-leihkatalog',
-            redirect: '/admin-dashboard/verwaltung/js-leihkatalog',
-          },
-          {
-            path: 'print-catalog',
-            name: 'DepartmentPrintCatalog',
-            component: () => import('@/views/PrintCatalogAdminView.vue'),
-            meta: {
-              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
-              ...routeHead('printCatalogAdmin'),
-            }
-          },
-        ]
-      },
-      {
-        path: 'activities',
-        name: 'Activities',
-        component: () => import('@/views/ActivitiesView.vue'),
-        meta: {
-          ...routeHead('activities'),
-        },
-        children: [
-          {
-            path: ':activityId/packlist',
-            redirect: (to) => ({
-              name: 'ActivityDetailTab',
-              params: {
-                departmentId: to.params.departmentId,
-                activityId: to.params.activityId,
-                tab: 'packs',
-              },
-            }),
-          },
-          {
-            path: ':activityId/pack-journey/:step?',
-            name: 'ActivityPackJourney',
-            component: () => import('@/views/ActivityPackJourneyView.vue'),
-            meta: {
-              ...routeHead('activityPackJourney'),
-            },
-          },
-          {
-            path: ':activityId',
-            name: 'ActivityDetail',
-            component: () => import('@/views/ActivitiesView.vue'),
-            meta: {
-              ...routeHead('activityDetail'),
-            }
-          },
-          {
-            path: ':activityId/:tab',
-            name: 'ActivityDetailTab',
-            component: () => import('@/views/ActivitiesView.vue'),
-            meta: {
-              ...routeHead('activityDetail'),
-            }
-          }
-        ]
-      },
-      {
-        path: 'materials',
-        name: 'Materials',
-        component: () => import('@/views/MaterialsView.vue'),
-        meta: {
-          ...routeHead('materials'),
-        },
-        beforeEnter: (to) => {
-          const authStore = useAuthStore()
-          const deptId = String(to.params.departmentId || '')
-          if (deptId && authStore.isDepartmentGrossanlass(deptId)) {
-            return { path: `/${deptId}/material` }
-          }
-        },
-        children: [
-          {
-            path: 'alle',
-            name: 'MaterialsTabAll',
-            component: () => import('@/views/MaterialsView.vue'),
-            meta: {
-              ...routeHead('materialsAll'),
-            }
-          },
-          {
-            path: 'kombos',
-            name: 'MaterialsTabCombos',
-            component: () => import('@/views/MaterialsView.vue'),
-            meta: {
-              ...routeHead('materialsCombos'),
-            }
-          },
-          {
-            path: 'virtuelle-kombis',
-            name: 'MaterialsTabVirtualCombos',
-            component: () => import('@/views/MaterialsView.vue'),
-            meta: {
-              ...routeHead('materialsVirtualCombos'),
-            }
-          },
-          {
-            path: 'verbrauchsmaterial',
-            name: 'MaterialsTabConsumables',
-            component: () => import('@/views/MaterialsView.vue'),
-            meta: {
-              ...routeHead('materialsConsumables'),
-            }
-          },
-          {
-            path: 'esswaren',
-            name: 'MaterialsTabFood',
-            component: () => import('@/views/MaterialsView.vue'),
-            meta: {
-              ...routeHead('materialsFood'),
-            }
-          },
-          {
-            path: 'regale',
-            name: 'MaterialsTabStorage',
-            component: () => import('@/views/MaterialsView.vue'),
-            meta: {
-              ...routeHead('materialsStorage'),
-            }
-          },
-          {
-            path: ':materialId',
-            name: 'MaterialDetail',
-            component: () => import('@/views/MaterialsView.vue'),
-            meta: {
-              ...routeHead('materialDetail', 'materialDetail'),
-            }
-          }
-        ]
-      },
-      {
-        path: 'supplier-shop',
-        name: 'SupplierShop',
-        component: () => import('@/views/SupplierShopView.vue'),
-        meta: {
-          requiredRoles: ['matwart', 'depchef', 'mw', 'dc'],
-          ...routeHead('supplierShop'),
-        },
-      },
-      {
-        path: 'accounting',
-        component: () => import('@/views/accounting/AccountingShellView.vue'),
-        meta: {
-          ...routeHead('accounting'),
-        },
-        children: [
-          {
-            path: '',
-            name: 'AccountingOverview',
-            component: () => import('@/views/accounting/AccountingOverviewView.vue'),
-            meta: {
-              requiredRoles: ['matwart', 'depchef'],
-              ...routeHead('accounting'),
-            },
-          },
-          {
-            path: 'kostenstellen',
-            name: 'AccountingCostCenters',
-            component: () => import('@/views/accounting/AccountingCostCentersView.vue'),
-            meta: {
-              requiredRoles: ['matwart', 'depchef'],
-              ...routeHead('accountingCostCenters'),
-            },
-          },
-          {
-            path: 'buchungen',
-            name: 'AccountingBookings',
-            component: () => import('@/views/accounting/AccountingBookingsView.vue'),
-            meta: {
-              requiredRoles: ['matwart', 'depchef'],
-              ...routeHead('accountingBookings'),
-            },
-          },
-          {
-            path: 'gruppen',
-            name: 'AccountingGroupCosts',
-            component: () => import('@/views/accounting/AccountingGroupCostsView.vue'),
-            meta: {
-              requiredRoles: ['matwart', 'depchef', 'leader1', 'leader2', 'leader3', 'user'],
-              ...routeHead('accountingGroupCosts'),
-            },
-          },
-          {
-            path: 'materialkosten',
-            name: 'AccountingMaterialCosts',
-            component: () => import('@/views/accounting/AccountingMaterialCostsView.vue'),
-            meta: {
-              requiredRoles: ['matwart', 'depchef'],
-              ...routeHead('accountingMaterialCosts'),
-            },
-          },
-          {
-            path: 'abschreibung',
-            name: 'AccountingAmortization',
-            component: () => import('@/views/accounting/AccountingAmortizationView.vue'),
-            meta: {
-              requiredRoles: ['matwart', 'depchef'],
-              ...routeHead('accountingAmortization'),
-            },
-          },
-          {
-            path: 'budget',
-            name: 'AccountingBudget',
-            component: () => import('@/views/accounting/AccountingBudgetView.vue'),
-            meta: {
-              requiredRoles: ['matwart', 'depchef'],
-              ...routeHead('accountingBudget'),
-            },
-          },
-        ],
-      },
-      {
-        path: 'contacts',
-        name: 'Contacts',
-        component: () => import('@/views/ContactsView.vue'),
-        meta: {
-          ...routeHead('contacts'),
-        },
-        children: [
-          {
-            path: ':contactId',
-            name: 'ContactDetail',
-            component: () => import('@/views/ContactsView.vue'),
-            meta: {
-              ...routeHead('contactDetail'),
-            }
-          }
-        ]
-      },
-      {
-        path: 'tasks',
-        name: 'Tasks',
-        component: () => import('@/views/TasksShellView.vue'),
-        redirect: (to) => {
-          const authStore = useAuthStore()
-          const deptId = String(to.params.departmentId || '')
-          if (deptId && authStore.isDepartmentGrossanlass(deptId)) {
-            return { name: gaIsGrossanlassHelper(authStore.currentDepartmentRole) ? 'TasksGaMine' : 'TasksGaMaster' }
-          }
-          return { name: 'TasksGeneral' }
-        },
-        meta: {
-          ...routeHead('tasks'),
-        },
-        children: [
-          {
-            path: 'aufgaben',
-            name: 'TasksGaMaster',
-            component: () => import('@/views/grossanlass/aufgaben/GrossanlassAufgabenMasterView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              ...routeHead('tasksGaMaster'),
-            },
-          },
-          {
-            path: 'meine',
-            name: 'TasksGaMine',
-            component: () => import('@/views/grossanlass/aufgaben/GrossanlassMeineAufgabenView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              ...routeHead('tasksGaMine'),
-            },
-          },
-          {
-            path: 'allgemein',
-            name: 'TasksGeneral',
-            component: () => import('@/views/TasksGeneralView.vue'),
-            meta: {
-              ...routeHead('tasksGeneral'),
-            },
-          },
-          {
-            path: 'inventory',
-            name: 'TasksInventory',
-            component: () => import('@/views/TasksInventoryView.vue'),
-            meta: {
-              ...routeHead('tasksInventory'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'TasksGeneral' },
-            },
-          },
-          {
-            path: 'druck',
-            name: 'TasksPrint',
-            component: () => import('@/views/TasksPrintView.vue'),
-            meta: {
-              ...routeHead('tasksPrint'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'TasksGeneral' },
-            },
-          },
-        ],
-      },
-      {
-        path: 'notifications',
-        name: 'NotificationsCenter',
-        component: () => import('@/views/NotificationsCenterView.vue'),
-        meta: {
-          ...routeHead('notificationsCenter'),
-        }
-      },
-      {
-        path: 'search',
-        name: 'GlobalSearch',
-        component: () => import('@/views/GlobalSearchView.vue'),
-        meta: {
-          ...routeHead('globalSearch'),
-        }
-      },
-      {
-        path: 'dev/ui-playground',
-        alias: 'sandbox',
-        name: 'DevUiPlayground',
-        component: () => import('@/views/dev/DevUiPlaygroundView.vue'),
-        meta: {
-          devToolsOnly: true,
-          ...routeHead('devUiSandbox'),
-        },
-      },
-      {
-        path: 'workshop',
-        name: 'Workshop',
-        component: () => import('@/views/WorkshopView.vue'),
-        meta: {
-          ...routeHead('workshop'),
-          denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-        }
-      },
-      {
-        path: 'statistics',
-        name: 'Statistics',
-        component: () => import('@/views/StatisticsView.vue'),
-        meta: {
-          ...routeHead('statistics'),
-          denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-        }
-      },
-      {
-        path: 'settings',
-        component: () => import('@/views/SettingsView.vue'),
-        children: [
-          {
-            path: '',
-            redirect: { name: 'SettingsMyDepartment' },
-          },
-          {
-            path: 'module',
-            name: 'SettingsModule',
-            component: () => import('@/views/settings/ModuleSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsModule'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'zeit',
-            name: 'SettingsZeit',
-            component: () => import('@/views/settings/GeneralSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsTime'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'categories',
-            name: 'SettingsCategories',
-            component: () => import('@/views/settings/CategoriesSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsCategories'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'my-department',
-            name: 'SettingsMyDepartment',
-            component: () => import('@/views/settings/MyDepartmentSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsMyDepartment'),
-            }
-          },
-          {
-            path: 'my-department/join-code',
-            name: 'SettingsMyDepartmentJoinCode',
-            component: () => import('@/views/settings/MyDepartmentJoinCodeView.vue'),
-            meta: {
-              ...routeHead('settingsJoinCode'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'my-department/fixed-dates',
-            name: 'SettingsMyDepartmentFixedDates',
-            component: () => import('@/views/settings/MyDepartmentFixedDatesView.vue'),
-            meta: {
-              ...routeHead('settingsFixedDates'),
-              requireDepartmentRoles: [...DEPARTMENT_MW_DC_ROLES],
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'print',
-            name: 'SettingsPrint',
-            component: () => import('@/views/settings/PrintSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsPrint'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'user-karten',
-            name: 'SettingsGrossanlassUserKarten',
-            component: () => import('@/views/grossanlass/GrossanlassUserKartenView.vue'),
+            path: 'logistik',
+            component: () => import('@/views/grossanlass/GrossanlassLogistikView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
               requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
-              ...routeHead('grossanlassUserKarten'),
-            }
-          },
-          {
-            path: 'my-department/display-screens',
-            name: 'SettingsMyDepartmentDisplayScreens',
-            component: () => import('@/views/settings/MyDepartmentDisplayScreensView.vue'),
-            meta: {
-              ...routeHead('settingsDisplayScreens'),
               denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
+              ...routeHead('grossanlassLogistik'),
+            },
+            children: [
+              {
+                path: '',
+                name: 'GrossanlassLogistik',
+                redirect: (to) => ({ path: `/${to.params.departmentId}/ga/logistik/disposition` }),
+              },
+              {
+                path: 'disposition',
+                name: 'GrossanlassLogistikDisposition',
+                component: () => import('@/views/grossanlass/logistik/GrossanlassDispositionView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  ...routeHead('grossanlassLogistikDisposition'),
+                },
+              },
+            ],
           },
           {
-            path: 'my-department/storage-locations',
-            name: 'SettingsMyDepartmentStorageLocations',
-            component: () => import('@/views/settings/MyDepartmentAddressSettingsView.vue'),
+            path: 'werkstatt',
+            name: 'GrossanlassWerkstatt',
+            component: () => import('@/views/grossanlass/GrossanlassWerkstattView.vue'),
             meta: {
-              ...routeHead('settingsStorageLocations'),
-              addressKind: 'storage',
+              requiresGrossanlassDepartment: true,
+              requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
               denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
+              ...routeHead('grossanlassWerkstatt'),
+            },
           },
-          {
-            path: 'my-department/billing-address',
-            name: 'SettingsMyDepartmentBillingAddress',
-            component: () => import('@/views/settings/MyDepartmentAddressSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsBillingAddress'),
-              addressKind: 'billing',
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'my-department/public-material-page',
-            name: 'SettingsMyDepartmentPublicMaterialPage',
-            component: () => import('@/views/settings/MyDepartmentPublicMaterialPageView.vue'),
-            meta: {
-              ...routeHead('settingsPublicMaterialPage'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'addons',
-            name: 'SettingsAddons',
-            component: () => import('@/views/settings/AddonsSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsAddons'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'users',
-            name: 'SettingsUsers',
-            component: () => import('@/views/settings/UsersSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsUsers'),
-              denyDepartmentRoles: ['u', 'user'],
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'groups',
-            name: 'SettingsGroups',
-            component: () => import('@/views/settings/GroupsSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsGroups'),
-            }
-          },
-          {
-            path: 'storage',
-            name: 'SettingsStorage',
-            component: () => import('@/views/settings/StorageSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsStorage'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'media',
-            name: 'SettingsMedia',
-            component: () => import('@/views/settings/MediaLibraryView.vue'),
-            meta: {
-              ...routeHead('settingsMedia'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'templates',
-            name: 'SettingsTemplates',
-            component: () => import('@/views/settings/TemplatesSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsTemplates'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'material-import',
-            name: 'SettingsMaterialImport',
-            component: () => import('@/views/settings/MaterialImportSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsMaterialImport'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'supplier-deliveries',
-            redirect: (to) => ({
-              name: 'SupplierShop',
-              params: { departmentId: to.params.departmentId },
-              query: { tab: 'deliveries' },
-            }),
-          },
-        ]
+        ],
       },
       {
-        path: 'help',
-        component: () => import('@/views/HelpView.vue'),
-        meta: {
-          ...routeHead('helpOverview'),
-        },
+        path: 'dept',
         children: [
           {
-            path: '',
-            name: 'HelpRoot',
-            redirect: (to) => ({
-              name: 'HelpDokumentation',
-              params: { departmentId: to.params.departmentId },
-            }),
-          },
-          {
-            path: 'tours',
-            name: 'HelpTours',
-            alias: ['einrichtung'],
-            component: () => import('@/views/onboarding/OnboardingHubView.vue'),
+            path: 'dashboard',
+            name: 'Dashboard',
+            component: () => import('@/views/DashboardView.vue'),
             meta: {
-              requireDepartmentRoles: [
-                'mw',
-                'matwart',
-                'dc',
-                'depchef',
-                'l1',
-                'l2',
-                'l3',
-                'u',
-                'user',
-              ],
-              denyRedirectTo: { name: 'HelpDokumentation' },
-              ...routeHead('helpTours'),
+              ...routeHead('dashboard'),
             },
           },
           {
-            path: 'department/:topic?',
-            name: 'HelpDokumentation',
-            component: () => import('@/views/help/HelpDokumentationView.vue'),
-            meta: routeHead('helpOverview'),
+            path: 'verwaltung',
+            component: () => import('@/views/VerwaltungView.vue'),
+            children: [
+              {
+                path: '',
+                redirect: (to) => {
+                  const authStore = useAuthStore()
+                  const departmentId = to.params.departmentId as string | undefined
+                  return resolveVerwaltungLandingPath(authStore, { departmentId })
+                },
+              },
+              {
+                path: 'global-addresses',
+                name: 'DepartmentGlobalAddresses',
+                component: () => import('@/views/GlobalAddressesView.vue'),
+                meta: {
+                  requiredRoles: ['superadmin'],
+                  ...routeHead('globalAddresses'),
+                }
+              },
+              {
+                path: 'jobs',
+                name: 'Jobs',
+                component: () => import('@/views/JobsView.vue'),
+                meta: {
+                  requiredRoles: ['superadmin'],
+                  ...routeHead('systemJobs'),
+                }
+              },
+              {
+                path: 'support-requests',
+                name: 'SupportRequests',
+                component: () => import('@/views/SupportRequestsView.vue'),
+                meta: {
+                  requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+                  ...routeHead('supportRequests'),
+                }
+              },
+              {
+                path: 'organisations',
+                name: 'DepartmentVerwaltungOrganisations',
+                component: () => import('@/views/settings/OrganisationsSettingsView.vue'),
+                meta: {
+                  requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+                  ...routeHead('organisations'),
+                }
+              },
+              {
+                path: 'departments',
+                name: 'DepartmentVerwaltungDepartments',
+                component: () => import('@/views/settings/DepartmentsSettingsView.vue'),
+                meta: {
+                  requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+                  ...routeHead('departments'),
+                }
+              },
+              {
+                path: 'mail-templates',
+                redirect: (to) => ({ path: to.path.replace(/\/mail-templates\/?$/, '/mail/versand') }),
+              },
+              {
+                path: 'mail',
+                component: () => import('@/views/mail/MailVerwaltungLayout.vue'),
+                redirect: { name: 'DepartmentMailVersand' },
+                meta: {
+                  requiredRoles: ['superadmin'],
+                  ...routeHead('mailRoot'),
+                },
+                children: [
+                  {
+                    path: 'versand',
+                    name: 'DepartmentMailVersand',
+                    component: () => import('@/views/settings/MailTemplatesSettingsView.vue'),
+                    meta: {
+                      requiredRoles: ['superadmin'],
+                      ...routeHead('mailTemplates'),
+                    },
+                  },
+                  {
+                    path: 'einstellungen',
+                    name: 'DepartmentMailEinstellungen',
+                    component: () => import('@/views/mail/MailOutboundSettingsView.vue'),
+                    meta: {
+                      requiredRoles: ['superadmin'],
+                      ...routeHead('mailSettings'),
+                    },
+                  },
+                  {
+                    path: 'log',
+                    name: 'DepartmentMailLog',
+                    component: () => import('@/views/mail/MailSendLogView.vue'),
+                    meta: {
+                      requiredRoles: ['superadmin'],
+                      ...routeHead('mailLog'),
+                    },
+                  },
+                ],
+              },
+              {
+                path: 'permissions',
+                name: 'DepartmentVerwaltungPermissions',
+                component: () => import('@/views/settings/PermissionsSettingsView.vue'),
+                meta: {
+                  requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+                  ...routeHead('permissions'),
+                }
+              },
+              {
+                path: 'supplier-global-review',
+                redirect: '/admin-dashboard/verwaltung/supplier-global-review',
+              },
+              {
+                path: 'js-leihkatalog',
+                redirect: '/admin-dashboard/verwaltung/js-leihkatalog',
+              },
+              {
+                path: 'print-catalog',
+                name: 'DepartmentPrintCatalog',
+                component: () => import('@/views/PrintCatalogAdminView.vue'),
+                meta: {
+                  requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+                  ...routeHead('printCatalogAdmin'),
+                }
+              },
+            ]
           },
           {
-            // Alte Pfade (Bookmarks, Links): Weiterleitung auf die Department-Hilfe.
-            path: ':legacy(dokumentation|overview)',
-            redirect: (to) => ({
-              name: 'HelpDokumentation',
-              params: { departmentId: to.params.departmentId },
-              query: to.query,
-              hash: to.hash,
-            }),
+            path: 'activities',
+            name: 'Activities',
+            component: () => import('@/views/ActivitiesView.vue'),
+            meta: {
+              ...routeHead('activities'),
+            },
+            children: [
+              {
+                path: ':activityId/packlist',
+                redirect: (to) => ({
+                  name: 'ActivityDetailTab',
+                  params: {
+                    departmentId: to.params.departmentId,
+                    activityId: to.params.activityId,
+                    tab: 'packs',
+                  },
+                }),
+              },
+              {
+                path: ':activityId/pack-journey/:step?',
+                name: 'ActivityPackJourney',
+                component: () => import('@/views/ActivityPackJourneyView.vue'),
+                meta: {
+                  ...routeHead('activityPackJourney'),
+                },
+              },
+              {
+                path: ':activityId',
+                name: 'ActivityDetail',
+                component: () => import('@/views/ActivitiesView.vue'),
+                meta: {
+                  ...routeHead('activityDetail'),
+                }
+              },
+              {
+                path: ':activityId/:tab',
+                name: 'ActivityDetailTab',
+                component: () => import('@/views/ActivitiesView.vue'),
+                meta: {
+                  ...routeHead('activityDetail'),
+                }
+              }
+            ]
+          },
+          {
+            path: 'materials',
+            name: 'Materials',
+            component: () => import('@/views/MaterialsView.vue'),
+            meta: {
+              ...routeHead('materials'),
+            },
+            beforeEnter: (to) => {
+              const authStore = useAuthStore()
+              const deptId = String(to.params.departmentId || '')
+              if (deptId && authStore.isDepartmentGrossanlass(deptId)) {
+                return { path: `/${deptId}/ga/material` }
+              }
+            },
+            children: [
+              {
+                path: 'alle',
+                name: 'MaterialsTabAll',
+                component: () => import('@/views/MaterialsView.vue'),
+                meta: {
+                  ...routeHead('materialsAll'),
+                }
+              },
+              {
+                path: 'kombos',
+                name: 'MaterialsTabCombos',
+                component: () => import('@/views/MaterialsView.vue'),
+                meta: {
+                  ...routeHead('materialsCombos'),
+                }
+              },
+              {
+                path: 'virtuelle-kombis',
+                name: 'MaterialsTabVirtualCombos',
+                component: () => import('@/views/MaterialsView.vue'),
+                meta: {
+                  ...routeHead('materialsVirtualCombos'),
+                }
+              },
+              {
+                path: 'verbrauchsmaterial',
+                name: 'MaterialsTabConsumables',
+                component: () => import('@/views/MaterialsView.vue'),
+                meta: {
+                  ...routeHead('materialsConsumables'),
+                }
+              },
+              {
+                path: 'esswaren',
+                name: 'MaterialsTabFood',
+                component: () => import('@/views/MaterialsView.vue'),
+                meta: {
+                  ...routeHead('materialsFood'),
+                }
+              },
+              {
+                path: 'regale',
+                name: 'MaterialsTabStorage',
+                component: () => import('@/views/MaterialsView.vue'),
+                meta: {
+                  ...routeHead('materialsStorage'),
+                }
+              },
+              {
+                path: ':materialId',
+                name: 'MaterialDetail',
+                component: () => import('@/views/MaterialsView.vue'),
+                meta: {
+                  ...routeHead('materialDetail', 'materialDetail'),
+                }
+              }
+            ]
+          },
+          {
+            path: 'supplier-shop',
+            name: 'SupplierShop',
+            component: () => import('@/views/SupplierShopView.vue'),
+            meta: {
+              requiredRoles: ['matwart', 'depchef', 'mw', 'dc'],
+              ...routeHead('supplierShop'),
+            },
+          },
+          {
+            path: 'accounting',
+            component: () => import('@/views/accounting/AccountingShellView.vue'),
+            meta: {
+              ...routeHead('accounting'),
+            },
+            children: [
+              {
+                path: '',
+                name: 'AccountingOverview',
+                component: () => import('@/views/accounting/AccountingOverviewView.vue'),
+                meta: {
+                  requiredRoles: ['matwart', 'depchef'],
+                  ...routeHead('accounting'),
+                },
+              },
+              {
+                path: 'kostenstellen',
+                name: 'AccountingCostCenters',
+                component: () => import('@/views/accounting/AccountingCostCentersView.vue'),
+                meta: {
+                  requiredRoles: ['matwart', 'depchef'],
+                  ...routeHead('accountingCostCenters'),
+                },
+              },
+              {
+                path: 'buchungen',
+                name: 'AccountingBookings',
+                component: () => import('@/views/accounting/AccountingBookingsView.vue'),
+                meta: {
+                  requiredRoles: ['matwart', 'depchef'],
+                  ...routeHead('accountingBookings'),
+                },
+              },
+              {
+                path: 'gruppen',
+                name: 'AccountingGroupCosts',
+                component: () => import('@/views/accounting/AccountingGroupCostsView.vue'),
+                meta: {
+                  requiredRoles: ['matwart', 'depchef', 'leader1', 'leader2', 'leader3', 'user'],
+                  ...routeHead('accountingGroupCosts'),
+                },
+              },
+              {
+                path: 'materialkosten',
+                name: 'AccountingMaterialCosts',
+                component: () => import('@/views/accounting/AccountingMaterialCostsView.vue'),
+                meta: {
+                  requiredRoles: ['matwart', 'depchef'],
+                  ...routeHead('accountingMaterialCosts'),
+                },
+              },
+              {
+                path: 'abschreibung',
+                name: 'AccountingAmortization',
+                component: () => import('@/views/accounting/AccountingAmortizationView.vue'),
+                meta: {
+                  requiredRoles: ['matwart', 'depchef'],
+                  ...routeHead('accountingAmortization'),
+                },
+              },
+              {
+                path: 'budget',
+                name: 'AccountingBudget',
+                component: () => import('@/views/accounting/AccountingBudgetView.vue'),
+                meta: {
+                  requiredRoles: ['matwart', 'depchef'],
+                  ...routeHead('accountingBudget'),
+                },
+              },
+            ],
+          },
+          {
+            path: 'contacts',
+            name: 'Contacts',
+            component: () => import('@/views/ContactsView.vue'),
+            meta: {
+              ...routeHead('contacts'),
+            },
+            children: [
+              {
+                path: ':contactId',
+                name: 'ContactDetail',
+                component: () => import('@/views/ContactsView.vue'),
+                meta: {
+                  ...routeHead('contactDetail'),
+                }
+              }
+            ]
+          },
+          {
+            path: 'tasks',
+            name: 'Tasks',
+            component: () => import('@/views/TasksShellView.vue'),
+            redirect: (to) => {
+              const authStore = useAuthStore()
+              const deptId = String(to.params.departmentId || '')
+              if (deptId && authStore.isDepartmentGrossanlass(deptId)) {
+                return { name: gaIsGrossanlassHelper(authStore.currentDepartmentRole) ? 'TasksGaMine' : 'TasksGaMaster' }
+              }
+              return { name: 'TasksGeneral' }
+            },
+            meta: {
+              ...routeHead('tasks'),
+            },
+            children: [
+              {
+                path: 'aufgaben',
+                name: 'TasksGaMaster',
+                component: () => import('@/views/grossanlass/aufgaben/GrossanlassAufgabenMasterView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  ...routeHead('tasksGaMaster'),
+                },
+              },
+              {
+                path: 'meine',
+                name: 'TasksGaMine',
+                component: () => import('@/views/grossanlass/aufgaben/GrossanlassMeineAufgabenView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  ...routeHead('tasksGaMine'),
+                },
+              },
+              {
+                path: 'allgemein',
+                name: 'TasksGeneral',
+                component: () => import('@/views/TasksGeneralView.vue'),
+                meta: {
+                  ...routeHead('tasksGeneral'),
+                },
+              },
+              {
+                path: 'inventory',
+                name: 'TasksInventory',
+                component: () => import('@/views/TasksInventoryView.vue'),
+                meta: {
+                  ...routeHead('tasksInventory'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'TasksGeneral' },
+                },
+              },
+              {
+                path: 'druck',
+                name: 'TasksPrint',
+                component: () => import('@/views/TasksPrintView.vue'),
+                meta: {
+                  ...routeHead('tasksPrint'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'TasksGeneral' },
+                },
+              },
+            ],
+          },
+          {
+            path: 'notifications',
+            name: 'NotificationsCenter',
+            component: () => import('@/views/NotificationsCenterView.vue'),
+            meta: {
+              ...routeHead('notificationsCenter'),
+            }
+          },
+          {
+            path: 'search',
+            name: 'GlobalSearch',
+            component: () => import('@/views/GlobalSearchView.vue'),
+            meta: {
+              ...routeHead('globalSearch'),
+            }
+          },
+          {
+            path: 'dev/ui-playground',
+            name: 'DevUiPlayground',
+            component: () => import('@/views/dev/DevUiPlaygroundView.vue'),
+            meta: {
+              devToolsOnly: true,
+              ...routeHead('devUiSandbox'),
+            },
+          },
+          {
+            path: 'workshop',
+            name: 'Workshop',
+            component: () => import('@/views/WorkshopView.vue'),
+            meta: {
+              ...routeHead('workshop'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+            }
+          },
+          {
+            path: 'statistics',
+            name: 'Statistics',
+            component: () => import('@/views/StatisticsView.vue'),
+            meta: {
+              ...routeHead('statistics'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+            }
+          },
+          {
+            path: 'settings',
+            component: () => import('@/views/SettingsView.vue'),
+            children: [
+              {
+                path: '',
+                redirect: { name: 'SettingsMyDepartment' },
+              },
+              {
+                path: 'module',
+                name: 'SettingsModule',
+                component: () => import('@/views/settings/ModuleSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsModule'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'zeit',
+                name: 'SettingsZeit',
+                component: () => import('@/views/settings/GeneralSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsTime'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'categories',
+                name: 'SettingsCategories',
+                component: () => import('@/views/settings/CategoriesSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsCategories'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'my-department',
+                name: 'SettingsMyDepartment',
+                component: () => import('@/views/settings/MyDepartmentSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsMyDepartment'),
+                }
+              },
+              {
+                path: 'my-department/join-code',
+                name: 'SettingsMyDepartmentJoinCode',
+                component: () => import('@/views/settings/MyDepartmentJoinCodeView.vue'),
+                meta: {
+                  ...routeHead('settingsJoinCode'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'my-department/fixed-dates',
+                name: 'SettingsMyDepartmentFixedDates',
+                component: () => import('@/views/settings/MyDepartmentFixedDatesView.vue'),
+                meta: {
+                  ...routeHead('settingsFixedDates'),
+                  requireDepartmentRoles: [...DEPARTMENT_MW_DC_ROLES],
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'print',
+                name: 'SettingsPrint',
+                component: () => import('@/views/settings/PrintSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsPrint'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'user-karten',
+                name: 'SettingsGrossanlassUserKarten',
+                component: () => import('@/views/grossanlass/GrossanlassUserKartenView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
+                  ...routeHead('grossanlassUserKarten'),
+                }
+              },
+              {
+                path: 'my-department/display-screens',
+                name: 'SettingsMyDepartmentDisplayScreens',
+                component: () => import('@/views/settings/MyDepartmentDisplayScreensView.vue'),
+                meta: {
+                  ...routeHead('settingsDisplayScreens'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'my-department/storage-locations',
+                name: 'SettingsMyDepartmentStorageLocations',
+                component: () => import('@/views/settings/MyDepartmentAddressSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsStorageLocations'),
+                  addressKind: 'storage',
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'my-department/billing-address',
+                name: 'SettingsMyDepartmentBillingAddress',
+                component: () => import('@/views/settings/MyDepartmentAddressSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsBillingAddress'),
+                  addressKind: 'billing',
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'my-department/public-material-page',
+                name: 'SettingsMyDepartmentPublicMaterialPage',
+                component: () => import('@/views/settings/MyDepartmentPublicMaterialPageView.vue'),
+                meta: {
+                  ...routeHead('settingsPublicMaterialPage'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'addons',
+                name: 'SettingsAddons',
+                component: () => import('@/views/settings/AddonsSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsAddons'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'users',
+                name: 'SettingsUsers',
+                component: () => import('@/views/settings/UsersSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsUsers'),
+                  denyDepartmentRoles: ['u', 'user'],
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'groups',
+                name: 'SettingsGroups',
+                component: () => import('@/views/settings/GroupsSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsGroups'),
+                }
+              },
+              {
+                path: 'storage',
+                name: 'SettingsStorage',
+                component: () => import('@/views/settings/StorageSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsStorage'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'media',
+                name: 'SettingsMedia',
+                component: () => import('@/views/settings/MediaLibraryView.vue'),
+                meta: {
+                  ...routeHead('settingsMedia'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'templates',
+                name: 'SettingsTemplates',
+                component: () => import('@/views/settings/TemplatesSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsTemplates'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'material-import',
+                name: 'SettingsMaterialImport',
+                component: () => import('@/views/settings/MaterialImportSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsMaterialImport'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'supplier-deliveries',
+                redirect: (to) => ({
+                  name: 'SupplierShop',
+                  params: { departmentId: to.params.departmentId },
+                  query: { tab: 'deliveries' },
+                }),
+              },
+            ]
+          },
+          {
+            path: 'help',
+            component: () => import('@/views/HelpView.vue'),
+            meta: {
+              ...routeHead('helpOverview'),
+            },
+            children: [
+              {
+                path: '',
+                name: 'HelpRoot',
+                redirect: (to) => ({
+                  name: 'HelpDokumentation',
+                  params: { departmentId: to.params.departmentId },
+                }),
+              },
+              {
+                path: 'tours',
+                name: 'HelpTours',
+                alias: ['einrichtung'],
+                component: () => import('@/views/onboarding/OnboardingHubView.vue'),
+                meta: {
+                  requireDepartmentRoles: [
+                    'mw',
+                    'matwart',
+                    'dc',
+                    'depchef',
+                    'l1',
+                    'l2',
+                    'l3',
+                    'u',
+                    'user',
+                  ],
+                  denyRedirectTo: { name: 'HelpDokumentation' },
+                  ...routeHead('helpTours'),
+                },
+              },
+              {
+                path: 'department/:topic?',
+                name: 'HelpDokumentation',
+                component: () => import('@/views/help/HelpDokumentationView.vue'),
+                meta: routeHead('helpOverview'),
+              },
+              {
+                // Alte Pfade (Bookmarks, Links): Weiterleitung auf die Department-Hilfe.
+                path: ':legacy(dokumentation|overview)',
+                redirect: (to) => ({
+                  name: 'HelpDokumentation',
+                  params: { departmentId: to.params.departmentId },
+                  query: to.query,
+                  hash: to.hash,
+                }),
+              },
+            ],
           },
         ],
       },
@@ -2418,7 +2397,7 @@ function applyQrHostRedirects(to: RouteLocationNormalized): boolean {
   }
 
   // Start & Login → Hauptdomain (ematchef.*), nicht app.*
-  if ((path === '/' || path === '/login') && mainSite) {
+  if ((path === '/' || isAuthEntryPath(path)) && mainSite) {
     window.location.replace(`${mainSite}${to.fullPath}`)
     return true
   }
@@ -2464,9 +2443,9 @@ async function handleAppOriginRouting(
 ): Promise<boolean> {
   if (!isAppOrigin()) return false
 
-  const isEntryPath = to.path === '/' || to.path === '/login'
+  const isEntryPath = to.path === '/' || isAuthEntryPath(to.path)
 
-  if (!isEntryPath && to.meta.publicMarketing && to.path !== '/login') {
+  if (!isEntryPath && to.meta.publicMarketing) {
     const mainSiteOrigin = getMainSiteOrigin()
     if (mainSiteOrigin) {
       window.location.replace(mainSiteOrigin + to.fullPath)
@@ -2488,7 +2467,7 @@ async function handleAppOriginRouting(
 
   if (authStore.isLoggedIn) {
     const redirectQuery = parseInternalRedirectPath(to.query.redirect)
-    if (redirectQuery && to.path === '/login') {
+    if (redirectQuery && isAuthEntryPath(to.path) && !isAuthEntryPath(redirectQuery.split(/[?#]/)[0] || '')) {
       next(redirectQuery)
       return true
     }
@@ -2512,6 +2491,17 @@ async function handleAppOriginRouting(
 router.beforeEach(async (to, from, nextRaw) => {
   // Rückweg aus dem Identitäts-Verknüpfen übersteht Redirects dieser Navigation (siehe oauthReturnParams).
   const next = carryOAuthReturnParams(to, nextRaw)
+  // display.-Host: ausschliesslich Infoscreen-Oberfläche; alles andere führt zur Kopplungs-Startseite.
+  if (isDisplayHost()) {
+    const path = to.path.replace(/\/$/, '') || '/'
+    if (path === '/') {
+      return next({ name: 'DisplayHome', replace: true })
+    }
+    if (path !== '/display' && !path.startsWith('/display/')) {
+      return next({ name: 'DisplayHome', replace: true })
+    }
+    return next()
+  }
   if (applyQrHostRedirects(to)) {
     return next(false)
   }
@@ -2574,6 +2564,27 @@ router.beforeEach(async (to, from, nextRaw) => {
       return next({ path: '/login', query: loginAuthRedirectQuery(to.fullPath) })
     }
     return next()
+  }
+
+  // Globales Profil: nur Anmeldung nötig, keine Department-Rolle; keine Umleitung auf Department- oder Pending-Seiten.
+  if (to.meta.globalProfile && authStore.isLoggedIn) {
+    const profileFrom = profileFromForEntry(to, from)
+    if (profileFrom) {
+      return next({ path: to.path, query: { ...to.query, [PROFILE_FROM_PARAM]: profileFrom }, hash: to.hash, replace: true })
+    }
+    return next()
+  }
+
+  // Rückweg aus dem Konto-Verknüpfen auf einer Nicht-Profil-Seite (ältere Links): ins Profil weiterleiten.
+  if (authStore.isLoggedIn && to.query[PROFILE_SECURITY_RETURN_PARAM] === '1' && !isProfilePath(to.path)) {
+    const query: Record<string, string> = { [PROFILE_SECURITY_RETURN_PARAM]: '1' }
+    for (const key of ['oauth', 'provider', 'reason']) {
+      const value = to.query[key]
+      if (typeof value === 'string') query[key] = value
+    }
+    const from = sanitizeProfileFrom(to.path)
+    if (from) query[PROFILE_FROM_PARAM] = from
+    return next({ name: 'ProfileIdentities', query, replace: true })
   }
 
   if (to.meta.devToolsOnly && !isDevToolsEnvironment()) {
@@ -2662,7 +2673,7 @@ router.beforeEach(async (to, from, nextRaw) => {
         const siteEditorRoute = to.matched.some((r) => r.meta.requiresSiteEditor)
         if (siteEditorRoute && canEditPublicSite()) {
           /* Webseiten-Editor ohne Abteilung (z. B. Superadmin) */
-        } else if (to.meta.requiresAuth || to.path === '/login') {
+        } else if (to.meta.requiresAuth || isAuthEntryPath(to.path)) {
           const inviteLanding = departmentInviteLandingPath(to)
           if (inviteLanding) return next(inviteLanding)
           return next('/pending-assignment')
@@ -2677,6 +2688,7 @@ router.beforeEach(async (to, from, nextRaw) => {
       !isAdminPath &&
       !to.path.startsWith('/site-inhalt') &&
       !to.path.startsWith('/supplier/') &&
+      !to.path.startsWith('/connect-display/') &&
       (to.path.startsWith('/app/') ||
         (to.meta.requiresAuth &&
         !to.params.departmentId &&
@@ -2696,7 +2708,7 @@ router.beforeEach(async (to, from, nextRaw) => {
     }
 
     // App-/Devices-Login-Root: eingeloggt → Abteilung oder Dashboard (Hauptdomain-„/“ bleibt Landing)
-    const appLoginOrRoot = (isAppOrigin() && to.path === '/') || to.path === '/login'
+    const appLoginOrRoot = (isAppOrigin() && to.path === '/') || isAuthEntryPath(to.path)
     if (appLoginOrRoot && !primaryDepartmentId && inAdminContext()) {
       return next(isSuperAdmin() ? '/dashboard' : '/admin-dashboard/verwaltung')
     }
@@ -2712,7 +2724,7 @@ router.beforeEach(async (to, from, nextRaw) => {
       if (supplierHome) return next(supplierHome)
     }
 
-    if (isDevicesHost() && (to.path === '/' || to.path === '/login')) {
+    if (isDevicesHost() && (to.path === '/' || isAuthEntryPath(to.path))) {
       const pinned =
         getPinnedDepartmentId() ||
         primaryDepartmentId ||
@@ -2790,11 +2802,11 @@ router.beforeEach(async (to, from, nextRaw) => {
     if (isSuperAdmin() && !authStore.departments.some((d) => d.department_id === departmentId)) {
       const prefix = `/${departmentId}`
       const suffix = to.path.length > prefix.length ? to.path.slice(prefix.length) : ''
-      if (suffix === '' || suffix === '/' || suffix === '/dashboard') {
+      if (suffix === '' || suffix === '/' || suffix === '/dept/dashboard') {
         return next('/dashboard')
       }
-      if (suffix === '/verwaltung' || suffix.startsWith('/verwaltung/')) {
-        const tail = suffix.replace(/^\/verwaltung/, '') || ''
+      if (suffix === '/dept/verwaltung' || suffix.startsWith('/dept/verwaltung/')) {
+        const tail = suffix.replace(/^\/dept\/verwaltung/, '') || ''
         const target = `/admin-dashboard/verwaltung${tail}`
         if (target !== to.path) {
           return next(target)
@@ -2896,7 +2908,7 @@ router.beforeEach(async (to, from, nextRaw) => {
     authStore.isDepartmentGrossanlass(deptIdForSettings)
   ) {
     const settingsTail = to.path
-      .replace(new RegExp(`^/${deptIdForSettings}/settings/?`), '')
+      .replace(new RegExp(`^/${deptIdForSettings}/dept/settings/?`), '')
       .replace(/\/$/, '')
     const role = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
     const isBasicUser = isDepartmentBasicMemberRole(role)
@@ -2915,19 +2927,19 @@ router.beforeEach(async (to, from, nextRaw) => {
     if (settingsTail === 'groups') {
       return next(
         isBasicUser || gaIsMailboxOnly(role)
-          ? `/${deptIdForSettings}/settings/my-department`
-          : `/${deptIdForSettings}/einstellungen/ressorts`,
+          ? `/${deptIdForSettings}/dept/settings/my-department`
+          : `/${deptIdForSettings}/ga/einstellungen/ressorts`,
       )
     }
     if (settingsTail === 'module') {
       return next(
         canStructureSettings
-          ? `/${deptIdForSettings}/settings/zeit`
-          : `/${deptIdForSettings}/settings/my-department`,
+          ? `/${deptIdForSettings}/dept/settings/zeit`
+          : `/${deptIdForSettings}/dept/settings/my-department`,
       )
     }
     if (!allowed) {
-      return next(`/${deptIdForSettings}/settings/my-department`)
+      return next(`/${deptIdForSettings}/dept/settings/my-department`)
     }
   }
 
@@ -2995,7 +3007,7 @@ router.beforeEach(async (to, from, nextRaw) => {
         if (authStore.isDepartmentGrossanlass(String(deptId))) {
           return next(gaHomePath(String(deptId), authStore.currentDepartmentRole))
         }
-        return next(`/${deptId}/settings`)
+        return next(`/${deptId}/dept/settings`)
       }
       return next('/login')
     }

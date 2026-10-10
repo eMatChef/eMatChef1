@@ -66,7 +66,7 @@
       <h4>{{ t('grossanlass.aufgaben.detail.helperNeed') }}</h4>
       <p>
         <strong>{{ t('grossanlass.aufgaben.detail.helperNeedLine', { count: task.helperNeed.count, skill: task.helperNeed.skill, assigned: task.people.length }) }}</strong>
-        <router-link v-if="departmentId" :to="`/${departmentId}/helferpool`" class="aufgabe-detail__link">{{ t('grossanlass.aufgaben.detail.toHelferpool') }}</router-link>
+        <router-link v-if="departmentId" :to="`/${departmentId}/ga/helferpool`" class="aufgabe-detail__link">{{ t('grossanlass.aufgaben.detail.toHelferpool') }}</router-link>
       </p>
     </section>
 

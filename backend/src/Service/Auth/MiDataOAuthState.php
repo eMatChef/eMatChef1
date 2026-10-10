@@ -163,7 +163,7 @@ final class MiDataOAuthState
     /** The department-scoped settings page, with its optional single-segment department prefix. */
     public static function isMyDepartmentPath(mixed $path): bool
     {
-        return is_string($path) && preg_match('#^(/[A-Za-z0-9_-]+)?/settings/my-department$#', $path) === 1;
+        return is_string($path) && preg_match('#^(/[A-Za-z0-9_-]+)?/dept/settings/my-department$#', $path) === 1;
     }
 
     private function extractPendingAssignmentId(string $redirect, string $parameter): ?string

@@ -59,7 +59,7 @@ const departmentId = computed(() => {
 
 function deptPath(suffix: string) {
   const id = departmentId.value
-  return id ? `/${id}${suffix}` : '#'
+  return id ? `/${id}/dept${suffix}` : '#'
 }
 
 const pageSubtitle = computed(() =>
@@ -91,7 +91,7 @@ const happyPathItems = computed(() => {
       description: isMwDocs.value
         ? t('help.dokumentation.links.setupDescMw')
         : t('help.dokumentation.links.setupDescMember'),
-      to: deptPath('/help/einrichtung'),
+      to: deptPath('/help/tours'),
     })
   }
 

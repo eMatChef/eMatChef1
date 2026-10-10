@@ -30,14 +30,14 @@ export function useHelpShortcut() {
 
   const helpPath = computed(() => {
     const depId = departmentId.value
-    if (!depId) return '/help/department'
+    if (!depId) return '/help/dokumentation'
 
     const preferTours =
       canUseDepartmentOnboarding(authStore, depId) && openChecklistCount(depId) > 0
     if (preferTours || canUseHelpTours(authStore, depId)) {
-      return `/${depId}/help/tours`
+      return `/${depId}/dept/help/tours`
     }
-    return `/${depId}/help/department`
+    return `/${depId}/dept/help/department`
   })
 
   function openChecklistCount(depId: string): number {

@@ -84,7 +84,7 @@ function redirectIfGuestTabHidden() {
   const allowed = new Set(tabItems.value.map((tab) => tab.id))
   if (allowed.has(activeTab.value)) return
   const fallback = tabItems.value[0]?.id || 'stammdaten'
-  void router.replace(`/${id}/einstellungen/${fallback}`)
+  void router.replace(`/${id}/ga/einstellungen/${fallback}`)
 }
 
 onMounted(() => {
@@ -98,7 +98,7 @@ watch([activeTab, hasGuestDepartments], redirectIfGuestTabHidden)
 function onTabChange(tab: unknown) {
   const id = departmentId.value
   if (!id || typeof tab !== 'string') return
-  void router.push(`/${id}/einstellungen/${tab}`)
+  void router.push(`/${id}/ga/einstellungen/${tab}`)
 }
 </script>
 

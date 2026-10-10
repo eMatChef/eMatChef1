@@ -137,7 +137,7 @@
       <!-- Aktivitäten -->
       <router-link
         v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showActivitiesMenu && hasDepartmentContext && !isGrossanlassDept"
-        :to="getLink('/activities')"
+        :to="getLink('/dept/activities')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('activities') }"
         data-onboarding="nav-activities"
@@ -153,7 +153,7 @@
       </div>
       <router-link
         v-if="true"
-        :to="getLink('/mein-ressort')"
+        :to="getLink('/ga/mein-ressort')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('mein-ressort') }"
         :title="t('sidebar.ressortsHint')"
@@ -163,7 +163,7 @@
       </router-link>
       <router-link
         v-if="showGrossanlassPlanungMenu"
-        :to="getLink('/planung')"
+        :to="getLink('/ga/planung')"
         class="nav-item"
         :class="{ active: isPlanungNavActive }"
         :title="t('sidebar.planungHint')"
@@ -173,7 +173,7 @@
       </router-link>
       <router-link
         v-if="showGrossanlassUebersichtMenu"
-        :to="getLink('/helferpool')"
+        :to="getLink('/ga/helferpool')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('helferpool') }"
         :title="t('sidebar.helferpoolHint')"
@@ -183,7 +183,7 @@
       </router-link>
       <router-link
         v-if="true"
-        :to="getLink('/tasks')"
+        :to="getLink('/dept/tasks')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('tasks') }"
         :title="tasksNavTitle"
@@ -206,7 +206,7 @@
       </router-link>
       <router-link
         v-if="showGrossanlassUebersichtMenu"
-        :to="getLink('/material')"
+        :to="getLink('/ga/material')"
         class="nav-item"
         :class="{ active: isGrossanlassMaterialNavActive }"
         :title="t('sidebar.materialHint')"
@@ -219,7 +219,7 @@
       </div>
       <router-link
         v-if="showGrossanlassLogistikMenu"
-        :to="getLink('/logistik')"
+        :to="getLink('/ga/logistik')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('logistik') }"
         :title="t('sidebar.logistikHint')"
@@ -229,7 +229,7 @@
       </router-link>
       <router-link
         v-if="showGrossanlassMaterialsMenu"
-        :to="getLink('/fahrzeuge')"
+        :to="getLink('/ga/fahrzeuge')"
         class="nav-item"
         :class="{ active: isGrossanlassFahrzeugeNavActive }"
         :title="t('sidebar.fahrzeugeHint')"
@@ -242,7 +242,7 @@
       </div>
       <router-link
         v-if="showGrossanlassWorkshopMenu"
-        :to="getLink('/werkstatt')"
+        :to="getLink('/ga/werkstatt')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('werkstatt') }"
         :title="t('sidebar.grossanlassWorkshopHint')"
@@ -255,7 +255,7 @@
       </div>
       <router-link
         v-if="showGrossanlassKostenMenu"
-        :to="getLink('/kosten')"
+        :to="getLink('/ga/kosten')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('kosten') }"
         :title="t('sidebar.kostenHint')"
@@ -268,7 +268,7 @@
       </div>
       <router-link
         v-if="true"
-        :to="getLink('/notifications')"
+        :to="getLink('/dept/notifications')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('notifications') }"
       >
@@ -277,7 +277,7 @@
       </router-link>
       <router-link
         v-if="showGrossanlassUebersichtMenu"
-        :to="getLink('/displays')"
+        :to="getLink('/ga/displays')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('displays') }"
         :title="t('sidebar.displaysHint')"
@@ -291,7 +291,7 @@
       <!-- Grossanlass: Einstellungen (Ressorts, Bauprojekte, Stammdaten) -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && !isUserRole && !isBereichsleitung"
-        :to="getLink('/einstellungen')"
+        :to="getLink('/ga/einstellungen')"
         class="nav-item"
         :class="{ active: isGrossanlassEinstellungenNavActive }"
         :title="grossanlassEinstellungenNavTitle"
@@ -303,7 +303,7 @@
       <!-- Mein Ressort: jeder GA-Mensch gehört irgendwo hin (Helfer-Home bleibt der Dashboard-Link) -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showMeinRessortSidebarLink"
-        :to="getLink('/mein-ressort')"
+        :to="getLink('/ga/mein-ressort')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('mein-ressort') }"
         :title="meinRessortSidebarHint"
@@ -315,7 +315,7 @@
       <!-- Meine Einsätze (Helfer) -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showGrossanlassHelperNav && showMeineEinsaetzeSidebarLink"
-        :to="getLink('/meine-einsaetze')"
+        :to="getLink('/ga/meine-einsaetze')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('meine-einsaetze') }"
         :title="t('sidebar.meineEinsaetzeHint')"
@@ -327,7 +327,7 @@
       <!-- Planung: Wünsche, Aufträge, Belegung — gleiche Tabs für MW, CMW, OK und Bereichsleitung -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassPlanungMenu"
-        :to="getLink('/planung')"
+        :to="getLink('/ga/planung')"
         class="nav-item"
         :class="{ active: isPlanungNavActive }"
         :title="t('sidebar.planungHint')"
@@ -351,7 +351,7 @@
       <!-- Anfragen (Komm/Spon; MW/CMW über Beschaffung) -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassAnfragenSidebarLink"
-        :to="getLink('/beschaffung/anfragen')"
+        :to="getLink('/ga/beschaffung/anfragen')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('beschaffung') }"
         :title="t('sidebar.anfragenHint')"
@@ -363,7 +363,7 @@
       <!-- Kosten (Grossanlass, MW/DC) — nicht Pfadi-Buchhaltung -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassKostenMenu"
-        :to="getLink('/kosten')"
+        :to="getLink('/ga/kosten')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('kosten') }"
         :title="t('sidebar.kostenHint')"
@@ -374,7 +374,7 @@
 
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassMaterialsMenu"
-        :to="getLink('/fahrzeuge')"
+        :to="getLink('/ga/fahrzeuge')"
         class="nav-item"
         :class="{ active: isGrossanlassFahrzeugeNavActive }"
         :title="t('sidebar.fahrzeugeHint')"
@@ -386,7 +386,7 @@
       <!-- Materialübersicht: Bestand, Wareneingang, was weg ist -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassUebersichtSidebarLink"
-        :to="getLink('/material')"
+        :to="getLink('/ga/material')"
         class="nav-item"
         :class="{ active: isGrossanlassMaterialNavActive }"
         :title="t('sidebar.materialHint')"
@@ -398,7 +398,7 @@
       <!-- Werkstatt (Grossanlass): eigene Fälle, nicht Pfadi-workshop_ticket -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassWorkshopMenu"
-        :to="getLink('/werkstatt')"
+        :to="getLink('/ga/werkstatt')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('werkstatt') }"
         :title="t('sidebar.grossanlassWorkshopHint')"
@@ -417,7 +417,7 @@
       <!-- Materialien -->
       <router-link
         v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showMaterialsMenu && hasDepartmentContext && !isGrossanlassDept"
-        :to="getLink('/materials')"
+        :to="getLink('/dept/materials')"
         class="nav-item"
         :class="{ active: $route.path.includes('/materials') }"
         data-onboarding="nav-materials"
@@ -429,7 +429,7 @@
       <!-- Buchhaltung (nur Materialchef / Departmentchef) -->
       <router-link
         v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showAccountingMenu && hasDepartmentContext && !isGrossanlassDept"
-        :to="getLink('/accounting')"
+        :to="getLink('/dept/accounting')"
         class="nav-item"
         :class="{ active: isAccountingNavActive }"
       >
@@ -440,7 +440,7 @@
       <!-- Kontakte -->
       <router-link
         v-if="!isPendingAssignmentRoute && showStandardDeptSidebarLinks"
-        :to="getLink('/contacts')"
+        :to="getLink('/dept/contacts')"
         class="nav-item"
         :class="{ active: $route.path.includes('/contacts') }"
         data-onboarding="nav-contacts"
@@ -452,7 +452,7 @@
       <!-- Aufgaben -->
       <router-link
         v-if="!isPendingAssignmentRoute && !useGroupedGaNav && (showGrossanlassHelperNav ? showGrossanlassHelperSidebarLinks : showDeptContextSidebarLinks)"
-        :to="getLink('/tasks')"
+        :to="getLink('/dept/tasks')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('tasks') }"
         data-onboarding="nav-tasks"
@@ -473,7 +473,7 @@
       <!-- Nachrichtenzentrale (unter Aufgaben) -->
       <router-link
         v-if="!isPendingAssignmentRoute && !useGroupedGaNav && showDeptContextSidebarLinks && !showGrossanlassHelperNav"
-        :to="getLink('/notifications')"
+        :to="getLink('/dept/notifications')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('notifications') }"
         data-onboarding="nav-notifications"
@@ -491,7 +491,7 @@
       <!-- Werkstatt -->
       <router-link
         v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showWorkshopMenu && hasDepartmentContext && !isGrossanlassDept"
-        :to="getLink('/workshop')"
+        :to="getLink('/dept/workshop')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('workshop') }"
       >
@@ -502,7 +502,7 @@
       <!-- Statistik -->
       <router-link
         v-if="!isPendingAssignmentRoute && showStandardDeptSidebarLinks && showStatisticsMenu"
-        :to="getLink('/statistics')"
+        :to="getLink('/dept/statistics')"
         class="nav-item"
         :class="{ active: $route.path.includes('/statistics') }"
       >
@@ -513,7 +513,7 @@
       <!-- Lieferanten-Shop (MW/DC, nur wenn Katalog-Artikel vorhanden) -->
       <router-link
         v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showSupplierShopNav && hasDepartmentContext && !isGrossanlassDept"
-        :to="getLink('/supplier-shop')"
+        :to="getLink('/dept/supplier-shop')"
         class="nav-item"
         :class="{ active: $route.path.includes('/supplier-shop') }"
       >
@@ -525,7 +525,7 @@
 
       <router-link
         v-if="gaSetupPending && gaSetupRole && !isPendingAssignmentRoute"
-        :to="getLink('/einstellungen')"
+        :to="getLink('/ga/einstellungen')"
         class="nav-item"
         :class="{ active: isGrossanlassEinstellungenNavActive }"
         :title="grossanlassEinstellungenNavTitle"
@@ -538,7 +538,7 @@
       <template v-if="useGroupedGaNav && !isPendingAssignmentRoute && !gaSetupPending">
         <div class="nav-divider" />
         <router-link
-          :to="getLink('/einstellungen')"
+          :to="getLink('/ga/einstellungen')"
           class="nav-item"
           :class="{ active: isGrossanlassEinstellungenNavActive }"
           :title="grossanlassEinstellungenNavTitle"
@@ -551,7 +551,7 @@
 
       <router-link
         v-if="!isPendingAssignmentRoute && (!gaSetupPending || gaSetupRole) && (showGrossanlassHelperNav ? showGrossanlassHelperSidebarLinks : showDeptContextSidebarLinks)"
-        :to="getLink('/settings')"
+        :to="getLink('/dept/settings')"
         class="nav-item"
         :class="{ active: $route.path.includes('/settings') }"
         data-onboarding="nav-settings"
@@ -562,7 +562,7 @@
 
       <router-link
         v-if="!isPendingAssignmentRoute && showDevSandboxLink"
-        :to="getLink('/dev/ui-playground')"
+        :to="getLink('/dept/dev/ui-playground')"
         class="nav-item"
         :class="{ active: isDevPlaygroundNavActive }"
       >
@@ -573,7 +573,7 @@
       <!-- Grossanlass: eigene GA-Hilfe statt Department-Hilfe -->
       <router-link
         v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks && isGrossanlassDept"
-        :to="getLink('/help/ga')"
+        :to="getLink('/ga/help/ga')"
         class="nav-item"
         :class="{ active: $route.name === 'GrossanlassHilfe' }"
       >
@@ -854,7 +854,7 @@ const showDevSandboxLink = computed(
 )
 const isDevPlaygroundNavActive = computed(() => {
   const p = route.path
-  return p.includes('/dev/ui-playground') || /\/[^/]+\/sandbox\/?$/.test(p)
+  return p.includes('/dev/ui-playground')
 })
 /** Einstieg Verwaltung: erste erreichbare Seite (nicht leere /verwaltung — die ist SA-only Global Addresses). */
 const verwaltungEntryLink = computed(() => {
@@ -905,7 +905,7 @@ const isMainDashboardNavActive = computed(() => {
       isBereichsleitung: isBereichsleitung.value,
     })
   }
-  if (id && (p === `/${id}` || p === `/${id}/` || p === `/${id}/dashboard`)) return true
+  if (id && (p === `/${id}` || p === `/${id}/dept/dashboard` || p === `/${id}/ga/dashboard`)) return true
   if (p === '/dashboard') return true
   return false
 })
@@ -1103,12 +1103,12 @@ const showGrossanlassKostenMenu = computed(() => {
 
 const grossanlassBeschaffungLink = computed(() => {
   if (gaCanManageProcurement(authStore.currentDepartmentRole)) {
-    return getLink('/beschaffung')
+    return getLink('/ga/beschaffung')
   }
   if (procurementDelegateVisible.value) {
-    return getLink('/beschaffung/offerten')
+    return getLink('/ga/beschaffung/offerten')
   }
-  return getLink('/beschaffung')
+  return getLink('/ga/beschaffung')
 })
 
 /** Stammdaten-Materialien: MW/CMW, Beschaffungs-Delegierte oder Bereichsleitung (Ansicht). */
@@ -1174,14 +1174,14 @@ watch(
 
 const helpNavLink = computed(() => {
   const depId = departmentId.value
-  if (!depId) return getLink('/help/department')
+  if (!depId) return getLink('/dept/help/department')
   if (canUseDepartmentOnboarding(authStore, depId) && helpOnboardingBadgeCount.value > 0) {
-    return getLink('/help/tours')
+    return getLink('/dept/help/tours')
   }
   if (canUseHelpEinrichtung(authStore, depId)) {
-    return getLink('/help/tours')
+    return getLink('/dept/help/tours')
   }
-  return getLink('/help/department')
+  return getLink('/dept/help/department')
 })
 
 const isHelpNavActive = computed(() => route.path.includes('/help') && route.name !== 'GrossanlassHilfe')
@@ -1229,12 +1229,14 @@ function getLink(path: string): string {
     id = d.department_id
   }
   if (id) {
-    if (path === '/dashboard') return `/${id}`
+    if (path === '/dashboard') {
+      return authStore.isDepartmentGrossanlass(id) ? `/${id}/ga/dashboard` : `/${id}/dept/dashboard`
+    }
     if (
       hasGlobalAdminAccess.value &&
       (path === '/jobs' || path === '/support-requests')
     ) {
-      return `/${id}/verwaltung${path}`
+      return `/${id}/dept/verwaltung${path}`
     }
     return `/${id}${path}`
   }

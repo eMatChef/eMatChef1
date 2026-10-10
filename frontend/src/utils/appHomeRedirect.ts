@@ -25,6 +25,8 @@ const RESERVED_TOP_SEGMENTS = new Set([
   'impressum',
   'datenschutz',
   'password-reset',
+  'forgot-password',
+  'reset-password',
 ])
 
 export function pathHasOnboardingTourQuery(fullPath: string): boolean {
@@ -49,6 +51,9 @@ export function departmentDashboardPathFromFullPath(fullPath: string): string | 
 export function sanitizeLoginRedirectPath(fullPath: string): string | null {
   const trimmed = fullPath.trim()
   if (!trimmed || !trimmed.startsWith('/') || trimmed.startsWith('//')) return null
+  // Backslashes and control characters are normalised to `//` or stripped by browsers → open redirect.
+  // eslint-disable-next-line no-control-regex
+  if (/[\\\u0000-\u001f\u007f]/.test(trimmed)) return null
   if (pathHasOnboardingTourQuery(trimmed)) {
     return departmentDashboardPathFromFullPath(trimmed)
   }

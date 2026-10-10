@@ -12,16 +12,16 @@ function resolveRedirect(path: string) {
 }
 
 describe('Help routes', () => {
-  it('serves the GA help under /help/ga and the department help under /help/department', () => {
-    expect(router.resolve('/d1/help/ga').name).toBe('GrossanlassHilfe')
-    expect(router.resolve('/d1/help/ga/freigabe').params.topic).toBe('freigabe')
-    expect(router.resolve('/d1/help/department').name).toBe('HelpDokumentation')
-    expect(router.resolve('/d1/help/department').fullPath).toBe('/d1/help/department')
+  it('serves the GA help under /ga/help/ga and the department help under /dept/help/department', () => {
+    expect(router.resolve('/d1/ga/help/ga').name).toBe('GrossanlassHilfe')
+    expect(router.resolve('/d1/ga/help/ga/freigabe').params.topic).toBe('freigabe')
+    expect(router.resolve('/d1/dept/help/department').name).toBe('HelpDokumentation')
+    expect(router.resolve('/d1/dept/help/department').fullPath).toBe('/d1/dept/help/department')
   })
 
   it('keeps the tours route unchanged', () => {
-    expect(router.resolve('/d1/help/tours').name).toBe('HelpTours')
-    expect(router.resolve('/d1/help/einrichtung').name).toBe('HelpTours')
+    expect(router.resolve('/d1/dept/help/tours').name).toBe('HelpTours')
+    expect(router.resolve('/d1/dept/help/einrichtung').name).toBe('HelpTours')
   })
 
   it('redirects the old GA help path, with and without topic', () => {
@@ -34,7 +34,7 @@ describe('Help routes', () => {
 
   it('redirects the old department help paths', () => {
     for (const legacy of ['dokumentation', 'overview']) {
-      expect(resolveRedirect(`/d1/help/${legacy}`).target).toMatchObject({ name: 'HelpDokumentation', params: { departmentId: 'd1' } })
+      expect(resolveRedirect(`/d1/dept/help/${legacy}`).target).toMatchObject({ name: 'HelpDokumentation', params: { departmentId: 'd1' } })
     }
   })
 })

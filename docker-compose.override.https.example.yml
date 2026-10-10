@@ -27,4 +27,5 @@ services:
     environment:
       APP_FRONTEND_URL: https://app.ematchef.test
       APP_PUBLIC_QR_URL: https://qr.ematchef.test
+      APP_DISPLAY_URL: https://display.ematchef.test
       AUTH_COOKIE_SECURE: "1"

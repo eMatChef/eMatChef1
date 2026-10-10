@@ -324,12 +324,12 @@ const otherRounds = computed(() =>
   }),
 )
 
-const planungLink = computed(() => `/${props.departmentId}/planung`)
-const ressortsLink = computed(() => `/${props.departmentId}/einstellungen/ressorts`)
-const meinRessortLink = computed(() => `/${props.departmentId}/mein-ressort`)
-const beschaffungLink = computed(() => `/${props.departmentId}/beschaffung/bedarf`)
-const kostenLink = computed(() => `/${props.departmentId}/kosten`)
-const anfragenLink = computed(() => `/${props.departmentId}/beschaffung/anfragen`)
+const planungLink = computed(() => `/${props.departmentId}/ga/planung`)
+const ressortsLink = computed(() => `/${props.departmentId}/ga/einstellungen/ressorts`)
+const meinRessortLink = computed(() => `/${props.departmentId}/ga/mein-ressort`)
+const beschaffungLink = computed(() => `/${props.departmentId}/ga/beschaffung/bedarf`)
+const kostenLink = computed(() => `/${props.departmentId}/ga/kosten`)
+const anfragenLink = computed(() => `/${props.departmentId}/ga/beschaffung/anfragen`)
 const dashboardNettoAmount = computed(() => {
   const totals = procurementOverview.value?.totals
   if (!totals) return null
@@ -345,17 +345,17 @@ const dashboardNettoDisplay = computed(() => {
     rahmen: formatChf(rahmen),
   })
 })
-const materialLink = computed(() => `/${props.departmentId}/material`)
-const konflikteLink = computed(() => `/${props.departmentId}/planung/konflikte`)
-const ausgabeLink = computed(() => `/${props.departmentId}/material/ausgabe`)
-const tripsLink = computed(() => `/${props.departmentId}/planung/transporte`)
+const materialLink = computed(() => `/${props.departmentId}/ga/material`)
+const konflikteLink = computed(() => `/${props.departmentId}/ga/planung/konflikte`)
+const ausgabeLink = computed(() => `/${props.departmentId}/ga/material/ausgabe`)
+const tripsLink = computed(() => `/${props.departmentId}/ga/planung/transporte`)
 const tripOrderCount = computed(() =>
   (uebersicht.value?.einsaetze ?? []).filter(
     (row) => row.delivery === 'trip' && row.status !== 'returned',
   ).length,
 )
-const freigabeLink = computed(() => `/${props.departmentId}/einstellungen/freigabe`)
-const teilnehmerLink = computed(() => `/${props.departmentId}/einstellungen/teilnehmer`)
+const freigabeLink = computed(() => `/${props.departmentId}/ga/einstellungen/freigabe`)
+const teilnehmerLink = computed(() => `/${props.departmentId}/ga/einstellungen/teilnehmer`)
 const stock = computed(() => {
   const issues = uebersicht.value?.issues ?? []
   return {
@@ -369,7 +369,7 @@ const liveParticipants = computed<GrossanlassParticipant[]>(() => planung.value?
 const published = computed(() => planung.value?.config.status === 'published')
 
 function roundDetailLink(roundId: string, tab?: 'input' | 'responses') {
-  const base = `/${props.departmentId}/planung/runden/${roundId}`
+  const base = `/${props.departmentId}/ga/planung/runden/${roundId}`
   if (tab === 'input') return { path: base, query: { tab: 'input' } }
   return base
 }

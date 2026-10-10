@@ -154,7 +154,7 @@ const purchaseValid = computed(() => {
   return total != null && Number.isFinite(total) && total > 0
 })
 
-const materialDetailPath = computed(() => `/${props.departmentId}/materials/${props.materialItemId}`)
+const materialDetailPath = computed(() => `/${props.departmentId}/dept/materials/${props.materialItemId}`)
 
 const effectivePackSize = computed(() => {
   const n = props.packSize

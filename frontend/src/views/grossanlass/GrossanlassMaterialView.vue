@@ -79,7 +79,7 @@ function onTabChange(tab: unknown) {
     void router.push(gaBestandListPath(id))
     return
   }
-  void router.push(`/${id}/material/${tab}`)
+  void router.push(`/${id}/ga/material/${tab}`)
 }
 </script>
 

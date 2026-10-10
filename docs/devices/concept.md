@@ -35,7 +35,7 @@ Verwandte Doku:
 | `app.ematchef.ch` | Volle Verwaltung, Packliste im Aktivitäts-Tab | User-Session |
 | **`devices.ematchef.ch`** | **Lager:** Scan → Packen, grosser Touch / Desktop-Lager | User-Session |
 
-**Infoscreen** bleibt auf `app.…/display/{publicId}` (PIN, kein User-Login) — kein Lager-Gerät.
+**Infoscreen** läuft auf `display.…` (QR-Kopplung oder ID + Code, kein User-Login) — kein Lager-Gerät. Details: [infoscreen.md](./infoscreen.md).
 
 ---
 
@@ -97,7 +97,7 @@ Material kommt zurück (z. B. `transport_back_returned`, `at_event_returned`, 
 ```text
 devices.ematchef.ch/login
 devices.ematchef.ch/{deptId}/              → Abteilung (gepinnt), „Aktivität scannen“, Liste „packing“
-devices.ematchef.ch/{deptId}/pack/{activityId}  → Pack-Session (flow=out|return)
+devices.ematchef.ch/{deptId}/dept/pack/{activityId}  → Pack-Session (flow=out|return)
 ```
 
 Optional: Link aus `app.` — „Im Lager öffnen“.

@@ -58,7 +58,7 @@ Siehe auch: [concept.md](./concept.md) · [rollout-plan.md](./rollout-plan.md)
 | **QR** | Anlass-QR scannen (`qr…/i/a/{activityCode}`) |
 | **Liste** | Fallback: Aktivitäten mit Status `packing` (und ggf. `packed` für Retour) |
 
-Ergebnis: Pack-Session `/{deptId}/pack/{activityId}`.
+Ergebnis: Pack-Session `/{deptId}/dept/pack/{activityId}`.
 
 ---
 

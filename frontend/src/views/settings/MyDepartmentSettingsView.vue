@@ -422,7 +422,7 @@ import {
 } from '@/api/departmentSettings'
 import { buildOnboardingDoneKey, buildOnboardingPausedKey, buildOnboardingStateKey } from '@/utils/departmentOnboarding'
 import { assignPathAfterDepartmentSwitch } from '@/utils/departmentRoute'
-import { departmentDisplayName, departmentHomePath, isGrossanlassDepartment } from '@/utils/departmentSwitch'
+import { departmentDisplayName } from '@/utils/departmentSwitch'
 import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 import QRCode from 'qrcode'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
@@ -702,17 +702,15 @@ const canManageJoinCode = computed(() => {
 async function onDepartmentChange() {
   if (!selectedDepartmentId.value) return
   const newDeptId = selectedDepartmentId.value
-  const newDept = userDepartments.value.find((d) => d.department_id === newDeptId)
   await authStore.setActiveDepartment(newDeptId)
 
-  if (newDept && isGrossanlassDepartment(newDept)) {
-    window.location.assign(departmentHomePath(newDeptId))
-    return
-  }
 
   const oldDeptId = route.params.departmentId as string | undefined
   if (oldDeptId && oldDeptId !== newDeptId) {
-    assignPathAfterDepartmentSwitch(route.path, oldDeptId, newDeptId)
+    await assignPathAfterDepartmentSwitch(router, route.path, route.query, oldDeptId, newDeptId, {
+      oldIsGrossanlass: authStore.isDepartmentGrossanlass(oldDeptId),
+      newIsGrossanlass: authStore.isDepartmentGrossanlass(newDeptId),
+    })
     return
   }
   window.location.reload()
@@ -887,7 +885,7 @@ async function resetDepartmentActivitiesAction() {
   try {
     const result = await apiResetDepartmentActivities(selectedDepartmentId.value)
     toast.success(result.message || t('settings.myDepartment.activitiesReset.toastSuccess'))
-    window.location.href = `/${selectedDepartmentId.value}/activities`
+    window.location.href = `/${selectedDepartmentId.value}/dept/activities`
   } catch (err: any) {
     toast.error(err.response?.data?.error || t('settings.myDepartment.activitiesReset.toastError'))
   } finally {

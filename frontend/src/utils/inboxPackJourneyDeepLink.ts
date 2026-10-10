@@ -85,7 +85,7 @@ export function routeForInboxActivityNotification(
   options: { canManageMaterials: boolean },
 ): RouteLocationRaw {
   if (!entry.activity_id || String(entry.activity_id).startsWith('demo-')) {
-    return { path: `/${departmentId}/activities` }
+    return { path: `/${departmentId}/dept/activities` }
   }
 
   const activityDetailRoute: RouteLocationRaw = {

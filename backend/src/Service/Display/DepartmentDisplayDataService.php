@@ -42,6 +42,8 @@ final class DepartmentDisplayDataService
         $workshopStatuses = $this->displayScreenService->normalizeWorkshopStatuses($screen->getWorkshopStatuses());
 
         return [
+            // Grossanlass ist ein Department; Inhalte kommen künftig vom jeweiligen Scope-Provider.
+            'scope' => $department?->isGrossanlass() ? 'grossanlass' : 'department',
             'department_name' => $departmentName,
             'screen_name' => $screen->getName(),
             'subtitle_text' => $screen->getSubtitleText(),

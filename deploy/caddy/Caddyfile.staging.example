@@ -3,8 +3,8 @@
 # Webroot z. B. /var/www/ematchef-app-staging
 
 # Einstieg https://staging.ematchef.ch (Login)
-staging.ematchef.ch, app.staging.ematchef.ch, qr.staging.ematchef.ch, devices.staging.ematchef.ch,
-app-staging.ematchef.ch, qr-staging.ematchef.ch, devices-staging.ematchef.ch {
+staging.ematchef.ch, app.staging.ematchef.ch, qr.staging.ematchef.ch, devices.staging.ematchef.ch, display.staging.ematchef.ch,
+app-staging.ematchef.ch, qr-staging.ematchef.ch, devices-staging.ematchef.ch, display-staging.ematchef.ch {
 	handle /api* {
 		reverse_proxy 127.0.0.1:8082
 	}

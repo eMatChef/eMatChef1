@@ -173,7 +173,7 @@ function jsLineQty(line: GaGuestJsLine): string {
 function openAnfragen() {
   if (!departmentId.value) return
   void router.push({
-    path: `/${departmentId.value}/beschaffung/anfragen`,
+    path: `/${departmentId.value}/ga/beschaffung/anfragen`,
     query: { system: 'js' },
   })
 }

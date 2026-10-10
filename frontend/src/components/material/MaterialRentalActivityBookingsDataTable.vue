@@ -15,7 +15,7 @@
       <div class="rental-activity-cell">
         <router-link
           class="combo-allocation-link"
-          :to="`/${departmentId}/activities/${item.activity_id}`"
+          :to="`/${departmentId}/dept/activities/${item.activity_id}`"
         >
           {{ item.activity_name }}
         </router-link>

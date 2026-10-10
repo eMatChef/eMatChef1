@@ -25,10 +25,6 @@ vi.mock('@/api/departmentNotificationEmail', () => notif)
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => authStore }))
 vi.mock('@/composables/useToast', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }))
 vi.mock('@/composables/useConfirm', () => ({ useConfirm: () => ({ confirm: async () => true }) }))
-vi.mock('@/components/layout/ProfileSecurityExternalIdentitiesSection.vue', () => ({ default: { template: '<div />' } }))
-vi.mock('@/components/layout/ProfileSecurityTotpSection.vue', () => ({ default: { template: '<div />' } }))
-vi.mock('@/components/layout/ProfileSecuritySessionsSection.vue', () => ({ default: { template: '<div />' } }))
-vi.mock('@/components/layout/ProfileSecurityActivitySection.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('@/components/form/base', () => ({
   EButton: {
     inheritAttrs: false,
@@ -44,7 +40,7 @@ vi.mock('@/components/form/base', () => ({
   },
 }))
 
-import EmailsAccordion from './ProfileSecurityEmailsAccordion.vue'
+import EmailsAccordion from './ProfileEmailsSection.vue'
 import NotificationEmailPanel from '@/components/settings/DepartmentNotificationEmailPanel.vue'
 
 const emails = (primary: string) => ({
@@ -240,29 +236,32 @@ describe('E-Mail-Verwaltung im Profil', () => {
     expect(notif.getDepartmentNotificationEmail).toHaveBeenLastCalledWith('d1')
   })
 
-  it('wertet den OAuth-Rückweg und abgelehnte MiData-Links in TopHeader aus (Quelltext-Wächter)', () => {
-    const source = readFileSync(resolve(__dirname, 'TopHeader.vue'), 'utf8')
+  it('wertet den OAuth-Rückweg auf /profile/identities und abgelehnte MiData-Links in TopHeader aus (Quelltext-Wächter)', () => {
+    const view = readFileSync(resolve(__dirname, '../../views/profile/ProfileIdentitiesView.vue'), 'utf8')
+    const header = readFileSync(resolve(__dirname, 'TopHeader.vue'), 'utf8')
 
-    expect(source).toContain('handleProfileSecurityReturn')
-    expect(source).toContain("'emc-profile-security-link-result'")
-    expect(source).toContain("['reauth_required', 'step_up_required', 'mfa_required']")
-    // Das Profil öffnet sich nur, wenn der Server ein Verknüpfungs-Ergebnis hat (nie aufgrund der URL allein)
-    expect(source).toContain('takeExternalIdentityLinkResult(profileId)')
-    expect(source).toContain('if (!result) return')
-    expect(source.indexOf('if (!result) return')).toBeLessThan(source.indexOf('openProfileSecurity()\n  await nextTick()'))
-    // Parameter werden nach dem Auswerten aus der Adresse entfernt (kein erneutes Öffnen beim Neuladen)
-    expect(source).toContain('router.replace({ path: route.path, query: rest, hash: route.hash })')
+    expect(view).toContain('handleLinkReturn')
+    expect(view).toContain("'emc-profile-security-link-result'")
+    // Der Server liefert das Ergebnis einmalig; die URL allein löst nichts aus
+    expect(view).toContain('takeExternalIdentityLinkResult(profileId)')
+    expect(view).toContain('if (!result) return')
+    expect(view.indexOf('if (!result) return')).toBeLessThan(view.indexOf("new CustomEvent('emc-profile-security-link-result'"))
+    // Parameter werden nach dem Auswerten aus der Adresse entfernt (kein erneutes Auswerten beim Neuladen)
+    expect(view).toContain('router.replace({ path: route.path, query: nextQuery, hash: route.hash })')
+    // Abgelehnte MiData-Links (Step-up bzw. neu anmelden) bleiben im Header
+    expect(header).toContain("['reauth_required', 'step_up_required', 'mfa_required']")
+    expect(header).not.toContain('takeExternalIdentityLinkResult')
   })
 
-  it('bietet im Profil keinen zweiten Bearbeitungsweg: oberes Feld ist schreibgeschützt, der Stift führt zur Verwaltung', () => {
-    const source = readFileSync(resolve(__dirname, 'TopHeader.vue'), 'utf8')
+  it('bietet im Profil keinen zweiten Bearbeitungsweg: oberes Feld ist schreibgeschützt, der Stift führt zur E-Mail-Seite', () => {
+    const source = readFileSync(resolve(__dirname, '../../views/profile/ProfileBasicsView.vue'), 'utf8')
 
     expect(source).not.toContain('toggleEmailEdit')
     expect(source).not.toContain('isEmailEditEnabled')
     expect(source).toMatch(/v-model="profileForm\.email"[\s\S]{0,200}\bdisabled\b/)
-    expect(source).toContain('@click="openEmailManagement"')
-    expect(source).toContain("getElementById('profile-email-management')")
-    // Gespeichert wird immer die bestehende Hauptadresse; Änderungen laufen über /emails
-    expect(source).toContain('email: authStore.profile?.email || email')
+    expect(source).toContain("context.openTab('emails')")
+    // Gespeichert wird immer die bestehende Hauptadresse; Änderungen laufen über /profile/emails
+    const form = readFileSync(resolve(__dirname, '../../composables/useProfileForm.ts'), 'utf8')
+    expect(form).toContain('email: authStore.profile?.email || email')
   })
 })

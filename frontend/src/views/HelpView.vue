@@ -116,7 +116,7 @@ const activeSectionLabel = computed(() => {
 
 function getHelpLink(path: string): string {
   if (!departmentId.value) return '#'
-  return `/${departmentId.value}/help${path}`
+  return `/${departmentId.value}/dept/help${path}`
 }
 
 function navLinkForItem(itemId: string): string {
@@ -124,13 +124,13 @@ function navLinkForItem(itemId: string): string {
 }
 
 function isHelpItemActive(itemId: string): boolean {
-  const base = departmentId.value ? `/${departmentId.value}/help`.replace(/\/$/, '') : ''
+  const base = departmentId.value ? `/${departmentId.value}/dept/help`.replace(/\/$/, '') : ''
   const p = (route.path || '').replace(/\/$/, '') || '/'
   if (itemId === 'dokumentation') {
     return p === base || p.startsWith(`${base}/department`) || p === `${base}/dokumentation` || p === `${base}/overview`
   }
   if (itemId === 'tours') {
-    return p === `${base}/tours` || p === `${base}/einrichtung`
+    return p === `${base}/tours`
   }
   return p === `${base}/${itemId}`
 }
