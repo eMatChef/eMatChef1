@@ -265,7 +265,7 @@ final class ProfileSecurityController extends AbstractController
         }
         $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
         if ($date === false || $date->format('Y-m-d') !== $value) {
-            throw new \InvalidArgumentException('Ungültiges Datum');
+            throw new \InvalidArgumentException('invalid_date');
         }
 
         return $date;

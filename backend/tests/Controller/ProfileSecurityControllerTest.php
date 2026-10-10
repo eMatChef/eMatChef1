@@ -234,10 +234,10 @@ final class ProfileSecurityControllerTest extends TestCase
             $this->activityCalls[] = [$user->getId(), $limit, $cursor];
             $this->activityFilters[] = [$action, $from?->format('Y-m-d'), $to?->format('Y-m-d')];
             if ($action === 'nope') {
-                throw new \InvalidArgumentException('Ungültiger Ereignistyp');
+                throw new \InvalidArgumentException('invalid_event_type');
             }
             if ($cursor === 'bad') {
-                throw new \InvalidArgumentException('Ungültiger Cursor');
+                throw new \InvalidArgumentException('invalid_cursor');
             }
 
             return ['events' => [], 'next_cursor' => null];
