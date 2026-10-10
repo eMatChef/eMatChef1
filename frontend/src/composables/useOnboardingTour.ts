@@ -43,6 +43,8 @@ let targetObserver: ResizeObserver | null = null
 let pickerDomObserver: MutationObserver | null = null
 let advanceWhenVisibleObserver: MutationObserver | null = null
 let observedTarget: Element | null = null
+/** Ziel wurde von Vue ersetzt (Skeleton→Inhalt): Ziel neu suchen statt ein abgehängtes Element zu messen. */
+let onTargetDetached: (() => void) | null = null
 let elevatedRoot: HTMLElement | null = null
 let targetClickHandler: ((event: Event) => void) | null = null
 let advanceOnClickEl: Element | null = null
@@ -325,6 +327,7 @@ function clearTargetObserver() {
   sidebarExpandRoot = null
   sidebarExpandHandler = null
   observedTarget = null
+  onTargetDetached = null
   targetRect.value = null
 }
 
@@ -501,6 +504,12 @@ function observeTarget(el: Element) {
   }
   // Kalender/Uhr öffnen sich als Teleport — Spotlight mitziehen
   pickerDomObserver = new MutationObserver(() => {
+    if (observedTarget && !observedTarget.isConnected && onTargetDetached) {
+      const retarget = onTargetDetached
+      onTargetDetached = null
+      retarget()
+      return
+    }
     if (observedTarget) {
       updateTargetRect(observedTarget)
       bindScrollParentListeners(observedTarget)
@@ -733,6 +742,9 @@ export function useOnboardingTour(options?: { bindTargetSync?: boolean }) {
     }
 
     bindAdvanceHooks(step, stepId, onTargetClick)
+    onTargetDetached = () => {
+      if (activeStep.value?.id === stepId) void syncTarget(onTargetClick)
+    }
   }
 
   /**

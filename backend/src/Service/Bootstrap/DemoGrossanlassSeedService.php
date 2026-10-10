@@ -67,7 +67,7 @@ final class DemoGrossanlassSeedService
      * Alle Demo-Termine werden relativ zu E erzeugt; der Demo-Ausgangspunkt der BusinessClock
      * ist E - {@see \App\Service\Grossanlass\GrossanlassClockOriginResolver::DAYS_BEFORE_EVENT} Tage 09:00 (Aufbauphase).
      */
-    private const EVENT_START_DAYS_AFTER_SEED = 7;
+    public const EVENT_START_DAYS_AFTER_SEED = 7;
 
     public function __construct(
         private EntityManagerInterface $entityManager,

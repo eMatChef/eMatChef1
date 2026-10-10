@@ -7,18 +7,24 @@
   >
     <div class="dev-environment-banner__row">
       <span class="dev-environment-banner__text">{{ t('app.devEnvironmentBanner') }}</span>
+      <DemoResetControl v-if="hasAppContext" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, defineAsyncComponent, getCurrentInstance } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { shouldShowDevEnvironmentBanner } from '@/utils/devEnvironmentBanner'
+const DemoResetControl = defineAsyncComponent(() => import('@/components/common/DemoResetControl.vue'))
 
 const { t } = useI18n()
 
 const show = computed(() => shouldShowDevEnvironmentBanner())
+
+// Der Demo-Reset braucht Router und Store; ohne beides (Isolierte Komponententests) zeigt der Balken nur den Hinweis.
+const globals = getCurrentInstance()?.appContext.config.globalProperties
+const hasAppContext = Boolean(globals?.$router && globals?.$pinia)
 </script>
 
 <style>

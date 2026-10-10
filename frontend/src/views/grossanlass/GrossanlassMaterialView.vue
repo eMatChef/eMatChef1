@@ -59,23 +59,23 @@ const isDetail = computed(() => route.name === 'GrossanlassMaterialsArtikel')
 
 const tabItems = computed(() => {
   const tabs = [
-    { id: 'bestand', label: t('grossanlass.material.tabBestand'), icon: 'mdi-warehouse' },
-    { id: 'wareneingang', label: t('grossanlass.material.tabWareneingang'), icon: 'mdi-truck-delivery-outline' },
-    { id: 'ausgabe', label: t('grossanlass.material.tabAusgabe'), icon: 'mdi-export-variant' },
+    { id: 'stock', label: t('grossanlass.material.tabBestand'), icon: 'mdi-warehouse' },
+    { id: 'goods-receipt', label: t('grossanlass.material.tabWareneingang'), icon: 'mdi-truck-delivery-outline' },
+    { id: 'issue', label: t('grossanlass.material.tabAusgabe'), icon: 'mdi-export-variant' },
     { id: 'pack', label: t('grossanlass.material.tabPack'), icon: 'mdi-package-variant-closed' },
-    { id: 'rueckbau', label: t('grossanlass.material.tabRueckbau'), icon: 'mdi-package-variant-remove' },
-    { id: 'weiterverkauf', label: t('grossanlass.material.tabWeiterverkauf'), icon: 'mdi-tag-multiple-outline' },
+    { id: 'teardown', label: t('grossanlass.material.tabRueckbau'), icon: 'mdi-package-variant-remove' },
+    { id: 'resale', label: t('grossanlass.material.tabWeiterverkauf'), icon: 'mdi-tag-multiple-outline' },
   ]
   if (gaCanOperateAusgabe(authStore.currentDepartmentRole)) return tabs
-  return tabs.filter((tab) => tab.id !== 'ausgabe')
+  return tabs.filter((tab) => tab.id !== 'issue')
 })
 
-const activeTab = computed(() => (route.meta.materialTab as string) || 'bestand')
+const activeTab = computed(() => (route.meta.materialTab as string) || 'stock')
 
 function onTabChange(tab: unknown) {
   const id = departmentId.value
   if (!id || typeof tab !== 'string') return
-  if (tab === 'bestand') {
+  if (tab === 'stock') {
     void router.push(gaBestandListPath(id))
     return
   }

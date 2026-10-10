@@ -19,13 +19,17 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { GrossanlassGroupKind } from '@/api/grossanlassGroups'
 
 const model = defineModel<GrossanlassGroupKind>({ required: true })
+const props = defineProps<{ hideBauprojekt?: boolean }>()
 const { t } = useI18n()
 
-const options: GrossanlassGroupKind[] = ['ressort', 'bereich', 'teilbereich']
+const options = computed<GrossanlassGroupKind[]>(() =>
+  props.hideBauprojekt ? ['ressort', 'bereich'] : ['ressort', 'bereich', 'teilbereich'],
+)
 
 function labelFor(kind: GrossanlassGroupKind): string {
   if (kind === 'bereich') return t('grossanlass.planung.ressorts.kindUnterressort')
@@ -41,7 +45,7 @@ function labelFor(kind: GrossanlassGroupKind): string {
 
 .unit-choice__track {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(v-bind('options.length'), minmax(0, 1fr));
   gap: 4px;
   padding: 4px;
   background: #f3f4f6;

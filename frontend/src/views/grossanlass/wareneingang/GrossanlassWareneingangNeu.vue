@@ -425,7 +425,7 @@ function needsOf(row: GrossanlassCommitment): NeedLink[] {
         n: einsatz.qty,
       }),
       action: t('grossanlass.material.wareneingang.openEinsatz'),
-      to: `/${departmentId.value}/ga/planung/belegung`,
+      to: `/${departmentId.value}/ga/planning/occupancy`,
     })
   }
   for (const pack of uebersicht.data.value?.pack ?? []) {
@@ -462,7 +462,7 @@ function openOrder(row: GrossanlassCommitment) {
   const lineId = row.item_details?.from_line_id
   if (!id || !lineId) return
   void router.push({
-    path: `/${id}/ga/beschaffung/bestellungen`,
+    path: `/${id}/ga/procurement/orders`,
     query: { line: lineId },
   })
 }

@@ -5,7 +5,7 @@
         <h3 class="verkauf__title">{{ t('grossanlass.rueckbau.sale.title') }}</h3>
         <p class="verkauf__hint">{{ t('grossanlass.rueckbau.sale.linkHint') }}</p>
       </div>
-      <router-link :to="`/${departmentId}/ga/material/weiterverkauf`" class="verkauf__link">
+      <router-link :to="`/${departmentId}/ga/material/resale`" class="verkauf__link">
         <EButton variant="primary">
           <v-icon icon="mdi-tag-multiple-outline" start size="18" /> {{ t('grossanlass.rueckbau.sale.openResale') }}
         </EButton>

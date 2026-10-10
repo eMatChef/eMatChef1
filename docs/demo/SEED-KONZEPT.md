@@ -133,6 +133,14 @@ Daten neu und Zeit zurück sind getrennte Vorgänge (**IST**, Tabelle in [busine
 
 **SOLL:** Ein Reset-Weg pro Szenario, ausfallsicher, nur im eigenen Demo-Department (§7.7).
 
+**Reset «Grossanlass Einrichtung» (IST, erstes freigegebenes Szenario).** Nur `grossanlass-setup` ist zurücksetzbar (`supportsReset()`); alle anderen Szenarien bleiben gesperrt. Einstiege: gelber Testumgebungs-Balken → «Demo zurücksetzen» (Status, Vorschau und Ausführung unter `/api/departments/{id}/demo-reset`, `DemoResetService`) und `app:demo:reset --scenario=grossanlass-setup --confirm=grossanlass-setup`.
+
+- **Schranken (serverseitig):** `DemoEnvironmentGuard::destructiveDenial()` (lokal; Develop nur mit `EMATCHEF_DEMO_DESTRUCTIVE=1`; Staging, Production und unbekannte Umgebungen nie), nur das Szenario-Department (`demo_mode` + `demo_scenario_key`), Berechtigung MW, OK-Leitung oder Administration des Departments, Szenario-Bestätigung und Plan-Hash der Vorschau.
+- **Ablauf:** Advisory-Lock und **eine** Transaktion (`DemoScenarioRunner`). Die Vorschau führt dieselben Schritte aus und rollt immer zurück (`previewReset`); die Ausführung vergleicht den Plan-Hash innerhalb der Transaktion mit der Vorschau und rollt bei Abweichung alles zurück.
+- **Löscht** (nur dieses Department, nur Einrichtungsdaten): Ressorts/Bereiche samt Mitgliedern und Freigaben, Orte, Adressen, Beitrittsanfragen. **Setzt zurück:** GA-Stammdaten (Ort, Notizen, Status, Strukturmodus, Einladungsstand, Logistik, Eventstandort), Anlasszeitraum wie ein frischer Seed heute (`EVENT_START_DAYS_AFTER_SEED`, samt Hauptaktivität, Kalenderperiode und Demo-Uhr), Einrichtungsfreigabe, Department-Name, GA-Typ und die Rollen der Seed-Mitglieder (Sync im «Reset-Modus»: `SeedContext::withForcedManaged()`, nur Records mit `resettable`: Department, GA-Konfiguration, Mitgliedschaften); gelöschte Seed-Mitgliedschaften werden neu angelegt. **Bleibt:** Konten, Passwörter, MFA/TOTP, Identitäten, Profile, Ledger, andere Departments und Szenarien, weitere (nicht seed-eigene) Mitgliedschaften, Kostenstellen, Kategorien, Einstellungen, Infoscreen-Kopplungen, Audit-Protokoll.
+- **Blockaden statt Raten:** Jede Tabelle mit Department-Bezug ist BEHALTEN, ZURÜCKSETZEN oder (Standard) BLOCKIEREND. Enthält eine blockierende Tabelle Zeilen dieses Departments oder verweisen fremde Tabellen per Fremdschlüssel auf zu löschende Zeilen, verändert der Reset nichts und nennt die Gründe. Ein Test hält die Klassifizierung aktuell (`DemoSetupResetIntegrationTest`).
+- **Tests:** `DemoSetupResetIntegrationTest` (nur mit `EMATCHEF_TEST_DB_URL` gegen eine isolierte `val_*`/`*_test`-Datenbank; Dry-Run, Wiederherstellung, Idempotenz, andere Szenarien und Konten unverändert, Blockade, Plan-Abweichung ohne Teil-Reset, nicht unterstützte Departments, unberechtigte Rollen, Production/Staging/Develop). Das lokale `mvdb` wird dafür nie verwendet.
+
 ## 5. Zeitstrahl
 
 ### 5.1 Phasen

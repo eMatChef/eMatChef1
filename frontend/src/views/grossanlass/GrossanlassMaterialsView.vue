@@ -32,6 +32,7 @@
 </template>
 
 <script setup lang="ts">
+import { gaBestandListPath } from '@/views/grossanlass/gaBestandPaths'
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -67,7 +68,7 @@ const activeTab = computed(() => (route.meta.materialsTab as string) || 'eigen')
 function onTabChange(tab: unknown) {
   const id = departmentId.value
   if (!id || typeof tab !== 'string') return
-  void router.push({ path: `/${id}/ga/materialien/${tab}` })
+  void router.push(gaBestandListPath(id, tab))
 }
 </script>
 

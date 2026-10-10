@@ -235,7 +235,7 @@ function whenLabel(row: Row): string {
 
 function goBack() {
   const departmentId = String(route.params.departmentId || '')
-  void router.push(`/${departmentId}/ga/planung`)
+  void router.push(`/${departmentId}/ga/planning`)
 }
 
 onMounted(async () => {

@@ -85,23 +85,23 @@ const departmentId = computed(() => {
 })
 
 const tabItems = computed(() => [
-  { id: 'wuensche', label: t('grossanlass.planung.tabWishes'), icon: 'mdi-lightbulb-on-outline' },
-  { id: 'auftraege', label: t('grossanlass.planung.tabAuftraege'), icon: 'mdi-clipboard-text-outline' },
-  { id: 'bauauftraege', label: t('grossanlass.planung.tabBauauftraege'), icon: 'mdi-hammer-wrench' },
-  { id: 'transporte', label: t('grossanlass.planung.tabTransporte'), icon: 'mdi-truck-fast-outline' },
-  { id: 'belegung', label: t('grossanlass.planung.tabBelegung'), icon: 'mdi-calendar-range' },
-  { id: 'konflikte', label: t('grossanlass.planung.tabKonflikte'), icon: 'mdi-alert-outline' },
+  { id: 'requests', label: t('grossanlass.planung.tabWishes'), icon: 'mdi-lightbulb-on-outline' },
+  { id: 'jobs', label: t('grossanlass.planung.tabAuftraege'), icon: 'mdi-clipboard-text-outline' },
+  { id: 'build-jobs', label: t('grossanlass.planung.tabBauauftraege'), icon: 'mdi-hammer-wrench' },
+  { id: 'transports', label: t('grossanlass.planung.tabTransporte'), icon: 'mdi-truck-fast-outline' },
+  { id: 'occupancy', label: t('grossanlass.planung.tabBelegung'), icon: 'mdi-calendar-range' },
+  { id: 'conflicts', label: t('grossanlass.planung.tabKonflikte'), icon: 'mdi-alert-outline' },
 ])
 
-const activeTab = computed(() => (route.meta.planungTab as string) || 'wuensche')
+const activeTab = computed(() => (route.meta.planungTab as string) || 'requests')
 const showAddTransport = computed(() =>
-  activeTab.value === 'transporte' && fahrauftragComposer.canAdd,
+  activeTab.value === 'transports' && fahrauftragComposer.canAdd,
 )
 
 function onTabChange(tab: unknown) {
   const id = departmentId.value
   if (!id || typeof tab !== 'string') return
-  void router.push(`/${id}/ga/planung/${tab}`)
+  void router.push(`/${id}/ga/planning/${tab}`)
 }
 </script>
 

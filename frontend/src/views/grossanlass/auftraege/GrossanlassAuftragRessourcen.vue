@@ -58,7 +58,7 @@
 
       <div v-else class="need__actions">
         <EButton variant="secondary" size="small" @click="toggleOther(need.id)">{{ t('grossanlass.auftraege.res.planTime') }}</EButton>
-        <router-link v-if="need.type === 'helper'" :to="`/${departmentId}/ga/helferpool`" class="need__link">{{ t('grossanlass.auftraege.res.toHelferpool') }}</router-link>
+        <router-link v-if="need.type === 'helper'" :to="`/${departmentId}/ga/helper-pool`" class="need__link">{{ t('grossanlass.auftraege.res.toHelferpool') }}</router-link>
       </div>
 
       <div v-if="otherOpen[need.id]" class="need__other">

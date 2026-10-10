@@ -40,15 +40,15 @@ final class RunnerAndCommandsTest extends ScenarioTestCase
         return new DemoScenarioRunner($em, $identity, $this->createMock(DemoSeedLedger::class));
     }
 
-    public function testRealScenariosHaveNoResetInPhase1(): void
+    public function testOnlyTheSetupScenarioSupportsReset(): void
     {
         $seeder = $this->createMock(\App\Service\Demo\Organisation\DemoOrganisationSeeder::class);
         $origin = (new \ReflectionClass(\App\Service\Grossanlass\GrossanlassClockOriginResolver::class))->newInstanceWithoutConstructor();
+        $resetter = (new \ReflectionClass(\App\Service\Demo\Reset\DemoSetupResetter::class))->newInstanceWithoutConstructor();
         foreach ([
             new \App\Service\Demo\Scenario\MaterialverwaltungScenario($seeder),
             new \App\Service\Demo\Scenario\GrossanlassEventScenario($seeder, $origin),
             new \App\Service\Demo\Scenario\GrossanlassCampScenario($seeder, $origin),
-            new \App\Service\Demo\Scenario\GrossanlassSetupScenario($seeder, $origin),
         ] as $scenario) {
             self::assertFalse($scenario->supportsReset(), $scenario->key());
             try {
@@ -58,6 +58,8 @@ final class RunnerAndCommandsTest extends ScenarioTestCase
                 self::assertStringContainsString('noch nicht verfügbar', $e->getMessage());
             }
         }
+        // Erstes freigegebenes Szenario: «Grossanlass Einrichtung» (Ablauf siehe DemoSetupResetIntegrationTest)
+        self::assertTrue((new \App\Service\Demo\Scenario\GrossanlassSetupScenario($seeder, $origin, $resetter))->supportsReset());
     }
 
     public function testSyncOfPlaceholderScenarioIsNotImplementedAndWritesNothing(): void

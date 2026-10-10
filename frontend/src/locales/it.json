@@ -1428,22 +1428,18 @@
           "title": "Configurare il grande evento",
           "description": "Conosci il sistema e configura dati di base, settori e membri.",
           "ctaStay": "Resta qui",
-          "step1Title": "Benvenuto al grande evento",
-          "step1Body": "Conosci prima il sistema. Servono ancora alcune informazioni importanti prima di poter iniziare. Clicca su «Gestire il grande evento».",
-          "step2Title": "1. Dati di base",
-          "step2Body": "Nome, data e luogo del grande evento. Questi dati sono obbligatori.",
+          "step1Title": "Dashboard",
+          "step1Body": "Qui vedrai in seguito la panoramica del tuo grande evento. Fino al rilascio mostra lo stato della configurazione.",
+          "step2Title": "Gestire il grande evento",
+          "step2Body": "Qui si gestiscono i dati di base: nome, data e luogo. Questi dati sono obbligatori.",
           "step3Title": "Tipo: campo o evento",
           "step3Body": "Scegli se gli ospiti svolgono un campo o un evento. La partecipazione dei reparti e il prestito di materiale ne sono indipendenti e si scelgono liberamente in seguito.",
-          "step4Title": "2. Settori",
-          "step4Body": "Passa ai settori.",
-          "step5Title": "Settori e responsabilità",
-          "step5Body": "Crea almeno un settore e assegna una direzione a ciascuno.",
-          "step6Title": "3. Membri",
-          "step6Body": "Gestisci membri e direzione OK nelle impostazioni.",
-          "step7Title": "Utenti",
-          "step7Body": "Invita membri e assegna loro dei ruoli. Servono almeno un MW e una direzione OK.",
-          "step8Title": "Rilasciare",
-          "step8Body": "Quando le tre aree sono completate, MW o direzione OK rilasciano qui la configurazione. Solo allora il grande evento è aperto a tutti i ruoli."
+          "step4Title": "Settori",
+          "step4Body": "Qui si definiscono responsabilità e direzioni di settore. Crea almeno un settore e assegna una direzione a ciascuno.",
+          "step5Title": "Utenti",
+          "step5Body": "Qui si aggiungono membri e responsabili. Servono almeno un MW e una direzione OK.",
+          "step6Title": "Rilascio",
+          "step6Body": "Quando i requisiti sono soddisfatti, MW o direzione OK rilasciano qui il grande evento per gli altri ruoli. Il tour mostra soltanto – la configurazione la fai poi tu stesso."
         }
     }
   }

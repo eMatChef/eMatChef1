@@ -35,7 +35,7 @@
         <h3>{{ t('grossanlass.planung.activities.internalTitle') }}</h3>
         <p class="hint">{{ t('grossanlass.planung.activities.internalHelp') }}</p>
         <p class="actions">
-          <router-link :to="`/${departmentId}/ga/einstellungen/ressorts`">
+          <router-link :to="`/${departmentId}/ga/activity-settings/units`">
             {{ t('grossanlass.planung.struktur.openRessorts') }}
           </router-link>
         </p>

@@ -126,14 +126,14 @@ const oneLiner = computed(() => {
 })
 
 const departmentId = computed(() => String(route.params.departmentId || props.line.department_id || ''))
-const onAbsprachen = computed(() => route.path.includes('/beschaffung/zusagen'))
+const onAbsprachen = computed(() => route.path.includes('/procurement/commitments'))
 
 const loanTo = computed(() => {
   if (!props.linkLoans || onAbsprachen.value || otherTaken.value <= 0 || !departmentId.value) {
     return null
   }
   return {
-    path: `/${departmentId.value}/ga/beschaffung/zusagen`,
+    path: `/${departmentId.value}/ga/procurement/commitments`,
     query: { line: props.line.id },
   }
 })
@@ -141,7 +141,7 @@ const loanTo = computed(() => {
 const orderTo = computed(() => {
   if (ordered.value <= 0 || !departmentId.value) return null
   return {
-    path: `/${departmentId.value}/ga/beschaffung/bestellungen`,
+    path: `/${departmentId.value}/ga/procurement/orders`,
     query: { line: props.line.id },
   }
 })

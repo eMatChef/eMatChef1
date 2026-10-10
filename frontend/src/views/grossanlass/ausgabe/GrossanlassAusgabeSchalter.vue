@@ -263,7 +263,7 @@ function confirm() {
 }
 function goCards() {
   const id = String(route.params.departmentId || '')
-  if (id) void router.push(`/${id}/dept/settings/user-karten`)
+  if (id) void router.push(`/${id}/ga/settings/user-karten`)
 }
 </script>
 

@@ -72,7 +72,7 @@ final class GrossanlassGmailAccountService
             'providers' => $this->mailboxes->catalog(),
             'email' => $account?->getEmail(),
             'connected_at' => $account?->getConnectedAt()->format(\DateTimeInterface::ATOM),
-            'settings_path' => '/' . $department->getId() . '/ga/einstellungen/anfragen-email',
+            'settings_path' => '/' . $department->getId() . '/ga/activity-settings/inquiry-email',
         ];
     }
 

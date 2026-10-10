@@ -24,12 +24,8 @@ describe('Help routes', () => {
     expect(router.resolve('/d1/dept/help/einrichtung').name).toBe('HelpTours')
   })
 
-  it('redirects the old GA help path, with and without topic', () => {
-    expect(resolveRedirect('/d1/ga-hilfe').target).toMatchObject({ name: 'GrossanlassHilfe', params: { departmentId: 'd1' } })
-    expect(resolveRedirect('/d1/ga-hilfe/freigabe').target).toMatchObject({
-      name: 'GrossanlassHilfe',
-      params: { departmentId: 'd1', topic: 'freigabe' },
-    })
+  it('has no legacy /ga-hilfe route', () => {
+    expect(router.resolve('/d1/ga-hilfe').name).toBeUndefined()
   })
 
   it('redirects the old department help paths', () => {

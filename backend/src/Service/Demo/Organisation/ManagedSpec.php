@@ -28,6 +28,8 @@ final class ManagedSpec
         public readonly bool $global = false,
         public readonly ?\Closure $adopt = null,
         public readonly ?\Closure $afterCreate = null,
+        /** Darf ein Szenario-Reset auch manuell geänderte Werte auf den Katalog zurücksetzen? (nur department-eigene Datensätze) */
+        public readonly bool $resettable = false,
     ) {
     }
 }

@@ -1150,7 +1150,7 @@ function viewQuoteForRow(row: ZusageRow) {
   const dept = departmentId.value
   if (!dept || !line) return
   void router.push({
-    path: `/${dept}/ga/beschaffung/offerten`,
+    path: `/${dept}/ga/procurement/offers`,
     query: { line: line.id, supplier: row.source },
   })
 }
@@ -1171,7 +1171,7 @@ function viewQuoteOf(line: GrossanlassProcurementLine) {
 function goOrderLine(lineId: string) {
   const dept = departmentId.value
   if (!dept) return
-  void router.push({ path: `/${dept}/ga/beschaffung/bestellungen`, query: { line: lineId } })
+  void router.push({ path: `/${dept}/ga/procurement/orders`, query: { line: lineId } })
 }
 
 function goMoreQuotes(line: GrossanlassProcurementLine) {
@@ -1179,7 +1179,7 @@ function goMoreQuotes(line: GrossanlassProcurementLine) {
   if (!dept) return
   const supplier = selectedQuoteOf(line)?.supplier || line.quotes[0]?.supplier || ''
   void router.push({
-    path: `/${dept}/ga/beschaffung/offerten`,
+    path: `/${dept}/ga/procurement/offers`,
     query: { line: line.id, supplier },
   })
 }
@@ -1459,7 +1459,7 @@ function openWindowForLine(inquiryId: string, lineId: string) {
 function goBedarfLine(lineId: string) {
   const dept = departmentId.value
   if (!dept) return
-  void router.push({ path: `/${dept}/ga/beschaffung/bedarf`, query: { line: lineId } })
+  void router.push({ path: `/${dept}/ga/procurement/demand`, query: { line: lineId } })
 }
 
 function wishWindow(line: GrossanlassProcurementLine): { from: string | null; to: string | null } {

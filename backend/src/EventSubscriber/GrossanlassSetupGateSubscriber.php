@@ -23,6 +23,7 @@ use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInt
  * - MW, Co-MW und OK-Leitung erreichen nur die Einrichtung: `setup`, Stammdaten (`planung`), Ressorts und deren Mitglieder
  *   (`groups`, `groups/{id}/members`).
  * - Alle anderen Mitglieder (Bereichsleitung, Logistik, Komm/Spon, Helfer …) erreichen noch nichts.
+ * Schreibzugriffe auf die allgemeinen Department-Einstellungen (`…/settings`) sind vor der Freigabe für alle Mitglieder gesperrt.
  * Globale Admins im Scope des Departments und Nicht-Mitglieder bleiben unberührt (ihre Rechte ändern sich nicht, die
  * bestehenden Prüfungen der Endpunkte gelten weiter). Gast-Endpunkte (`…/{gast-department}/grossanlass/hosts/…`) sind nicht
  * betroffen, weil die Department-ID dort ein normales Department ist.
@@ -30,6 +31,13 @@ use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInt
 final class GrossanlassSetupGateSubscriber implements EventSubscriberInterface
 {
     private const PATTERN = '#^/api/departments/([^/]+)/grossanlass(?:/(.*))?$#';
+
+    /**
+     * Allgemeine Department-Einstellungen (`/settings`, `/settings/…`): vor der Freigabe sind **Schreibzugriffe** auf einem
+     * offenen Grossanlass gesperrt (die Konfiguration gehört nicht zur Ersteinrichtung). Lesen bleibt offen, weil die App
+     * Zeitzone und Rollenbezeichnungen bei jedem Seitenaufruf liest; normale Departments sind nicht betroffen.
+     */
+    private const SETTINGS_PATTERN = '#^/api/departments/([^/]+)/settings(?:/.*)?$#';
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
@@ -47,8 +55,17 @@ final class GrossanlassSetupGateSubscriber implements EventSubscriberInterface
 
     public function onRequest(RequestEvent $event): void
     {
-        if (!$event->isMainRequest() || !preg_match(self::PATTERN, $event->getRequest()->getPathInfo(), $m)) {
+        if (!$event->isMainRequest()) {
             return;
+        }
+        $path = $event->getRequest()->getPathInfo();
+        $method = $event->getRequest()->getMethod();
+        $isSettings = false;
+        if (!preg_match(self::PATTERN, $path, $m)) {
+            if (!preg_match(self::SETTINGS_PATTERN, $path, $m) || \in_array($method, ['GET', 'HEAD', 'OPTIONS'], true)) {
+                return;
+            }
+            $isSettings = true;
         }
         $user = $this->tokens->getToken()?->getUser();
         if (!$user instanceof User) {
@@ -69,7 +86,7 @@ final class GrossanlassSetupGateSubscriber implements EventSubscriberInterface
         if ($role === null) {
             return; // kein Mitglied: die Endpunkte lehnen selbst ab
         }
-        if (GrossanlassAccessRoles::canSetup($role) && self::isSetupRoute($event->getRequest()->getMethod(), '/' . ($m[2] ?? ''))) {
+        if (!$isSettings && GrossanlassAccessRoles::canSetup($role) && self::isSetupRoute($method, '/' . ($m[2] ?? ''))) {
             return;
         }
 

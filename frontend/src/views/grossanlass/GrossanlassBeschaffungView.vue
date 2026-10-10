@@ -25,7 +25,7 @@
               <template v-for="(step, index) in sharedPath" :key="'s-' + step.id">
                 <span v-if="index > 0" class="beschaffung-paths__arrow" aria-hidden="true">→</span>
                 <router-link
-                  :to="`/${departmentId}/ga/beschaffung/${step.id}`"
+                  :to="`/${departmentId}/ga/procurement/${step.id}`"
                   class="beschaffung-paths__step"
                   :class="{ 'is-here': activeTab === step.id }"
                   :aria-current="activeTab === step.id ? 'page' : undefined"
@@ -39,7 +39,7 @@
               <template v-for="(step, index) in partnerPath" :key="'p-' + step.id">
                 <span v-if="index > 0" class="beschaffung-paths__arrow" aria-hidden="true">→</span>
                 <router-link
-                  :to="`/${departmentId}/ga/beschaffung/${step.id}`"
+                  :to="`/${departmentId}/ga/procurement/${step.id}`"
                   class="beschaffung-paths__step"
                   :class="{ 'is-here': activeTab === step.id }"
                   :aria-current="activeTab === step.id ? 'page' : undefined"
@@ -53,7 +53,7 @@
               <template v-for="(step, index) in buyPath" :key="'b-' + step.id">
                 <span v-if="index > 0" class="beschaffung-paths__arrow" aria-hidden="true">→</span>
                 <router-link
-                  :to="`/${departmentId}/ga/beschaffung/${step.id}`"
+                  :to="`/${departmentId}/ga/procurement/${step.id}`"
                   class="beschaffung-paths__step"
                   :class="{ 'is-here': activeTab === step.id }"
                   :aria-current="activeTab === step.id ? 'page' : undefined"
@@ -98,12 +98,12 @@ const groupsRef = computed(() => groups.value)
 const { canManageProcurement, hasProcurementDelegate } = useGrossanlassProcurementScope(groupsRef)
 
 const allTabItems = [
-  { id: 'bedarf', labelKey: 'grossanlass.beschaffung.tabBedarf', icon: 'mdi-clipboard-list-outline' },
-  { id: 'anfragen', labelKey: 'grossanlass.beschaffung.tabAnfragen', icon: 'mdi-email-multiple-outline' },
-  { id: 'offerten', labelKey: 'grossanlass.beschaffung.tabOfferten', icon: 'mdi-file-document-outline' },
-  { id: 'zusagen', labelKey: 'grossanlass.beschaffung.tabZusagen', icon: 'mdi-handshake-outline' },
-  { id: 'bestellungen', labelKey: 'grossanlass.beschaffung.tabBestellungen', icon: 'mdi-cart-outline' },
-  { id: 'erhalten', labelKey: 'grossanlass.beschaffung.tabErhalten', icon: 'mdi-package-check' },
+  { id: 'demand', labelKey: 'grossanlass.beschaffung.tabBedarf', icon: 'mdi-clipboard-list-outline' },
+  { id: 'inquiries', labelKey: 'grossanlass.beschaffung.tabAnfragen', icon: 'mdi-email-multiple-outline' },
+  { id: 'offers', labelKey: 'grossanlass.beschaffung.tabOfferten', icon: 'mdi-file-document-outline' },
+  { id: 'commitments', labelKey: 'grossanlass.beschaffung.tabZusagen', icon: 'mdi-handshake-outline' },
+  { id: 'orders', labelKey: 'grossanlass.beschaffung.tabBestellungen', icon: 'mdi-cart-outline' },
+  { id: 'received', labelKey: 'grossanlass.beschaffung.tabErhalten', icon: 'mdi-package-check' },
 ] as const
 
 const tabItems = computed(() => {
@@ -116,14 +116,14 @@ const tabItems = computed(() => {
   }
   if (gaCanWorkMailbox(authStore.currentDepartmentRole)) {
     return [{
-      id: 'anfragen',
+      id: 'inquiries',
       label: t('grossanlass.beschaffung.tabAnfragen'),
       icon: 'mdi-email-multiple-outline',
     }]
   }
   if (hasProcurementDelegate.value) {
     return [{
-      id: 'offerten',
+      id: 'offers',
       label: t('grossanlass.beschaffung.tabOfferten'),
       icon: 'mdi-file-document-outline',
     }]
@@ -134,25 +134,25 @@ const tabItems = computed(() => {
 const showPaths = computed(() => gaCanManageProcurement(authStore.currentDepartmentRole))
 
 const sharedPath = computed(() => [
-  { id: 'bedarf', label: t('grossanlass.beschaffung.tabBedarf') },
-  { id: 'anfragen', label: t('grossanlass.beschaffung.tabAnfragen') },
+  { id: 'demand', label: t('grossanlass.beschaffung.tabBedarf') },
+  { id: 'inquiries', label: t('grossanlass.beschaffung.tabAnfragen') },
 ])
 
 const partnerPath = computed(() => [
-  { id: 'zusagen', label: t('grossanlass.beschaffung.tabZusagen') },
+  { id: 'commitments', label: t('grossanlass.beschaffung.tabZusagen') },
 ])
 
 const buyPath = computed(() => [
-  { id: 'offerten', label: t('grossanlass.beschaffung.tabOfferten') },
-  { id: 'bestellungen', label: t('grossanlass.beschaffung.tabBestellungen') },
+  { id: 'offers', label: t('grossanlass.beschaffung.tabOfferten') },
+  { id: 'orders', label: t('grossanlass.beschaffung.tabBestellungen') },
 ])
 
-const activeTab = computed(() => (route.meta.beschaffungTab as string) || 'bedarf')
+const activeTab = computed(() => (route.meta.beschaffungTab as string) || 'demand')
 
 function onTabChange(tab: unknown) {
   const id = departmentId.value
   if (!id || typeof tab !== 'string') return
-  void router.push(`/${id}/ga/beschaffung/${tab}`)
+  void router.push(`/${id}/ga/procurement/${tab}`)
 }
 
 async function ensureGroupsLoaded() {
@@ -171,16 +171,16 @@ watch(
     if (
       !canManageProcurement.value &&
       hasProcurementDelegate.value &&
-      activeTab.value !== 'offerten'
+      activeTab.value !== 'offers'
     ) {
-      void router.replace(`/${departmentId.value}/ga/beschaffung/offerten`)
+      void router.replace(`/${departmentId.value}/ga/procurement/offers`)
     }
     if (
       gaCanWorkMailbox(authStore.currentDepartmentRole) &&
       !gaCanManageProcurement(authStore.currentDepartmentRole) &&
-      activeTab.value !== 'anfragen'
+      activeTab.value !== 'inquiries'
     ) {
-      void router.replace(`/${departmentId.value}/ga/beschaffung/anfragen`)
+      void router.replace(`/${departmentId.value}/ga/procurement/inquiries`)
     }
   },
   { immediate: true },

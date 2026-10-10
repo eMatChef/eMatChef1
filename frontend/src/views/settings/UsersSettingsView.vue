@@ -20,9 +20,11 @@
 
       <div v-else key="content" class="users-settings-content">
         <div v-if="!embedded" class="members-toolbar">
-          <span v-if="members.length > 0" class="members-count">
-            <strong>{{ members.length }}</strong>
-            {{ t('settings.departmentUsers.statsUsers') }}
+          <span v-if="members.length > 0" class="members-count" aria-live="polite">
+            <strong>{{ gaTable ? filteredMembers.length : members.length }}</strong>
+            {{ gaTable && filteredMembers.length !== members.length
+              ? t('settings.departmentUsers.statsUsersOf', { total: members.length })
+              : t('settings.departmentUsers.statsUsers') }}
           </span>
           <span v-else class="members-count members-count--empty"></span>
           <EButton
@@ -67,38 +69,6 @@
             :save="(v) => saveRoleLabelField('l3', v)"
           />
         </div>
-      </div>
-    </details>
-
-    <details
-      v-if="canEditRoleLabels && isGrossanlassDept"
-      class="members-accordion"
-    >
-      <summary class="members-accordion__summary">
-        {{ t('settings.departmentUsers.grossanlassDetailsTitle') }}
-      </summary>
-      <div class="members-accordion__body">
-        <p class="role-labels-hint">{{ t('settings.departmentUsers.grossanlassDetailsHint') }}</p>
-        <p v-if="isLoadingGrossanlassDetails" class="grossanlass-details-muted">
-          {{ t('common.loading') }}
-        </p>
-        <p v-else-if="grossanlassDetailsError" class="grossanlass-details-error">
-          {{ grossanlassDetailsError }}
-        </p>
-        <dl v-else-if="grossanlassConfig" class="grossanlass-details-grid">
-          <div class="grossanlass-details-row">
-            <dt>{{ t('settings.departmentUsers.grossanlassDetailsPeriod') }}</dt>
-            <dd>{{ grossanlassPeriodLabel || '—' }}</dd>
-          </div>
-          <div class="grossanlass-details-row">
-            <dt>{{ t('settings.departmentUsers.grossanlassDetailsStatus') }}</dt>
-            <dd>{{ grossanlassStatusLabel }}</dd>
-          </div>
-          <div v-if="grossanlassConfig?.location_text" class="grossanlass-details-row">
-            <dt>{{ t('settings.departmentUsers.grossanlassDetailsLocation') }}</dt>
-            <dd>{{ grossanlassConfig.location_text }}</dd>
-          </div>
-        </dl>
       </div>
     </details>
 
@@ -212,7 +182,7 @@
 
     <!-- Suche direkt oberhalb der Benutzerliste (nur auf eigener Seite) -->
     <div
-      v-if="!embedded && (members.length > 3 || showSearchForTour)"
+      v-if="!embedded && !gaTable && (members.length > 3 || showSearchForTour)"
       class="search-bar"
       data-onboarding="settings-user-search"
     >
@@ -229,13 +199,13 @@
       <EButton variant="secondary" class="mt-3" @click="loadMembers">{{ t('common.retry') }}</EButton>
     </div>
 
-    <details
+    <component
+      :is="gaTable ? 'div' : 'details'"
       v-else
-      class="members-accordion"
-      :open="membersAccordionOpen"
-      @toggle="onMembersAccordionToggle"
+      :class="gaTable ? 'members-flat' : 'members-accordion'"
+      v-bind="gaTable ? {} : { open: membersAccordionOpen, onToggle: onMembersAccordionToggle }"
     >
-      <summary class="members-accordion__summary">
+      <summary v-if="!gaTable" class="members-accordion__summary">
         {{
           members.length > 0
             ? t('settings.departmentUsers.membersListTitleCount', { n: members.length })
@@ -243,10 +213,12 @@
         }}
       </summary>
       <div class="members-accordion__body">
-        <div v-if="canManagePendingInvites" class="members-toolbar members-toolbar--in-accordion">
-          <span v-if="members.length > 0" class="members-count">
-            <strong>{{ members.length }}</strong>
-            {{ t('settings.departmentUsers.statsUsers') }}
+        <div v-if="canManagePendingInvites && !(gaTable && !embedded)" class="members-toolbar members-toolbar--in-accordion">
+          <span v-if="members.length > 0" class="members-count" aria-live="polite">
+            <strong>{{ gaTable ? filteredMembers.length : members.length }}</strong>
+            {{ gaTable && filteredMembers.length !== members.length
+              ? t('settings.departmentUsers.statsUsersOf', { total: members.length })
+              : t('settings.departmentUsers.statsUsers') }}
           </span>
           <span v-else class="members-count members-count--empty"></span>
           <EButton
@@ -261,7 +233,7 @@
         </div>
 
         <div
-          v-if="members.length > 3 || showSearchForTour"
+          v-if="gaTable || members.length > 3 || showSearchForTour"
           class="search-bar search-bar--in-accordion"
           data-onboarding="settings-user-search"
         >
@@ -271,6 +243,26 @@
               :label="t('settings.departmentUsers.searchPlaceholder')"
             />
           </div>
+          <template v-if="gaTable">
+            <ESelect
+              v-model="roleFilter"
+              class="members-filter"
+              style="width: 220px; min-width: 220px; flex: 0 0 220px"
+              :items="roleFilterItems"
+              :label="t('settings.departmentUsers.filterRole')"
+              clearable
+              hide-details
+            />
+            <ESelect
+              v-model="ressortFilter"
+              class="members-filter"
+              style="width: 220px; min-width: 220px; flex: 0 0 220px"
+              :items="ressortFilterItems"
+              :label="t('settings.departmentUsers.filterRessort')"
+              clearable
+              hide-details
+            />
+          </template>
         </div>
 
         <EEmptyState
@@ -289,14 +281,40 @@
           <table class="users-table">
             <thead>
               <tr>
-                <th class="col-name" @click="toggleSort('name')">
+                <th
+                  class="col-name col-sortable"
+                  tabindex="0"
+                  :aria-sort="ariaSort('name')"
+                  @click="toggleSort('name')"
+                  @keydown.enter.prevent="toggleSort('name')"
+                  @keydown.space.prevent="toggleSort('name')"
+                >
                   {{ t('common.name') }}
                   <span v-if="sortBy === 'name'" class="sort-indicator">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
                 </th>
                 <th class="col-email">{{ t('settings.departmentUsers.colEmail') }}</th>
-                <th class="col-role" @click="toggleSort('role')">
+                <th
+                  class="col-role col-sortable"
+                  tabindex="0"
+                  :aria-sort="ariaSort('role')"
+                  @click="toggleSort('role')"
+                  @keydown.enter.prevent="toggleSort('role')"
+                  @keydown.space.prevent="toggleSort('role')"
+                >
                   {{ t('common.role') }}
                   <span v-if="sortBy === 'role'" class="sort-indicator">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
+                </th>
+                <th
+                  v-if="gaTable"
+                  class="col-ressort col-sortable"
+                  tabindex="0"
+                  :aria-sort="ariaSort('ressort')"
+                  @click="toggleSort('ressort')"
+                  @keydown.enter.prevent="toggleSort('ressort')"
+                  @keydown.space.prevent="toggleSort('ressort')"
+                >
+                  {{ t('settings.departmentUsers.colRessort') }}
+                  <span v-if="sortBy === 'ressort'" class="sort-indicator">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
                 </th>
                 <th class="col-primary">{{ t('settings.departmentUsers.colPrimary') }}</th>
                 <th class="col-actions"></th>
@@ -342,6 +360,12 @@
                   </span>
                 </td>
 
+                <!-- Ressort / Bereich (nur Grossanlass) -->
+                <td v-if="gaTable" class="col-ressort">
+                  <span v-if="memberRessortLabel(member.user_id)">{{ memberRessortLabel(member.user_id) }}</span>
+                  <span v-else class="text-muted">–</span>
+                </td>
+
                 <!-- Primär -->
                 <td class="col-primary">
                   <span v-if="member.is_primary" class="primary-star" :title="t('settings.departmentUsers.primaryStarTitle')">★</span>
@@ -364,7 +388,7 @@
           </div>
         </div>
       </div>
-    </details>
+    </component>
       </div>
     </Transition>
 
@@ -602,10 +626,8 @@ import {
 import {
   getDepartmentMembers,
   getAvailableUsersForDepartment,
-  getDepartment,
   type DepartmentMember,
   type AvailableUser,
-  type GrossanlassConfig,
 } from '@/api/departments'
 import {
   saveDepartmentRoleLabels,
@@ -614,7 +636,6 @@ import {
 import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
 import { getGroups, type Group } from '@/api/groups'
 import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
-import { formatPeriodCompact } from '@/utils/formatPeriod'
 import { resolveIsGrossanlassDepartmentId } from '@/utils/departmentSwitch'
 import {
   flattenGrossanlassGroupsWithLevel,
@@ -737,42 +758,6 @@ async function saveRoleLabelField(
   roleLabelsStore.setLocal(departmentId.value, next)
 }
 
-const grossanlassConfig = ref<GrossanlassConfig | null>(null)
-const isLoadingGrossanlassDetails = ref(false)
-const grossanlassDetailsError = ref('')
-
-async function loadGrossanlassDetails() {
-  grossanlassConfig.value = null
-  grossanlassDetailsError.value = ''
-  if (!departmentId.value || !isGrossanlassDept.value) return
-
-  isLoadingGrossanlassDetails.value = true
-  try {
-    const department = await getDepartment(departmentId.value)
-    grossanlassConfig.value = department.grossanlass_config ?? null
-    if (!grossanlassConfig.value) {
-      grossanlassDetailsError.value = t('settings.departmentUsers.grossanlassDetailsLoadError')
-    }
-  } catch {
-    grossanlassDetailsError.value = t('settings.departmentUsers.grossanlassDetailsLoadError')
-  } finally {
-    isLoadingGrossanlassDetails.value = false
-  }
-}
-
-const grossanlassPeriodLabel = computed(() => {
-  const config = grossanlassConfig.value
-  if (!config?.planned_event_start) return ''
-  return formatPeriodCompact(config.planned_event_start, config.planned_event_end)
-})
-
-const grossanlassStatusLabel = computed(() => {
-  const status = grossanlassConfig.value?.status || 'draft'
-  return status === 'published'
-    ? t('grossanlass.chain.publishedBadge')
-    : t('grossanlass.dashboard.draftBadge')
-})
-
 const emptyStateDescription = computed(() =>
   isGrossanlassDept.value
     ? t('settings.departmentUsers.emptyTextGrossanlass')
@@ -811,7 +796,9 @@ const members = ref<DepartmentMember[]>([])
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 const searchQuery = ref('')
-const sortBy = ref<'name' | 'role'>('name')
+const sortBy = ref<'name' | 'role' | 'ressort'>('name')
+const roleFilter = ref<string | null>(null)
+const ressortFilter = ref<string | null>(null)
 const sortDir = ref<'asc' | 'desc'>('asc')
 const pendingInvites = ref<PendingInvite[]>([])
 const isLoadingPendingInvites = ref(false)
@@ -962,8 +949,68 @@ function gaNodeType(group: Group & { _level: number } | GrossanlassGroupWithLeve
   return 'node_type' in group ? String(group.node_type || '') : ''
 }
 
+/** Grossanlass: Benutzer direkt als Tabelle mit Filtern (statt Accordions). */
+const gaTable = computed(() => isGrossanlassDept.value)
+
+/** Bauprojekt-Knoten zählen zum nächsten übergeordneten Ressort/Bereich. */
+function ressortNodeOf(group: GrossanlassGroup, byId: Map<string, GrossanlassGroup>): GrossanlassGroup {
+  let node = group
+  while (node.node_type === 'bauprojekt' && node.parent_id && byId.has(node.parent_id)) {
+    node = byId.get(node.parent_id) as GrossanlassGroup
+  }
+  return node
+}
+
+/** user_id → Ressorts/Bereiche, in denen die Person Mitglied ist (nur Grossanlass). */
+const ressortNamesByUser = computed(() => {
+  const map = new Map<string, string[]>()
+  if (!gaTable.value) return map
+  const all = departmentGroups.value as GrossanlassGroup[]
+  const byId = new Map(all.map((g) => [g.id, g]))
+  for (const g of all) {
+    const node = ressortNodeOf(g, byId)
+    for (const m of g.members ?? []) {
+      const list = map.get(m.user_id) ?? []
+      if (!list.includes(node.name)) list.push(node.name)
+      map.set(m.user_id, list)
+    }
+  }
+  return map
+})
+
+function memberRessortLabel(userId: string): string {
+  return (ressortNamesByUser.value.get(userId) ?? []).join(', ')
+}
+
+const roleFilterItems = computed(() =>
+  [...new Set(members.value.map((m) => normalizeDeptRole(m.role)))].map((role) => ({
+    title: getRoleLabel(role),
+    value: role,
+  })),
+)
+
+const ressortFilterItems = computed(() =>
+  (departmentGroups.value as GrossanlassGroup[])
+    .filter((g) => g.node_type !== 'bauprojekt')
+    .map((g) => ({ title: g.name, value: g.id })),
+)
+
 const filteredMembers = computed(() => {
   let result = [...members.value]
+
+  if (gaTable.value && roleFilter.value) {
+    result = result.filter((m) => normalizeDeptRole(m.role) === roleFilter.value)
+  }
+  if (gaTable.value && ressortFilter.value) {
+    const all = departmentGroups.value as GrossanlassGroup[]
+    const byId = new Map(all.map((g) => [g.id, g]))
+    const ids = new Set<string>()
+    for (const g of all) {
+      if (ressortNodeOf(g, byId).id !== ressortFilter.value) continue
+      for (const m of g.members ?? []) ids.add(m.user_id)
+    }
+    result = result.filter((m) => ids.has(m.user_id))
+  }
 
   // Suche
   if (searchQuery.value.trim()) {
@@ -982,6 +1029,8 @@ const filteredMembers = computed(() => {
     let cmp = 0
     if (sortBy.value === 'name') {
       cmp = a.name.localeCompare(b.name)
+    } else if (sortBy.value === 'ressort') {
+      cmp = memberRessortLabel(a.user_id).localeCompare(memberRessortLabel(b.user_id)) || a.name.localeCompare(b.name)
     } else if (sortBy.value === 'role') {
       const roleOrder = hierarchyForDepartment(isGrossanlassDept.value)
       cmp = roleOrder.indexOf(normalizeDeptRole(a.role) as DeptRoleKey)
@@ -1032,7 +1081,12 @@ watch(
 
 // === Helpers ===
 
-function toggleSort(field: 'name' | 'role') {
+function ariaSort(field: 'name' | 'role' | 'ressort'): 'ascending' | 'descending' | 'none' {
+  if (sortBy.value !== field) return 'none'
+  return sortDir.value === 'asc' ? 'ascending' : 'descending'
+}
+
+function toggleSort(field: 'name' | 'role' | 'ressort') {
   if (sortBy.value === field) {
     sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
   } else {
@@ -1386,7 +1440,7 @@ watch(departmentId, () => {
   loadPendingInvites()
   loadPendingJoinRequests()
   loadRoleLabels()
-  loadGrossanlassDetails()
+  if (isGrossanlassDept.value) void loadDepartmentGroups()
   applyInitialOpenSection()
 })
 watch(selectedAvailableUser, (user) => {
@@ -1426,7 +1480,7 @@ onMounted(() => {
   loadPendingInvites()
   loadPendingJoinRequests()
   loadRoleLabels()
-  loadGrossanlassDetails()
+  if (isGrossanlassDept.value) void loadDepartmentGroups()
   applyInitialOpenSection()
 })
 
@@ -1843,6 +1897,36 @@ onUnmounted(() => {
 
 .members-toolbar--in-accordion {
   margin-bottom: 8px;
+}
+
+.members-flat {
+  margin-top: 8px;
+}
+
+.members-flat .search-bar--in-accordion {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.members-flat .search-box {
+  flex: 1 1 260px;
+}
+
+.members-filter {
+  flex: 0 0 220px;
+  width: 220px;
+  min-width: 220px;
+}
+
+.col-sortable {
+  cursor: pointer;
+}
+
+.col-sortable:focus-visible {
+  outline: 2px solid #059669;
+  outline-offset: -2px;
 }
 
 .search-bar--in-accordion {
