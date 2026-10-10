@@ -283,6 +283,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
       {
         id: '13',
         target: '[data-onboarding="profile-identity"]',
+        routeName: 'Profile',
         mode: 'waitFor',
         titleKey: 'onboarding.tours.profileOverview.step13Title',
         bodyKey: 'onboarding.tours.profileOverview.step13Body',
@@ -290,6 +291,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
       {
         id: '14',
         target: '[data-onboarding="profile-personal"]',
+        routeName: 'Profile',
         mode: 'info',
         titleKey: 'onboarding.tours.profileOverview.step14Title',
         bodyKey: 'onboarding.tours.profileOverview.step14Body',
@@ -297,6 +299,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
       {
         id: '15',
         target: '[data-onboarding="profile-password"]',
+        routeName: 'Profile',
         mode: 'info',
         titleKey: 'onboarding.tours.profileOverview.step15Title',
         bodyKey: 'onboarding.tours.profileOverview.step15Body',
@@ -304,6 +307,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
       {
         id: '16',
         target: '[data-onboarding="profile-address"]',
+        routeName: 'Profile',
         mode: 'info',
         titleKey: 'onboarding.tours.profileOverview.step16Title',
         bodyKey: 'onboarding.tours.profileOverview.step16Body',
@@ -311,6 +315,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
       {
         id: '17',
         target: '[data-onboarding="profile-colors"]',
+        routeName: 'Profile',
         mode: 'info',
         titleKey: 'onboarding.tours.profileOverview.step17Title',
         bodyKey: 'onboarding.tours.profileOverview.step17Body',
@@ -318,6 +323,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
       {
         id: '18',
         target: '[data-onboarding="profile-save"]',
+        routeName: 'Profile',
         mode: 'click',
         titleKey: 'onboarding.tours.profileOverview.step18Title',
         bodyKey: 'onboarding.tours.profileOverview.step18Body',

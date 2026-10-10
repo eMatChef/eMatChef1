@@ -46,7 +46,8 @@ import {
 import { gaHomePath, gaResolveHomePath } from '@/utils/grossanlassHome'
 import { resolveVerwaltungLandingPath } from '@/utils/verwaltungNavigation'
 import { isMiDataOnboardingLanding } from '@/utils/midataOnboarding'
-import { carryOAuthReturnParams } from '@/utils/oauthReturnParams'
+import { carryOAuthReturnParams, PROFILE_SECURITY_RETURN_PARAM } from '@/utils/oauthReturnParams'
+import { PROFILE_FROM_PARAM, isProfilePath, sanitizeProfileFrom } from '@/utils/profileReturn'
 
 /** Login-Redirect ohne Tour-Query (sonst nach Relogin Tour-URL statt Dashboard). */
 function loginAuthRedirectQuery(fullPath: string): Record<string, string> {
@@ -809,6 +810,52 @@ const routes: RouteRecordRaw[] = [
           requiresSupplierRepairs: true,
           ...routeHead('supplierRepairTemplates'),
         },
+      },
+    ],
+  },
+  {
+    // Globales Profil: unabhängig von Department und Grossanlass, nur Anmeldung nötig.
+    // Steht vor '/:departmentId', damit «profile» nie als Department-ID gelesen wird.
+    path: '/profile',
+    component: () => import('@/components/layout/AppLayout.vue'),
+    meta: { requiresAuth: true, globalProfile: true },
+    children: [
+      {
+        path: '',
+        component: () => import('@/views/profile/ProfileLayout.vue'),
+        meta: { globalProfile: true },
+        children: [
+          {
+            path: '',
+            name: 'Profile',
+            component: () => import('@/views/profile/ProfileBasicsView.vue'),
+            meta: { globalProfile: true, ...routeHead('profile') },
+          },
+          {
+            path: 'security',
+            name: 'ProfileSecurity',
+            component: () => import('@/views/profile/ProfileSecurityView.vue'),
+            meta: { globalProfile: true, ...routeHead('profileSecurity') },
+          },
+          {
+            path: 'emails',
+            name: 'ProfileEmails',
+            component: () => import('@/views/profile/ProfileEmailsView.vue'),
+            meta: { globalProfile: true, ...routeHead('profileEmails') },
+          },
+          {
+            path: 'identities',
+            name: 'ProfileIdentities',
+            component: () => import('@/views/profile/ProfileIdentitiesView.vue'),
+            meta: { globalProfile: true, ...routeHead('profileIdentities') },
+          },
+          {
+            path: 'departments',
+            name: 'ProfileDepartments',
+            component: () => import('@/views/profile/ProfileDepartmentsView.vue'),
+            meta: { globalProfile: true, ...routeHead('profileDepartments') },
+          },
+        ],
       },
     ],
   },
@@ -2542,6 +2589,23 @@ router.beforeEach(async (to, from, nextRaw) => {
       return next({ path: '/login', query: loginAuthRedirectQuery(to.fullPath) })
     }
     return next()
+  }
+
+  // Globales Profil: nur Anmeldung nötig, keine Department-Rolle; keine Umleitung auf Department- oder Pending-Seiten.
+  if (to.meta.globalProfile && authStore.isLoggedIn) {
+    return next()
+  }
+
+  // Rückweg aus dem Konto-Verknüpfen auf einer Nicht-Profil-Seite (ältere Links): ins Profil weiterleiten.
+  if (authStore.isLoggedIn && to.query[PROFILE_SECURITY_RETURN_PARAM] === '1' && !isProfilePath(to.path)) {
+    const query: Record<string, string> = { [PROFILE_SECURITY_RETURN_PARAM]: '1' }
+    for (const key of ['oauth', 'provider', 'reason']) {
+      const value = to.query[key]
+      if (typeof value === 'string') query[key] = value
+    }
+    const from = sanitizeProfileFrom(to.path)
+    if (from) query[PROFILE_FROM_PARAM] = from
+    return next({ name: 'ProfileIdentities', query, replace: true })
   }
 
   if (to.meta.devToolsOnly && !isDevToolsEnvironment()) {

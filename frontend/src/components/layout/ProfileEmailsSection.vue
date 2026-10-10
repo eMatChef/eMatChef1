@@ -1,11 +1,7 @@
 <template>
-  <details class="profile-accordion" data-onboarding="profile-security" :open="expanded || undefined">
-    <summary class="profile-accordion__summary">{{ t('layout.profileModal.securitySection') }}</summary>
-    <div class="profile-accordion__body">
-      <ProfileSecurityExternalIdentitiesSection :open="open" class="!mt-3 !border-t-0 !pt-0" />
-      <ProfileSecurityTotpSection :open="open" />
-
-      <h4 id="profile-email-management" class="mb-1 mt-5 border-t border-slate-200 pt-3 text-[0.82rem] font-bold text-slate-700">{{ t('layout.profileModal.emails.title') }}</h4>
+  <div data-onboarding="profile-emails">
+    <div>
+      <h4 id="profile-email-management" class="mb-1 text-[0.82rem] font-bold text-slate-700">{{ t('layout.profileModal.emails.title') }}</h4>
       <p class="mb-3 text-[0.82rem] text-slate-500">{{ t('layout.profileModal.emails.hint') }}</p>
 
       <p v-if="loadError" class="text-[0.85rem] text-red-700">{{ loadError }}</p>
@@ -130,21 +126,14 @@
           </li>
         </ul>
       </div>
-
-      <ProfileSecuritySessionsSection :open="open" />
-      <ProfileSecurityActivitySection :open="open" />
     </div>
-  </details>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { EButton, ESelect, ETextField } from '@/components/form/base'
-import ProfileSecurityExternalIdentitiesSection from '@/components/layout/ProfileSecurityExternalIdentitiesSection.vue'
-import ProfileSecurityTotpSection from '@/components/layout/ProfileSecurityTotpSection.vue'
-import ProfileSecuritySessionsSection from '@/components/layout/ProfileSecuritySessionsSection.vue'
-import ProfileSecurityActivitySection from '@/components/layout/ProfileSecurityActivitySection.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -161,7 +150,7 @@ import {
 } from '@/api/profileEmails'
 import { setDepartmentNotificationEmail } from '@/api/departmentNotificationEmail'
 
-const props = defineProps<{ open?: boolean; expanded?: boolean }>()
+const props = defineProps<{ open?: boolean }>()
 const emit = defineEmits<{ (e: 'primary-changed'): void }>()
 
 /** Andere Anzeigen (z. B. Benachrichtigungsadresse je Department) laden bei Adressänderungen neu. */

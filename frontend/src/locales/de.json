@@ -20,6 +20,11 @@
       "fallbackDocumentDescription": "Materialverwaltung für Vermietungen – eMatChef.",
       "routeDescriptionDefault": "eMatChef – Materialverwaltung für Vermietungen.",
       "titles": {
+        "profile": "Profil · eMatChef",
+        "profileSecurity": "Profil · Sicherheit · eMatChef",
+        "profileEmails": "Profil · E-Mail-Adressen · eMatChef",
+        "profileIdentities": "Profil · Verknüpfte Anmeldungen · eMatChef",
+        "profileDepartments": "Profil · Departments · eMatChef",
         "publicLookup": "Material-Info · eMatChef",
         "openFromQr": "QR · eMatChef",
         "landingHome": "eMatChef · Materialverwaltung",
@@ -2323,6 +2328,29 @@
       "openHub": "Hilfe → Einrichtung öffnen"
     }
   },
+  "profile": {
+    "page": {
+      "title": "Profil",
+      "back": "Zurück",
+      "tabsAria": "Profilbereiche",
+      "tabs": {
+        "basics": "Persönliches",
+        "security": "Sicherheit",
+        "emails": "E-Mail-Adressen",
+        "identities": "Verknüpfte Anmeldungen",
+        "departments": "Departments"
+      },
+      "addressNeedsDepartment": "Die Adresse wird im aktiven Department gespeichert. Wähle zuerst ein Department, um sie zu bearbeiten."
+    },
+    "departments": {
+      "title": "Meine Departments",
+      "hint": "Deine Mitgliedschaften. Änderungen nimmst du in den Einstellungen des jeweiligen Departments vor.",
+      "empty": "Du bist noch keinem Department zugeordnet.",
+      "primary": "Primär",
+      "active": "Aktiv",
+      "grossanlass": "Grossanlass"
+    }
+  },
   "layout": {
     "clock": {
       "title": "Fachzeit (Demo-Zeitreise)",
@@ -2671,7 +2699,7 @@
       "firstName": "Vorname",
       "email": "E-Mail",
       "editEmailTitle": "E-Mail-Adressen verwalten",
-      "emailManagedInSecurity": "Die Hauptadresse verwaltest du unter «Sicherheit → E-Mail-Adressen».",
+      "emailManagedInSecurity": "Die Hauptadresse verwaltest du im Bereich «E-Mail-Adressen».",
       "emailNewMustVerify": "Neue E-Mail muss bestätigt werden. Bis zur Bestätigung bleibt die alte E-Mail gültig.",
       "emailPendingSent": "Bestätigungslink für neue Adresse gesendet: {pending}. Bis zur Bestätigung bleibt {current} aktiv.",
       "nickname": "Spitzname",

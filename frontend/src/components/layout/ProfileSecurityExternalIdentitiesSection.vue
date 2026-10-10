@@ -86,6 +86,7 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { PROFILE_FROM_PARAM, rememberProfileFrom } from '@/utils/profileReturn'
 import { useI18n } from 'vue-i18n'
 import { EButton } from '@/components/form/base'
 import { useAuthStore } from '@/stores/auth'
@@ -184,6 +185,7 @@ async function connect(provider: string) {
   busy.value = true
   try {
     // Zurück in die aktuelle Seite; das Backend hängt profile_security=1 und das Ergebnis an.
+    rememberProfileFrom(new URLSearchParams(window.location.search).get(PROFILE_FROM_PARAM))
     const url = await startExternalIdentityLink(provider, window.location.pathname)
     window.location.assign(url)
   } catch (e: unknown) {

@@ -8,6 +8,11 @@
   "router": {
     "meta": {
       "titles": {
+        "profile": "Profile · eMatChef",
+        "profileSecurity": "Profile · Security · eMatChef",
+        "profileEmails": "Profile · Email addresses · eMatChef",
+        "profileIdentities": "Profile · Connected sign-ins · eMatChef",
+        "profileDepartments": "Profile · Departments · eMatChef",
         "publicLookup": "Item info · eMatChef",
         "landingHome": "eMatChef · inventory management",
         "tos": "Terms & privacy · eMatChef",
@@ -2194,6 +2199,29 @@
       "openHub": "Open Help → Setup"
     }
   },
+  "profile": {
+    "page": {
+      "title": "Profile",
+      "back": "Back",
+      "tabsAria": "Profile sections",
+      "tabs": {
+        "basics": "Personal",
+        "security": "Security",
+        "emails": "Email addresses",
+        "identities": "Connected sign-ins",
+        "departments": "Departments"
+      },
+      "addressNeedsDepartment": "The address is stored in the active department. Select a department first to edit it."
+    },
+    "departments": {
+      "title": "My departments",
+      "hint": "Your memberships. Changes are made in the settings of the respective department.",
+      "empty": "You are not assigned to a department yet.",
+      "primary": "Primary",
+      "active": "Active",
+      "grossanlass": "Major event"
+    }
+  },
   "layout": {
     "clock": {
       "title": "Business time (demo time travel)",
@@ -2527,7 +2555,7 @@
       "firstName": "First name",
       "email": "Email",
       "editEmailTitle": "Manage email addresses",
-      "emailManagedInSecurity": "Manage your primary address under “Security → Email addresses”.",
+      "emailManagedInSecurity": "You manage the main address in the «Email addresses» section.",
       "emailNewMustVerify": "The new email must be confirmed. Until then, your previous email stays valid.",
       "emailPendingSent": "Confirmation link sent for the new address: {pending}. Until confirmed, {current} stays active.",
       "nickname": "Nickname",
