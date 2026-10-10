@@ -127,7 +127,11 @@ Die Support-Liste `GET /api/join-requests/admin-request/pending` ist rein lesend
 
 ## Hosts (lokal / produktiv)
 
-Lokal über Nginx und `*.ematchef.test` (`APP_FRONTEND_URL`, `APP_PUBLIC_QR_URL`, `VITE_DEVICES_HOST`). Produktiv getrennte Flächen, u. a. App, QR (`qr.ematchef.ch`), Geräte (`devices.ematchef.ch`), Nutzerhilfe (`docs.ematchef.ch`), Weblate (`translate.ematchef.ch`). Marketing-Site und App-Deploy sind getrennte Workflows — siehe CONTRIBUTING, nicht hier nachbauen.
+Lokal über Nginx und `*.ematchef.test` (`APP_FRONTEND_URL`, `APP_PUBLIC_QR_URL`, `APP_DISPLAY_URL`, `VITE_DEVICES_HOST`, `VITE_DISPLAY_HOST`). Produktiv getrennte Flächen, u. a. App, QR (`qr.ematchef.ch`), Geräte (`devices.ematchef.ch`), Infoscreens (`display.ematchef.ch`), Nutzerhilfe (`docs.ematchef.ch`), Weblate (`translate.ematchef.ch`). Marketing-Site und App-Deploy sind getrennte Workflows — siehe CONTRIBUTING, nicht hier nachbauen.
+
+## Infoscreens
+
+Zentrales Modul für alle Departments und Grossanlässe auf `DepartmentDisplayScreen` (ein Grossanlass ist ein Department; keine GA-eigenen Entities oder Sitzungen). Eine Verwaltungskomponente für `/{departmentId}/dept/settings/my-department/display-screens` und `/{departmentId}/ga/displays`, eine Anzeige-Engine (`DepartmentDisplayView`) für Kiosk und Vorschau. Anzeige auf `display.ematchef.ch` per QR-Kopplung über das Smartphone, Display-Sitzung 90 Tage, hostgebundenes Cookie pro Screen. Details, Sicherheitsmodell und GA-Erweiterung: [devices/infoscreen.md](./devices/infoscreen.md).
 
 ## Externe Dienste (im Code/Config belegt)
 

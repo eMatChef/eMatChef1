@@ -36,10 +36,14 @@ final class DepartmentDisplayScreenService
     /** @var list<string> */
     public const DEFAULT_DISPLAY_WORKSHOP_STATUSES = ['triage', 'planning', 'in_progress', 'awaiting_quote'];
 
+    /** @var list<string> Rollen, die Infoscreens verwalten (und koppeln) dürfen. */
+    public const MANAGER_ROLES = ['mw', 'matwart', 'dc', 'depchef', 'sa', 'superadmin', 'org', 'organisationschef', 'sub', 'suborgchef'];
+
     public function __construct(
         private EntityManagerInterface $entityManager,
         private DisplayAccessCodeGenerator $accessCodeGenerator,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $appFrontendUrl,
+        #[Autowire('%env(default::APP_DISPLAY_URL)%')] private ?string $appDisplayUrl = null,
     ) {
     }
 
@@ -58,9 +62,50 @@ final class DepartmentDisplayScreenService
         }
 
         $role = strtolower((string) $membership->getRole());
-        $managerRoles = ['mw', 'matwart', 'dc', 'depchef', 'sa', 'superadmin', 'org', 'organisationschef', 'sub', 'suborgchef'];
 
-        return \in_array($role, $managerRoles, true);
+        return \in_array($role, self::MANAGER_ROLES, true);
+    }
+
+    /**
+     * Aktive Screens aller Departments (inkl. Grossanlässe), die der User verwalten darf.
+     *
+     * @return list<array{screen: DepartmentDisplayScreen, department: Department}>
+     */
+    public function listManageableScreens(User $user): array
+    {
+        $qb = $this->entityManager->createQueryBuilder();
+        $qb->select('s')
+            ->from(DepartmentDisplayScreen::class, 's')
+            ->innerJoin(Department::class, 'd', 'WITH', 'd.id = s.departmentId')
+            ->where('s.revokedAt IS NULL')
+            ->orderBy('d.name', 'ASC')
+            ->addOrderBy('s.name', 'ASC');
+
+        if (!\in_array('ROLE_SUPERADMIN', $user->getRoles(), true)) {
+            $memberships = $this->entityManager->getRepository(Membership::class)->findBy(['userId' => $user->getId()]);
+            $departmentIds = [];
+            foreach ($memberships as $membership) {
+                if (\in_array(strtolower((string) $membership->getRole()), self::MANAGER_ROLES, true)) {
+                    $departmentIds[] = $membership->getDepartmentId();
+                }
+            }
+            if ($departmentIds === []) {
+                return [];
+            }
+            $qb->andWhere('s.departmentId IN (:departmentIds)')->setParameter('departmentIds', array_values(array_unique($departmentIds)));
+        }
+
+        $rows = [];
+        foreach ($qb->getQuery()->getResult() as $entity) {
+            if ($entity instanceof DepartmentDisplayScreen) {
+                $department = $this->entityManager->getRepository(Department::class)->find($entity->getDepartmentId());
+                if ($department instanceof Department) {
+                    $rows[] = ['screen' => $entity, 'department' => $department];
+                }
+            }
+        }
+
+        return $rows;
     }
 
     /**
@@ -350,7 +395,8 @@ final class DepartmentDisplayScreenService
 
     public function buildDisplayUrl(string $publicId): string
     {
-        $origin = trim($this->appFrontendUrl);
+        // Eigene Infoscreen-Domain (display.), sonst App-Origin.
+        $origin = trim((string) $this->appDisplayUrl) !== '' ? trim((string) $this->appDisplayUrl) : trim($this->appFrontendUrl);
         if ($origin === '') {
             return '/display/' . rawurlencode($publicId);
         }

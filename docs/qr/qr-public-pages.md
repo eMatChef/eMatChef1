@@ -120,7 +120,7 @@ Für Finder selten relevant; Hauptzweck: QR auf Listen/Display, den MW mit dem H
 
 ## 4. Abteilungs-Display (nicht auf `qr.`)
 
-Der **Infoscreen** läuft auf der App-Origin, **ohne** App-Login am Gerät (8-stelliger Zugangscode + Cookie):
+Der **Infoscreen** läuft auf `display.ematchef.ch` (zentral für Departments und Grossanlässe, siehe [infoscreen.md](../devices/infoscreen.md)), **ohne** App-Login am Gerät (QR-Kopplung oder 8-stelliger Zugangscode + Cookie). Die Adresse `app.…/display/{publicId}` funktioniert weiterhin:
 
 ```text
 https://app.ematchef.ch/display/{publicId}

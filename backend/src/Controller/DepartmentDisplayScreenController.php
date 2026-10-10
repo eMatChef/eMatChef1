@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\DepartmentDisplayScreen;
 use App\Entity\User;
+use App\Service\Display\DepartmentDisplayDataService;
 use App\Service\Display\DepartmentDisplayScreenService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -18,6 +19,7 @@ class DepartmentDisplayScreenController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private DepartmentDisplayScreenService $displayScreenService,
+        private DepartmentDisplayDataService $displayDataService,
     ) {
     }
 
@@ -61,6 +63,30 @@ class DepartmentDisplayScreenController extends AbstractController
         $payload['access_code'] = $result['access_code'];
 
         return new JsonResponse($payload, 201);
+    }
+
+    /**
+     * Vorschau für Verwalter: gleicher Payload wie der echte Infoscreen, aber über die normale
+     * User-Berechtigung und ohne Display-Sitzung/Cookie.
+     */
+    #[Route('/{screenId}/preview-data', name: 'preview_data', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function previewData(string $departmentId, string $screenId): JsonResponse
+    {
+        $user = $this->requireManager($departmentId);
+        if ($user instanceof JsonResponse) {
+            return $user;
+        }
+
+        $screen = $this->findScreen($departmentId, $screenId);
+        if ($screen instanceof JsonResponse) {
+            return $screen;
+        }
+        if ($screen->isRevoked()) {
+            return new JsonResponse(['error' => 'Screen ist widerrufen.'], 410);
+        }
+
+        return new JsonResponse($this->displayDataService->buildPayloadForScreen($screen));
     }
 
     #[Route('/{screenId}', name: 'update', methods: ['PATCH'])]

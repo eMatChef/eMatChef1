@@ -111,7 +111,7 @@ class PublicDisplayController extends AbstractController
     public function logout(string $publicId): JsonResponse
     {
         $response = new JsonResponse(['success' => true]);
-        $response->headers->setCookie($this->sessionService->createClearCookie());
+        $response->headers->setCookie($this->sessionService->createClearCookie($publicId));
 
         return $response;
     }

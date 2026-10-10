@@ -13,6 +13,7 @@ import {
   sanitizeLoginRedirectPath,
 } from '@/utils/appHomeRedirect'
 import { shouldProbeUserSession } from '@/api/unauthorizedRedirect'
+import { isDisplayHost } from '@/utils/displayHost'
 import {
   applyDevicesHostRedirects,
   canAccessDevicesWarehouse,
@@ -319,6 +320,38 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: false,
       ...routeHead('displayEntry', 'displayEntry'),
+    },
+  },
+  {
+    // Startseite von display.ematchef.ch (Host-Guard leitet "/" hierher): TV zeigt den Kopplungs-QR.
+    path: '/display/connect',
+    name: 'DisplayHome',
+    component: () => import('@/views/DisplayHomeView.vue'),
+    meta: {
+      requiresAuth: false,
+      ...routeHead('displayEntry', 'displayEntry'),
+    },
+  },
+  {
+    // Smartphone: QR-Kopplung bestätigen (normale App-Anmeldung). Bewusst nicht unter /display/…,
+    // dort gilt der Kiosk-Modus ohne User-Session.
+    path: '/connect-display/:token',
+    name: 'DisplayPairConfirm',
+    component: () => import('@/views/DisplayPairConfirmView.vue'),
+    meta: {
+      requiresAuth: true,
+      ...routeHead('displayEntry', 'displayEntry'),
+    },
+  },
+  {
+    // Vorschau für Verwalter: gleiche Anzeige-Engine, Daten über User-Berechtigung, keine Display-Sitzung.
+    path: '/display-preview/:departmentId/:screenId',
+    name: 'DisplayPreview',
+    component: () => import('@/views/DepartmentDisplayView.vue'),
+    meta: {
+      requiresAuth: true,
+      displayPreview: true,
+      ...routeHead('departmentDisplay', 'departmentDisplay'),
     },
   },
   {
@@ -1485,8 +1518,20 @@ const routes: RouteRecordRaw[] = [
             ],
           },
           {
+            // Zentrale Infoscreen-Verwaltung (gleiche Komponente wie in den Department-Einstellungen).
             path: 'displays',
             name: 'GrossanlassDisplays',
+            component: () => import('@/views/settings/MyDepartmentDisplayScreensView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+              ...routeHead('grossanlassDisplays'),
+            },
+          },
+          {
+            // Bisherige GA-Demo-Displays (Mock-Daten), bis die Live-Anbindung in Phase 5.2 folgt.
+            path: 'displays/demo',
+            name: 'GrossanlassDisplaysDemo',
             component: () => import('@/views/grossanlass/displays/GrossanlassDisplaysView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
@@ -2403,6 +2448,17 @@ async function handleAppOriginRouting(
 router.beforeEach(async (to, from, nextRaw) => {
   // Rückweg aus dem Identitäts-Verknüpfen übersteht Redirects dieser Navigation (siehe oauthReturnParams).
   const next = carryOAuthReturnParams(to, nextRaw)
+  // display.-Host: ausschliesslich Infoscreen-Oberfläche; alles andere führt zur Kopplungs-Startseite.
+  if (isDisplayHost()) {
+    const path = to.path.replace(/\/$/, '') || '/'
+    if (path === '/') {
+      return next({ name: 'DisplayHome', replace: true })
+    }
+    if (path !== '/display' && !path.startsWith('/display/')) {
+      return next({ name: 'DisplayHome', replace: true })
+    }
+    return next()
+  }
   if (applyQrHostRedirects(to)) {
     return next(false)
   }

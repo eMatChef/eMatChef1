@@ -172,6 +172,36 @@
     }
   },
   "display": {
+    "home": {
+      "title": "eMatChef Infoscreen",
+      "lead": "Connect this screen with your phone",
+      "step1": "Scan the QR code with your phone.",
+      "step2": "Sign in to eMatChef if asked.",
+      "step3": "Choose the info display and confirm the pairing.",
+      "verifyCode": "Check code, also shown on your phone:",
+      "manual": "Enter ID and access code instead",
+      "qrAlt": "QR code to connect this info display",
+      "preparing": "Preparing QR code…",
+      "startError": "Could not reach the server. Retrying automatically."
+    },
+    "pair": {
+      "title": "Connect info display",
+      "loading": "Checking pairing request…",
+      "verify": "Make sure this code is shown on the screen:",
+      "noScreens": "You do not manage an info display yet. Create one first under Settings → Info displays.",
+      "selectScreen": "Info display",
+      "grossanlass": "Large event",
+      "confirm": "Confirm pairing",
+      "done": "Connected. The screen starts in a few seconds.",
+      "expired": "The pairing request has expired or was already used.",
+      "retryHint": "A new QR code appears on the screen automatically.",
+      "forbidden": "You are not allowed to pair this info display.",
+      "failed": "Pairing failed. Please try again."
+    },
+    "preview": {
+      "badge": "Preview",
+      "back": "Back to settings"
+    },
     "title": "Info display",
     "subtitle": "Events and workshop at a glance — scan the QR code with a phone to open the public info page for guests and helpers",
     "upcomingActivities": "Upcoming activities",
@@ -2194,6 +2224,12 @@
       }
     },
     "settings": {
+    "displayScreens": {
+      "kioskEntryHint": "Connect a new screen: open the display address on the TV and scan the QR code with your phone. Manual entry (ID and code):",
+      "previewOpen": "Open preview",
+      "previewHint": "Shows the info display with the saved configuration in a new tab, without pairing or code.",
+      "gaDemoLink": "Large-event demo displays (sample data)"
+    },
       "title": "Setup",
       "progress": "{done} of {total} steps done",
       "openHub": "Open Help → Setup"

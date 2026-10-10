@@ -1,5 +1,6 @@
 import { isAppOrigin } from '@/utils/appLoginUrl'
 import { isDevicesHost } from '@/utils/devicesHost'
+import { isDisplayHost } from '@/utils/displayHost'
 import { sanitizeLoginRedirectPath } from '@/utils/appHomeRedirect'
 
 /** Pfade, auf denen 401 keinen Login-Redirect auslösen (Formular zeigt Fehler selbst). */
@@ -16,6 +17,8 @@ export function isAuthFormPath(pathname: string): boolean {
 
 /** Infoscreen-Kiosk: nur Display-Cookie, kein User-JWT / keine Session-Probe. */
 export function isDisplayKioskPath(pathname: string): boolean {
+  // Auf display.-Host ist jede Seite Kiosk: nie User-Session proben oder zum Login umleiten.
+  if (isDisplayHost()) return true
   const path = (pathname || '').replace(/\/$/, '') || '/'
   if (path === '/display') return true
   return /^\/display\/[^/]+/.test(path)

@@ -458,6 +458,36 @@
     "language": "Sprache"
   },
   "display": {
+    "home": {
+      "title": "eMatChef Infoscreen",
+      "lead": "Diesen Bildschirm mit dem Handy verbinden",
+      "step1": "QR-Code mit dem Handy scannen.",
+      "step2": "In eMatChef anmelden, falls nötig.",
+      "step3": "Infoscreen auswählen und die Kopplung bestätigen.",
+      "verifyCode": "Prüfcode, der auch auf dem Handy erscheint:",
+      "manual": "Stattdessen ID und Zugangscode eingeben",
+      "qrAlt": "QR-Code zum Verbinden dieses Infoscreens",
+      "preparing": "QR-Code wird vorbereitet…",
+      "startError": "Verbindung zum Server fehlgeschlagen. Neuer Versuch folgt automatisch."
+    },
+    "pair": {
+      "title": "Infoscreen verbinden",
+      "loading": "Kopplungsanfrage wird geprüft…",
+      "verify": "Prüfe, dass dieser Code auf dem Bildschirm erscheint:",
+      "noScreens": "Du verwaltest noch keinen Infoscreen. Lege zuerst unter Konfiguration → Infoscreens einen an.",
+      "selectScreen": "Infoscreen",
+      "grossanlass": "Grossanlass",
+      "confirm": "Kopplung bestätigen",
+      "done": "Verbunden. Der Bildschirm startet in wenigen Sekunden.",
+      "expired": "Die Kopplungsanfrage ist abgelaufen oder wurde bereits verwendet.",
+      "retryHint": "Auf dem Bildschirm erscheint automatisch ein neuer QR-Code.",
+      "forbidden": "Dafür fehlt die Berechtigung für diesen Infoscreen.",
+      "failed": "Die Kopplung ist fehlgeschlagen. Bitte erneut versuchen."
+    },
+    "preview": {
+      "badge": "Vorschau",
+      "back": "Zurück zur Verwaltung"
+    },
     "title": "Infoscreen",
     "subtitle": "Anlässe und Werkstatt im Überblick — QR-Scan mit dem Handy öffnet die öffentliche Kurzseite für Gäste und Helfer",
     "upcomingActivities": "Anstehende Anlässe",
@@ -5742,7 +5772,10 @@
       "title": "Infoscreens",
       "description": "Tablet oder Monitor im Lager: Anlässe und Werkstatt mit QR — einmal Code eingeben, danach bleibt der Screen angemeldet.",
       "pathHint": "Erreichbar über: Sidebar → Konfiguration → Infoscreens (diese Seite).",
-      "kioskEntryHint": "Generisches Lesezeichen fürs Gerät (ID wird dort eingegeben):",
+      "kioskEntryHint": "Neuen Bildschirm verbinden: display-Adresse am Fernseher öffnen und den QR-Code mit dem Handy scannen. Manuelle Eingabe (ID und Code):",
+      "previewOpen": "Vorschau öffnen",
+      "previewHint": "Zeigt den Infoscreen mit der gespeicherten Konfiguration in einem neuen Tab, ohne Kopplung oder Code.",
+      "gaDemoLink": "GA-Demo-Displays (Beispieldaten)",
       "noPermission": "Du hast keine Berechtigung, Infoscreens zu verwalten.",
       "createTitle": "Neuer Infoscreen",
       "nameLabel": "Name",

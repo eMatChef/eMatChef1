@@ -41,6 +41,7 @@ case "$ENV_NAME" in
     APP=https://dev.ematchef.ch
     QR=qr.dev.ematchef.ch
     DEVICES=devices.dev.ematchef.ch
+    DISPLAY_HOST=display.dev.ematchef.ch
     BANNER=1
     BUILD_HOME=0
     ;;
@@ -50,6 +51,7 @@ case "$ENV_NAME" in
     APP=https://staging.ematchef.ch
     QR=qr.staging.ematchef.ch
     DEVICES=devices.staging.ematchef.ch
+    DISPLAY_HOST=display.staging.ematchef.ch
     BANNER=1
     BUILD_HOME=0
     ;;
@@ -59,6 +61,7 @@ case "$ENV_NAME" in
     APP=https://app.ematchef.ch
     QR=qr.ematchef.ch
     DEVICES=devices.ematchef.ch
+    DISPLAY_HOST=display.ematchef.ch
     BANNER=0
     BUILD_HOME=0
     ;;
@@ -75,6 +78,7 @@ build_variant() {
   VITE_APP_ORIGIN="$APP" \
   VITE_QR_PUBLIC_HOST="$QR" \
   VITE_DEVICES_HOST="$DEVICES" \
+  VITE_DISPLAY_HOST="$DISPLAY_HOST" \
   VITE_SHOW_DEV_BANNER="$BANNER" \
   VITE_APP_VERSION="$VITE_APP_VERSION" \
   VITE_APP_GIT_SHA="$VITE_APP_GIT_SHA" \

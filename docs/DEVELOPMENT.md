@@ -81,6 +81,10 @@ docker exec ematchef-nginx-1 nginx -s reload   # Upstream-IPs neu auflösen, son
 - Zurück zum Hauptworktree: derselbe `up`-Befehl im Hauptverzeichnis.
 - Kein `node_modules`-Symlink im Worktree anlegen (liegt im Volume); Tests im Container ausführen: `docker exec ematchef-frontend-1 sh -c "cd /app && npx vitest run"`.
 
+## Infoscreen-Domain lokal
+
+`display.ematchef.test` braucht einen Hosts-Eintrag (Windows, Administrator: `127.0.0.1 display.ematchef.test`); das mkcert-Wildcard-Zertifikat deckt die Subdomain ab. Nach Änderung an Vite-/Nginx-Konfiguration Frontend-Container neu starten und Nginx neu laden. Details: [devices/infoscreen.md](./devices/infoscreen.md).
+
 ## Tests
 
 | Suite | Ort | CI |

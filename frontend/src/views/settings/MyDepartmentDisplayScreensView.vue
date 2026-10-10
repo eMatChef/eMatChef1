@@ -8,6 +8,11 @@
         {{ t('settings.displayScreens.kioskEntryHint') }}
         <code class="inline-code">{{ kioskEntryUrl }}</code>
       </p>
+      <p v-if="isGrossanlassRoute" class="muted path-hint">
+        <router-link :to="{ name: 'GrossanlassDisplaysDemo', params: { departmentId: selectedDepartmentId } }">
+          {{ t('settings.displayScreens.gaDemoLink') }}
+        </router-link>
+      </p>
     </div>
 
     <div v-if="userDepartments.length > 1" class="card card--narrow-select">
@@ -189,6 +194,14 @@
                         <EButton variant="secondary" size="small" @click="openDisplayUrl(screen.display_url)">
                           {{ t('settings.displayScreens.openDisplay') }}
                         </EButton>
+                        <EButton
+                          variant="secondary"
+                          size="small"
+                          :title="t('settings.displayScreens.previewHint')"
+                          @click="openPreview(screen)"
+                        >
+                          {{ t('settings.displayScreens.previewOpen') }}
+                        </EButton>
                       </div>
                     </div>
                     <p class="muted setup-hint">{{ t('settings.displayScreens.setupHint') }}</p>
@@ -305,6 +318,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { copyTextToClipboard } from '@/utils/clipboard'
+import { getDisplayOrigin } from '@/utils/displayHost'
 import { assignPathAfterDepartmentSwitch } from '@/utils/departmentRoute'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
@@ -387,11 +401,15 @@ const drafts = ref<Record<string, ScreenDraft>>({})
 const savingSettingsId = ref<string | null>(null)
 
 const kioskEntryUrl = computed(() => {
+  const displayOrigin = getDisplayOrigin()
+  if (displayOrigin) return displayOrigin
   const origin = (import.meta.env.VITE_APP_ORIGIN || '').trim().replace(/\/$/, '')
   if (origin) return `${origin}/display`
   if (typeof window !== 'undefined') return `${window.location.origin}/display`
   return '/display'
 })
+
+const isGrossanlassRoute = computed(() => route.path.includes('/ga/'))
 
 const userDepartments = computed(() => authStore.departments || [])
 
@@ -412,6 +430,16 @@ const setupDialogOpen = computed({
 function selectInputText(event: FocusEvent) {
   const el = event.target as HTMLInputElement | null
   el?.select?.()
+}
+
+/** Vorschau im neuen Tab: gleiche Anzeige-Engine, Daten über die normale User-Berechtigung. */
+function openPreview(screen: DisplayScreenSettings) {
+  const href = router.resolve({
+    name: 'DisplayPreview',
+    params: { departmentId: screen.department_id, screenId: screen.id },
+    query: { back: route.fullPath },
+  }).href
+  window.open(href, '_blank')
 }
 
 function openDisplayUrl(url: string) {
@@ -696,7 +724,11 @@ async function onDepartmentChange() {
 }
 
 onMounted(async () => {
-  selectedDepartmentId.value = authStore.activeDepartmentId || (userDepartments.value[0]?.department_id ?? null)
+  const routeDepartmentId = String(route.params.departmentId || '')
+  const routeDepartmentKnown = userDepartments.value.some((d) => d.department_id === routeDepartmentId)
+  selectedDepartmentId.value = routeDepartmentKnown
+    ? routeDepartmentId
+    : authStore.activeDepartmentId || (userDepartments.value[0]?.department_id ?? null)
   if (selectedDepartmentId.value) await loadScreens(selectedDepartmentId.value)
 })
 </script>

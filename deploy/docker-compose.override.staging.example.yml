@@ -33,10 +33,11 @@ services:
       APP_FRONTEND_URL: "https://staging.ematchef.ch"
       APP_MAIN_SITE_ORIGIN: "https://ematchef.ch"
       APP_PUBLIC_QR_URL: "https://qr.staging.ematchef.ch"
+      APP_DISPLAY_URL: "https://display.staging.ematchef.ch"
       AUTH_COOKIE_DOMAIN: ".ematchef.ch"
       AUTH_COOKIE_SECURE: "1"
       EMATCHEF_DEV_TOOLS: "1"
-      CORS_ALLOW_ORIGIN: '^https://((app|qr|devices)\.staging\.ematchef\.ch|(staging|app-staging|qr-staging|devices-staging)\.ematchef\.ch)$'
+      CORS_ALLOW_ORIGIN: '^https://((app|qr|devices|display)\.staging\.ematchef\.ch|(staging|app-staging|qr-staging|devices-staging|display-staging)\.ematchef\.ch)$'
       MAILER_DSN: "${MAILER_DSN:-null://null}"
       MAILER_FROM: "${MAILER_FROM:-noreply@ematchef.ch}"
       MAILER_BRAND_LOGO_URL: "${MAILER_BRAND_LOGO_URL:-}"

@@ -63,6 +63,7 @@ export default defineConfig(({ mode }) => {
         'app.ematchef.test',
         'qr.ematchef.test',
         'devices.ematchef.test',
+        'display.ematchef.test',
         'localhost',
         '127.0.0.1',
       ],

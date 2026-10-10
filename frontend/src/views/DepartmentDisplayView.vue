@@ -9,6 +9,10 @@
         </div>
       </div>
       <div v-if="!needsPin" class="display-header-meta">
+        <span v-if="isPreview" class="display-preview-badge">{{ t('display.preview.badge') }}</span>
+        <button v-if="isPreview" type="button" class="display-fullscreen-btn" @click="leavePreview">
+          {{ t('display.preview.back') }}
+        </button>
         <time class="display-clock" :datetime="clockIso">{{ clockLabel }}</time>
         <button
           v-if="!isFullscreen"
@@ -155,7 +159,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
@@ -165,6 +169,7 @@ import ETextField from '@/components/form/base/ETextField.vue'
 import type { DisplayActivityRow, DisplayStatistics, DisplayWorkshopTicketRow } from '@/api/display'
 import {
   authenticatePublicDisplay,
+  getDisplayPreviewData,
   getPublicDisplayData,
   getPublicDisplaySession,
 } from '@/api/displayScreens'
@@ -177,10 +182,15 @@ const REFRESH_MS = 60_000
 const PRIORITY_ORDER: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 }
 
 const route = useRoute()
+const router = useRouter()
 const { t, te, locale } = useI18n()
 
 const publicId = computed(() => String(route.params.publicId || '').trim())
-const needsPin = ref(true)
+/** Vorschau für Verwalter (User-Login, keine Display-Sitzung): gleiche Engine, andere Datenquelle. */
+const isPreview = computed(() => route.meta.displayPreview === true)
+const previewDepartmentId = computed(() => String(route.params.departmentId || '').trim())
+const previewScreenId = computed(() => String(route.params.screenId || '').trim())
+const needsPin = ref(!isPreview.value)
 const pinInput = ref('')
 const pinError = ref<string | null>(null)
 const pinSubmitting = ref(false)
@@ -399,8 +409,21 @@ async function checkSession(): Promise<boolean> {
   }
 }
 
+function leavePreview() {
+  if (window.opener) {
+    window.close()
+    return
+  }
+  const back = String(route.query.back || '')
+  void router.push(back.startsWith('/') && !back.startsWith('//') ? back : `/${previewDepartmentId.value}`)
+}
+
+function onVisibilityChange() {
+  if (isPreview.value && document.visibilityState === 'visible') void load()
+}
+
 async function load() {
-  const id = publicId.value
+  const id = isPreview.value ? previewScreenId.value : publicId.value
   if (!id) {
     loadError.value = t('display.errorNoScreen')
     loading.value = false
@@ -410,7 +433,9 @@ async function load() {
   loading.value = true
   loadError.value = null
   try {
-    const data = await getPublicDisplayData(id)
+    const data = isPreview.value
+      ? await getDisplayPreviewData(previewDepartmentId.value, id)
+      : await getPublicDisplayData(id)
     activities.value = data.activities
     workshopTickets.value = data.workshopTickets
     departmentName.value = data.department_name || ''
@@ -438,6 +463,12 @@ async function load() {
 }
 
 async function bootstrap() {
+  if (isPreview.value) {
+    needsPin.value = false
+    await load()
+    startTimers()
+    return
+  }
   const id = publicId.value
   if (!id) {
     needsPin.value = true
@@ -475,17 +506,19 @@ function stopTimers() {
 
 onMounted(() => {
   document.addEventListener('fullscreenchange', onFullscreenChange)
+  document.addEventListener('visibilitychange', onVisibilityChange)
   void bootstrap()
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', onFullscreenChange)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
   stopTimers()
 })
 
 watch(publicId, () => {
   stopTimers()
-  needsPin.value = true
+  needsPin.value = !isPreview.value
   pinInput.value = ''
   pinError.value = null
   void bootstrap()
@@ -540,6 +573,15 @@ watch(publicId, () => {
   font-weight: 600;
   color: #334155;
   font-variant-numeric: tabular-nums;
+}
+
+.display-preview-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
 .display-fullscreen-btn {

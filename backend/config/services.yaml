@@ -7,6 +7,8 @@ parameters:
     env(MAILER_REPLY_TO): ''
     # Optional: Basis-URL für öffentliche QR-Links (/i/m/…/b/…, /i/a/, /i/w/, /i/c/). Leer = APP_FRONTEND_URL.
     env(APP_PUBLIC_QR_URL): ''
+    # Optional: Basis-URL der Infoscreen-Domain (display.ematchef.ch). Leer = APP_FRONTEND_URL.
+    env(APP_DISPLAY_URL): ''
     # Optional: Fallback für fcal API-Key (Schulferien); bevorzugt zentral in var/app/integration_settings.json (Superadmin).
     env(FCAL_API_KEY): ''
     # 1 = Turnstile bei Registrierung nicht prüfen (nur lokal/Test; Produktion nie)

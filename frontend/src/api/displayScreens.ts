@@ -30,6 +30,8 @@ export interface PublicDisplaySession {
 }
 
 export type PublicDisplayData = DepartmentDisplayData & {
+  /** department | grossanlass: bestimmt künftig die verfügbaren Inhaltsmodule. */
+  scope?: 'department' | 'grossanlass'
   screen_name?: string
   department_name?: string
   subtitle_text?: string | null
@@ -145,13 +147,9 @@ type PublicDisplayDataResponse = PublicDisplayData & {
   workshop_tickets?: PublicDisplayData['workshopTickets']
 }
 
-export async function getPublicDisplayData(publicId: string): Promise<PublicDisplayData> {
-  const res = await apiClient.get<PublicDisplayDataResponse>(
-    `/api/public/display/${encodeURIComponent(publicId)}/data`,
-    { withCredentials: true },
-  )
-  const data = res.data
+function mapDisplayPayload(data: PublicDisplayDataResponse): PublicDisplayData {
   return {
+    scope: data.scope,
     activities: data.activities || [],
     workshopTickets: data.workshop_tickets || data.workshopTickets || [],
     department_name: data.department_name,
@@ -165,4 +163,23 @@ export async function getPublicDisplayData(publicId: string): Promise<PublicDisp
     show_statistics: data.show_statistics === true,
     statistics: data.statistics ?? null,
   }
+}
+
+export async function getPublicDisplayData(publicId: string): Promise<PublicDisplayData> {
+  const res = await apiClient.get<PublicDisplayDataResponse>(
+    `/api/public/display/${encodeURIComponent(publicId)}/data`,
+    { withCredentials: true },
+  )
+  return mapDisplayPayload(res.data)
+}
+
+/** Vorschau für Verwalter: gleicher Payload wie der echte Infoscreen, über die normale User-Anmeldung. */
+export async function getDisplayPreviewData(
+  departmentId: string,
+  screenId: string,
+): Promise<PublicDisplayData> {
+  const res = await apiClient.get<PublicDisplayDataResponse>(
+    `/api/departments/${encodeURIComponent(departmentId)}/display-screens/${encodeURIComponent(screenId)}/preview-data`,
+  )
+  return mapDisplayPayload(res.data)
 }
