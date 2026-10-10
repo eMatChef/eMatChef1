@@ -122,7 +122,7 @@ function serviceText(vehicle: GrossanlassCommitment): string {
 function openVehicle(id: string) {
   const department = departmentId.value
   if (!department) return
-  void router.push(`/${department}/fahrzeuge/artikel/${id}`)
+  void router.push(`/${department}/ga/fahrzeuge/artikel/${id}`)
 }
 
 function openCreate() {
@@ -139,7 +139,7 @@ function onCreated(row: GrossanlassCommitment) {
   catalog.upsert(row)
   const department = departmentId.value
   if (department) {
-    void router.push(`/${department}/fahrzeuge/artikel/${row.id}`)
+    void router.push(`/${department}/ga/fahrzeuge/artikel/${row.id}`)
   }
 }
 </script>

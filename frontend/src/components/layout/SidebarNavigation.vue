@@ -151,7 +151,7 @@
       </div>
       <router-link
         v-if="true"
-        :to="getLink('/mein-ressort')"
+        :to="getLink('/ga/mein-ressort')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('mein-ressort') }"
         :title="t('sidebar.ressortsHint')"
@@ -161,7 +161,7 @@
       </router-link>
       <router-link
         v-if="showGrossanlassPlanungMenu"
-        :to="getLink('/planung')"
+        :to="getLink('/ga/planung')"
         class="nav-item"
         :class="{ active: isPlanungNavActive }"
         :title="t('sidebar.planungHint')"
@@ -171,7 +171,7 @@
       </router-link>
       <router-link
         v-if="showGrossanlassUebersichtMenu"
-        :to="getLink('/helferpool')"
+        :to="getLink('/ga/helferpool')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('helferpool') }"
         :title="t('sidebar.helferpoolHint')"
@@ -204,7 +204,7 @@
       </router-link>
       <router-link
         v-if="showGrossanlassUebersichtMenu"
-        :to="getLink('/material')"
+        :to="getLink('/ga/material')"
         class="nav-item"
         :class="{ active: isGrossanlassMaterialNavActive }"
         :title="t('sidebar.materialHint')"
@@ -217,7 +217,7 @@
       </div>
       <router-link
         v-if="showGrossanlassLogistikMenu"
-        :to="getLink('/logistik')"
+        :to="getLink('/ga/logistik')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('logistik') }"
         :title="t('sidebar.logistikHint')"
@@ -227,7 +227,7 @@
       </router-link>
       <router-link
         v-if="showGrossanlassMaterialsMenu"
-        :to="getLink('/fahrzeuge')"
+        :to="getLink('/ga/fahrzeuge')"
         class="nav-item"
         :class="{ active: isGrossanlassFahrzeugeNavActive }"
         :title="t('sidebar.fahrzeugeHint')"
@@ -240,7 +240,7 @@
       </div>
       <router-link
         v-if="showGrossanlassWorkshopMenu"
-        :to="getLink('/werkstatt')"
+        :to="getLink('/ga/werkstatt')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('werkstatt') }"
         :title="t('sidebar.grossanlassWorkshopHint')"
@@ -253,7 +253,7 @@
       </div>
       <router-link
         v-if="showGrossanlassKostenMenu"
-        :to="getLink('/kosten')"
+        :to="getLink('/ga/kosten')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('kosten') }"
         :title="t('sidebar.kostenHint')"
@@ -275,7 +275,7 @@
       </router-link>
       <router-link
         v-if="showGrossanlassUebersichtMenu"
-        :to="getLink('/displays')"
+        :to="getLink('/ga/displays')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('displays') }"
         :title="t('sidebar.displaysHint')"
@@ -289,7 +289,7 @@
       <!-- Grossanlass: Einstellungen (Ressorts, Bauprojekte, Stammdaten) -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && !isUserRole && !isBereichsleitung"
-        :to="getLink('/einstellungen')"
+        :to="getLink('/ga/einstellungen')"
         class="nav-item"
         :class="{ active: isGrossanlassEinstellungenNavActive }"
         :title="grossanlassEinstellungenNavTitle"
@@ -301,7 +301,7 @@
       <!-- Mein Ressort: jeder GA-Mensch gehört irgendwo hin (Helfer-Home bleibt der Dashboard-Link) -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showMeinRessortSidebarLink"
-        :to="getLink('/mein-ressort')"
+        :to="getLink('/ga/mein-ressort')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('mein-ressort') }"
         :title="meinRessortSidebarHint"
@@ -313,7 +313,7 @@
       <!-- Meine Einsätze (Helfer) -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showGrossanlassHelperNav && showMeineEinsaetzeSidebarLink"
-        :to="getLink('/meine-einsaetze')"
+        :to="getLink('/ga/meine-einsaetze')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('meine-einsaetze') }"
         :title="t('sidebar.meineEinsaetzeHint')"
@@ -325,7 +325,7 @@
       <!-- Planung: Wünsche, Aufträge, Belegung — gleiche Tabs für MW, CMW, OK und Bereichsleitung -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassPlanungMenu"
-        :to="getLink('/planung')"
+        :to="getLink('/ga/planung')"
         class="nav-item"
         :class="{ active: isPlanungNavActive }"
         :title="t('sidebar.planungHint')"
@@ -349,7 +349,7 @@
       <!-- Anfragen (Komm/Spon; MW/CMW über Beschaffung) -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassAnfragenSidebarLink"
-        :to="getLink('/beschaffung/anfragen')"
+        :to="getLink('/ga/beschaffung/anfragen')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('beschaffung') }"
         :title="t('sidebar.anfragenHint')"
@@ -361,7 +361,7 @@
       <!-- Kosten (Grossanlass, MW/DC) — nicht Pfadi-Buchhaltung -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassKostenMenu"
-        :to="getLink('/kosten')"
+        :to="getLink('/ga/kosten')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('kosten') }"
         :title="t('sidebar.kostenHint')"
@@ -372,7 +372,7 @@
 
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassMaterialsMenu"
-        :to="getLink('/fahrzeuge')"
+        :to="getLink('/ga/fahrzeuge')"
         class="nav-item"
         :class="{ active: isGrossanlassFahrzeugeNavActive }"
         :title="t('sidebar.fahrzeugeHint')"
@@ -384,7 +384,7 @@
       <!-- Materialübersicht: Bestand, Wareneingang, was weg ist -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassUebersichtSidebarLink"
-        :to="getLink('/material')"
+        :to="getLink('/ga/material')"
         class="nav-item"
         :class="{ active: isGrossanlassMaterialNavActive }"
         :title="t('sidebar.materialHint')"
@@ -396,7 +396,7 @@
       <!-- Werkstatt (Grossanlass): eigene Fälle, nicht Pfadi-workshop_ticket -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassWorkshopMenu"
-        :to="getLink('/werkstatt')"
+        :to="getLink('/ga/werkstatt')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('werkstatt') }"
         :title="t('sidebar.grossanlassWorkshopHint')"
@@ -522,7 +522,7 @@
       <template v-if="useGroupedGaNav && !isPendingAssignmentRoute">
         <div class="nav-divider" />
         <router-link
-          :to="getLink('/einstellungen')"
+          :to="getLink('/ga/einstellungen')"
           class="nav-item"
           :class="{ active: isGrossanlassEinstellungenNavActive }"
           :title="grossanlassEinstellungenNavTitle"
@@ -1066,12 +1066,12 @@ const showGrossanlassKostenMenu = computed(() => {
 
 const grossanlassBeschaffungLink = computed(() => {
   if (gaCanManageProcurement(authStore.currentDepartmentRole)) {
-    return getLink('/beschaffung')
+    return getLink('/ga/beschaffung')
   }
   if (procurementDelegateVisible.value) {
-    return getLink('/beschaffung/offerten')
+    return getLink('/ga/beschaffung/offerten')
   }
-  return getLink('/beschaffung')
+  return getLink('/ga/beschaffung')
 })
 
 /** Stammdaten-Materialien: MW/CMW, Beschaffungs-Delegierte oder Bereichsleitung (Ansicht). */

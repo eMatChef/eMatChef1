@@ -25,7 +25,7 @@
               <template v-for="(step, index) in sharedPath" :key="'s-' + step.id">
                 <span v-if="index > 0" class="beschaffung-paths__arrow" aria-hidden="true">→</span>
                 <router-link
-                  :to="`/${departmentId}/beschaffung/${step.id}`"
+                  :to="`/${departmentId}/ga/beschaffung/${step.id}`"
                   class="beschaffung-paths__step"
                   :class="{ 'is-here': activeTab === step.id }"
                   :aria-current="activeTab === step.id ? 'page' : undefined"
@@ -39,7 +39,7 @@
               <template v-for="(step, index) in partnerPath" :key="'p-' + step.id">
                 <span v-if="index > 0" class="beschaffung-paths__arrow" aria-hidden="true">→</span>
                 <router-link
-                  :to="`/${departmentId}/beschaffung/${step.id}`"
+                  :to="`/${departmentId}/ga/beschaffung/${step.id}`"
                   class="beschaffung-paths__step"
                   :class="{ 'is-here': activeTab === step.id }"
                   :aria-current="activeTab === step.id ? 'page' : undefined"
@@ -53,7 +53,7 @@
               <template v-for="(step, index) in buyPath" :key="'b-' + step.id">
                 <span v-if="index > 0" class="beschaffung-paths__arrow" aria-hidden="true">→</span>
                 <router-link
-                  :to="`/${departmentId}/beschaffung/${step.id}`"
+                  :to="`/${departmentId}/ga/beschaffung/${step.id}`"
                   class="beschaffung-paths__step"
                   :class="{ 'is-here': activeTab === step.id }"
                   :aria-current="activeTab === step.id ? 'page' : undefined"
@@ -152,7 +152,7 @@ const activeTab = computed(() => (route.meta.beschaffungTab as string) || 'bedar
 function onTabChange(tab: unknown) {
   const id = departmentId.value
   if (!id || typeof tab !== 'string') return
-  void router.push(`/${id}/beschaffung/${tab}`)
+  void router.push(`/${id}/ga/beschaffung/${tab}`)
 }
 
 async function ensureGroupsLoaded() {
@@ -173,14 +173,14 @@ watch(
       hasProcurementDelegate.value &&
       activeTab.value !== 'offerten'
     ) {
-      void router.replace(`/${departmentId.value}/beschaffung/offerten`)
+      void router.replace(`/${departmentId.value}/ga/beschaffung/offerten`)
     }
     if (
       gaCanWorkMailbox(authStore.currentDepartmentRole) &&
       !gaCanManageProcurement(authStore.currentDepartmentRole) &&
       activeTab.value !== 'anfragen'
     ) {
-      void router.replace(`/${departmentId.value}/beschaffung/anfragen`)
+      void router.replace(`/${departmentId.value}/ga/beschaffung/anfragen`)
     }
   },
   { immediate: true },

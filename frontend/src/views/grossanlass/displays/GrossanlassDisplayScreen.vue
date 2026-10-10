@@ -201,7 +201,7 @@ function toggleFullscreen() {
 const showAdmin = computed(() => isDevToolsEnvironment())
 function goAdmin() {
   const dept = authStore.activeDepartmentId
-  void router.push(dept ? `/${dept}/displays` : '/login')
+  void router.push(dept ? `/${dept}/ga/displays` : '/login')
 }
 
 onMounted(() => {

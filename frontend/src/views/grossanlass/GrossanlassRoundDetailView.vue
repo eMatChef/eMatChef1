@@ -244,7 +244,7 @@ function statusLabel(status: GrossanlassRoundStatus): string {
 }
 
 function goBack() {
-  void router.push(`/${departmentId.value}/planung`)
+  void router.push(`/${departmentId.value}/ga/planung`)
 }
 
 function setDefaultTab() {

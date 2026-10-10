@@ -133,7 +133,7 @@ const loanTo = computed(() => {
     return null
   }
   return {
-    path: `/${departmentId.value}/beschaffung/zusagen`,
+    path: `/${departmentId.value}/ga/beschaffung/zusagen`,
     query: { line: props.line.id },
   }
 })
@@ -141,7 +141,7 @@ const loanTo = computed(() => {
 const orderTo = computed(() => {
   if (ordered.value <= 0 || !departmentId.value) return null
   return {
-    path: `/${departmentId.value}/beschaffung/bestellungen`,
+    path: `/${departmentId.value}/ga/beschaffung/bestellungen`,
     query: { line: props.line.id },
   }
 })

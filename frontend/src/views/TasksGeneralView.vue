@@ -223,7 +223,7 @@ async function loadPickups() {
 
 function openPickupJob(groupId: string) {
   if (!departmentId.value) return
-  void router.push(`/${departmentId.value}/planung/bauauftraege?project=${groupId}`)
+  void router.push(`/${departmentId.value}/ga/planung/bauauftraege?project=${groupId}`)
 }
 const roleOptions = computed(() => ({
   isUserRole: isUserRole.value,
@@ -420,14 +420,14 @@ async function openGrossanlassPlanung(note: GrossanlassRoundOpenedNotification) 
   void router.push(
     note.round_id
       ? grossanlassOpenRoundWishRoute(note.department_id, note.round_id)
-      : (note.planung_url || `/${note.department_id}/planung`),
+      : (note.planung_url || `/${note.department_id}/ga/planung`),
   )
 }
 
 function openGaEinsatzTask(task: DepartmentTaskItem) {
   const id = departmentId.value
   if (!id) return
-  void router.push(`/${id}/meine-einsaetze`)
+  void router.push(`/${id}/ga/meine-einsaetze`)
 }
 
 function goToMessageForDeptInvite(inv: ReceivedDepartmentInviteNotification) {

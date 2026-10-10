@@ -3,17 +3,17 @@ export type GaBestandSubTab = (typeof GA_BESTAND_SUB_TABS)[number]
 
 export function gaBestandListPath(departmentId: string, from = 'alles'): string {
   const id = departmentId
-  if (from === 'fahrzeuge') return `/${id}/fahrzeuge`
-  if (from === 'wareneingang') return `/${id}/material/wareneingang`
+  if (from === 'fahrzeuge') return `/${id}/ga/fahrzeuge`
+  if (from === 'wareneingang') return `/${id}/ga/material/wareneingang`
   if (from === 'eigen' || from === 'leihweise' || from === 'gaeste' || from === 'js') {
-    return `/${id}/material/bestand/${from}`
+    return `/${id}/ga/material/bestand/${from}`
   }
-  return `/${id}/material/bestand`
+  return `/${id}/ga/material/bestand`
 }
 
 export function gaBestandArtikelPath(departmentId: string, itemId: string, from?: string) {
   return {
-    path: `/${departmentId}/material/artikel/${itemId}`,
+    path: `/${departmentId}/ga/material/artikel/${itemId}`,
     query: from ? { from } : {},
   }
 }

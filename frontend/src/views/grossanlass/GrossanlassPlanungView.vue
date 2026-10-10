@@ -101,7 +101,7 @@ const showAddTransport = computed(() =>
 function onTabChange(tab: unknown) {
   const id = departmentId.value
   if (!id || typeof tab !== 'string') return
-  void router.push(`/${id}/planung/${tab}`)
+  void router.push(`/${id}/ga/planung/${tab}`)
 }
 </script>
 

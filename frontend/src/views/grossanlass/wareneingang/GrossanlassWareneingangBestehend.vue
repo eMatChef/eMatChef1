@@ -349,7 +349,7 @@ function needsOf(row: GrossanlassCommitment): NeedLink[] {
         n: einsatz.qty,
       }),
       action: t('grossanlass.material.wareneingang.openEinsatz'),
-      to: `/${departmentId.value}/planung/belegung`,
+      to: `/${departmentId.value}/ga/planung/belegung`,
     })
   }
   for (const pack of uebersicht.data.value?.pack ?? []) {
@@ -361,7 +361,7 @@ function needsOf(row: GrossanlassCommitment): NeedLink[] {
         n: pack.qty,
       }),
       action: t('grossanlass.material.wareneingang.openPack'),
-      to: `/${departmentId.value}/material/pack`,
+      to: `/${departmentId.value}/ga/material/pack`,
     })
   }
   return out
@@ -394,7 +394,7 @@ function openOrder(row: GrossanlassCommitment) {
   const lineId = row.item_details?.from_line_id
   if (!id || !lineId) return
   void router.push({
-    path: `/${id}/beschaffung/bestellungen`,
+    path: `/${id}/ga/beschaffung/bestellungen`,
     query: { line: lineId },
   })
 }
@@ -449,7 +449,7 @@ async function onInboundAction(row: GrossanlassCommitment) {
     void router.push(
       loosePickup
         ? `/${departmentId.value}/tasks/allgemein`
-        : `/${departmentId.value}/planung/belegung`,
+        : `/${departmentId.value}/ga/planung/belegung`,
     )
     return
   }

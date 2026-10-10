@@ -814,7 +814,7 @@ function syncRouteToMode() {
   const query = { ...route.query }
   delete query.register
   delete query.forgot
-  void router.replace({ path: target, query, hash: route.hash })
+  void router.push({ path: target, query, hash: route.hash })
 }
 
 watch([mode, forgotStep], syncRouteToMode)

@@ -738,7 +738,7 @@ const feinRound = computed(() => {
 
 function goOrCreateFein() {
   if (feinRound.value) {
-    void router.push(`/${departmentId.value}/planung/runden/${feinRound.value.id}`)
+    void router.push(`/${departmentId.value}/ga/planung/runden/${feinRound.value.id}`)
     return
   }
   if (canManage.value) openFeinCreate()
@@ -943,7 +943,7 @@ async function handleReopen(round: GrossanlassPlanningRound) {
 
 function openVehicleWishes(submit = false) {
   void router.push({
-    path: `/${departmentId.value}/planung/fahrzeuge`,
+    path: `/${departmentId.value}/ga/planung/fahrzeuge`,
     query: submit ? { einreichen: '1' } : {},
   })
 }
@@ -958,7 +958,7 @@ function openRow(row: WishFormRow) {
     openResponses(row.live)
     return
   }
-  void router.push(`/${departmentId.value}/planung/runden/${row.live.id}`)
+  void router.push(`/${departmentId.value}/ga/planung/runden/${row.live.id}`)
 }
 
 function isFixedMaterialForm(row: { purpose: GrossanlassFormPurpose }) {
@@ -967,14 +967,14 @@ function isFixedMaterialForm(row: { purpose: GrossanlassFormPurpose }) {
 
 function openWishForm(round: GrossanlassPlanningRound) {
   void router.push({
-    path: `/${departmentId.value}/planung/runden/${round.id}`,
+    path: `/${departmentId.value}/ga/planung/runden/${round.id}`,
     query: { tab: 'input' },
   })
 }
 
 function openResponses(round: GrossanlassPlanningRound) {
   void router.push({
-    path: `/${departmentId.value}/planung/runden/${round.id}`,
+    path: `/${departmentId.value}/ga/planung/runden/${round.id}`,
     query: round.form_purpose === 'material_wish'
       ? { tab: 'responses', kind: 'material' }
       : { tab: 'responses' },

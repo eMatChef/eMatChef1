@@ -57,7 +57,7 @@ watch(
   (family) => {
     const id = departmentId.value
     if (family === 'vehicle' && id) {
-      void router.replace(`/${id}/fahrzeuge`)
+      void router.replace(`/${id}/ga/fahrzeuge`)
     }
   },
   { immediate: true },

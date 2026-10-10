@@ -2180,7 +2180,7 @@ async function load() {
 }
 
 function goCategorySettings() {
-  void router.push(`/${departmentId.value}/einstellungen/kategorien`)
+  void router.push(`/${departmentId.value}/ga/einstellungen/kategorien`)
 }
 
 function applySystemCategoryQuery() {
@@ -2678,7 +2678,7 @@ function toggleAllVisible() {
 function goGmailSettings() {
   const dept = departmentId.value
   if (!dept) return
-  void router.push(`/${dept}/einstellungen/anfragen-email`)
+  void router.push(`/${dept}/ga/einstellungen/anfragen-email`)
 }
 
 function goZuteilung(firma?: { id: string } | null) {
@@ -2686,7 +2686,7 @@ function goZuteilung(firma?: { id: string } | null) {
   const dept = departmentId.value
   if (!dept) return
   void router.push({
-    path: `/${dept}/beschaffung/zusagen`,
+    path: `/${dept}/ga/beschaffung/zusagen`,
     query: firma?.id ? { inquiry: firma.id } : {},
   })
 }

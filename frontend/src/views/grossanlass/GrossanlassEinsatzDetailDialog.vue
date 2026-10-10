@@ -233,7 +233,7 @@ function goAgreements() {
   const id = departmentId.value
   if (!id) return
   open.value = false
-  void router.push(`/${id}/beschaffung/zusagen`)
+  void router.push(`/${id}/ga/beschaffung/zusagen`)
 }
 
 async function save() {

@@ -714,7 +714,7 @@ const windowHeading = computed(() =>
 const windowText = computed(() =>
   formatBauprojektWindow(briefing.value?.window_start, briefing.value?.window_end),
 )
-const standorteTo = computed(() => `/${props.departmentId}/einstellungen/standorte`)
+const standorteTo = computed(() => `/${props.departmentId}/ga/einstellungen/standorte`)
 const publicPlaceUrl = computed(() =>
   resolveGaPlacePublicUrl(briefing.value?.place?.qr_url, briefing.value?.place?.public_code),
 )
@@ -1894,7 +1894,7 @@ async function removeMaterial(line: { id: string | null; self: boolean; roundId?
 }
 
 function planTrip() {
-  void router.push(`/${props.departmentId}/planung/transporte?create=1`)
+  void router.push(`/${props.departmentId}/ga/planung/transporte?create=1`)
 }
 
 function bookEinsatz(wishId?: string) {
