@@ -464,6 +464,7 @@ class DemoOrganisationSeeder
             desired: ['name' => $name],
             // Das Department trägt bereits den Szenario-Schlüssel und demo_mode (Eigentum nachgewiesen).
             adopt: static fn (): object => $department,
+            resettable: true,
         ), $version);
     }
 
@@ -667,6 +668,7 @@ class DemoOrganisationSeeder
             },
             desired: ['role' => (string) $member['role'], 'is_primary' => $primary],
             adopt: fn (): ?object => $find($user->getId() . ':'),
+            resettable: true,
         ), $version);
     }
 
@@ -753,6 +755,7 @@ class DemoOrganisationSeeder
 
                 return $config;
             },
+            resettable: true,
         ), $version);
     }
 

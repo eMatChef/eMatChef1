@@ -247,6 +247,17 @@ final class GrossanlassSetupIntegrationTest extends TestCase
             self::assertNull($c->gate(null, 'GET', $base . '/uebersicht'));
             self::assertNull($c->gate('usetbl000001', 'GET', '/api/departments/' . self::GUEST . '/grossanlass/hosts/' . self::GA . '/freigaben'));
             self::assertNull($c->gate('usetbl000001', 'GET', '/api/departments/' . self::GA . '/members'));
+            // allgemeine Einstellungen: Lesen bleibt offen, Schreiben ist vor der Freigabe für alle Mitglieder gesperrt
+            $settings = '/api/departments/' . self::GA . '/settings';
+            foreach (['usetmw000001', 'usetcmw00001', 'usetdc000001', 'usetbl000001'] as $member) {
+                self::assertNull($c->gate($member, 'GET', $settings), "$member GET settings");
+                self::assertNull($c->gate($member, 'GET', $settings . '/group/general'), "$member GET settings group");
+                self::assertSame(403, $c->gate($member, 'PUT', $settings), "$member PUT settings");
+            }
+            self::assertNull($c->gate('usetsa000001', 'PUT', $settings));
+            self::assertNull($c->gate('usetout00001', 'PUT', $settings));
+            // normales Department (Gast-Department): unverändert
+            self::assertNull($c->gate('usetbl000001', 'PUT', '/api/departments/' . self::GUEST . '/settings'));
         });
     }
 
@@ -258,6 +269,7 @@ final class GrossanlassSetupIntegrationTest extends TestCase
             foreach (['usetmw000001', 'usetbl000001', 'usethelp0001', 'usetlw000001'] as $user) {
                 self::assertNull($c->gate($user, 'GET', $base . '/uebersicht'), $user);
                 self::assertNull($c->gate($user, 'POST', $base . '/uebersicht/einsaetze'), $user);
+                self::assertNull($c->gate($user, 'PUT', '/api/departments/' . self::GA . '/settings'), $user);
             }
         });
     }

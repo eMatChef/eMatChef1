@@ -304,7 +304,7 @@ trait InboxMessageKindsTrait
         ?string $senderUserId = null,
     ): void {
         $deptId = $department->getId();
-        $planungUrl = '/' . $deptId . '/ga/planung';
+        $planungUrl = '/' . $deptId . '/ga/planning';
 
         foreach ($recipientUserIds as $userId) {
             if ($senderUserId !== null && $userId === $senderUserId) {

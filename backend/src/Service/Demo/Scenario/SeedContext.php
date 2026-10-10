@@ -18,6 +18,7 @@ final class SeedContext
         private ?Department $department,
         private DemoSeedLedger $ledger,
         private bool $dryRun,
+        private bool $forcedManaged = false,
     ) {
     }
 
@@ -42,6 +43,21 @@ final class SeedContext
     public function sharedUsers(): self
     {
         return new self(DemoSeedLedger::SHARED_USERS, null, $this->ledger, $this->dryRun);
+    }
+
+    /**
+     * Reset-Modus: department-eigene, ausdrücklich rücksetzbare Seed-Datensätze (Department-Name, GA-Konfiguration,
+     * Mitgliedschaften des Szenarios) werden auch dann auf den Katalog zurückgesetzt, wenn sie manuell geändert wurden.
+     * Gemeinsame Benutzer-Kontexte erben das Flag nie.
+     */
+    public function withForcedManaged(): self
+    {
+        return new self($this->scenarioKey, $this->department, $this->ledger, $this->dryRun, true);
+    }
+
+    public function forcesManaged(): bool
+    {
+        return $this->forcedManaged;
     }
 
     public function scenarioKey(): string
@@ -71,7 +87,7 @@ final class SeedContext
             throw new DemoScenarioException(sprintf('Department «%s» gehört nicht zum Szenario «%s».', $department->getName(), $this->scenarioKey));
         }
 
-        return new self($this->scenarioKey, $department, $this->ledger, $this->dryRun);
+        return new self($this->scenarioKey, $department, $this->ledger, $this->dryRun, $this->forcedManaged);
     }
 
     /** Ledger-Eintrag ohne Department-Bezug (Organisation, Benutzer: überleben einen Department-Reset). */

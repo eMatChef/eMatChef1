@@ -82,6 +82,11 @@ class ManagedSeedApplier
             ($spec->write)($entity, $spec->desired);
             $record?->markManaged($desiredHash, $catalogVersion);
             ++$report->updated;
+        } elseif ($context->forcesManaged() && $spec->resettable && !$spec->global) {
+            $fields = array_keys(array_filter($spec->desired, static fn ($v, $k) => ($current[$k] ?? null) !== $v, ARRAY_FILTER_USE_BOTH));
+            ($spec->write)($entity, $spec->desired);
+            $record?->markManaged($desiredHash, $catalogVersion);
+            $report->restored[] = sprintf('%s (%s)', $spec->seedKey, implode(', ', $fields));
         } else {
             $fields = array_keys(array_filter($spec->desired, static fn ($v, $k) => ($current[$k] ?? null) !== $v, ARRAY_FILTER_USE_BOTH));
             $report->divergences[] = sprintf('%s (%s)', $spec->seedKey, implode(', ', $fields));

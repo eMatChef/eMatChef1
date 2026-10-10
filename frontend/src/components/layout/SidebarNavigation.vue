@@ -132,8 +132,14 @@
         class="nav-divider"
       />
 
-      <!-- Grossanlass mit offener Ersteinrichtung: nur Dashboard, Grossanlass verwalten und Einstellungen -->
-      <template v-if="!gaSetupPending">
+      <!-- Grossanlass mit offener Ersteinrichtung: volle Navigation, gesperrte Bereiche sichtbar aber deaktiviert (Server sperrt verbindlich) -->
+      <div
+        v-if="!gaSetupPending || gaSetupRole"
+        :class="{ 'nav-setup-locked': gaSetupPending }"
+        :title="gaSetupPending ? t('sidebar.gaSetupLockedHint') : undefined"
+        :aria-disabled="gaSetupPending ? 'true' : undefined"
+        @click.capture="onSetupLockedClick"
+      >
       <!-- Aktivitäten -->
       <router-link
         v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showActivitiesMenu && hasDepartmentContext && !isGrossanlassDept"
@@ -153,7 +159,7 @@
       </div>
       <router-link
         v-if="true"
-        :to="getLink('/ga/mein-ressort')"
+        :to="getLink('/ga/my-unit')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('mein-ressort') }"
         :title="t('sidebar.ressortsHint')"
@@ -163,7 +169,7 @@
       </router-link>
       <router-link
         v-if="showGrossanlassPlanungMenu"
-        :to="getLink('/ga/planung')"
+        :to="getLink('/ga/planning')"
         class="nav-item"
         :class="{ active: isPlanungNavActive }"
         :title="t('sidebar.planungHint')"
@@ -173,7 +179,7 @@
       </router-link>
       <router-link
         v-if="showGrossanlassUebersichtMenu"
-        :to="getLink('/ga/helferpool')"
+        :to="getLink('/ga/helper-pool')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('helferpool') }"
         :title="t('sidebar.helferpoolHint')"
@@ -219,7 +225,7 @@
       </div>
       <router-link
         v-if="showGrossanlassLogistikMenu"
-        :to="getLink('/ga/logistik')"
+        :to="getLink('/ga/logistics')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('logistik') }"
         :title="t('sidebar.logistikHint')"
@@ -229,7 +235,7 @@
       </router-link>
       <router-link
         v-if="showGrossanlassMaterialsMenu"
-        :to="getLink('/ga/fahrzeuge')"
+        :to="getLink('/ga/vehicles')"
         class="nav-item"
         :class="{ active: isGrossanlassFahrzeugeNavActive }"
         :title="t('sidebar.fahrzeugeHint')"
@@ -242,7 +248,7 @@
       </div>
       <router-link
         v-if="showGrossanlassWorkshopMenu"
-        :to="getLink('/ga/werkstatt')"
+        :to="getLink('/ga/workshop')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('werkstatt') }"
         :title="t('sidebar.grossanlassWorkshopHint')"
@@ -255,7 +261,7 @@
       </div>
       <router-link
         v-if="showGrossanlassKostenMenu"
-        :to="getLink('/ga/kosten')"
+        :to="getLink('/ga/costs')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('kosten') }"
         :title="t('sidebar.kostenHint')"
@@ -290,8 +296,8 @@
       <template v-if="!useGroupedGaNav">
       <!-- Grossanlass: Einstellungen (Ressorts, Bauprojekte, Stammdaten) -->
       <router-link
-        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && !isUserRole && !isBereichsleitung"
-        :to="getLink('/ga/einstellungen')"
+        v-if="!isPendingAssignmentRoute && !gaSetupPending && isGrossanlassDept && showDeptContextSidebarLinks && !isUserRole && !isBereichsleitung"
+        :to="getLink('/ga/activity-settings')"
         class="nav-item"
         :class="{ active: isGrossanlassEinstellungenNavActive }"
         :title="grossanlassEinstellungenNavTitle"
@@ -303,7 +309,7 @@
       <!-- Mein Ressort: jeder GA-Mensch gehört irgendwo hin (Helfer-Home bleibt der Dashboard-Link) -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showMeinRessortSidebarLink"
-        :to="getLink('/ga/mein-ressort')"
+        :to="getLink('/ga/my-unit')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('mein-ressort') }"
         :title="meinRessortSidebarHint"
@@ -315,7 +321,7 @@
       <!-- Meine Einsätze (Helfer) -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showGrossanlassHelperNav && showMeineEinsaetzeSidebarLink"
-        :to="getLink('/ga/meine-einsaetze')"
+        :to="getLink('/ga/my-assignments')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('meine-einsaetze') }"
         :title="t('sidebar.meineEinsaetzeHint')"
@@ -327,7 +333,7 @@
       <!-- Planung: Wünsche, Aufträge, Belegung — gleiche Tabs für MW, CMW, OK und Bereichsleitung -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassPlanungMenu"
-        :to="getLink('/ga/planung')"
+        :to="getLink('/ga/planning')"
         class="nav-item"
         :class="{ active: isPlanungNavActive }"
         :title="t('sidebar.planungHint')"
@@ -351,7 +357,7 @@
       <!-- Anfragen (Komm/Spon; MW/CMW über Beschaffung) -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassAnfragenSidebarLink"
-        :to="getLink('/ga/beschaffung/anfragen')"
+        :to="getLink('/ga/procurement/inquiries')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('beschaffung') }"
         :title="t('sidebar.anfragenHint')"
@@ -363,7 +369,7 @@
       <!-- Kosten (Grossanlass, MW/DC) — nicht Pfadi-Buchhaltung -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassKostenMenu"
-        :to="getLink('/ga/kosten')"
+        :to="getLink('/ga/costs')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('kosten') }"
         :title="t('sidebar.kostenHint')"
@@ -374,7 +380,7 @@
 
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassMaterialsMenu"
-        :to="getLink('/ga/fahrzeuge')"
+        :to="getLink('/ga/vehicles')"
         class="nav-item"
         :class="{ active: isGrossanlassFahrzeugeNavActive }"
         :title="t('sidebar.fahrzeugeHint')"
@@ -398,7 +404,7 @@
       <!-- Werkstatt (Grossanlass): eigene Fälle, nicht Pfadi-workshop_ticket -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassWorkshopMenu"
-        :to="getLink('/ga/werkstatt')"
+        :to="getLink('/ga/workshop')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('werkstatt') }"
         :title="t('sidebar.grossanlassWorkshopHint')"
@@ -521,11 +527,11 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.supplierShop') }}</span>
       </router-link>
 
-      </template>
+      </div>
 
       <router-link
         v-if="gaSetupPending && gaSetupRole && !isPendingAssignmentRoute"
-        :to="getLink('/ga/einstellungen')"
+        :to="getLink('/ga/activity-settings')"
         class="nav-item"
         :class="{ active: isGrossanlassEinstellungenNavActive }"
         :title="grossanlassEinstellungenNavTitle"
@@ -538,7 +544,7 @@
       <template v-if="useGroupedGaNav && !isPendingAssignmentRoute && !gaSetupPending">
         <div class="nav-divider" />
         <router-link
-          :to="getLink('/ga/einstellungen')"
+          :to="getLink('/ga/activity-settings')"
           class="nav-item"
           :class="{ active: isGrossanlassEinstellungenNavActive }"
           :title="grossanlassEinstellungenNavTitle"
@@ -549,16 +555,25 @@
         </router-link>
       </template>
 
+      <!-- Konfiguration: im Grossanlass vor der Freigabe der Ersteinrichtung gesperrt (sichtbar, ausgegraut) -->
+      <div
+        :class="['nav-setup-wrap', { 'nav-setup-locked': gaSettingsLocked }]"
+        :title="gaSettingsLocked ? t('sidebar.gaSetupLockedHint') : undefined"
+        :aria-disabled="gaSettingsLocked ? 'true' : undefined"
+        @click.capture="onSettingsLockedClick"
+      >
       <router-link
         v-if="!isPendingAssignmentRoute && (!gaSetupPending || gaSetupRole) && (showGrossanlassHelperNav ? showGrossanlassHelperSidebarLinks : showDeptContextSidebarLinks)"
-        :to="getLink('/dept/settings')"
+        :to="getLink(isGrossanlassDept ? '/ga/settings' : '/dept/settings')"
         class="nav-item"
         :class="{ active: $route.path.includes('/settings') }"
         data-onboarding="nav-settings"
       >
         <v-icon icon="mdi-cog-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.settings') }}</span>
+        <v-icon v-if="gaSettingsLocked" icon="mdi-lock-outline" class="nav-lock-icon" size="16" />
       </router-link>
+      </div>
 
       <router-link
         v-if="!isPendingAssignmentRoute && showDevSandboxLink"
@@ -978,7 +993,27 @@ const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(depar
 /** Offene Ersteinrichtung des Grossanlasses: die Navigation zeigt nur die Einrichtung (Server sperrt unabhängig davon). */
 const gaSetupPending = computed(() => authStore.isGrossanlassSetupPending(departmentId.value))
 /** MW, Co-MW, OK-Leitung: dürfen einrichten und sehen deshalb «Grossanlass verwalten» und die Einstellungen. */
+/** Konfiguration (/ga/settings) bleibt bis zur Freigabe der Ersteinrichtung gesperrt. */
+const gaSettingsLocked = computed(() => gaSetupPending.value && isGrossanlassDept.value)
+
+function onSettingsLockedClick(event: Event) {
+  if (!gaSettingsLocked.value) return
+  if ((event.target as HTMLElement | null)?.closest('a')) {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+}
+
 const gaSetupRole = computed(() => canUseGrossanlassSetupTour(authStore, departmentId.value))
+
+/** Gesperrte Bereiche während der offenen Ersteinrichtung: Klick abfangen, nichts navigieren. */
+function onSetupLockedClick(event: Event) {
+  if (!gaSetupPending.value) return
+  if ((event.target as HTMLElement | null)?.closest('a')) {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+}
 
 const showGrossanlassHelperNav = computed(
   () =>
@@ -1005,13 +1040,13 @@ const grossanlassEinstellungenNavTitle = computed(() => t('sidebar.grossanlassEi
 const isGrossanlassEinstellungenNavActive = computed(() => {
   const path = route.path
   if (path.includes('/settings')) return false
-  return path.includes('/einstellungen')
+  return path.includes('/activity-settings')
 })
 
 const isPlanungNavActive = computed(() => {
   const path = route.path
-  if (path.includes('/settings') || path.includes('/einstellungen')) return false
-  return path.includes('/planung')
+  if (path.includes('/settings') || path.includes('/activity-settings')) return false
+  return path.includes('/planning')
 })
 
 /** MW/CMW: gruppierte Master-Navigation; übrige GA-Rollen behalten vorerst die bisherige Sidebar. */
@@ -1026,7 +1061,7 @@ const useGroupedGaNav = computed(
 /** Logistik-Shell: gleiche Rollen wie bisherige Transport-/Beschaffungssicht, keine neuen Rechte. */
 const showGrossanlassLogistikMenu = computed(() => showGrossanlassUebersichtMenu.value)
 
-const isGrossanlassFahrzeugeNavActive = computed(() => route.path.includes('/fahrzeuge'))
+const isGrossanlassFahrzeugeNavActive = computed(() => route.path.includes('/vehicles'))
 
 const isGrossanlassMaterialNavActive = computed(() =>
   /\/material(\/|$)/.test(route.path),
@@ -1103,12 +1138,12 @@ const showGrossanlassKostenMenu = computed(() => {
 
 const grossanlassBeschaffungLink = computed(() => {
   if (gaCanManageProcurement(authStore.currentDepartmentRole)) {
-    return getLink('/ga/beschaffung')
+    return getLink('/ga/procurement')
   }
   if (procurementDelegateVisible.value) {
-    return getLink('/ga/beschaffung/offerten')
+    return getLink('/ga/procurement/offers')
   }
-  return getLink('/ga/beschaffung')
+  return getLink('/ga/procurement')
 })
 
 /** Stammdaten-Materialien: MW/CMW, Beschaffungs-Delegierte oder Bereichsleitung (Ansicht). */
@@ -1252,4 +1287,20 @@ function getLink(path: string): string {
 
 <style scoped>
 @import '@/styles/sidebar.css';
+
+.nav-setup-wrap,
+.nav-setup-locked {
+  display: contents;
+}
+.nav-lock-icon {
+  margin-left: auto;
+  opacity: 0.8;
+}
+.nav-setup-locked .nav-item {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.nav-setup-locked .nav-item:hover {
+  background: transparent;
+}
 </style>

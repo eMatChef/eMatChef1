@@ -445,7 +445,7 @@ function listPath(tab: string): string {
 function goBack() {
   const id = departmentId.value
   if (route.name === 'GrossanlassFahrzeugArtikel' || String(route.query.from || '') === 'fahrzeuge') {
-    void router.push(`/${id}/ga/fahrzeuge`)
+    void router.push(`/${id}/ga/vehicles`)
     return
   }
   const from = String(route.query.from || '') as GaMaterialsTabId | ''

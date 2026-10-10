@@ -65,7 +65,7 @@ final class GrossanlassOutlookOAuthCallbackController extends AbstractController
     private function finish(string $departmentId, string $status, ?string $reason = null): RedirectResponse
     {
         $path = $departmentId !== ''
-            ? '/' . $departmentId . '/ga/einstellungen/anfragen-email'
+            ? '/' . $departmentId . '/ga/activity-settings/inquiry-email'
             : '/login';
         $query = ['outlook' => $status];
         if ($reason) {

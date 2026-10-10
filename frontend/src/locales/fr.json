@@ -1558,22 +1558,18 @@
           "title": "Configurer le grand événement",
           "description": "Découvre le système et configure données de base, secteurs et membres.",
           "ctaStay": "Rester ici",
-          "step1Title": "Bienvenue au grand événement",
-          "step1Body": "Découvre d’abord le système. Il nous faut encore quelques informations importantes avant que tu puisses démarrer. Clique sur « Gérer le grand événement ».",
-          "step2Title": "1. Données de base",
-          "step2Body": "Nom, date et lieu du grand événement. Ces données sont obligatoires.",
+          "step1Title": "Tableau de bord",
+          "step1Body": "Tu verras ici plus tard l’aperçu de ton grand événement. Jusqu’à la libération, il montre l’avancement de la configuration.",
+          "step2Title": "Gérer le grand événement",
+          "step2Body": "Les données de base sont gérées ici : nom, date et lieu. Ces données sont obligatoires.",
           "step3Title": "Type : camp ou événement",
           "step3Body": "Choisis si les invités organisent un camp ou un événement. La participation de départements et le prêt de matériel en sont indépendants et se choisissent librement plus tard.",
-          "step4Title": "2. Secteurs",
-          "step4Body": "Passe aux secteurs.",
-          "step5Title": "Secteurs et responsabilités",
-          "step5Body": "Crée au moins un secteur et désigne une direction pour chacun.",
-          "step6Title": "3. Membres",
-          "step6Body": "Tu gères les membres et la direction OK dans les paramètres.",
-          "step7Title": "Utilisateurs",
-          "step7Body": "Invite des membres et attribue-leur des rôles. Il faut au moins un MW et une direction OK.",
-          "step8Title": "Libérer",
-          "step8Body": "Lorsque les trois domaines sont terminés, le MW ou la direction OK libère la configuration ici. Ensuite seulement, le grand événement est ouvert à tous les rôles."
+          "step4Title": "Secteurs",
+          "step4Body": "Les responsabilités et les directions de secteur sont définies ici. Crée au moins un secteur et désigne une direction pour chacun.",
+          "step5Title": "Utilisateurs",
+          "step5Body": "Les membres et responsables sont ajoutés ici. Il faut au moins un MW et une direction OK.",
+          "step6Title": "Libération",
+          "step6Body": "Dès que les conditions sont remplies, le MW ou la direction OK libère ici le grand événement pour les autres rôles. La visite ne fait que montrer – tu fais la configuration ensuite toi-même."
         }
     }
   }

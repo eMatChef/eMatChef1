@@ -208,20 +208,20 @@ const intro = computed(() =>
     : t('grossanlass.dashboard.okIntro'),
 )
 
-const einsaetzeLink = computed(() => `/${props.departmentId}/ga/planung/belegung`)
-const bauLink = computed(() => `/${props.departmentId}/ga/planung/bauauftraege`)
+const einsaetzeLink = computed(() => `/${props.departmentId}/ga/planning/occupancy`)
+const bauLink = computed(() => `/${props.departmentId}/ga/planning/build-jobs`)
 const createEinsatzLink = computed(() => ({
   path: einsaetzeLink.value,
   query: { book: '1' },
 }))
-const tripsLink = computed(() => `/${props.departmentId}/ga/planung/transporte`)
-const konflikteLink = computed(() => `/${props.departmentId}/ga/planung/konflikte`)
-const ressortsLink = computed(() => `/${props.departmentId}/ga/einstellungen/ressorts`)
-const planungLink = computed(() => `/${props.departmentId}/ga/planung`)
+const tripsLink = computed(() => `/${props.departmentId}/ga/planning/transports`)
+const konflikteLink = computed(() => `/${props.departmentId}/ga/planning/conflicts`)
+const ressortsLink = computed(() => `/${props.departmentId}/ga/activity-settings/units`)
+const planungLink = computed(() => `/${props.departmentId}/ga/planning`)
 const materialLink = computed(() => `/${props.departmentId}/ga/material`)
-const meinRessortLink = computed(() => `/${props.departmentId}/ga/mein-ressort`)
-const kostenLink = computed(() => `/${props.departmentId}/ga/kosten`)
-const teilnehmerLink = computed(() => `/${props.departmentId}/ga/einstellungen/teilnehmer`)
+const meinRessortLink = computed(() => `/${props.departmentId}/ga/my-unit`)
+const kostenLink = computed(() => `/${props.departmentId}/ga/costs`)
+const teilnehmerLink = computed(() => `/${props.departmentId}/ga/activity-settings/participants`)
 
 const openRows = computed(() => {
   const rows = (uebersicht.value?.einsaetze ?? [])

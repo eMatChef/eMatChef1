@@ -93,9 +93,12 @@ const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
 
+/** Gleiche Oberfläche unter /:id/dept/settings (Department) und /:id/ga/settings (Grossanlass). */
+const settingsBase = computed(() => (route.path.startsWith(`/${departmentId.value}/ga/settings`) ? 'ga' : 'dept'))
+
 function getSettingsLink(path: string): string {
   if (!departmentId.value) return '#'
-  return `/${departmentId.value}/dept/settings${path}`
+  return `/${departmentId.value}/${settingsBase.value}/settings${path}`
 }
 
 function navLinkForItem(itemId: string): string {
@@ -103,7 +106,7 @@ function navLinkForItem(itemId: string): string {
 }
 
 function isSettingsItemActive(itemId: string): boolean {
-  const base = departmentId.value ? `/${departmentId.value}/dept/settings`.replace(/\/$/, '') : ''
+  const base = departmentId.value ? `/${departmentId.value}/${settingsBase.value}/settings`.replace(/\/$/, '') : ''
   const p = (route.path || '').replace(/\/$/, '') || '/'
   if (itemId === 'my-department') {
     return (

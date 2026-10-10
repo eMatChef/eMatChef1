@@ -323,7 +323,7 @@ function onProjectMetaSaved(group: { id: string; window_start?: string | null; w
 function openAuftrag(job: GrossanlassGroup) {
   const id = String(route.params.departmentId || '')
   if (!id) return
-  void router.push(`/${id}/ga/planung/bauauftraege?project=${job.id}`)
+  void router.push(`/${id}/ga/planning/build-jobs?project=${job.id}`)
 }
 const mode = ref<GaBookPreviewMode>('einsatz')
 const dialogOpen = ref(false)
@@ -392,7 +392,7 @@ function createKind(kind: 'einsatz' | 'bau' | 'transport') {
     return
   }
   if (!id) return
-  void router.push(`/${id}/ga/planung/${kind === 'bau' ? 'bauauftraege' : 'transporte'}?create=1`)
+  void router.push(`/${id}/ga/planning/${kind === 'bau' ? 'bauauftraege' : 'transporte'}?create=1`)
 }
 
 const composer = inject(gaEinsatzComposerKey, null)

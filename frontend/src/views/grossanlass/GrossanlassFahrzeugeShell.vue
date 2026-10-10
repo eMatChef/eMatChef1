@@ -56,16 +56,16 @@ const departmentId = computed(() => {
 })
 
 const tabItems = computed(() => [
-  { id: 'wuensche', label: t('grossanlass.fahrzeuge.tabWuensche'), icon: 'mdi-lightbulb-on-outline' },
-  { id: 'fuhrpark', label: t('grossanlass.fahrzeuge.tabFuhrpark'), icon: 'mdi-truck-outline' },
+  { id: 'requests', label: t('grossanlass.fahrzeuge.tabWuensche'), icon: 'mdi-lightbulb-on-outline' },
+  { id: 'fleet', label: t('grossanlass.fahrzeuge.tabFuhrpark'), icon: 'mdi-truck-outline' },
 ])
 
-const activeTab = computed(() => (route.meta.fahrzeugeTab as string) || 'wuensche')
+const activeTab = computed(() => (route.meta.fahrzeugeTab as string) || 'requests')
 
 function onTabChange(tab: unknown) {
   const id = departmentId.value
   if (!id || typeof tab !== 'string') return
-  void router.push(`/${id}/ga/fahrzeuge/${tab}`)
+  void router.push(`/${id}/ga/vehicles/${tab}`)
 }
 </script>
 

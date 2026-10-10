@@ -27,9 +27,9 @@ export function gaHomePath(
     case 'uebersicht':
       return `/${id}/ga/material`
     case 'mailbox':
-      return `/${id}/ga/beschaffung/anfragen`
+      return `/${id}/ga/procurement/inquiries`
     case 'mein-bereich':
-      return `/${id}/ga/mein-ressort`
+      return `/${id}/ga/my-unit`
     default:
       return `/${id}/ga/dashboard`
   }
@@ -48,9 +48,9 @@ export function gaIsRoleHomePath(
     case 'uebersicht':
       return p.includes(`/${id}/ga/material`)
     case 'mailbox':
-      return p.includes(`/${id}/ga/beschaffung/anfragen`)
+      return p.includes(`/${id}/ga/procurement/inquiries`)
     case 'mein-bereich':
-      return p.includes(`/${id}/ga/mein-ressort`)
+      return p.includes(`/${id}/ga/my-unit`)
     default:
       return p === `/${id}/ga/dashboard`
   }

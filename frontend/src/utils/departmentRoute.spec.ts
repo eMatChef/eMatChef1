@@ -6,7 +6,7 @@ const OLD = 'aaaaaaaaaaaa'
 const NEW = 'bbbbbbbbbbbb'
 
 const known = (path: string) => {
-  const staticPaths = [`/${NEW}/dept/settings`, `/${NEW}/ga/planung/transporte`]
+  const staticPaths = [`/${NEW}/dept/settings`, `/${NEW}/ga/planning/transports`]
   if (staticPaths.includes(path)) return { matched: [{}], name: 'x', params: { departmentId: NEW } }
   if (path.startsWith(`/${NEW}/dept/activities/`)) {
     return { matched: [{}], name: 'ActivityDetail', params: { departmentId: NEW, activityId: 'a1' } }
@@ -21,12 +21,12 @@ describe('pathAfterDepartmentSwitch', () => {
       `/${NEW}/dept/settings?tab=x`,
     )
     expect(
-      pathAfterDepartmentSwitch(`/${OLD}/ga/planung/transporte`, {}, OLD, NEW, { ...same, oldIsGrossanlass: true, newIsGrossanlass: true }),
-    ).toBe(`/${NEW}/ga/planung/transporte`)
+      pathAfterDepartmentSwitch(`/${OLD}/ga/planning/transports`, {}, OLD, NEW, { ...same, oldIsGrossanlass: true, newIsGrossanlass: true }),
+    ).toBe(`/${NEW}/ga/planning/transports`)
   })
 
   it('opens the dashboard when the type changes', () => {
-    expect(pathAfterDepartmentSwitch(`/${OLD}/ga/planung/transporte`, {}, OLD, NEW, { ...same, oldIsGrossanlass: true })).toBe(
+    expect(pathAfterDepartmentSwitch(`/${OLD}/ga/planning/transports`, {}, OLD, NEW, { ...same, oldIsGrossanlass: true })).toBe(
       `/${NEW}/dept/dashboard`,
     )
     expect(pathAfterDepartmentSwitch(`/${OLD}/dept/settings`, {}, OLD, NEW, { ...same, newIsGrossanlass: true })).toBe(

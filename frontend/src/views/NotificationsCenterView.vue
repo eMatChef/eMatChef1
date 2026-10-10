@@ -706,7 +706,7 @@ async function openGrossanlassRoundOpened(note: GrossanlassRoundOpenedNotificati
   await router.push(
     note.round_id
       ? grossanlassOpenRoundWishRoute(note.department_id, note.round_id)
-      : (note.planung_url || `/${note.department_id}/ga/planung`),
+      : (note.planung_url || `/${note.department_id}/ga/planning`),
   )
 }
 

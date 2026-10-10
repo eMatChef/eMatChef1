@@ -316,14 +316,14 @@
         hide-details="auto"
       />
       <ESelect
-        v-if="canManageStruktur"
+        v-if="canManageStruktur && showParentSelect"
         v-model="groupForm.parent_id"
         :items="parentGroupSelectItems"
         :label="t('grossanlass.planung.ressorts.parentLabel')"
         :disabled="!!fixedParentId && !editingGroup"
         hide-details
       />
-      <GrossanlassUnitSlider v-model="unitChoice" />
+      <GrossanlassUnitSlider v-model="unitChoice" :hide-bauprojekt="groupForm.kind !== 'teilbereich'" />
       <GaBuildMetaFields
         v-if="showUsageWindow"
         :department-id="departmentId"
@@ -387,7 +387,7 @@
         <EButton
           variant="primary"
           size="small"
-          :disabled="!groupForm.name.trim() || isSaving"
+          :disabled="!groupForm.name.trim() || isSaving || (creatingBereich && !groupForm.parent_id)"
           :loading="isSaving"
           @click="saveGroup"
         >
@@ -1096,9 +1096,16 @@ const availableParents = computed(() => {
   return hierarchicalGroups.value.filter((g) => !excludeIds.has(g.id))
 })
 
+/** Neu anlegen: ein Ressort hat kein Elternteil, ein Bereich gehört zu einem Ressort (Bauprojekte hängen an Bereichen). */
+const creatingRessort = computed(() => !editingGroup.value && groupForm.value.kind === 'ressort')
+const creatingBereich = computed(() => !editingGroup.value && groupForm.value.kind === 'bereich')
+const showParentSelect = computed(() => !creatingRessort.value)
+
 const parentGroupSelectItems = computed(() => [
-  { title: t('grossanlass.planung.ressorts.parentNone'), value: null },
-  ...availableParents.value.map((g) => ({
+  ...(creatingBereich.value ? [] : [{ title: t('grossanlass.planung.ressorts.parentNone'), value: null }]),
+  ...availableParents.value
+    .filter((g) => !creatingBereich.value || g.node_type !== 'bauprojekt')
+    .map((g) => ({
     title: grossanlassGroupSelectTitle(g, t('grossanlass.planung.ressorts.kindBauprojekt')),
     value: g.id,
   })),
@@ -1891,6 +1898,10 @@ watch(
   () => groupForm.value.kind,
   (kind) => {
     if (!showGroupModal.value) return
+    if (!editingGroup.value) {
+      if (kind === 'ressort') groupForm.value.parent_id = null
+      else if (kind === 'bereich' && !groupForm.value.parent_id) groupForm.value.parent_id = fixedParentId.value
+    }
     if (kind === 'teilbereich') groupForm.value.include_on_map = false
     void syncGroupMapPlacement()
   },

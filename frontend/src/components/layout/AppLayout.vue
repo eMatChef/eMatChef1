@@ -51,7 +51,7 @@
 
   <GaHelpModal />
 
-  <OnboardingTourOverlay v-if="canUseTours" />
+  <OnboardingTourOverlay v-if="canUseTours || canUseGaSetupTour" />
 </template>
 
 <script setup lang="ts">
@@ -59,6 +59,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { canUseGrossanlassSetupTour } from '@/utils/onboardingGate'
 import { useBusinessClockStore } from '@/stores/businessClock'
 import { useUnsavedChangesReminder } from '@/composables/useUnsavedChangesReminder'
 import ProfileModal from '@/components/profile/ProfileModal.vue'
@@ -109,6 +110,8 @@ useUnsavedChangesReminder()
 const drawerOpen = ref(false)
 
 const { departmentId, profileId, canUseOnboarding, canUseTours } = useDepartmentOnboardingAccess()
+/** Einrichtungs-Tour im Grossanlass: dort ist `canUseTours` (Pfadi-Touren) bewusst aus. */
+const canUseGaSetupTour = computed(() => canUseGrossanlassSetupTour(authStore, departmentId.value))
 const { showFloatingButton: showHelpShortcut, openHelp } = useHelpShortcut()
 provideGaEventPeriod()
 

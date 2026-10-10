@@ -72,10 +72,10 @@
             <router-link :to="`/${departmentId}/dept/tasks/aufgaben`"><v-icon icon="mdi-clipboard-list" size="16" /> {{ t('grossanlass.auftraege.links.tasks', { n: tasks.length }) }}</router-link>
             <ul class="links__sub"><li v-for="task in tasks" :key="task.id">{{ task.title }} · {{ taskProgress(task) }} %</li></ul>
           </li>
-          <li><router-link :to="`/${departmentId}/ga/helferpool`"><v-icon icon="mdi-account-group-outline" size="16" /> {{ t('grossanlass.auftraege.links.helpers', { assigned: staffing.assigned, need: staffing.need }) }}</router-link></li>
+          <li><router-link :to="`/${departmentId}/ga/helper-pool`"><v-icon icon="mdi-account-group-outline" size="16" /> {{ t('grossanlass.auftraege.links.helpers', { assigned: staffing.assigned, need: staffing.need }) }}</router-link></li>
           <li><router-link :to="`/${departmentId}/ga/material/pack`"><v-icon icon="mdi-package-variant-closed" size="16" /> {{ t('grossanlass.auftraege.links.pack') }}</router-link></li>
-          <li><router-link :to="`/${departmentId}/ga/material/ausgabe`"><v-icon icon="mdi-export-variant" size="16" /> {{ t('grossanlass.auftraege.links.ausgabe') }}</router-link></li>
-          <li><router-link :to="`/${departmentId}/ga/logistik/disposition`"><v-icon icon="mdi-truck-fast-outline" size="16" /> {{ t('grossanlass.auftraege.links.logistics', transport) }}</router-link></li>
+          <li><router-link :to="`/${departmentId}/ga/material/issue`"><v-icon icon="mdi-export-variant" size="16" /> {{ t('grossanlass.auftraege.links.ausgabe') }}</router-link></li>
+          <li><router-link :to="`/${departmentId}/ga/logistics/dispatch`"><v-icon icon="mdi-truck-fast-outline" size="16" /> {{ t('grossanlass.auftraege.links.logistics', transport) }}</router-link></li>
         </ul>
       </section>
 

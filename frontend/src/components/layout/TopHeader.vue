@@ -1139,7 +1139,7 @@ async function openGrossanlassRoundFromBell(note: GrossanlassRoundOpenedNotifica
   } catch {
     /* navigate anyway */
   }
-  const path = note.planung_url || `/${note.department_id}/ga/planung`
+  const path = note.planung_url || `/${note.department_id}/ga/planning`
   void router.push(
     note.round_id
       ? grossanlassOpenRoundWishRoute(note.department_id, note.round_id)

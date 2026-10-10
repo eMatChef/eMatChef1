@@ -1403,7 +1403,7 @@ function helperHeadStyle(group: GrossanlassGroup & { _level?: number }): Record<
 }
 
 function goToMeineEinsaetze() {
-  void router.push(`/${departmentId.value}/ga/meine-einsaetze`)
+  void router.push(`/${departmentId.value}/ga/my-assignments`)
 }
 
 async function loadDirectLines() {

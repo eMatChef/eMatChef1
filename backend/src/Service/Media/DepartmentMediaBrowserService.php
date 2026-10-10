@@ -435,7 +435,7 @@ class DepartmentMediaBrowserService
                 $departmentId,
                 $quote->getId(),
                 $quote->getSupplier(),
-                '/ga/beschaffung/offerten',
+                '/ga/procurement/offers',
                 [
                     'filename' => $filename,
                     'original_filename' => $filename,

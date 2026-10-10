@@ -9,7 +9,7 @@
         :description="t('grossanlass.planung.struktur.guestsOffText')"
       >
         <template #actions>
-          <router-link :to="`/${departmentId}/ga/einstellungen/stammdaten`">
+          <router-link :to="`/${departmentId}/ga/activity-settings/general`">
             {{ t('grossanlass.planung.struktur.openStammdaten') }}
           </router-link>
         </template>
@@ -51,7 +51,7 @@
         </ul>
         <p v-else class="hint">
           {{ t('grossanlass.planung.struktur.inviteEmpty') }}
-          <router-link :to="`/${departmentId}/ga/einstellungen/ressorts`">
+          <router-link :to="`/${departmentId}/ga/activity-settings/units`">
             {{ t('grossanlass.planung.struktur.openRessorts') }}
           </router-link>
         </p>

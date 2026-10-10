@@ -17,6 +17,8 @@ final class SeedResult
         public readonly int $existing = 0,
         /** @var list<string> Hinweise: Abweichungen, Konflikte, verwaiste Seed-Einträge */
         public readonly array $notes = [],
+        /** @var array<string, mixed> maschinenlesbare Details (z. B. Reset-Plan) */
+        public readonly array $data = [],
     ) {
     }
 
@@ -24,6 +26,15 @@ final class SeedResult
     public static function ok(string $message = '', int $created = 0, int $existing = 0, array $notes = []): self
     {
         return new self(self::OK, $message, $created, $existing, $notes);
+    }
+
+    /**
+     * @param list<string>         $notes
+     * @param array<string, mixed> $data
+     */
+    public static function okWithData(string $message, array $data, array $notes = [], int $created = 0, int $existing = 0): self
+    {
+        return new self(self::OK, $message, $created, $existing, $notes, $data);
     }
 
     public static function notImplemented(string $message): self

@@ -309,7 +309,7 @@ function goOfferten(supplier: string, lineId?: string) {
   const id = departmentId()
   if (!id) return
   void router.push({
-    path: `/${id}/ga/beschaffung/offerten`,
+    path: `/${id}/ga/procurement/offers`,
     query: {
       ...(supplier ? { supplier } : {}),
       ...(lineId ? { line: lineId } : {}),

@@ -4,20 +4,23 @@ import { ONBOARDING_TOURS, filterOnboardingToursForRole, getOnboardingTour } fro
 describe('Grossanlass setup tour', () => {
   const tour = getOnboardingTour('ga-setup')
 
-  it('starts with the navigation entry «Grossanlass verwalten» and leads through the three mandatory areas', () => {
+  it('explains dashboard, master data, type, areas, users and release in six steps without any required input', () => {
     expect(tour).toBeDefined()
-    expect(tour?.steps[0].target).toBe('[data-onboarding="nav-ga-verwalten"]')
+    expect(tour?.steps).toHaveLength(6)
+    expect(tour?.steps[0].target).toBe('[data-onboarding="ga-setup-panel"]')
+    // Die Tour zeigt nur: kein Schritt verlangt einen Klick auf Bedienelemente oder Eingaben.
+    expect((tour?.steps ?? []).every((step) => step.mode !== 'click' && !step.clickOnEnter && !step.typeIntoOnEnter && !step.advanceOnClick)).toBe(true)
     const targets = tour?.steps.map((step) => step.target) ?? []
-    expect(targets).toContain('[data-onboarding="ga-setup-stammdaten"]') // 1. Stammdaten
+    expect(targets).toContain('[data-onboarding="ga-setup-tab-general"]') // 1. Stammdaten
     expect(targets).toContain('[data-onboarding="ga-setup-type"]') // GA-Typ
     expect(targets).toContain('[data-onboarding="ga-setup-ressorts"]') // 2. Ressorts
-    expect(targets).toContain('[data-onboarding="settings-nav-users"]') // 3. Mitglieder
+    expect(targets).toContain('[data-onboarding="settings-user-add"]') // 3. Benutzer
     expect(targets).toContain('[data-onboarding="ga-setup-release"]') // Freigabe
   })
 
   it('points only at real UI elements that exist in the views', () => {
     // Die Anker werden in den echten Ansichten gesetzt (keine zweite Oberfläche).
-    const required = ['nav-ga-verwalten', 'ga-setup-stammdaten', 'ga-setup-type', 'ga-setup-tab-ressorts', 'ga-setup-ressorts', 'ga-setup-release']
+    const required = ['ga-setup-panel', 'ga-setup-tab-general', 'ga-setup-type', 'ga-setup-ressorts', 'settings-user-add', 'ga-setup-release']
     const selectors = (tour?.steps ?? []).map((step) => step.target ?? '')
     for (const anchor of required) {
       expect(selectors.some((selector) => selector.includes(anchor)), anchor).toBe(true)

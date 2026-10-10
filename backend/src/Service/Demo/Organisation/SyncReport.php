@@ -12,6 +12,9 @@ final class SyncReport
     public int $adopted = 0;
     public int $recreated = 0;
     public int $retired = 0;
+    /** Reset-Modus: manuell geänderte Werte, die auf den Katalog zurückgesetzt wurden («Seed-Schlüssel (Feld, …)»). */
+    /** @var list<string> */
+    public array $restored = [];
 
     /** @var list<string> */
     public array $divergences = [];
@@ -29,6 +32,9 @@ final class SyncReport
         foreach ($this->divergences as $d) {
             $notes[] = 'Abweichung (manuell geändert, nicht überschrieben): ' . $d;
         }
+        foreach ($this->restored as $r) {
+            $notes[] = \App\Service\Demo\Reset\DemoSetupResetter::RESTORED_PREFIX . $r;
+        }
         foreach ($this->conflicts as $c) {
             $notes[] = 'Konflikt (nicht übernommen): ' . $c;
         }
@@ -45,9 +51,9 @@ final class SyncReport
     public function summary(): string
     {
         return sprintf(
-            'neu %d, aktualisiert %d, übernommen %d, neu angelegt %d, unverändert %d, entfernt %d, Abweichungen %d, Konflikte %d, verwaist %d',
+            'neu %d, aktualisiert %d, übernommen %d, neu angelegt %d, unverändert %d, entfernt %d, zurückgesetzt %d, Abweichungen %d, Konflikte %d, verwaist %d',
             $this->created, $this->updated, $this->adopted, $this->recreated, $this->unchanged, $this->retired,
-            \count($this->divergences), \count($this->conflicts), \count($this->orphans),
+            \count($this->restored), \count($this->divergences), \count($this->conflicts), \count($this->orphans),
         );
     }
 }
