@@ -17,19 +17,26 @@ final class MiDataOAuthState
     ) {}
 
     /**
+     * Link-Flow: $linkUserId und $sessionId binden den Callback an den eingeloggten User und dessen Sitzung;
+     * $profileLink kennzeichnet das reine Verbinden aus Profil → Sicherheit (kein Onboarding/Import im Callback).
+     *
      * @return array{token: string, cookieValue: string, nonce: string, codeVerifier: string}
      */
-    public function issue(?string $redirectPath, ?string $linkUserId = null): array
+    public function issue(?string $redirectPath, ?string $linkUserId = null, ?string $sessionId = null, bool $profileLink = false): array
     {
         $state = bin2hex(random_bytes(32));
         $nonce = bin2hex(random_bytes(32));
         $codeVerifier = $this->base64UrlEncode(random_bytes(32));
+        $intent = $profileLink ? AuthIntent::LINK_IDENTITY : AuthIntent::fromRedirect($redirectPath);
         $payload = json_encode([
+            'intent' => $intent->value,
             'state' => $state,
             'nonce' => $nonce,
             'verifier' => $codeVerifier,
             'redirect' => $redirectPath,
             'link_user_id' => $linkUserId,
+            'sid' => $sessionId,
+            'profile_link' => $profileLink,
             'exp' => time() + self::TTL_SECONDS,
         ], JSON_THROW_ON_ERROR);
 
@@ -42,7 +49,7 @@ final class MiDataOAuthState
     }
 
     /**
-     * @return array{nonce: string, code_verifier: string, redirect: string, link_user_id: ?string}|null
+     * @return array{nonce: string, code_verifier: string, redirect: string, link_user_id: ?string, session_id: ?string, profile_link: bool, intent: AuthIntent}|null
      */
     public function verify(string $cookieValue, string $returnedState): ?array
     {
@@ -72,6 +79,7 @@ final class MiDataOAuthState
         $expiresAt = $data['exp'] ?? null;
         $redirect = $data['redirect'] ?? null;
         $linkUserId = $data['link_user_id'] ?? null;
+        $sessionId = $data['sid'] ?? null;
 
         if (
             !is_string($state)
@@ -82,6 +90,7 @@ final class MiDataOAuthState
             || (int) $expiresAt < time()
             || ($redirect !== null && !is_string($redirect))
             || ($linkUserId !== null && !is_string($linkUserId))
+            || ($sessionId !== null && !is_string($sessionId))
         ) {
             return null;
         }
@@ -91,27 +100,15 @@ final class MiDataOAuthState
             'code_verifier' => $verifier,
             'redirect' => $redirect ?? '',
             'link_user_id' => $linkUserId,
+            'session_id' => $sessionId,
+            'profile_link' => ($data['profile_link'] ?? false) === true,
+            'intent' => AuthIntent::tryFrom((string) ($data['intent'] ?? '')) ?? AuthIntent::fromRedirect($redirect),
         ];
     }
 
     public function sanitizeRedirect(?string $path): ?string
     {
-        if ($path === null) {
-            return null;
-        }
-
-        $path = trim($path);
-        if ($path === '' || !str_starts_with($path, '/') || str_starts_with($path, '//')) {
-            return null;
-        }
-        if (str_contains($path, '\\') || str_contains($path, "\n") || str_contains($path, "\r")) {
-            return null;
-        }
-        if (preg_match('#^[a-zA-Z][a-zA-Z0-9+.-]*:#', $path) === 1) {
-            return null;
-        }
-
-        return $path;
+        return AuthIntent::sanitizeRedirect($path);
     }
 
     public function extractDepartmentJoinCodeIntent(string $redirect): ?string

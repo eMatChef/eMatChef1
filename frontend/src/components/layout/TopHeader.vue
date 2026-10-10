@@ -786,6 +786,7 @@ import {
   USER_ADDRESS_TYPE,
 } from '@/utils/profileUserAddress'
 import { useToast } from '../../composables/useToast'
+import { takeExternalIdentityLinkResult } from '@/api/profileSecurity'
 import { useConfirm } from '../../composables/useConfirm'
 import { useUnsavedLeaveGuard } from '../../composables/useUnsavedLeaveGuard'
 import {
@@ -2300,9 +2301,74 @@ function startNotificationsPolling() {
   }, 60_000)
 }
 
+/**
+ * Rückweg aus dem OAuth-Link-Flow (Google/MiData): ?profile_security=1&oauth=linked|error&provider=…&reason=…
+ * Profil → Sicherheit öffnen, Ergebnis melden, Parameter entfernen. Ohne das Profil neu zu laden.
+ */
+async function handleProfileSecurityReturn() {
+  const query = route.query
+  // MiData-Link aus Onboarding/Gruppenimport wurde von der Sicherheitsregel abgelehnt (Step-up bzw. neu anmelden nötig).
+  const denied = typeof query.reason === 'string' ? query.reason : ''
+  if (
+    query.profile_security !== '1' &&
+    query.oauth === 'error' &&
+    query.provider === 'midata' &&
+    ['reauth_required', 'step_up_required', 'mfa_required'].includes(denied)
+  ) {
+    const { oauth: _o, provider: _p, reason: _r, ...others } = query
+    void _o
+    void _p
+    void _r
+    await router.replace({ path: route.path, query: others, hash: route.hash })
+    toast.error(t(`layout.profileModal.externalIdentities.errors.${denied}`))
+    return
+  }
+  if (query.profile_security !== '1') return
+  // Die URL ist nur ein Hinweis: Erfolg/Fehler holt die App vom Server (einmalig, an die Sitzung gebunden).
+  // Ohne serverseitiges Ergebnis (präparierte URL, Neuladen, normaler Login) passiert nichts, das Profil bleibt zu.
+  const { profile_security: _ps, oauth: _po, provider: _pp, reason: _pr, ...rest } = query
+  void _ps
+  void _po
+  void _pp
+  void _pr
+  await router.replace({ path: route.path, query: rest, hash: route.hash })
+  // Nach dem Rücksprung lädt die App neu: erst abfragen, wenn das Profil geladen ist.
+  if (!authStore.profile) {
+    await new Promise<void>((resolve) => {
+      const stop = watch(
+        () => authStore.profile,
+        (profile) => {
+          if (profile) {
+            stop()
+            resolve()
+          }
+        },
+        { immediate: true },
+      )
+    })
+  }
+  const profileId = authStore.profileId || authStore.profile?.id || ''
+  let result: Awaited<ReturnType<typeof takeExternalIdentityLinkResult>> = null
+  try {
+    result = profileId ? await takeExternalIdentityLinkResult(profileId) : null
+  } catch {
+    result = null
+  }
+  if (!result) return
+  openProfileSecurity()
+  await nextTick()
+  window.dispatchEvent(
+    new CustomEvent('emc-profile-security-link-result', {
+      detail: { status: result.status, reason: result.reason, provider: result.provider },
+    }),
+  )
+  if (result.status === 'linked') toast.success(t('layout.profileModal.externalIdentities.linkedToast'))
+}
+
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
   window.addEventListener('emc-open-profile-security', openProfileSecurity)
+  void handleProfileSecurityReturn()
   void loadDepartmentInvites()
   startNotificationsPolling()
 })

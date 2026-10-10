@@ -48,6 +48,7 @@ import {
 import { gaHomePath, gaResolveHomePath } from '@/utils/grossanlassHome'
 import { resolveVerwaltungLandingPath } from '@/utils/verwaltungNavigation'
 import { isMiDataOnboardingLanding } from '@/utils/midataOnboarding'
+import { carryOAuthReturnParams } from '@/utils/oauthReturnParams'
 
 /** Login-Redirect ohne Tour-Query (sonst nach Relogin Tour-URL statt Dashboard). */
 function loginAuthRedirectQuery(fullPath: string): Record<string, string> {
@@ -55,7 +56,7 @@ function loginAuthRedirectQuery(fullPath: string): Record<string, string> {
   return target ? { redirect: target } : {}
 }
 
-/** Einladungslink bleibt auf /pending-assignment, auch wenn schon ein Department da ist. */
+/** Einladungslink und QR-/Join-Code-Link bleiben auf /pending-assignment, auch wenn schon ein Department da ist. */
 function departmentInviteLandingPath(to: RouteLocationNormalized): string | null {
   const rawRedirect = typeof to.query.redirect === 'string' ? to.query.redirect : ''
   const candidate = to.path === '/pending-assignment'
@@ -66,7 +67,8 @@ function departmentInviteLandingPath(to: RouteLocationNormalized): string | null
     const url = new URL(candidate, 'https://local.invalid')
     const inviteId = (url.searchParams.get('invite_id') || '').trim()
     const departmentId = (url.searchParams.get('department_id') || '').trim()
-    if (!inviteId || !departmentId) return null
+    const joinCode = (url.searchParams.get('join_code') || '').trim()
+    if (!joinCode && (!inviteId || !departmentId)) return null
     return candidate
   } catch {
     return null
@@ -2507,7 +2509,9 @@ async function handleAppOriginRouting(
 }
 
 // Navigation Guard
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to, from, nextRaw) => {
+  // Rückweg aus dem Identitäts-Verknüpfen übersteht Redirects dieser Navigation (siehe oauthReturnParams).
+  const next = carryOAuthReturnParams(to, nextRaw)
   if (applyQrHostRedirects(to)) {
     return next(false)
   }

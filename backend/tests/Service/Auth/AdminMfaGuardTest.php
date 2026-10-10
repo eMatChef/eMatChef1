@@ -224,6 +224,56 @@ final class AdminMfaGuardTest extends TestCase
         self::assertNull($again->getResponse());
     }
 
+    public function testSensitiveSelfActionNeedsFreshStepUpForTotpUsers(): void
+    {
+        $user = $this->user([]);
+        $session = $this->session($user);
+
+        self::assertSame(AdminMfaGuard::STEP_UP_REQUIRED, $this->guard->denialReason($user, $session, AdminMfaPolicy::LEVEL_SELF_SENSITIVE));
+        self::assertSame(AdminMfaGuard::STEP_UP_REQUIRED, $this->guard->denialReason($user, null, AdminMfaPolicy::LEVEL_SELF_SENSITIVE));
+        $session->markStepUp();
+        self::assertNull($this->guard->denialReason($user, $session, AdminMfaPolicy::LEVEL_SELF_SENSITIVE));
+    }
+
+    public function testSensitiveSelfActionWithoutTotpNeedsARecentLoginOfTheSession(): void
+    {
+        $this->totpEnabled = false;
+        $user = $this->user([]);
+
+        self::assertNull($this->guard->denialReason($user, $this->session($user), AdminMfaPolicy::LEVEL_SELF_SENSITIVE), 'frisch angemeldet');
+        $later = (new \DateTime())->modify('+' . (AdminMfaGuard::RECENT_LOGIN_SECONDS + 5) . ' seconds');
+        self::assertSame(AdminMfaGuard::REAUTH_REQUIRED, $this->guard->denialReason($user, $this->session($user), AdminMfaPolicy::LEVEL_SELF_SENSITIVE, $later));
+        self::assertSame(AdminMfaGuard::REAUTH_REQUIRED, $this->guard->denialReason($user, null, AdminMfaPolicy::LEVEL_SELF_SENSITIVE), 'Sitzung ohne sid');
+        $legacy = new UserSession($user, AuthMethod::LEGACY, null);
+        self::assertSame(AdminMfaGuard::REAUTH_REQUIRED, $this->guard->denialReason($user, $legacy, AdminMfaPolicy::LEVEL_SELF_SENSITIVE), 'Legacy-Übernahme gilt nie als frisch');
+    }
+
+    public function testSensitiveSelfActionForAdminsFollowsTheStepUpRules(): void
+    {
+        $admin = $this->user(['ROLE_ORGANISATIONSCHEF']);
+        $session = $this->session($admin, true);
+
+        self::assertSame(AdminMfaGuard::STEP_UP_REQUIRED, $this->guard->denialReason($admin, $session, AdminMfaPolicy::LEVEL_SELF_SENSITIVE));
+        $this->totpEnabled = false;
+        self::assertSame(AdminMfaGuard::MFA_SETUP_REQUIRED, $this->guard->denialReason($admin, $session, AdminMfaPolicy::LEVEL_SELF_SENSITIVE));
+    }
+
+    public function testSubscriberAnswersReauthRequiredAs403BeforeTheLinkStartRuns(): void
+    {
+        $this->totpEnabled = false;
+        $user = $this->user([]);
+        $stale = new UserSession($user, AuthMethod::LEGACY, null);
+        $current = new CurrentAuthSession();
+        $current->setAuthenticated($stale);
+        $event = $this->event('POST', '/api/auth/link/google');
+
+        $this->subscriber($user, $current)->onRequest($event);
+
+        self::assertInstanceOf(JsonResponse::class, $event->getResponse());
+        self::assertSame(403, $event->getResponse()->getStatusCode());
+        self::assertSame('reauth_required', json_decode((string) $event->getResponse()->getContent(), true)['error']);
+    }
+
     private function subscriber(User $user, CurrentAuthSession $current): AdminMfaGuardSubscriber
     {
         $storage = new TokenStorage();

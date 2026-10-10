@@ -453,7 +453,7 @@
           </EButton>
 
           <EButton
-            v-if="inviteFlowActive && inviteEmailLabel"
+            v-if="inviteFlowActive"
             type="button"
             variant="secondary"
             block
@@ -880,6 +880,9 @@ function oauthErrorMessage(reason: string, provider: string): string {
     email_conflict: `${prefix}EmailConflict`,
     link_conflict: `${prefix}LinkConflict`,
     inactive: `${prefix}Inactive`,
+    session_expired: `${prefix}SessionExpired`,
+    session_mismatch: `${prefix}SessionMismatch`,
+    additional_account: 'login.midataOauthAdditionalAccount',
     failed: `${prefix}Failed`,
   }
   return t(keys[reason] || `${prefix}Failed`)

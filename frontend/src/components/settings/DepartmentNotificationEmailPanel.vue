@@ -66,6 +66,8 @@ async function onChange(value: unknown) {
   try {
     data.value = await setDepartmentNotificationEmail(props.departmentId, value === PRIMARY ? null : value)
     toast.success(t('settings.myDepartment.notificationEmail.saved', { email: data.value.effective_email }))
+    // Profil → Sicherheit zeigt dieselbe Zuordnung: dort sofort nachziehen.
+    window.dispatchEvent(new CustomEvent('emc-profile-emails-changed', { detail: { source: 'department-panel' } }))
   } catch (e: unknown) {
     toast.error(errorMessage(e, t('settings.myDepartment.notificationEmail.saveError')))
     await load()
@@ -77,7 +79,10 @@ async function onChange(value: unknown) {
 watch(() => props.departmentId, () => void load(), { immediate: true })
 
 // Profil → Sicherheit hat Adressen geändert (Hauptadresse/zusätzliche): Auswahl und Anzeige neu laden.
-const reload = () => void load()
+const reload = (event: Event) => {
+  if ((event as CustomEvent<{ source?: string }>).detail?.source === 'department-panel') return
+  void load()
+}
 onMounted(() => window.addEventListener('emc-profile-emails-changed', reload))
 onUnmounted(() => window.removeEventListener('emc-profile-emails-changed', reload))
 </script>

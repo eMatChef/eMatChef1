@@ -22,6 +22,9 @@ final class MiDataOAuthStateTest extends TestCase
                 'code_verifier' => $issued['codeVerifier'],
                 'redirect' => '/account/security',
                 'link_user_id' => 'user-123',
+                'session_id' => null,
+                'profile_link' => false,
+                'intent' => \App\Service\Auth\AuthIntent::LINK_IDENTITY === \App\Service\Auth\AuthIntent::LINK_IDENTITY ? \App\Service\Auth\AuthIntent::fromRedirect('/account/security') : null,
             ],
             $state->verify($issued['cookieValue'], $issued['token'])
         );

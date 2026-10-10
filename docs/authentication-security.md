@@ -570,5 +570,6 @@ Der Admin-Endpoint `PATCH /api/users/{id}/admin` lehnt E-Mail-Änderungen für u
 ## Offene Folgeaufgaben (Profil → Sicherheit)
 
 - **Server-Cron fehlt:** `app:security-activity:purge-context` (IP/User-Agent nach 90 Tagen leeren) ist dokumentiert (`deploy/SERVER-UPDATE.md`), aber auf Staging/Prod noch nicht eingerichtet.
-- **Google Link/Unlink:** Es gibt nur die Statusanzeige. Ein Link-Flow für eingeloggte User und ein Unlink (mit Schutz der letzten Login-Methode, Step-up für Admins, Audit) sind noch zu bauen. Keine automatische Zusammenführung über E-Mail.
+- **Google Link/Unlink:** umgesetzt (siehe `ARCHITECTURE.md`, «Verknüpfte Anmeldungen»); Praxistests gegen echtes Google/MiData stehen aus (mehrere Konten pro Anbieter, Abbruch, Konflikt, Rückkehr ins Profil).
+- **Microsoft:** erst nach Implementierung in `ExternalIdentityService::PROVIDERS` und den Link-Controllern aufnehmen; die Policy-Route `POST /api/auth/link/{provider}` ist dafür zu erweitern.
 - **`TRUSTED_PROXIES` einengen:** In den Server-Overrides steht `172.16.0.0/12`; nach dem Deploy auf das exakte Compose-Netz (`docker network inspect <projekt>_default`) reduzieren.

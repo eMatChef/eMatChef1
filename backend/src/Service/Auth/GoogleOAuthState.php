@@ -20,22 +20,40 @@ final class GoogleOAuthState
     ) {}
 
     /**
-     * @return array{token: string, cookieValue: string}
+     * Link-Flow: $linkUserId und $sessionId binden den Callback an den eingeloggten User und dessen Sitzung.
+     *
+     * @return array{token: string, cookieValue: string, nonce: string, codeVerifier: string}
      */
-    public function issue(?string $redirectPath): array
+    public function issue(?string $redirectPath, ?string $linkUserId = null, ?string $sessionId = null): array
     {
         $nonce = bin2hex(random_bytes(16));
+        $oidcNonce = bin2hex(random_bytes(32));
+        $codeVerifier = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+        $intent = $linkUserId !== null ? AuthIntent::LINK_IDENTITY : AuthIntent::fromRedirect($redirectPath);
         $payload = json_encode([
             'n' => $nonce,
             'r' => $redirectPath,
+            'intent' => $intent->value,
+            'oidc' => $oidcNonce,
+            'v' => $codeVerifier,
+            'link' => $linkUserId,
+            'sid' => $sessionId,
             'exp' => time() + self::TTL_SECONDS,
         ], JSON_THROW_ON_ERROR);
         $cookieValue = $this->encode($payload);
 
-        return ['token' => $nonce, 'cookieValue' => $cookieValue];
+        return ['token' => $nonce, 'cookieValue' => $cookieValue, 'nonce' => $oidcNonce, 'codeVerifier' => $codeVerifier];
     }
 
     public function verify(string $cookieValue, string $returnedState): ?string
+    {
+        return $this->verifyDetailed($cookieValue, $returnedState)['redirect'] ?? null;
+    }
+
+    /**
+     * @return array{redirect: string, nonce: string, code_verifier: string, link_user_id: ?string, session_id: ?string, intent: AuthIntent}|null
+     */
+    public function verifyDetailed(string $cookieValue, string $returnedState): ?array
     {
         $parts = explode('.', $cookieValue, 2);
         if (count($parts) !== 2) {
@@ -66,27 +84,22 @@ final class GoogleOAuthState
             return null;
         }
         $redirect = $data['r'] ?? null;
+        $link = $data['link'] ?? null;
+        $sid = $data['sid'] ?? null;
 
-        return is_string($redirect) && $redirect !== '' ? $redirect : '';
+        return [
+            'redirect' => is_string($redirect) && $redirect !== '' ? $redirect : '',
+            'nonce' => is_string($data['oidc'] ?? null) ? $data['oidc'] : '',
+            'code_verifier' => is_string($data['v'] ?? null) ? $data['v'] : '',
+            'link_user_id' => is_string($link) && $link !== '' ? $link : null,
+            'session_id' => is_string($sid) && $sid !== '' ? $sid : null,
+            'intent' => AuthIntent::tryFrom((string) ($data['intent'] ?? '')) ?? AuthIntent::fromRedirect(is_string($redirect) ? $redirect : null),
+        ];
     }
 
     public function sanitizeRedirect(?string $path): ?string
     {
-        if ($path === null) {
-            return null;
-        }
-        $path = trim($path);
-        if ($path === '' || !str_starts_with($path, '/') || str_starts_with($path, '//')) {
-            return null;
-        }
-        if (str_contains($path, '\\') || str_contains($path, "\n") || str_contains($path, "\r")) {
-            return null;
-        }
-        if (preg_match('#^[a-zA-Z][a-zA-Z0-9+.-]*:#', $path) === 1) {
-            return null;
-        }
-
-        return $path;
+        return AuthIntent::sanitizeRedirect($path);
     }
 
     private function encode(string $payload): string

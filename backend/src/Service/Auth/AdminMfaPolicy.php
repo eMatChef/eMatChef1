@@ -30,6 +30,13 @@ final class AdminMfaPolicy
     public const LEVEL_SELF_STEP_UP = 'self_step_up';
 
     /**
+     * Identitäten verbinden/trennen: frisches Step-up für jeden User mit aktivem TOTP; ohne TOTP eine kürzlich
+     * erfolgte Anmeldung dieser Sitzung (Reauthentifizierung, siehe AdminMfaGuard::RECENT_LOGIN_SECONDS).
+     * Für globale Admins gilt wie LEVEL_STEP_UP.
+     */
+    public const LEVEL_SELF_SENSITIVE = 'self_sensitive';
+
+    /**
      * @var list<array{methods: list<string>|null, pattern: string, level: string, bodyKeys?: list<string>}>
      */
     private const RULES = [
@@ -44,6 +51,10 @@ final class AdminMfaPolicy
         // Eigenes Konto: andere Sitzungen beenden (einzeln oder alle)
         ['methods' => ['POST'], 'pattern' => '#^/api/profiles/[^/]+/security/sessions/revoke-others$#', 'level' => self::LEVEL_SELF_STEP_UP],
         ['methods' => ['DELETE'], 'pattern' => '#^/api/profiles/[^/]+/security/sessions/[^/]+$#', 'level' => self::LEVEL_SELF_STEP_UP],
+
+        // Eigenes Konto: externe Login-Identitäten verbinden (Start des OAuth-Link-Flows) und trennen
+        ['methods' => ['POST'], 'pattern' => '#^/api/auth/link/(google|midata)$#', 'level' => self::LEVEL_SELF_SENSITIVE],
+        ['methods' => ['DELETE'], 'pattern' => '#^/api/profiles/[^/]+/security/external-identities/[^/]+$#', 'level' => self::LEVEL_SELF_SENSITIVE],
 
         // Adminfunktionen
         ['methods' => null, 'pattern' => '#^/api/admin/#', 'level' => self::LEVEL_ADMIN],

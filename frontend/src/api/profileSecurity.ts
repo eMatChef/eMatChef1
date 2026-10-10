@@ -108,22 +108,66 @@ export async function getSecurityActivity(
 }
 
 export type ExternalIdentitySummary = {
+  id: string
   provider: string
   label: string
+  /** Name laut Anbieter (kann bei älteren Verbindungen fehlen) */
+  display_name: string | null
+  /** Anbieter-E-Mail, nur zur Anzeige – nie eine eMatChef-Adresse */
+  email: string | null
+  /** Kurzer Hinweis zur Unterscheidung mehrerer Konten, z. B. «…a1b2» */
+  external_id_hint: string
   linked_at: string
   can_disconnect: boolean
 }
 
-export async function getExternalIdentities(profileId: string): Promise<ExternalIdentitySummary[]> {
-  const { data } = await apiClient.get<{ identities: ExternalIdentitySummary[] }>(
-    `/api/profiles/${profileId}/security/external-identities`,
-  )
-  return data.identities
+export type LinkProvider = {
+  provider: string
+  label: string
+  configured: boolean
 }
 
-export async function disconnectExternalIdentity(profileId: string, provider: string): Promise<ExternalIdentitySummary[]> {
-  const { data } = await apiClient.delete<{ identities: ExternalIdentitySummary[] }>(
-    `/api/profiles/${profileId}/security/external-identities/${encodeURIComponent(provider)}`,
+export type ExternalIdentities = {
+  identities: ExternalIdentitySummary[]
+  providers: LinkProvider[]
+}
+
+export async function getExternalIdentities(profileId: string): Promise<ExternalIdentities> {
+  const { data } = await apiClient.get<ExternalIdentities>(`${base(profileId)}/external-identities`)
+  return data
+}
+
+/** Trennt genau eine Verbindung. Step-up greift global (Backend: step_up_required → Dialog + Retry). */
+export async function disconnectExternalIdentity(profileId: string, identityId: string): Promise<ExternalIdentities> {
+  const { data } = await apiClient.delete<ExternalIdentities>(
+    `${base(profileId)}/external-identities/${encodeURIComponent(identityId)}`,
   )
-  return data.identities
+  return data
+}
+
+/**
+ * Startet den OAuth-Link-Flow für den angemeldeten User und liefert die Anbieter-URL (State an User und Sitzung gebunden).
+ * Step-up/Reauthentifizierung erzwingt das Backend vor diesem Aufruf; anschliessend navigiert der Browser dorthin.
+ */
+export async function startExternalIdentityLink(provider: string, redirect: string): Promise<string> {
+  const { data } = await apiClient.post<{ authorization_url: string }>(
+    `/api/auth/link/${encodeURIComponent(provider)}`,
+    { redirect },
+  )
+  return data.authorization_url
+}
+
+export type LinkResult = {
+  provider: string
+  status: 'linked' | 'error'
+  reason: string | null
+}
+
+/**
+ * Ergebnis des zuletzt gestarteten Verknüpfens dieser Sitzung (genau einmal abrufbar; null ohne Ergebnis).
+ * Nur wenn der Server ein Ergebnis hat, öffnet die App nach dem Rückweg Profil → Sicherheit.
+ */
+export async function takeExternalIdentityLinkResult(profileId: string): Promise<LinkResult | null> {
+  const { data } = await apiClient.get<{ result: LinkResult | null }>(`${base(profileId)}/external-identities/link-result`)
+  return data.result
 }

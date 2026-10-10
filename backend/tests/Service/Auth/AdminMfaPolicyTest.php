@@ -40,6 +40,11 @@ final class AdminMfaPolicyTest extends TestCase
         yield 'listing sessions is a normal function' => ['GET', '/api/profiles/p1/security/sessions', '', null];
         yield 'revoking one session needs self step-up' => ['DELETE', '/api/profiles/p1/security/sessions/abc', '', AdminMfaPolicy::LEVEL_SELF_STEP_UP];
         yield 'revoking trust is normal' => ['DELETE', '/api/profiles/p1/security/trusted-devices/d1', '', null];
+        yield 'start linking Google needs sensitive-self level' => ['POST', '/api/auth/link/google', '', AdminMfaPolicy::LEVEL_SELF_SENSITIVE];
+        yield 'start linking MiData needs sensitive-self level' => ['POST', '/api/auth/link/midata', '', AdminMfaPolicy::LEVEL_SELF_SENSITIVE];
+        yield 'unlinking an identity needs sensitive-self level' => ['DELETE', '/api/profiles/p1/security/external-identities/idn1', '', AdminMfaPolicy::LEVEL_SELF_SENSITIVE];
+        yield 'listing identities is a normal function' => ['GET', '/api/profiles/p1/security/external-identities', '', null];
+        yield 'google callback is not step-up gated' => ['GET', '/api/auth/google/callback', '', null];
         yield 'reserved admin 2FA reset path' => ['POST', '/api/admin/security/users/u1/totp-reset', '', AdminMfaPolicy::LEVEL_STEP_UP];
     }
 

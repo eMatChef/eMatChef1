@@ -24,6 +24,7 @@ final class AdminMfaGuardSubscriber implements EventSubscriberInterface
         AdminMfaGuard::MFA_SETUP_REQUIRED => 'Für administrative Funktionen musst du zuerst die Zwei-Faktor-Authentifizierung einrichten.',
         AdminMfaGuard::MFA_REQUIRED => 'Bestätige diese Sitzung mit der Zwei-Faktor-Authentifizierung.',
         AdminMfaGuard::STEP_UP_REQUIRED => 'Für diese Aktion ist eine erneute Sicherheitsbestätigung nötig.',
+        AdminMfaGuard::REAUTH_REQUIRED => 'Re-authentication required for this action.',
     ];
 
     public function __construct(

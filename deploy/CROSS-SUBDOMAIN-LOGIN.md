@@ -119,3 +119,20 @@ Relevante Pfade:
 
 Prod: AUTH_COOKIE_DOMAIN=.ematchef.ch, AUTH_COOKIE_SECURE=1; HTTPS; CORS_ALLOW_ORIGIN alle HTTPS-Frontends inkl. qr.* und devices.*; nach Deploy cache:clear.
 ```
+
+
+## OAuth-Callback und BEARER-Cookie (Google/MiData verknüpfen)
+
+Der Link-Callback (`/api/auth/google/callback`, `/api/auth/midata/callback`) läuft in einer Firewall mit `security: false`; `OAuthCallbackSessionResolver` liest das BEARER-Cookie deshalb selbst. Voraussetzungen (alle aus der Konfiguration ableitbar, in Prod nach dem Deploy zu prüfen):
+
+| Merkmal | Soll | Quelle |
+| --- | --- | --- |
+| Domain | `AUTH_COOKIE_DOMAIN=.ematchef.ch` deckt `app.`, `staging.`, `dev.` und `api.`; keine Erweiterung nötig | `lexik_jwt_authentication.yaml` (`set_cookies.BEARER.domain`) |
+| Path | `/` | ebenda |
+| Secure | `AUTH_COOKIE_SECURE=1`, nur HTTPS (Caddy terminiert TLS) | Compose-Overrides |
+| SameSite | `Lax`: wird bei der Rückkehr von `accounts.google.com`/`db.scout.ch` (Top-Level-GET) mitgesendet; `Strict` würde das brechen | ebenda |
+| Callback-Host | `GOOGLE_OAUTH_REDIRECT_URI`/`MIDATA_OAUTH_REDIRECT_URI` leer = `APP_FRONTEND_URL + /api/auth/…/callback` (Caddy leitet `/api*` an das Backend); bei eigener Redirect-URI muss der Host unter der Cookie-Domain liegen | `GoogleOAuthClient`, `HitobitoOAuthClient` |
+| State-Cookie | `emat_google_oauth_state` / `emat_midata_oauth_state`, HttpOnly, SameSite Lax, gleiche Domain/Secure-Werte, 10 min; wird beim Start per XHR gesetzt (API-Antwort mit Credentials) | beide OAuth-Controller |
+| JWT-Lebensdauer | 3600 s; ein abgelaufenes JWT im Callback führt zu `/login?oauth=error&reason=session_expired`, es wird nichts verknüpft | `OAuthCallbackSessionResolver` |
+
+Praxisprüfung nach dem Deploy (Staging/Prod): 1) DevTools → Application → Cookies: `BEARER` mit Domain `.ematchef.ch`, Secure, HttpOnly, SameSite Lax. 2) Profil → Sicherheit → «+ Konto verbinden mit …» → Google: Rückkehr ins Profil mit Ergebnis. 3) Dieselbe Prüfung für MiData. 4) Link-Start abbrechen und nach über einer Stunde Inaktivität wiederholen: Weiterleitung zur Anmeldung mit verständlicher Meldung. 5) Prüfen, dass der Browser das State-Cookie nach dem Start behält (Set-Cookie der POST-Antwort nicht blockiert, sonst `invalid_state`).

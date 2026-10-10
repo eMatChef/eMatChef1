@@ -58,6 +58,7 @@ class SecurityActivityService
         'membership_created' => 'role',
         'membership_role_changed' => 'role',
         'membership_removed' => 'role',
+        'membership_notification_email_changed' => null,
     ];
 
     /** Aktionen, bei denen die MFA-Quelle aus dem Ereignistyp selbst folgt. */
@@ -112,7 +113,7 @@ class SecurityActivityService
 
         if ($action !== null) {
             if (!self::isSecurityAction($action)) {
-                throw new \InvalidArgumentException('Ungültiger Ereignistyp');
+                throw new \InvalidArgumentException('invalid_event_type');
             }
             $qb->andWhere('e.action = :action')->setParameter('action', $action);
         }
@@ -286,10 +287,10 @@ class SecurityActivityService
     {
         $raw = base64_decode(strtr($cursor, '-_', '+/'), true);
         if ($raw === false || preg_match('/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\|([A-Za-z0-9]{1,13})$/', $raw, $m) !== 1) {
-            throw new \InvalidArgumentException('Ungültiger Cursor');
+            throw new \InvalidArgumentException('invalid_cursor');
         }
         $at = \DateTime::createFromFormat('Y-m-d H:i:s', $m[1]);
 
-        return $at === false ? throw new \InvalidArgumentException('Ungültiger Cursor') : ['at' => $at, 'id' => $m[2]];
+        return $at === false ? throw new \InvalidArgumentException('invalid_cursor') : ['at' => $at, 'id' => $m[2]];
     }
 }

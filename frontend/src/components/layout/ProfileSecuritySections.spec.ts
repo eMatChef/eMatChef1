@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp, nextTick, type Component } from 'vue'
 import { createI18n } from 'vue-i18n'
 import de from '@/locales/de.json'
@@ -14,13 +14,13 @@ const api = vi.hoisted(() => ({
   getSecurityActivity: vi.fn(),
   getExternalIdentities: vi.fn(),
   disconnectExternalIdentity: vi.fn(),
+  startExternalIdentityLink: vi.fn(),
 }))
-const authApi = vi.hoisted(() => ({ midataLinkStartUrl: vi.fn((path?: string) => `https://api.test/api/auth/link/midata?redirect=${path}`) }))
-vi.mock('@/api/auth', () => authApi)
+const confirmAnswer = vi.hoisted(() => ({ value: true }))
 vi.mock('@/api/profileSecurity', () => api)
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ profileId: 'p1', profile: { id: 'p1' } }) }))
 vi.mock('@/composables/useToast', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }))
-vi.mock('@/composables/useConfirm', () => ({ useConfirm: () => ({ confirm: async () => true }) }))
+vi.mock('@/composables/useConfirm', () => ({ useConfirm: () => ({ confirm: async () => confirmAnswer.value }) }))
 vi.mock('@/components/form/base', () => ({
   EDialog: {
     props: ['modelValue', 'title'],
@@ -64,10 +64,15 @@ const session = (over: Record<string, unknown>) => ({
   ...over,
 })
 
+const mountedApps: ReturnType<typeof createApp>[] = []
+afterEach(() => mountedApps.splice(0).forEach((app) => app.unmount()))
+
 async function mount(component: Component, locale = 'de') {
   const el = document.createElement('div')
   const i18n = createI18n({ legacy: false, locale, fallbackLocale: 'de', messages: { de, en } as never })
-  createApp(component, { open: true }).use(i18n).mount(el)
+  const app = createApp(component, { open: true }).use(i18n)
+  mountedApps.push(app)
+  app.mount(el)
   await new Promise((r) => setTimeout(r, 0))
   await nextTick()
   return el
@@ -357,56 +362,164 @@ describe('Profile security: compact list and full log modal', () => {
 
 describe('Profile security: linked sign-ins', () => {
   const identity = (over: Record<string, unknown>) => ({
+    id: 'idn1',
     provider: 'midata',
-    label: 'MiData',
+    label: 'MiData / db.scout.ch',
+    display_name: 'Anna Muster',
+    email: 'anna@midata.test',
+    external_id_hint: '…a1b2',
     linked_at: '2026-10-01T10:00:00+00:00',
     can_disconnect: true,
     ...over,
   })
+  const providers = [
+    { provider: 'google', label: 'Google', configured: true },
+    { provider: 'midata', label: 'MiData / db.scout.ch', configured: true },
+  ]
 
   beforeEach(() => {
     api.getExternalIdentities.mockReset()
     api.disconnectExternalIdentity.mockReset()
+    api.startExternalIdentityLink.mockReset()
   })
 
-  it('always lists Google and MiData with their link state', async () => {
-    api.getExternalIdentities.mockResolvedValue([identity({ provider: 'google', label: 'Google', can_disconnect: false })])
+  it('shows only actually linked identities, no permanent "not connected" rows', async () => {
+    api.getExternalIdentities.mockResolvedValue({ identities: [identity({ id: 'g1', provider: 'google', label: 'Google' })], providers })
 
     const el = await mount(ExternalIdentitiesSection)
 
-    expect(el.querySelector('[data-testid="identity-google"]')!.textContent).toContain('Verbunden')
-    expect(el.querySelector('[data-testid="identity-midata"]')!.textContent).toContain('Nicht verbunden')
-    expect(el.querySelector('[data-testid="connect-midata"]')).not.toBeNull()
-    expect(el.querySelector('[data-testid="disconnect-midata"]')).toBeNull()
+    expect(el.querySelectorAll('[data-testid="identities"] li')).toHaveLength(1)
+    expect(el.textContent).toContain('Google')
+    expect(el.textContent).toContain('Anna Muster')
+    expect(el.textContent).toContain('anna@midata.test')
+    expect(el.textContent).toContain('Konto …a1b2')
+    expect(el.textContent).not.toContain('Nicht verbunden')
+    expect(el.querySelector('[data-testid="identity-midata"]')).toBeNull()
   })
 
-  it('starts the existing MiData link flow', async () => {
-    api.getExternalIdentities.mockResolvedValue([])
+  it('shows a hint and the connect button for an empty list', async () => {
+    api.getExternalIdentities.mockResolvedValue({ identities: [], providers })
+
+    const el = await mount(ExternalIdentitiesSection)
+
+    expect(el.querySelector('[data-testid="no-identities"]')).not.toBeNull()
+    expect(el.querySelector('[data-testid="connect-toggle"]')!.textContent).toContain('Konto verbinden mit')
+    expect(el.querySelector('[data-testid="identities"]')).toBeNull()
+  })
+
+  it('lists several connections of one provider individually and disconnects exactly the chosen one', async () => {
+    const both = [
+      identity({ id: 'g1', provider: 'google', label: 'Google', email: 'a@gmail.test' }),
+      identity({ id: 'g2', provider: 'google', label: 'Google', email: 'b@gmail.test', external_id_hint: '…c3d4' }),
+    ]
+    api.getExternalIdentities.mockResolvedValue({ identities: both, providers })
+    api.disconnectExternalIdentity.mockResolvedValue({ identities: [both[1]], providers })
+    const el = await mount(ExternalIdentitiesSection)
+    expect(el.querySelectorAll('[data-testid="identities"] li')).toHaveLength(2)
+
+    el.querySelector<HTMLButtonElement>('[data-testid="identity-g1"] [data-testid="disconnect"]')!.click()
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(api.disconnectExternalIdentity).toHaveBeenCalledWith('p1', 'g1')
+    expect(el.querySelectorAll('[data-testid="identities"] li')).toHaveLength(1)
+    expect(el.textContent).toContain('b@gmail.test')
+    expect(el.textContent).not.toContain('a@gmail.test')
+  })
+
+  it('does not disconnect without confirmation', async () => {
+    confirmAnswer.value = false
+    api.getExternalIdentities.mockResolvedValue({ identities: [identity({})], providers })
+    const el = await mount(ExternalIdentitiesSection)
+
+    el.querySelector<HTMLButtonElement>('[data-testid="disconnect"]')!.click()
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(api.disconnectExternalIdentity).not.toHaveBeenCalled()
+    confirmAnswer.value = true
+  })
+
+  it('protects the last login method in the UI', async () => {
+    api.getExternalIdentities.mockResolvedValue({ identities: [identity({ can_disconnect: false })], providers })
+
+    const el = await mount(ExternalIdentitiesSection)
+
+    expect(el.querySelector<HTMLButtonElement>('[data-testid="disconnect"]')!.disabled).toBe(true)
+    expect(el.querySelector('[data-testid="last-method"]')).not.toBeNull()
+  })
+
+  it('shows backend errors when disconnecting fails (e.g. last login method) and reloads', async () => {
+    api.getExternalIdentities.mockResolvedValue({ identities: [identity({})], providers })
+    api.disconnectExternalIdentity.mockRejectedValue({ response: { data: { error: 'last_login_method' } } })
+    const el = await mount(ExternalIdentitiesSection)
+
+    el.querySelector<HTMLButtonElement>('[data-testid="disconnect"]')!.click()
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(el.querySelector('[data-testid="identities-notice"]')!.textContent).toContain('einzige Anmeldemöglichkeit')
+    expect(api.getExternalIdentities).toHaveBeenCalledTimes(2)
+  })
+
+  it('offers all supported providers in the connect menu, even when one is already linked', async () => {
+    api.getExternalIdentities.mockResolvedValue({
+      identities: [identity({ id: 'g1', provider: 'google', label: 'Google' })],
+      providers: [...providers, { provider: 'microsoft', label: 'Microsoft', configured: false }],
+    })
+    const el = await mount(ExternalIdentitiesSection)
+    expect(el.querySelector('[data-testid="connect-menu"]')).toBeNull()
+
+    el.querySelector<HTMLButtonElement>('[data-testid="connect-toggle"]')!.click()
+    await nextTick()
+
+    expect(el.querySelector('[data-testid="connect-google"]')).not.toBeNull()
+    expect(el.querySelector('[data-testid="connect-midata"]')).not.toBeNull()
+    expect(el.querySelector<HTMLButtonElement>('[data-testid="connect-microsoft"]')!.disabled).toBe(true)
+  })
+
+  it('starts the link flow through the apiClient module and navigates to the provider URL', async () => {
+    api.getExternalIdentities.mockResolvedValue({ identities: [], providers })
+    api.startExternalIdentityLink.mockResolvedValue('https://accounts.google.com/o/oauth2/v2/auth?x=1')
     const assign = vi.fn()
     vi.stubGlobal('location', { ...window.location, pathname: '/profile', assign })
     const el = await mount(ExternalIdentitiesSection)
+    el.querySelector<HTMLButtonElement>('[data-testid="connect-toggle"]')!.click()
+    await nextTick()
 
-    el.querySelector<HTMLButtonElement>('[data-testid="connect-midata"]')!.click()
+    el.querySelector<HTMLButtonElement>('[data-testid="connect-google"]')!.click()
+    await new Promise((r) => setTimeout(r, 0))
 
-    expect(authApi.midataLinkStartUrl).toHaveBeenCalledWith('/profile')
-    expect(assign).toHaveBeenCalledWith('https://api.test/api/auth/link/midata?redirect=/profile')
+    expect(api.startExternalIdentityLink).toHaveBeenCalledWith('google', '/profile')
+    expect(assign).toHaveBeenCalledWith('https://accounts.google.com/o/oauth2/v2/auth?x=1')
     vi.unstubAllGlobals()
   })
 
-  it('protects the last login method and disconnects otherwise', async () => {
-    api.getExternalIdentities.mockResolvedValue([identity({ can_disconnect: false })])
-    let el = await mount(ExternalIdentitiesSection)
-    expect(el.querySelector<HTMLButtonElement>('[data-testid="disconnect-midata"]')!.disabled).toBe(true)
-    expect(el.querySelector('[data-testid="last-method"]')).not.toBeNull()
+  it('shows an error and does not navigate when the link start is refused (e.g. re-login needed)', async () => {
+    api.getExternalIdentities.mockResolvedValue({ identities: [], providers })
+    api.startExternalIdentityLink.mockRejectedValue({ response: { data: { error: 'reauth_required' } } })
+    const assign = vi.fn()
+    vi.stubGlobal('location', { ...window.location, pathname: '/profile', assign })
+    const el = await mount(ExternalIdentitiesSection)
+    el.querySelector<HTMLButtonElement>('[data-testid="connect-toggle"]')!.click()
+    await nextTick()
 
-    api.getExternalIdentities.mockResolvedValue([identity({})])
-    api.disconnectExternalIdentity.mockResolvedValue([])
-    el = await mount(ExternalIdentitiesSection)
-    el.querySelector<HTMLButtonElement>('[data-testid="disconnect-midata"]')!.click()
+    el.querySelector<HTMLButtonElement>('[data-testid="connect-midata"]')!.click()
     await new Promise((r) => setTimeout(r, 0))
 
-    expect(api.disconnectExternalIdentity).toHaveBeenCalledWith('p1', 'midata')
-    expect(el.querySelector('[data-testid="connect-midata"]')).not.toBeNull()
+    expect(assign).not.toHaveBeenCalled()
+    expect(el.querySelector('[data-testid="identities-notice"]')!.textContent).toContain('neu anmelden')
+    vi.unstubAllGlobals()
+  })
+
+  it('reports the result of the return from the provider and refreshes without reloading the profile', async () => {
+    api.getExternalIdentities.mockResolvedValue({ identities: [], providers })
+    const el = await mount(ExternalIdentitiesSection)
+    api.getExternalIdentities.mockResolvedValue({ identities: [identity({ id: 'g1', provider: 'google', label: 'Google' })], providers })
+
+    window.dispatchEvent(new CustomEvent('emc-profile-security-link-result', { detail: { status: 'error', reason: 'link_conflict' } }))
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(el.querySelector('[data-testid="identities-notice"]')!.textContent).toContain('bereits mit einem anderen eMatChef-Konto')
+    expect(api.getExternalIdentities).toHaveBeenCalledTimes(2)
+    expect(el.querySelectorAll('[data-testid="identities"] li')).toHaveLength(1)
   })
 })
 
