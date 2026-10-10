@@ -29,3 +29,4 @@ services:
       APP_PUBLIC_QR_URL: https://qr.ematchef.test
       APP_DISPLAY_URL: https://display.ematchef.test
       AUTH_COOKIE_SECURE: "1"
+      API_DOCS_ENABLED: "1"

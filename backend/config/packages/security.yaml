@@ -73,6 +73,13 @@ security:
             stateless: true
             security: false
         
+        # Swagger UI (nur lokal aktiv, API_DOCS_ENABLED=1; sonst 404). Die Seite selbst ist öffentlich,
+        # die dokumentierten Endpunkte bleiben über das BEARER-Cookie / JWT geschützt.
+        api_docs:
+            pattern: ^/api/doc($|\.json$|/)
+            stateless: true
+            security: false
+
         api:
             pattern: ^/(api|media)
             stateless: true
@@ -95,6 +102,7 @@ security:
         - { path: ^/api/auth/midata, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/microsoft, roles: PUBLIC_ACCESS }
         - { path: ^/api/token/refresh, roles: PUBLIC_ACCESS }
+        - { path: ^/api/doc($|\.json$|/), roles: PUBLIC_ACCESS }
         - { path: ^/api/public, roles: PUBLIC_ACCESS }
         - { path: ^/api/health, roles: PUBLIC_ACCESS }
         - { path: ^/robots\.txt$, roles: PUBLIC_ACCESS }

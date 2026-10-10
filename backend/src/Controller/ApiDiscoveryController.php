@@ -19,7 +19,7 @@ class ApiDiscoveryController extends AbstractController
         #[Autowire('%env(APP_FRONTEND_URL)%')]
         private string $appFrontendUrl,
         #[Autowire('%env(default::APP_MAIN_SITE_ORIGIN)%')]
-        private string $mainSiteOrigin = '',
+        private ?string $mainSiteOrigin = '',
     ) {
     }
 
@@ -198,9 +198,9 @@ class ApiDiscoveryController extends AbstractController
 HTML;
     }
 
-    private function originOr(string $raw, string $fallback): string
+    private function originOr(?string $raw, string $fallback): string
     {
-        $value = trim($raw);
+        $value = trim((string) $raw);
         if ($value === '') {
             return $fallback;
         }
