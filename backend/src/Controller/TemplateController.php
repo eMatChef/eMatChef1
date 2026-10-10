@@ -25,6 +25,7 @@ use App\Service\Public\PublicCodeService;
 use App\Service\TemplateImportExportService;
 use App\Service\MaterialWizardSupplierService;
 use App\Entity\User;
+use App\Service\Security\DepartmentAccessGuard;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -41,7 +42,15 @@ class TemplateController extends AbstractController
         private PublicCodeService $publicCodeService,
         private TemplateImportExportService $templateImportExportService,
         private MaterialWizardSupplierService $materialWizardSupplierService,
+        private DepartmentAccessGuard $departmentAccess,
     ) {}
+
+    private function currentUser(): ?User
+    {
+        $user = $this->getUser();
+
+        return $user instanceof User ? $user : null;
+    }
 
     /**
      * Liste aller Vorlagen: Zentrale (global) + Department-eigene
@@ -71,6 +80,8 @@ class TemplateController extends AbstractController
             $qb->where('t.departmentId IS NULL');
         } elseif (!$departmentId) {
             return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
+        } elseif ($denied = $this->departmentAccess->deny($this->currentUser(), (string) $departmentId)) {
+            return $denied;
         } else {
             // Zentrale (global) + Department-eigene Vorlagen laden
             $qb->where('t.departmentId IS NULL OR t.departmentId = :departmentId')
@@ -97,7 +108,9 @@ class TemplateController extends AbstractController
             }
             $data = $this->serializeTemplate($template, false);
             // Can-edit Flag: Zentrale Vorlagen nur für berechtigte User
-            $data['can_edit'] = $template->isGlobal() ? $canEditGlobal : true;
+            $data['can_edit'] = $template->isGlobal()
+                ? $canEditGlobal
+                : $this->departmentAccess->canManage($this->currentUser(), $template->getDepartmentId());
             $result[] = $data;
         }
 
@@ -122,6 +135,9 @@ class TemplateController extends AbstractController
         } else {
             if ($departmentId === '') {
                 return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
+            }
+            if ($denied = $this->departmentAccess->deny($this->currentUser(), $departmentId)) {
+                return $denied;
             }
             $addresses = $this->materialWizardSupplierService->listForDepartment($departmentId);
         }
@@ -253,13 +269,23 @@ class TemplateController extends AbstractController
             return new JsonResponse(['error' => 'Vorlage nicht gefunden'], 404);
         }
 
+        // Department-eigene Vorlagen nur für Mitglieder/Verwaltung; zentrale Vorlagen sind für alle lesbar.
+        $ownerDepartmentId = $template->getDepartmentId();
+        if ($ownerDepartmentId !== null && ($denied = $this->departmentAccess->deny($this->currentUser(), $ownerDepartmentId))) {
+            return $denied;
+        }
         $departmentId = trim((string) $request->query->get('department_id', ''));
+        if ($departmentId !== '' && ($denied = $this->departmentAccess->deny($this->currentUser(), $departmentId))) {
+            return $denied;
+        }
         $data = $this->serializeTemplate(
             $template,
             true,
             $departmentId !== '' ? $departmentId : null,
         );
-        $data['can_edit'] = $template->isGlobal() ? $this->canEditGlobalTemplates() : true;
+        $data['can_edit'] = $template->isGlobal()
+            ? $this->canEditGlobalTemplates()
+            : $this->departmentAccess->canManage($this->currentUser(), $ownerDepartmentId);
 
         return new JsonResponse($data);
     }
@@ -297,6 +323,9 @@ class TemplateController extends AbstractController
                 ->find($data['department_id']);
             if (!$department) {
                 return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
+            }
+            if ($denied = $this->departmentAccess->denyManage($this->currentUser(), $department->getId())) {
+                return $denied;
             }
         }
 
@@ -392,6 +421,9 @@ class TemplateController extends AbstractController
         // Bearbeitungsschutz: Zentrale Vorlagen nur für berechtigte User
         if ($template->isGlobal() && !$this->canEditGlobalTemplates()) {
             return new JsonResponse(['error' => 'Keine Berechtigung zum Bearbeiten dieser Vorlage'], 403);
+        }
+        if (!$template->isGlobal() && ($denied = $this->departmentAccess->denyManage($this->currentUser(), $template->getDepartmentId()))) {
+            return $denied;
         }
 
         $data = json_decode($request->getContent(), true);
@@ -500,6 +532,9 @@ class TemplateController extends AbstractController
         if ($template->isGlobal() && !$this->canEditGlobalTemplates()) {
             return new JsonResponse(['error' => 'Keine Berechtigung zum Löschen dieser Vorlage'], 403);
         }
+        if (!$template->isGlobal() && ($denied = $this->departmentAccess->denyManage($this->currentUser(), $template->getDepartmentId()))) {
+            return $denied;
+        }
 
         // Komponenten werden per CASCADE gelöscht
         $this->entityManager->remove($template);
@@ -548,6 +583,13 @@ class TemplateController extends AbstractController
         }
         if (!$department) {
             return new JsonResponse(['error' => 'department_id ist erforderlich (Template hat kein Department)'], 400);
+        }
+        // Material entsteht im Department: Mitglieder/Verwaltung mit Verwaltungsrolle des Departments (wie die Material-Seite)
+        if ($denied = $this->departmentAccess->denyManage($this->currentUser(), $department->getId())) {
+            return $denied;
+        }
+        if (!$template->isGlobal() && $template->getDepartmentId() !== $department->getId()) {
+            return new JsonResponse(['error' => 'Vorlage gehört zu einem anderen Department'], 403);
         }
 
         $acquiredOnStr = $data['purchase_date'] ?? date('Y-m-d');
@@ -1424,22 +1466,12 @@ class TemplateController extends AbstractController
     }
 
     /**
-     * Prüft ob der aktuelle User zentrale (globale) Vorlagen bearbeiten darf.
-     * Erlaubt für: superadmin (sa), organisationschef (org), suborgchef (sub)
+     * Zentrale (globale) Vorlagen gelten für alle Departments und Organisationen: ändern darf sie nur der Superadmin.
+     * Orgchef/Suborgchef erhalten diese systemweiten Schreibrechte nicht allein wegen ihrer Rolle.
      */
     private function canEditGlobalTemplates(): bool
     {
-        $user = $this->getUser();
-        if (!$user) {
-            return false;
-        }
-
-        // Symfony-Rollen prüfen
-        if ($this->isGranted('ROLE_SUPERADMIN') || $this->isGranted('ROLE_ORGANISATIONSCHEF') || $this->isGranted('ROLE_SUBORGCHEF')) {
-            return true;
-        }
-
-        return false;
+        return $this->isGranted('ROLE_SUPERADMIN');
     }
 
     /**

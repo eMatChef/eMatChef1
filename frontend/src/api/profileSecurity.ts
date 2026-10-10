@@ -25,9 +25,35 @@ export type TrustedDevice = {
 }
 
 export type SecurityActivityEvent = {
+  id: string
   action: string
   created_at: string
   detail: string | null
+  /** password | google | midata | legacy (nur Anmeldungen) */
+  auth_method: string | null
+  /** totp | recovery_code | trusted_device */
+  mfa_source: string | null
+  browser: string | null
+  os: string | null
+  /** Serverseitig erfasst; fehlt bei historischen Ereignissen und nach der Aufbewahrungsfrist */
+  ip_address: string | null
+  /** Namen der geänderten Profilfelder (nie Werte) */
+  changed_fields: string[]
+  actor: { type: 'self' | 'other'; name: string | null } | null
+}
+
+export type SecurityActivityPage = {
+  events: SecurityActivityEvent[]
+  next_cursor: string | null
+  /** Freigegebene Ereignistypen (Werte für den Typ-Filter) */
+  actions?: string[]
+}
+
+export type SecurityActivityFilters = {
+  action?: string
+  /** YYYY-MM-DD, inklusive */
+  from?: string
+  to?: string
 }
 
 const base = (profileId: string) => `/api/profiles/${profileId}/security`
@@ -63,11 +89,22 @@ export async function revokeTrustedDevice(profileId: string, deviceId: string): 
   return data.trusted_devices
 }
 
-export async function getSecurityActivity(profileId: string, limit = 20): Promise<SecurityActivityEvent[]> {
-  const { data } = await apiClient.get<{ events: SecurityActivityEvent[] }>(`${base(profileId)}/activity`, {
-    params: { limit },
+export async function getSecurityActivity(
+  profileId: string,
+  limit = 20,
+  cursor?: string | null,
+  filters: SecurityActivityFilters = {},
+): Promise<SecurityActivityPage> {
+  const { data } = await apiClient.get<SecurityActivityPage>(`${base(profileId)}/activity`, {
+    params: {
+      limit,
+      ...(cursor ? { cursor } : {}),
+      ...(filters.action ? { action: filters.action } : {}),
+      ...(filters.from ? { from: filters.from } : {}),
+      ...(filters.to ? { to: filters.to } : {}),
+    },
   })
-  return data.events
+  return data
 }
 
 export type ExternalIdentitySummary = {

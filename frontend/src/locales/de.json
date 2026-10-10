@@ -1873,6 +1873,27 @@
       }
     },
     "tours": {
+        "gaSetup": {
+          "title": "Grossanlass einrichten",
+          "description": "Lerne das System kennen und richte Stammdaten, Ressorts und Mitglieder ein.",
+          "ctaStay": "Hier bleiben",
+          "step1Title": "Willkommen im Grossanlass",
+          "step1Body": "Lerne zuerst das System kennen. Wir brauchen noch ein paar wichtige Angaben, bevor du starten kannst. Klicke auf «Grossanlass verwalten».",
+          "step2Title": "1. Stammdaten",
+          "step2Body": "Name, Anlassdatum und Ort des Grossanlasses. Diese Angaben sind Pflicht.",
+          "step3Title": "GA-Typ: Lager oder Event",
+          "step3Body": "Wähle, ob die Gäste ein Lager oder einen Event durchführen. Die Teilnahme von Departments und die Materialleihe sind davon unabhängig und später frei wählbar.",
+          "step4Title": "2. Ressorts",
+          "step4Body": "Wechsle zu den Ressorts.",
+          "step5Title": "Ressorts und Verantwortlichkeiten",
+          "step5Body": "Lege mindestens ein Ressort an und bestimme für jedes eine Leitung.",
+          "step6Title": "3. Mitglieder",
+          "step6Body": "Mitglieder und OK-Leitung verwaltest du in den Einstellungen.",
+          "step7Title": "Benutzer",
+          "step7Body": "Lade Mitglieder ein und weise ihnen Rollen zu. Es braucht mindestens einen MW und eine OK-Leitung.",
+          "step8Title": "Freigeben",
+          "step8Body": "Sind alle drei Bereiche erledigt, geben MW oder OK-Leitung die Einrichtung hier frei. Erst dann steht der Grossanlass allen Rollen offen."
+        },
       "start": "Tour starten",
       "restart": "Tour nochmals durchgehen",
       "next": "Weiter",
@@ -2403,6 +2424,13 @@
       "devicesScanner": "Lager-Scanner",
       "devicesScannerHint": "Handheld oder Pistole — Stück für Stück scannen",
       "switchDepartment": "Department wechseln",
+      "adminContexts": "Verwaltung",
+      "globalContext": "Globale Administration",
+      "globalContextHint": "Superadmin · ganzes System",
+      "managementHintOrgOrganisation": "Organisationschef · Organisation",
+      "managementHintOrgDepartment": "Organisationschef · Department-Verwaltung",
+      "managementHintSubOrganisation": "Suborgchef · Organisation",
+      "managementHintSubDepartment": "Suborgchef · Department-Verwaltung",
       "primary": "Primär",
       "primaryDepartment": "Primäres Department",
       "departmentSettings": "Abteilungseinstellungen",
@@ -2426,15 +2454,23 @@
     "profileModal": {
       "securitySection": "Sicherheit",
         "externalIdentities": {
-          "title": "Verbundene Anmeldungen",
-          "hint": "Externe Konten, über die du dich bei eMatChef anmelden kannst.",
+          "title": "Verknüpfte Anmeldungen",
+          "hint": "Mit diesen Konten kannst du dich bei eMatChef anmelden. Abteilungen, Rollen und Gruppen bleiben beim Trennen unverändert.",
           "linkedAt": "Verbunden seit {date}",
           "disconnect": "Verbindung trennen",
           "confirmTitle": "Verbindung zu MiData trennen?",
           "confirmMessage": "Du kannst dich danach nicht mehr mit MiData anmelden. Deine Abteilungen, Rollen und Gruppen in eMatChef bleiben unverändert.",
           "lastMethod": "MiData ist deine einzige Anmeldemöglichkeit. Bestätige zuerst deine E-Mail-Adresse oder verbinde einen anderen Anbieter.",
           "disconnected": "Verbindung getrennt.",
-          "error": "Verbindung konnte nicht getrennt werden."
+          "error": "Verbindung konnte nicht getrennt werden.",
+          "linked": "Verbunden",
+          "notLinked": "Nicht verbunden",
+          "connect": "Verbinden",
+          "googleNote": "Die Google-Anmeldung entsteht bei der ersten Anmeldung mit Google und kann hier nicht geändert werden.",
+          "providers": {
+            "google": "Google",
+            "midata": "MiData / db.scout.ch"
+          }
         },
       "sessions": {
         "title": "Geräte & Sitzungen",
@@ -2476,7 +2512,7 @@
       },
       "activity": {
         "title": "Sicherheitsaktivität",
-        "hint": "Die letzten Sicherheitsereignisse deines Kontos.",
+        "hint": "Dein persönliches Sicherheitsprotokoll. Nur du siehst es.",
         "empty": "Noch keine Ereignisse.",
         "loadError": "Aktivität konnte nicht geladen werden.",
         "events": {
@@ -2499,8 +2535,63 @@
           "profile_primary_email_changed": "Hauptadresse geändert",
           "profile_email_added": "E-Mail-Adresse hinzugefügt",
           "profile_email_verified": "E-Mail-Adresse bestätigt",
-          "profile_email_removed": "E-Mail-Adresse entfernt"
-        }
+          "profile_email_removed": "E-Mail-Adresse entfernt",
+          "profile_updated": "Profil geändert",
+          "profile_email_change_requested": "E-Mail-Änderung angefragt",
+          "profile_email_change_confirmed": "E-Mail-Änderung bestätigt",
+          "external_identity_linked": "Anmeldung verknüpft",
+          "external_identity_unlinked": "Anmeldung getrennt",
+          "membership_created": "Abteilungszuordnung hinzugefügt",
+          "membership_role_changed": "Rolle geändert",
+          "membership_removed": "Abteilungszuordnung entfernt"
+        },
+        "loadMore": "Mehr laden",
+        "loading": "Lädt …",
+        "retention": "IP-Adressen und Browserangaben werden nach {days} Tagen gelöscht.",
+        "meta": {
+          "method": "Anmeldung via {value}",
+          "mfa": "MFA: {value}",
+          "device": "{value}",
+          "ip": "IP {value}",
+          "actor": "Ausgelöst von {name}",
+          "actorUnknown": "Ausgelöst von einem Administrator",
+          "self": "Durch dich",
+          "fields": "Geändert: {fields}"
+        },
+        "authMethods": {
+          "password": "Passwort",
+          "google": "Google",
+          "midata": "MiData",
+          "legacy": "bestehende Sitzung"
+        },
+        "mfaSources": {
+          "totp": "Authenticator-Code",
+          "recovery_code": "Recovery Code",
+          "trusted_device": "Vertrauenswürdiges Gerät"
+        },
+        "providers": {
+          "google": "Google",
+          "midata": "MiData"
+        },
+        "fields": {
+          "first_name": "Vorname",
+          "last_name": "Nachname",
+          "nickname": "Pfadiname",
+          "avatar_initials": "Initialen",
+          "language": "Sprache",
+          "background_color": "Hintergrundfarbe",
+          "text_color": "Schriftfarbe",
+          "global_admin_role": "Globale Rolle",
+          "admin_capabilities": "Administrationsrechte"
+        },
+        "fullLog": "Gesamtes Protokoll",
+        "fullLogTitle": "Sicherheitsprotokoll",
+        "filterType": "Ereignistyp",
+        "filterFrom": "Von",
+        "filterTo": "Bis",
+        "filterAllTypes": "Alle Ereignisse",
+        "filterApply": "Filtern",
+        "filterReset": "Zurücksetzen"
       },
       "totp": {
         "title": "Zwei-Faktor-Authentifizierung",
@@ -2571,7 +2662,8 @@
       "title": "Profil bearbeiten",
       "firstName": "Vorname",
       "email": "E-Mail",
-      "editEmailTitle": "E-Mail bearbeiten",
+      "editEmailTitle": "E-Mail-Adressen verwalten",
+      "emailManagedInSecurity": "Die Hauptadresse verwaltest du unter «Sicherheit → E-Mail-Adressen».",
       "emailNewMustVerify": "Neue E-Mail muss bestätigt werden. Bis zur Bestätigung bleibt die alte E-Mail gültig.",
       "emailPendingSent": "Bestätigungslink für neue Adresse gesendet: {pending}. Bis zur Bestätigung bleibt {current} aktiv.",
       "nickname": "Spitzname",
@@ -5241,6 +5333,18 @@
       },
       "toastPrimarySaved": "Primäres Department erfolgreich gespeichert!",
       "toastPrimarySaveError": "Fehler beim Speichern des primären Departments",
+      "toastPrimaryRemoved": "Primärstatus entfernt. Die Mitgliedschaft bleibt bestehen.",
+      "removePrimary": "Primärstatus entfernen",
+      "primaryChange": {
+        "confirmTitle": "Primäres Department ändern?",
+        "confirmMessage": "Bisher primär: «{from}». Neu primär: «{to}». Es kann nur ein primäres Department geben; das bisherige verliert den Primärstatus (die Mitgliedschaft bleibt).",
+        "confirmAction": "Primär ändern"
+      },
+      "primaryRemove": {
+        "confirmTitle": "Primärstatus entfernen?",
+        "confirmMessage": "«{name}» ist danach nicht mehr primär. Die Mitgliedschaft bleibt bestehen.",
+        "confirmAction": "Entfernen"
+      },
       "onboarding": {
         "notApplicableLeader": "Nicht zutreffend (Leitungsrolle)",
         "notApplicableSuperadmin": "Nicht zutreffend (Superadmin)",
@@ -10715,6 +10819,43 @@
     }
   },
   "grossanlass": {
+      "setup": {
+        "title": "Ersteinrichtung",
+        "lead": "Bevor der Grossanlass startet, brauchen wir noch ein paar wichtige Angaben. Danach schaltest du ihn für alle Rollen frei.",
+        "leadOther": "Dieser Grossanlass wird gerade eingerichtet. Sobald MW oder OK-Leitung ihn freigeben, steht dir dein Bereich zur Verfügung.",
+        "pendingForRole": "Der Grossanlass ist noch in der Einrichtung und für deine Rolle noch nicht freigegeben.",
+        "open": "Öffnen",
+        "release": "Einrichtung freigeben",
+        "releasedToast": "Der Grossanlass ist freigegeben.",
+        "releaseError": "Die Freigabe ist nicht möglich.",
+        "releaseBlocked": "Erst wenn alle drei Bereiche erledigt sind, lässt sich der Grossanlass freigeben.",
+        "releaseByMwOrOk": "Freigeben dürfen MW und OK-Leitung.",
+        "startTour": "Einführung starten",
+        "steps": {
+          "stammdaten": {
+            "title": "Stammdaten",
+            "hint": "Name, Anlassbeginn, Ort und GA-Typ (Lager oder Event)."
+          },
+          "ressorts": {
+            "title": "Ressorts und Verantwortlichkeiten",
+            "hint": "Mindestens ein Ressort, jedes mit einer Leitung."
+          },
+          "mitglieder": {
+            "title": "Mitglieder und OK-Zuordnung",
+            "hint": "Mindestens ein Materialchef (MW) und eine OK-Leitung."
+          }
+        },
+        "missing": {
+          "name": "Der Name fehlt.",
+          "location": "Der Ort fehlt.",
+          "type": "Der GA-Typ ist nicht gesetzt.",
+          "period": "Das Ende liegt vor dem Beginn.",
+          "no_ressort": "Es gibt noch kein Ressort.",
+          "ressort_without_leader": "Ressort «{name}» hat noch keine Leitung.",
+          "no_mw": "Es fehlt ein Materialchef (MW).",
+          "no_ok": "Es fehlt eine OK-Leitung."
+        }
+      },
     "displays": {
       "title": "Displays",
       "subtitle": "Leitstände für Grossbildschirme (TV/Monitor)",

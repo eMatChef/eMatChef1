@@ -330,7 +330,31 @@
         </button>
         <div class="dropdown-divider"></div>
         <div data-onboarding="header-dept-switch">
-        <button v-if="authStore.departments.length > 1" class="dropdown-item dropdown-item--section" disabled>
+        <template v-if="adminContextItems.length > 0">
+          <button class="dropdown-item dropdown-item--section" disabled>
+            <span class="dropdown-section-label">{{ t('layout.userMenu.adminContexts') }}</span>
+          </button>
+          <button
+            v-for="ctx in adminContextItems"
+            :key="ctx.key"
+            type="button"
+            class="dropdown-item dropdown-item--dept"
+            :class="{ 'dropdown-item--active': ctx.isActive }"
+            :data-testid="`admin-context-${ctx.key}`"
+            @click="selectAdminContext(ctx.key)"
+          >
+            <span class="dept-switch-text">
+              <span class="dept-switch-name">{{ ctx.name }}</span>
+              <span class="dept-switch-hint">{{ ctx.hint }}</span>
+            </span>
+            <v-icon v-if="ctx.isActive" icon="mdi-check" size="18" class="dept-switch-check" />
+          </button>
+        </template>
+        <button
+          v-if="authStore.departments.length > 1 || (adminContextItems.length > 0 && authStore.departments.length > 0)"
+          class="dropdown-item dropdown-item--section"
+          disabled
+        >
           <span class="dropdown-section-label">{{ t('layout.userMenu.switchDepartment') }}</span>
         </button>
         <button
@@ -470,14 +494,14 @@
                     type="email"
                     maxlength="180"
                     autocomplete="username"
-                    :disabled="!isEmailEditEnabled"
-                    :class="{ 'is-readonly': !isEmailEditEnabled }"
+                    disabled
+                    class="is-readonly"
                   />
                   <button
                     type="button"
                     class="email-edit-btn"
-                    :class="{ active: isEmailEditEnabled }"
-                    @click="toggleEmailEdit"
+                    data-testid="manage-emails"
+                    @click="openEmailManagement"
                     :title="t('layout.profileModal.editEmailTitle')"
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
@@ -486,8 +510,8 @@
                     </svg>
                   </button>
                 </div>
-                <small v-if="isEmailEditEnabled" class="email-edit-hint">
-                  {{ t('layout.profileModal.emailNewMustVerify') }}
+                <small class="email-edit-hint">
+                  {{ t('layout.profileModal.emailManagedInSecurity') }}
                 </small>
                 <small v-if="pendingEmailTarget" class="email-pending-hint">
                   {{
@@ -642,7 +666,11 @@
               </div>
             </details>
 
-            <ProfileSecurityEmailsAccordion :open="showEditProfileModal" :expanded="profileSecurityExpanded" />
+            <ProfileSecurityEmailsAccordion
+              :open="showEditProfileModal"
+              :expanded="profileSecurityExpanded"
+              @primary-changed="syncPrimaryEmail"
+            />
             <ProfileDriveLicenseAccordion :open="showEditProfileModal" />
             <ProfileMiDataMembershipsAccordion :open="showEditProfileModal" />
 
@@ -735,7 +763,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, reactive } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { useDisplay } from 'vuetify'
@@ -814,6 +842,7 @@ import { listAcquisitionFollowups } from '@/api/accountingAcquisitionFollowups'
 import { departmentHasAccountingRole } from '@/composables/useCostBookingFollowUp'
 import { useActivityNotificationText } from '@/composables/useActivityNotificationText'
 import { departmentHomePath } from '@/utils/departmentSwitch'
+import { adminContextHomePath } from '@/utils/adminContext'
 import { routeForInboxActivityNotification } from '@/utils/inboxPackJourneyDeepLink'
 import { appVersionLabel } from '@/config/appVersion'
 import {
@@ -863,6 +892,21 @@ const departmentSwitchItems = computed(() =>
     isGrossanlass: Boolean(dept.department?.is_grossanlass),
     isActive: dept.department_id === authStore.activeDepartmentId,
     roleLabel: departmentRoleLabel(dept.role, dept.department_id),
+  })),
+)
+
+/** Verwaltungskontexte neben den Mitgliedschaften: Superadmin global, Orgchef/Suborgchef je Verwaltungsbereich. */
+const adminContextItems = computed(() =>
+  authStore.availableAdminContexts.map((ctx) => ({
+    key: ctx.key,
+    name: ctx.kind === 'global' ? t('layout.userMenu.globalContext') : ctx.name || '',
+    hint:
+      ctx.role === 'superadmin'
+        ? t('layout.userMenu.globalContextHint')
+        : t(
+            `layout.userMenu.managementHint${ctx.role === 'org' ? 'Org' : 'Sub'}${ctx.kind === 'organisation' ? 'Organisation' : 'Department'}`,
+          ),
+    isActive: authStore.activeAdminContext?.key === ctx.key,
   })),
 )
 
@@ -979,7 +1023,6 @@ const searchDepartmentId = computed(() => {
   return deptId || authStore.activeDepartmentId || ''
 })
 const showEditProfileModal = ref(false)
-const isEmailEditEnabled = ref(false)
 const savingProfile = ref(false)
 const unreadCount = ref(0)
 const showNotifications = ref(false)
@@ -1898,10 +1941,22 @@ function editProfile() {
   }
   initialProfileFormSnapshot.value = serializeProfileForm(profileForm.value)
   resetPasswordForm()
-  isEmailEditEnabled.value = false
   showEditProfileModal.value = true
   showUserDropdown.value = false
   void loadProfileUserAddress()
+}
+
+async function selectAdminContext(key: string) {
+  if (authStore.activeAdminContext?.key === key) {
+    showUserDropdown.value = false
+    return
+  }
+  const canLeave = await confirmLeaveIfDirty(t)
+  if (!canLeave) return
+  showUserDropdown.value = false
+  const option = authStore.selectAdminContext(key)
+  if (!option) return
+  window.location.assign(adminContextHomePath(option))
 }
 
 async function selectDepartment(departmentId: string) {
@@ -1935,10 +1990,17 @@ function activateLicense() {
   // License activation
 }
 
+/** Hauptadresse wurde in Sicherheit geändert: oberes Feld und gespeicherter Snapshot nachziehen. */
+function syncPrimaryEmail() {
+  const email = authStore.profile?.email
+  if (!email) return
+  profileForm.value.email = email
+  initialProfileFormSnapshot.value = serializeProfileForm(profileForm.value)
+}
+
 function closeEditProfileModal() {
   profileSecurityExpanded.value = false
   showEditProfileModal.value = false
-  isEmailEditEnabled.value = false
   initialProfileFormSnapshot.value = ''
   initialAddressSnapshot.value = ''
   addressRecordId.value = null
@@ -2020,22 +2082,12 @@ function normalizeHexColor(value: string, fallback: string): string {
   return fallback
 }
 
-async function toggleEmailEdit() {
-  if (isEmailEditEnabled.value) {
-    isEmailEditEnabled.value = false
-    return
-  }
-
-  const confirmed = await confirm.confirm({
-    title: t('layout.confirm.changeEmailTitle'),
-    message: t('layout.confirm.changeEmailMessage'),
-    confirmText: t('layout.confirm.enableEmailEdit'),
-    cancelText: t('common.cancel'),
-    variant: 'warning',
-  })
-  if (!confirmed) return
-
-  isEmailEditEnabled.value = true
+/** Einziger Bearbeitungsweg für E-Mail-Adressen: Profil → Sicherheit → E-Mail-Adressen (Profile.email wird dort verwaltet). */
+function openEmailManagement() {
+  const details = document.querySelector<HTMLDetailsElement>('[data-onboarding="profile-security"]')
+  if (!details) return
+  details.open = true
+  void nextTick(() => document.getElementById('profile-email-management')?.scrollIntoView({ block: 'center', behavior: 'smooth' }))
 }
 
 function applyAvatarColor(backgroundColor: string, textColor: string) {
@@ -2112,7 +2164,7 @@ async function saveProfile() {
       }
 
       const payload = {
-        email: isEmailEditEnabled.value ? email : (authStore.profile?.email || email),
+        email: authStore.profile?.email || email,
         first_name: profileForm.value.first_name.trim(),
         last_name: profileForm.value.last_name.trim(),
         nickname: profileForm.value.nickname.trim(),
@@ -2124,11 +2176,6 @@ async function saveProfile() {
 
       const updatedProfile = await updateProfile(profileId, payload)
       authStore.profile = updatedProfile
-      if (isEmailEditEnabled.value && updatedProfile.pending_email) {
-        toast.info(t('layout.toast.confirmationLinkSent'))
-        isEmailEditEnabled.value = false
-        profileForm.value.email = updatedProfile.email || profileForm.value.email
-      }
     }
 
     if (shouldChangePassword) {

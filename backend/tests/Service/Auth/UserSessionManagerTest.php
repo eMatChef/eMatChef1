@@ -45,6 +45,9 @@ final class UserSessionManagerTest extends TestCase
     /** @var list<string> */
     private array $audits = [];
 
+    /** @var list<array<string, mixed>> */
+    private array $auditChanges = [];
+
     public function testStartSessionPersistsOneSessionWithUserAgent(): void
     {
         $user = $this->user('u1');
@@ -211,6 +214,19 @@ final class UserSessionManagerTest extends TestCase
         self::assertSame(['login_success'], $this->audits);
     }
 
+    public function testLoginAuditCarriesAuthMethodAndMfaSourceOnlyWhenMfaWasUsed(): void
+    {
+        $manager = $this->manager();
+        $manager->startSession($this->user('u1'), AuthMethod::PASSWORD);
+        $manager->startSession($this->user('u1'), AuthMethod::MIDATA, 'totp');
+        $manager->startSession($this->user('u1'), AuthMethod::GOOGLE, 'trusted_device');
+
+        self::assertSame(['auth_method' => ['old' => null, 'new' => 'password']], $this->auditChanges[0]);
+        self::assertSame('midata', $this->auditChanges[1]['auth_method']['new']);
+        self::assertSame('totp', $this->auditChanges[1]['mfa_source']['new']);
+        self::assertSame('trusted_device', $this->auditChanges[2]['mfa_source']['new']);
+    }
+
     public function testPasswordChangeResetAndDeactivationRevokeTrustedDevices(): void
     {
         $manager = $this->manager();
@@ -336,8 +352,9 @@ final class UserSessionManagerTest extends TestCase
             return 1;
         });
         $audit = $this->createMock(AuditLogger::class);
-        $audit->method('log')->willReturnCallback(function (string $type, string $id, string $action): void {
+        $audit->method('log')->willReturnCallback(function (string $type, string $id, string $action, ?User $actor = null, ?User $target = null, $department = null, array $changes = []): void {
             $this->audits[] = $action;
+            $this->auditChanges[] = $changes;
         });
 
         return new UserSessionManager($entityManager, $revoker, $cutoff, $requestStack, $trusted, $audit);

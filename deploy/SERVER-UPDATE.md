@@ -721,3 +721,24 @@ Log: `backend/var/log/media_retention.log` (im Container, persistent über Volum
 ```cron
 30 3 1 * * cd /opt/ematchef/prod && docker compose -p ematchef-prod exec -T backend php bin/console app:media:retention --env=prod >> /var/log/ematchef-media-retention.log 2>&1
 ```
+
+---
+
+## Cron: Sicherheitsprotokoll (IP/User-Agent nach 90 Tagen entfernen)
+
+`audit_event` ist die zentrale Audit-Tabelle (Material, Departments, Grossanlass, Sicherheit). Ereignisse werden **nie** nach Zeit gelöscht. Der Command leert nur `ip_address` und `user_agent` der Sicherheitsereignisse (Allowlist in `SecurityActivityService`), die älter als 90 Tage sind (`SecurityActivityService::CONTEXT_RETENTION_DAYS`).
+
+```bash
+docker compose -p ematchef-prod exec backend php bin/console app:security-activity:purge-context --dry-run --env=prod
+docker compose -p ematchef-prod exec backend php bin/console app:security-activity:purge-context --env=prod
+```
+
+**Crontab-Beispiel** (Host, täglich 03:10; derselbe Mechanismus wie bei der Medien-Retention, es gibt keinen internen Scheduler):
+
+```cron
+10 3 * * * cd /opt/ematchef/prod && docker compose -p ematchef-prod exec -T backend php bin/console app:security-activity:purge-context --env=prod >> /var/log/ematchef-security-purge.log 2>&1
+```
+
+## Client-IP und `TRUSTED_PROXIES`
+
+Caddy (Host) → `127.0.0.1:8081` (Docker-Port-Mapping) → Backend. Das Backend sieht als Absender das Docker-Gateway (private Adresse). Die Overrides `docker-compose.override.{prod,staging,develop}.example.yml` setzen deshalb `TRUSTED_PROXIES: "172.16.0.0/12"` (Docker-Standardpool für Bridge-Netze; lokal nachgewiesen: Compose-Netz `172.18.0.0/16`, Absender `172.18.0.1`; kein pauschales `private_ranges`, also weder 10.x noch 192.168.x noch Loopback); nur dann wird `X-Forwarded-For` ausgewertet (Caddy überschreibt unvertraute eingehende Werte, Symfony nimmt den rechtesten nicht vertrauten Eintrag). Das ist nur sicher, solange `:8081` an `127.0.0.1` gebunden bleibt. Das Compose-Netz hat im Repo kein festes Subnetz; das genaue Netz auf dem Server mit `docker network inspect ematchef-prod_default --format '{{json .IPAM.Config}}'` prüfen und `TRUSTED_PROXIES` auf dieses /16 einengen. Liegt das Netz ausserhalb von `172.16.0.0/12`, wird `X-Forwarded-For` ignoriert (sicher, aber das Protokoll zeigt dann die Gateway-IP). Nach dem Deploy prüfen: im Profil → Sicherheit → Protokoll zeigt ein neuer Login die eigene öffentliche IP, nicht `172.x`.

@@ -22,11 +22,23 @@ final class DemoAccountsTest extends TestCase
         foreach (DemoAccounts::all() as $account) {
             self::assertSame($account['key'] . '@demo.ematchef.ch', $account['email']);
             self::assertTrue(DemoAccounts::isDemoEmail($account['email']));
-            self::assertStringEndsWith('@ematchef.ch', $account['legacyEmail']);
+            if (isset($account['legacyEmail'])) {
+                self::assertStringEndsWith('@ematchef.ch', $account['legacyEmail']);
+            }
         }
         self::assertSame('orgchef@demo.ematchef.ch', DemoAccounts::email('orgchef'));
         self::assertSame('organisationschef@ematchef.ch', DemoAccounts::legacyEmail('orgchef'));
         self::assertFalse(DemoAccounts::isDemoEmail('user@ematchef.ch'));
+    }
+
+    public function testOnlyExactCatalogueEmailsAreSeedOwned(): void
+    {
+        self::assertTrue(DemoAccounts::isSeedOwnedEmail(DemoAccounts::email('matwart')));
+        self::assertTrue(DemoAccounts::isSeedOwnedEmail(' ' . strtoupper(DemoAccounts::email('matwart')) . ' '));
+        self::assertFalse(DemoAccounts::isSeedOwnedEmail('someone@ematchef.ch'));
+        self::assertFalse(DemoAccounts::isSeedOwnedEmail(DemoAccounts::legacyEmail('matwart')));
+        self::assertFalse(DemoAccounts::isSeedOwnedEmail('unknown@' . DemoAccounts::domain()));
+        self::assertFalse(DemoAccounts::isSeedOwnedEmail(null));
     }
 
     public function testSeedsAndPasswordFollowTheCatalogue(): void

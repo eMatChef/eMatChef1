@@ -63,7 +63,7 @@ final class MfaController extends AbstractController
         }
 
         // Neue Sitzung für diesen Login; die MFA-Bestätigung gilt nur für sie (nie aus einer alten Sitzung übernommen).
-        $session = $this->sessionManager->startSession($user, $verified->getAuthMethod());
+        $session = $this->sessionManager->startSession($user, $verified->getAuthMethod(), $method);
         $session->markMfaVerified($method);
         $trustCookie = null;
         if ($trustDevice) {

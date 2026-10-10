@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Command;
 
-use App\Service\DevEnvironmentService;
+use App\Service\Demo\DemoEnvironmentGuard;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -19,12 +19,12 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  */
 #[AsCommand(
     name: 'app:dev-demo:reset',
-    description: 'Dev-Demo: Rollen-User neu anlegen + E2E-Smoke-User ohne Department'
+    description: 'Dev-Demo: Rollen-User anlegen/aktualisieren (löscht nichts) + E2E-Smoke-User ohne Department'
 )]
 final class DevDemoResetCommand extends Command
 {
     public function __construct(
-        private DevEnvironmentService $devEnvironmentService,
+        private DemoEnvironmentGuard $environmentGuard,
     ) {
         parent::__construct();
     }
@@ -38,6 +38,8 @@ final class DevDemoResetCommand extends Command
                 InputOption::VALUE_REQUIRED,
                 'Passwort für e2e-smoke@ematchef.ch (mind. 8 Zeichen). Fehlt → E2E-Schritt wird übersprungen.'
             )
+            ->addOption('department', null, InputOption::VALUE_REQUIRED, 'Demo-Department-ID (wie app:create-role-users)')
+            ->addOption('mark-department-demo', null, InputOption::VALUE_NONE, 'Department ausdrücklich als Demo markieren')
             ->addOption(
                 'skip-e2e',
                 null,
@@ -50,8 +52,9 @@ final class DevDemoResetCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
 
-        if (!$this->devEnvironmentService->isDevToolsEnabled()) {
-            $io->error('Dev-Tools sind deaktiviert (EMATCHEF_DEV_TOOLS / APP_ENV). Abbruch.');
+        $denial = $this->environmentGuard->additiveDenial();
+        if ($denial !== null) {
+            $io->error($denial);
 
             return Command::FAILURE;
         }
@@ -67,7 +70,14 @@ final class DevDemoResetCommand extends Command
         $io->title('Dev-Demo Reset');
 
         $io->section('Rollen-User (app:create-role-users)');
-        $roleCode = $application->find('app:create-role-users')->run(new ArrayInput([]), $output);
+        $roleArgs = [];
+        if ($input->getOption('department')) {
+            $roleArgs['--department'] = (string) $input->getOption('department');
+        }
+        if ($input->getOption('mark-department-demo')) {
+            $roleArgs['--mark-department-demo'] = true;
+        }
+        $roleCode = $application->find('app:create-role-users')->run(new ArrayInput($roleArgs), $output);
         if ($roleCode !== Command::SUCCESS) {
             $io->error('app:create-role-users fehlgeschlagen.');
 
@@ -98,7 +108,7 @@ final class DevDemoResetCommand extends Command
 
         $io->success([
             'Dev-Demo bereit.',
-            'Banner-Logins: *@ematchef.ch / ' . CreateRoleUsersCommand::DEMO_PASSWORD,
+            'Banner-Logins: *@' . \App\Util\DemoAccounts::domain() . ' / ' . CreateRoleUsersCommand::DEMO_PASSWORD,
             'E2E: ' . EnsureE2eUserCommand::DEFAULT_EMAIL . ' (ohne Department, ausgeblendet in User-Suche)',
         ]);
 

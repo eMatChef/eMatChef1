@@ -37,3 +37,12 @@ export function apiErrorMessage(err: unknown, fallback: string): string {
   }
   return fallback
 }
+
+/**
+ * Grossanlass: Der Server lehnt Buchung oder Ausgabe ab, weil eine Charge überbucht wäre oder die Menge nicht vorhanden ist
+ * (HTTP 409, `code: availability_conflict`). Die Meldung steht in `error` und ist für Benutzer lesbar.
+ */
+export function isAvailabilityConflict(err: unknown): boolean {
+  const response = (err as { response?: { status?: number; data?: { code?: unknown } } })?.response
+  return response?.status === 409 && response.data?.code === 'availability_conflict'
+}

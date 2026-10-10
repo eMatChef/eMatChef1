@@ -13,7 +13,9 @@ use App\Entity\MaterialItem;
 use App\Entity\User;
 use App\Service\GroupAccessService;
 use App\Service\JsLeihkatalogCatalogService;
+use App\Service\MaterialPeriodAvailability;
 use App\Util\GrossanlassIdGenerator;
+use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class GrossanlassGaesteService
@@ -25,6 +27,9 @@ final class GrossanlassGaesteService
         private GrossanlassCostService $costs,
         private GroupAccessService $groupAccess,
         private JsLeihkatalogCatalogService $jsCatalog,
+        private GrossanlassAvailabilityService $availability,
+        private GrossanlassChargeMovementService $movements,
+        private MaterialPeriodAvailability $stock,
     ) {}
 
     /**
@@ -129,36 +134,45 @@ final class GrossanlassGaesteService
             throw new \InvalidArgumentException('Artikel nicht im eigenen Campmaterial');
         }
 
-        $existing = $this->entityManager->getRepository(DepartmentGrossanlassGuestShare::class)->findOneBy([
-            'hostDepartmentId' => $host->getId(),
-            'guestDepartmentId' => $guest->getId(),
-            'materialItemId' => $material->getId(),
-            'kind' => DepartmentGrossanlassGuestShare::KIND_OFFER,
-        ]);
-        if ($existing instanceof DepartmentGrossanlassGuestShare && $existing->getStatus() !== DepartmentGrossanlassGuestShare::STATUS_DECLINED) {
-            throw new \InvalidArgumentException('Dieser Artikel ist für den Anlass bereits freigegeben');
-        }
+        $from = $this->parseDate($data['from'] ?? null);
+        $to = $this->parseDate($data['to'] ?? null);
+        $this->assertWindow($from, $to);
 
-        $row = $existing instanceof DepartmentGrossanlassGuestShare ? $existing : new DepartmentGrossanlassGuestShare();
-        if ($existing === null) {
-            $row->setId(GrossanlassIdGenerator::unique(
-                $this->entityManager,
-                GrossanlassIdGenerator::GUEST_SHARE,
-                DepartmentGrossanlassGuestShare::class,
-            ));
-            $this->entityManager->persist($row);
-        }
-        $row->setHostDepartment($host);
-        $row->setGuestDepartment($guest);
-        $row->setKind(DepartmentGrossanlassGuestShare::KIND_OFFER);
-        $row->setStatus(DepartmentGrossanlassGuestShare::STATUS_OFFERED);
-        $row->setName($material->getName());
-        $row->setQty(max(1, (int) ($data['qty'] ?? $material->getTotalStock() ?: 1)));
-        $row->setFamily(DepartmentGrossanlassCommitment::FAMILY_MATERIAL);
-        $row->setMaterialItemId($material->getId());
-        $row->setStartsAt($this->parseDate($data['from'] ?? null));
-        $row->setEndsAt($this->parseDate($data['to'] ?? null));
-        $this->entityManager->flush();
+        $this->availability->transactional(function () use ($host, $guest, $material, $data, $from, $to): void {
+            $existing = $this->entityManager->getRepository(DepartmentGrossanlassGuestShare::class)->findOneBy([
+                'hostDepartmentId' => $host->getId(),
+                'guestDepartmentId' => $guest->getId(),
+                'materialItemId' => $material->getId(),
+                'kind' => DepartmentGrossanlassGuestShare::KIND_OFFER,
+            ]);
+            if ($existing instanceof DepartmentGrossanlassGuestShare && $existing->getStatus() !== DepartmentGrossanlassGuestShare::STATUS_DECLINED) {
+                throw new \InvalidArgumentException('Dieser Artikel ist für den Anlass bereits freigegeben');
+            }
+
+            $qty = max(1, (int) ($data['qty'] ?? $material->getTotalStock() ?: 1));
+            $this->assertGuestStock($material, $qty, $from, $to, $existing?->getId(), true);
+
+            $row = $existing instanceof DepartmentGrossanlassGuestShare ? $existing : new DepartmentGrossanlassGuestShare();
+            if ($existing === null) {
+                $row->setId(GrossanlassIdGenerator::unique(
+                    $this->entityManager,
+                    GrossanlassIdGenerator::GUEST_SHARE,
+                    DepartmentGrossanlassGuestShare::class,
+                ));
+                $this->entityManager->persist($row);
+            }
+            $row->setHostDepartment($host);
+            $row->setGuestDepartment($guest);
+            $row->setKind(DepartmentGrossanlassGuestShare::KIND_OFFER);
+            $row->setStatus(DepartmentGrossanlassGuestShare::STATUS_OFFERED);
+            $row->setName($material->getName());
+            $row->setQty($qty);
+            $row->setFamily(DepartmentGrossanlassCommitment::FAMILY_MATERIAL);
+            $row->setMaterialItemId($material->getId());
+            $row->setStartsAt($from);
+            $row->setEndsAt($to);
+            $this->entityManager->flush();
+        });
 
         return $this->guestCatalog($guest, $user, $host->getId());
     }
@@ -186,12 +200,15 @@ final class GrossanlassGaesteService
             }
         }
         $items = [];
-        foreach ($this->guestMaterials($guest->getId()) as $material) {
+        $materials = $this->guestMaterials($guest->getId());
+        $free = $this->stock->availableForIds(array_map(static fn (MaterialItem $m): string => $m->getId(), $materials));
+        foreach ($materials as $material) {
             $share = $byItem[$material->getId()] ?? null;
             $items[] = [
                 'id' => $material->getId(),
                 'name' => $material->getName(),
                 'qty' => max(0, $material->getTotalStock()),
+                'free_qty' => max(0, $free[$material->getId()] ?? 0),
                 'released' => $share !== null && $share->getStatus() !== DepartmentGrossanlassGuestShare::STATUS_DECLINED,
                 'share_id' => $share?->getId(),
                 'share_status' => $share?->getStatus(),
@@ -216,29 +233,213 @@ final class GrossanlassGaesteService
         if ($row->getKind() !== DepartmentGrossanlassGuestShare::KIND_OFFER) {
             throw new \InvalidArgumentException('Nur Leihe kann übernommen werden');
         }
-        $row->setStatus(DepartmentGrossanlassGuestShare::STATUS_ACCEPTED);
-        if ($row->getCommitment() === null) {
-            $commitment = $this->commitments->create($host, $user, [
-                'name' => $row->getName(),
-                'source' => $row->getGuestDepartment()->getName(),
-                'family' => $row->getFamily(),
-                'origin' => DepartmentGrossanlassCommitment::ORIGIN_LOAN,
-                'return_required' => true,
-                'owner_kind' => DepartmentGrossanlassCommitment::OWNER_DEPARTMENT,
-                'owner_department_id' => $row->getGuestDepartmentId(),
-                'quantity' => $row->getQty(),
-                'present_from' => $row->getStartsAt()?->format(\DateTimeInterface::ATOM),
-                'present_to' => $row->getEndsAt()?->format(\DateTimeInterface::ATOM),
-                'released' => true,
-            ]);
-            $entity = $this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)->find($commitment['id']);
-            if ($entity instanceof DepartmentGrossanlassCommitment) {
-                $row->setCommitment($entity);
-            }
+        if ($row->getStatus() === DepartmentGrossanlassGuestShare::STATUS_DECLINED) {
+            throw new \InvalidArgumentException('Die Freigabe wurde vom Gast-Department zurückgezogen');
         }
-        $this->entityManager->flush();
+        if ($row->getStatus() === DepartmentGrossanlassGuestShare::STATUS_ACCEPTED && $row->getCommitment() !== null) {
+            return $this->overview($host, $user);
+        }
+
+        $this->availability->transactional(function () use ($host, $user, $row): void {
+            // Erst jetzt blockiert die Zusage das Material: unter der Sperre erneut gegen Aktivitäten und andere Anlässe prüfen.
+            $material = $row->getMaterialItemId() !== null
+                ? $this->entityManager->getRepository(MaterialItem::class)->find($row->getMaterialItemId())
+                : null;
+            if ($material instanceof MaterialItem) {
+                if ($material->getDeletedAt() !== null) {
+                    throw new \InvalidArgumentException('Der Artikel existiert im Gast-Department nicht mehr');
+                }
+                $this->assertGuestStock($material, $row->getQty(), $row->getStartsAt(), $row->getEndsAt(), $row->getId(), false);
+            }
+            $row->setStatus(DepartmentGrossanlassGuestShare::STATUS_ACCEPTED);
+            if ($row->getCommitment() === null) {
+                $commitment = $this->commitments->create($host, $user, [
+                    'name' => $row->getName(),
+                    'source' => $row->getGuestDepartment()->getName(),
+                    'family' => $row->getFamily(),
+                    'origin' => DepartmentGrossanlassCommitment::ORIGIN_LOAN,
+                    'return_required' => true,
+                    'owner_kind' => DepartmentGrossanlassCommitment::OWNER_DEPARTMENT,
+                    'owner_department_id' => $row->getGuestDepartmentId(),
+                    'quantity' => $row->getQty(),
+                    'present_from' => $row->getStartsAt()?->format(\DateTimeInterface::ATOM),
+                    'present_to' => $row->getEndsAt()?->format(\DateTimeInterface::ATOM),
+                    'released' => true,
+                ]);
+                $entity = $this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)->find($commitment['id']);
+                if ($entity instanceof DepartmentGrossanlassCommitment) {
+                    $row->setCommitment($entity);
+                }
+            }
+            $this->entityManager->flush();
+        });
 
         return $this->overview($host, $user);
+    }
+
+    /**
+     * Das Gast-Department ändert seine eigene Freigabe (Menge, Zeitfenster). Nach der Annahme nur die Menge: Erhöhen
+     * wird gegen den Bestand geprüft, Verringern nie unter erhaltene oder gebuchte Mengen.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public function updateRelease(Department $guest, User $user, string $hostId, string $shareId, array $data): array
+    {
+        $this->assertGuestManager($guest, $user);
+        $this->availability->transactional(function () use ($guest, $hostId, $shareId, $data): void {
+            $row = $this->findOwnShare($guest, $hostId, $shareId);
+            $material = $this->materialOf($row);
+            $qty = array_key_exists('qty', $data) ? max(1, (int) $data['qty']) : $row->getQty();
+            $accepted = $row->getStatus() === DepartmentGrossanlassGuestShare::STATUS_ACCEPTED;
+
+            if ($accepted) {
+                if (array_key_exists('from', $data) || array_key_exists('to', $data)) {
+                    throw new \InvalidArgumentException('Das Zeitfenster einer angenommenen Freigabe lässt sich nicht ändern. Zurückziehen und neu freigeben.');
+                }
+                $commitment = $row->getCommitment();
+                if ($qty > $row->getQty()) {
+                    $this->assertGuestStock($material, $qty, $row->getStartsAt(), $row->getEndsAt(), $row->getId(), false);
+                }
+                if ($commitment instanceof DepartmentGrossanlassCommitment && $qty !== $commitment->getQuantity()) {
+                    $this->availability->lock($commitment);
+                    if ($qty < $commitment->getQuantity()) {
+                        $received = $this->movements->receivedQuantity($commitment);
+                        if ($qty < $received) {
+                            throw new GrossanlassAvailabilityConflict(
+                                sprintf('%s: %d bereits erhalten, die Menge kann nicht auf %d sinken. Die Rückgabe wird im Grossanlass gebucht.', $row->getName(), $received, $qty),
+                                GrossanlassAvailabilityConflict::KIND_IN_USE,
+                                ['commitment_id' => $commitment->getId(), 'received' => $received],
+                            );
+                        }
+                        $this->availability->assertQuantityCoversBookings($commitment, $qty);
+                    }
+                    $commitment->setQuantity($qty);
+                }
+            } else {
+                $from = array_key_exists('from', $data) ? $this->parseDate($data['from']) : $row->getStartsAt();
+                $to = array_key_exists('to', $data) ? $this->parseDate($data['to']) : $row->getEndsAt();
+                $this->assertWindow($from, $to);
+                $this->assertGuestStock($material, $qty, $from, $to, $row->getId(), true);
+                $row->setStartsAt($from);
+                $row->setEndsAt($to);
+            }
+            $row->setQty($qty);
+            $this->entityManager->flush();
+        });
+
+        return $this->guestCatalog($guest, $user, $hostId);
+    }
+
+    /**
+     * Das Gast-Department zieht seine Freigabe zurück. Angenommen: nur solange die Charge im Grossanlass ungenutzt ist;
+     * danach läuft die Rückgabe im Grossanlass. Das Material ist im Gast-Department sofort wieder frei.
+     *
+     * @return array<string, mixed>
+     */
+    public function withdrawRelease(Department $guest, User $user, string $hostId, string $shareId): array
+    {
+        $this->assertGuestManager($guest, $user);
+        $this->availability->transactional(function () use ($guest, $hostId, $shareId): void {
+            $row = $this->findOwnShare($guest, $hostId, $shareId);
+            if ($row->getStatus() === DepartmentGrossanlassGuestShare::STATUS_DECLINED) {
+                return; // idempotent
+            }
+            $commitment = $row->getCommitment();
+            if ($row->getStatus() === DepartmentGrossanlassGuestShare::STATUS_ACCEPTED && $commitment instanceof DepartmentGrossanlassCommitment) {
+                $row->setCommitment(null);
+                $this->entityManager->flush();
+                $this->commitments->removeUnusedGuestCharge($commitment);
+            }
+            $row->setStatus(DepartmentGrossanlassGuestShare::STATUS_DECLINED);
+            $this->entityManager->flush();
+        });
+
+        return $this->guestCatalog($guest, $user, $hostId);
+    }
+
+    /**
+     * Gast-Material nur zusagen, soweit es im Zeitfenster tatsächlich frei ist: Bestand minus Aktivitäten (Bestellung und
+     * Pipeline), minus angenommene Zusagen für andere Anlässe. Bei neuen Angeboten zählen zusätzlich offene Angebote mit, damit
+     * dasselbe Material nicht doppelt angeboten wird. Sperrt den Artikel (nur in einer Transaktion aufrufen).
+     */
+    private function assertGuestStock(
+        MaterialItem $material,
+        int $qty,
+        ?\DateTime $from,
+        ?\DateTime $to,
+        ?string $excludeShareId,
+        bool $countOffers,
+    ): void {
+        $this->entityManager->lock($material, LockMode::PESSIMISTIC_WRITE);
+        // Ohne Fenster gilt das Material als unbegrenzt zugesagt: gegen jede Aktivität prüfen
+        $windowFrom = $from ?? new \DateTime('1970-01-01');
+        $windowTo = $to ?? new \DateTime('2100-01-01');
+        $free = $this->stock->availableForIds([$material->getId()], $windowFrom, $windowTo, '', $excludeShareId ?? '')[$material->getId()] ?? 0;
+        if ($countOffers) {
+            foreach ($this->entityManager->getRepository(DepartmentGrossanlassGuestShare::class)->findBy([
+                'materialItemId' => $material->getId(),
+                'kind' => DepartmentGrossanlassGuestShare::KIND_OFFER,
+                'status' => DepartmentGrossanlassGuestShare::STATUS_OFFERED,
+            ]) as $other) {
+                if ($other->getId() === $excludeShareId) {
+                    continue;
+                }
+                $oFrom = $other->getStartsAt();
+                $oTo = $other->getEndsAt();
+                if (($oFrom === null || $oFrom < $windowTo) && ($oTo === null || $oTo > $windowFrom)) {
+                    $free -= $other->getQty();
+                }
+            }
+        }
+        if ($qty <= max(0, $free)) {
+            return;
+        }
+
+        throw new GrossanlassAvailabilityConflict(
+            sprintf(
+                '%s: im Zeitfenster nur %d verfügbar (Bestand abzüglich Aktivitäten und anderer Zusagen) — %d lassen sich nicht zusagen.',
+                $material->getName(),
+                max(0, $free),
+                $qty,
+            ),
+            GrossanlassAvailabilityConflict::KIND_GUEST_STOCK,
+            ['material_item_id' => $material->getId(), 'material_name' => $material->getName(), 'available' => max(0, $free), 'requested' => $qty],
+        );
+    }
+
+    private function assertWindow(?\DateTime $from, ?\DateTime $to): void
+    {
+        if ($from !== null && $to !== null && $to <= $from) {
+            throw new \InvalidArgumentException('Das Ende muss nach dem Beginn liegen');
+        }
+    }
+
+    private function materialOf(DepartmentGrossanlassGuestShare $row): MaterialItem
+    {
+        $material = $row->getMaterialItemId() !== null
+            ? $this->entityManager->getRepository(MaterialItem::class)->find($row->getMaterialItemId())
+            : null;
+        if (!$material instanceof MaterialItem || $material->getDeletedAt() !== null) {
+            throw new \InvalidArgumentException('Artikel nicht im eigenen Campmaterial');
+        }
+
+        return $material;
+    }
+
+    /** Nur die eigene Freigabe dieses Gast-Departments für diesen Anlass. */
+    private function findOwnShare(Department $guest, string $hostId, string $shareId): DepartmentGrossanlassGuestShare
+    {
+        $row = $this->entityManager->getRepository(DepartmentGrossanlassGuestShare::class)->find($shareId);
+        if (!$row instanceof DepartmentGrossanlassGuestShare
+            || $row->getGuestDepartmentId() !== $guest->getId()
+            || $row->getHostDepartmentId() !== $hostId
+            || $row->getKind() !== DepartmentGrossanlassGuestShare::KIND_OFFER
+        ) {
+            throw new \InvalidArgumentException('Freigabe nicht gefunden');
+        }
+
+        return $row;
     }
 
     /**

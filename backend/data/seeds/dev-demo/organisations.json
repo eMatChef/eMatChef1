@@ -1,0 +1,652 @@
+{
+  "_comment": "Versionierter Seed-Katalog der Demo-Organisationen. Schlüssel (key) sind stabile Seed-Identitäten und werden nie umbenannt; Anzeigenamen dürfen sich ändern. Konten stammen aus demo-accounts.json. Demo-Benutzer sind reine Testdaten, gehören keinem Szenario und dürfen in mehreren Demo-Departments Mitglied sein. Globale Rollen (sa/org/sub) stehen in profile.roles und sind keine Mitgliedschaftsrolle: Superadmin, Orgchef und Suborgchef erhalten nie automatisch eine MW-Rolle; ihre Verwaltungszuständigkeit steht in adminScopes (roots = Department-Wurzeln samt Unterbaum, organisation = die Organisation des Szenarios; kombinierbar, auch über mehrere Szenarien; ohne Eintrag keine Verwaltungsrechte), operative Rollen nur ausdrücklich unter members. Zusätzliche Departments (departments) bilden nur die Hierarchie ab, ohne Prozessdaten. members[].department verweist auf einen Schlüssel aus departments (ohne Angabe: das Szenario-Department). retiredMembers nennt früher fälschlich gesäte Mitgliedschaften, die nur entfernt werden, wenn sie unverändert vom Seed stammen. Doku: docs/demo/SEED-KONZEPT.md §7.11.",
+  "catalogVersion": "2026.10.6",
+  "sharedAccounts": [
+    "supplier"
+  ],
+  "scenarios": {
+    "materialverwaltung": {
+      "organisation": {
+        "name": "Demo Organisation Materialverwaltung"
+      },
+      "department": {
+        "name": "Demo Materialverwaltung",
+        "parent": "kantonalverband"
+      },
+      "departments": [
+        {
+          "key": "kantonalverband",
+          "name": "Demo Kantonalverband"
+        },
+        {
+          "key": "abteilung-sued",
+          "name": "Demo Abteilung Süd",
+          "parent": "kantonalverband"
+        },
+        {
+          "key": "abteilung-sued-aussenstelle",
+          "name": "Demo Abteilung Süd Aussenstelle",
+          "parent": "abteilung-sued"
+        }
+      ],
+      "groups": [
+        {
+          "key": "stufen",
+          "name": "Stufen",
+          "sort": 10
+        },
+        {
+          "key": "biber",
+          "name": "Biber",
+          "sort": 10,
+          "parent": "stufen"
+        },
+        {
+          "key": "woelfe",
+          "name": "Wölfe",
+          "sort": 20,
+          "parent": "stufen"
+        },
+        {
+          "key": "pfadis",
+          "name": "Pfadis",
+          "sort": 30,
+          "parent": "stufen"
+        },
+        {
+          "key": "pios",
+          "name": "Pios",
+          "sort": 40,
+          "parent": "stufen"
+        },
+        {
+          "key": "rover",
+          "name": "Rover",
+          "sort": 50,
+          "parent": "stufen"
+        },
+        {
+          "key": "materialteam",
+          "name": "Materialteam",
+          "sort": 20
+        }
+      ],
+      "members": [
+        {
+          "account": "superadmin",
+          "role": "u",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "matwart",
+          "role": "mw",
+          "primary": true,
+          "groups": [
+            {
+              "group": "materialteam",
+              "role": "leader",
+              "primary": true
+            }
+          ]
+        },
+        {
+          "account": "depchef",
+          "role": "dc",
+          "primary": true,
+          "groups": []
+        },
+        {
+          "account": "leader1",
+          "role": "l1",
+          "primary": true,
+          "groups": [
+            {
+              "group": "woelfe",
+              "role": "leader",
+              "primary": true
+            }
+          ]
+        },
+        {
+          "account": "leader2",
+          "role": "l2",
+          "primary": true,
+          "groups": [
+            {
+              "group": "pfadis",
+              "role": "leader",
+              "primary": true
+            }
+          ]
+        },
+        {
+          "account": "leader3",
+          "role": "l3",
+          "primary": true,
+          "groups": [
+            {
+              "group": "pios",
+              "role": "leader",
+              "primary": true
+            }
+          ]
+        },
+        {
+          "account": "user",
+          "role": "u",
+          "primary": true,
+          "groups": [
+            {
+              "group": "pfadis",
+              "role": "member",
+              "primary": true
+            }
+          ]
+        },
+        {
+          "account": "suborgchef",
+          "role": "u",
+          "primary": true,
+          "groups": []
+        }
+      ],
+      "retiredMembers": [
+        {
+          "account": "orgchef"
+        }
+      ],
+      "adminScopes": [
+        {
+          "account": "orgchef",
+          "roots": [
+            "kantonalverband"
+          ]
+        },
+        {
+          "account": "suborgchef",
+          "roots": [
+            "abteilung-sued"
+          ]
+        }
+      ]
+    },
+    "grossanlass-event": {
+      "organisation": {
+        "name": "Demo Organisation Grossanlass Event"
+      },
+      "department": {
+        "name": "Demo Grossanlass Event"
+      },
+      "departments": [
+        {
+          "key": "gast-abteilung",
+          "name": "Demo Gast-Abteilung"
+        }
+      ],
+      "groups": [
+        {
+          "key": "infrastruktur",
+          "name": "Infrastruktur",
+          "sort": 10,
+          "kind": "ressort"
+        },
+        {
+          "key": "material-logistik",
+          "name": "Material & Logistik",
+          "sort": 20,
+          "parent": "infrastruktur",
+          "kind": "ressort",
+          "logistics": true
+        },
+        {
+          "key": "bauten",
+          "name": "Bauten",
+          "sort": 30,
+          "parent": "infrastruktur",
+          "kind": "teilbereich"
+        },
+        {
+          "key": "wasser-sanitaer",
+          "name": "Wasser & Sanitär",
+          "sort": 40,
+          "parent": "infrastruktur",
+          "kind": "teilbereich"
+        }
+      ],
+      "members": [
+        {
+          "account": "ga-mw",
+          "role": "mw",
+          "primary": true,
+          "groups": [
+            {
+              "group": "material-logistik",
+              "role": "leader",
+              "primary": true
+            }
+          ]
+        },
+        {
+          "account": "ga-cmw",
+          "role": "cmw",
+          "primary": true,
+          "groups": [
+            {
+              "group": "material-logistik",
+              "role": "member",
+              "primary": true
+            }
+          ]
+        },
+        {
+          "account": "ga-ok",
+          "role": "dc",
+          "primary": true,
+          "groups": [
+            {
+              "group": "infrastruktur",
+              "role": "member",
+              "primary": true
+            }
+          ]
+        },
+        {
+          "account": "ga-komm",
+          "role": "komm",
+          "primary": true,
+          "groups": []
+        },
+        {
+          "account": "ga-spon",
+          "role": "spon",
+          "primary": true,
+          "groups": []
+        },
+        {
+          "account": "ga-lw",
+          "role": "lw",
+          "primary": true,
+          "groups": [
+            {
+              "group": "material-logistik",
+              "role": "member",
+              "primary": true
+            }
+          ]
+        },
+        {
+          "account": "ga-clw",
+          "role": "clw",
+          "primary": true,
+          "groups": [
+            {
+              "group": "material-logistik",
+              "role": "member",
+              "primary": true
+            }
+          ]
+        },
+        {
+          "account": "ga-bereich",
+          "role": "bl",
+          "primary": true,
+          "groups": [
+            {
+              "group": "bauten",
+              "role": "leader",
+              "primary": true
+            }
+          ]
+        },
+        {
+          "account": "ga-helfer",
+          "role": "u",
+          "primary": true,
+          "groups": [
+            {
+              "group": "bauten",
+              "role": "member",
+              "primary": true
+            }
+          ]
+        },
+        {
+          "account": "superadmin",
+          "role": "lw",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "matwart",
+          "department": "gast-abteilung",
+          "role": "mw",
+          "primary": false,
+          "groups": []
+        }
+      ],
+      "participants": [
+        "gast-abteilung"
+      ],
+      "retiredMembers": [
+        {
+          "account": "orgchef"
+        },
+        {
+          "account": "suborgchef"
+        }
+      ],
+      "adminScopes": [
+        {
+          "account": "suborgchef",
+          "organisation": true
+        }
+      ],
+      "grossanlass": {
+        "guestActivityType": "event",
+        "setupReleased": true
+      }
+    },
+    "grossanlass-camp": {
+      "organisation": {
+        "name": "Demo Organisation Grossanlass Camp"
+      },
+      "department": {
+        "name": "Demo Grossanlass Camp"
+      },
+      "groups": [
+        {
+          "key": "lagerinfrastruktur",
+          "name": "Lagerinfrastruktur",
+          "sort": 10,
+          "kind": "ressort"
+        },
+        {
+          "key": "zelte",
+          "name": "Zelte",
+          "sort": 10,
+          "parent": "lagerinfrastruktur",
+          "kind": "teilbereich"
+        },
+        {
+          "key": "kueche",
+          "name": "Küche",
+          "sort": 20,
+          "parent": "lagerinfrastruktur",
+          "kind": "teilbereich"
+        },
+        {
+          "key": "material-logistik",
+          "name": "Material & Logistik",
+          "sort": 20,
+          "kind": "ressort",
+          "logistics": true
+        },
+        {
+          "key": "verteilung",
+          "name": "Materialverteilung",
+          "sort": 10,
+          "parent": "material-logistik",
+          "kind": "teilbereich"
+        },
+        {
+          "key": "transporte",
+          "name": "Transporte",
+          "sort": 20,
+          "parent": "material-logistik",
+          "kind": "teilbereich"
+        },
+        {
+          "key": "retouren",
+          "name": "Retouren",
+          "sort": 30,
+          "parent": "material-logistik",
+          "kind": "teilbereich"
+        },
+        {
+          "key": "lagergruppen",
+          "name": "Lagergruppen",
+          "sort": 30,
+          "kind": "ressort"
+        },
+        {
+          "key": "gruppe-a",
+          "name": "Gruppe A",
+          "sort": 10,
+          "parent": "lagergruppen",
+          "kind": "teilbereich"
+        },
+        {
+          "key": "gruppe-b",
+          "name": "Gruppe B",
+          "sort": 20,
+          "parent": "lagergruppen",
+          "kind": "teilbereich"
+        }
+      ],
+      "members": [
+        {
+          "account": "camp-mw",
+          "role": "mw",
+          "primary": true,
+          "groups": [
+            {
+              "group": "material-logistik",
+              "role": "leader",
+              "primary": true
+            }
+          ]
+        },
+        {
+          "account": "camp-lw",
+          "role": "lw",
+          "primary": true,
+          "groups": [
+            {
+              "group": "transporte",
+              "role": "leader",
+              "primary": true
+            }
+          ]
+        },
+        {
+          "account": "camp-bereich",
+          "role": "bl",
+          "primary": true,
+          "groups": [
+            {
+              "group": "lagerinfrastruktur",
+              "role": "leader",
+              "primary": true
+            }
+          ]
+        },
+        {
+          "account": "camp-helfer",
+          "role": "u",
+          "primary": true,
+          "groups": [
+            {
+              "group": "zelte",
+              "role": "member",
+              "primary": true
+            }
+          ]
+        },
+        {
+          "account": "orgchef",
+          "role": "u",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "suborgchef",
+          "role": "l2",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-mw",
+          "role": "mw",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-cmw",
+          "role": "cmw",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-ok",
+          "role": "dc",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-komm",
+          "role": "komm",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-spon",
+          "role": "spon",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-lw",
+          "role": "lw",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-clw",
+          "role": "clw",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-bereich",
+          "role": "bl",
+          "primary": false,
+          "groups": [
+            {
+              "group": "lagergruppen",
+              "role": "leader",
+              "primary": true
+            }
+          ]
+        },
+        {
+          "account": "ga-helfer",
+          "role": "u",
+          "primary": false,
+          "groups": [
+            {
+              "group": "gruppe-a",
+              "role": "member",
+              "primary": true
+            }
+          ]
+        }
+      ],
+      "retiredMembers": [
+        {
+          "account": "superadmin"
+        }
+      ],
+      "adminScopes": [
+        {
+          "account": "orgchef",
+          "organisation": true
+        }
+      ],
+      "grossanlass": {
+        "guestActivityType": "camp",
+        "setupReleased": true
+      }
+    },
+    "grossanlass-setup": {
+      "organisation": {
+        "name": "Demo Organisation Grossanlass Einrichtung"
+      },
+      "department": {
+        "name": "Demo Grossanlass Einrichtung"
+      },
+      "grossanlass": {
+        "guestActivityType": "camp",
+        "setupReleased": false
+      },
+      "groups": [],
+      "members": [
+        {
+          "account": "ga-mw",
+          "role": "mw",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-cmw",
+          "role": "cmw",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-ok",
+          "role": "dc",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-bereich",
+          "role": "bl",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-lw",
+          "role": "lw",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-helfer",
+          "role": "u",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-komm",
+          "role": "komm",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-spon",
+          "role": "spon",
+          "primary": false,
+          "groups": []
+        },
+        {
+          "account": "ga-clw",
+          "role": "clw",
+          "primary": false,
+          "groups": []
+        }
+      ],
+      "retiredMembers": [
+        {
+          "account": "superadmin"
+        },
+        {
+          "account": "orgchef"
+        },
+        {
+          "account": "suborgchef"
+        }
+      ]
+    }
+  }
+}

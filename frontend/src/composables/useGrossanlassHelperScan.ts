@@ -18,6 +18,7 @@ import type { GaEinsatzOrgGroup } from '@/views/grossanlass/grossanlassEinsatzPr
 import type { GaHelperAssignment } from '@/views/grossanlass/grossanlassHelperAssignment'
 import { assignmentsFromScanContext } from '@/views/grossanlass/grossanlassHelperScanFilter'
 import { parseScanInput } from '@/utils/scanParser'
+import { apiErrorMessage, isAvailabilityConflict } from '@/utils/apiErrorMessage'
 
 export type GaHelperScanResult =
   | {
@@ -172,7 +173,9 @@ export function useGrossanlassHelperScan(options: HelperScanOptions) {
     try {
       await handlePackCode(raw, deptId)
       return
-    } catch {
+    } catch (e: unknown) {
+      // Ein Verfügbarkeitskonflikt ist ein erkannter Pack mit abgelehnter Ausgabe: nicht als Ort weiterprobieren.
+      if (isAvailabilityConflict(e)) throw e
       /* try place next */
     }
     try {
@@ -201,8 +204,7 @@ export function useGrossanlassHelperScan(options: HelperScanOptions) {
         await tryRawPublicCode(raw, deptId)
       }
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } } }
-      const message = err.response?.data?.error || t('public.lookup.scanError')
+      const message = apiErrorMessage(e, t('public.lookup.scanError'))
       toast.error(message)
       pushLog(message, 'error')
     } finally {

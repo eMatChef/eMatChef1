@@ -22,6 +22,7 @@ use App\Entity\MaterialItem;
 use App\Entity\WorkshopTicket;
 use App\Entity\Address;
 use App\Entity\User;
+use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\ActivityAccessService;
 use App\Service\Onboarding\OnboardingSandboxService;
 use App\Service\Onboarding\OnboardingSandboxVisibility;
@@ -77,6 +78,7 @@ class ActivityController extends AbstractController
         private AccountingActivityInvoiceService $activityInvoice,
         private ActivityWetDryingService $wetDrying,
         private OnboardingSandboxService $onboardingSandbox,
+        private AdminCapabilityChecker $adminCapabilities,
     ) {}
 
     private function getActorUserId(): ?string
@@ -666,7 +668,7 @@ class ActivityController extends AbstractController
 
     private function canAccessMwNotifications(User $user, string $departmentId): bool
     {
-        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], $user->getRoles())) > 0) {
+        if ($this->adminCapabilities->canAdministerDepartment($user, $departmentId)) {
             return true;
         }
 
@@ -4818,7 +4820,7 @@ class ActivityController extends AbstractController
 
     private function canUserManageActivityPublicCode(User $user, Activity $activity): bool
     {
-        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], $user->getRoles())) > 0) {
+        if ($this->adminCapabilities->canAdministerDepartment($user, $activity->getDepartmentId())) {
             return true;
         }
 

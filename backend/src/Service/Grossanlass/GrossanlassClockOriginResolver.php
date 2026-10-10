@@ -12,9 +12,12 @@ final class GrossanlassClockOriginResolver implements ClockOriginResolverInterfa
 {
     public const DAYS_BEFORE_EVENT = 5;
 
+    /** Departments mit Szenario-Identität liefern ihren Ausgangspunkt über den Szenario-Resolver (Registry). */
     public function supports(Department $department): bool
     {
-        return $department->isGrossanlass() && $department->getGrossanlassConfig() !== null;
+        return $department->getDemoScenarioKey() === null
+            && $department->isGrossanlass()
+            && $department->getGrossanlassConfig() !== null;
     }
 
     public function originFor(Department $department): \DateTimeInterface

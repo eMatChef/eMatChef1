@@ -11,6 +11,7 @@ use App\Entity\RepairTemplate;
 use App\Entity\User;
 use App\Repository\DepartmentRepairTemplateRepository;
 use App\Repository\RepairTemplateRepository;
+use App\Service\Admin\AdminCapabilityChecker;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -28,6 +29,7 @@ class DepartmentRepairTemplateController extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly DepartmentRepairTemplateRepository $departmentRepairTemplateRepository,
         private readonly RepairTemplateRepository $repairTemplateRepository,
+        private readonly AdminCapabilityChecker $adminCapabilities,
     ) {
     }
 
@@ -202,7 +204,7 @@ class DepartmentRepairTemplateController extends AbstractController
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
 
-        if ($this->isGlobalAdmin($user)) {
+        if ($this->adminCapabilities->canAdministerDepartment($user, $departmentId)) {
             return true;
         }
 
@@ -225,7 +227,7 @@ class DepartmentRepairTemplateController extends AbstractController
             return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
         }
 
-        if ($this->isGlobalAdmin($user)) {
+        if ($this->adminCapabilities->canAdministerDepartment($user, $departmentId)) {
             return $user;
         }
 
@@ -239,13 +241,5 @@ class DepartmentRepairTemplateController extends AbstractController
         }
 
         return $user;
-    }
-
-    private function isGlobalAdmin(User $user): bool
-    {
-        return count(array_intersect(
-            ['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'],
-            $user->getRoles()
-        )) > 0;
     }
 }

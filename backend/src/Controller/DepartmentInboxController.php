@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\Department;
 use App\Entity\Membership;
 use App\Entity\User;
+use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\ActivityUserNotificationService;
 use App\Service\UserDirectMessageService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -24,6 +25,7 @@ class DepartmentInboxController extends AbstractController
         private EntityManagerInterface $entityManager,
         private UserDirectMessageService $directMessages,
         private ActivityUserNotificationService $activityUserNotifications,
+        private AdminCapabilityChecker $adminCapabilities,
     ) {}
 
     #[Route('/messages', name: 'messages_list', methods: ['GET'])]
@@ -166,7 +168,7 @@ class DepartmentInboxController extends AbstractController
             throw new AccessDeniedException('Nicht authentifiziert');
         }
 
-        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], $user->getRoles())) > 0) {
+        if ($this->adminCapabilities->canAdministerDepartment($user, $departmentId)) {
             return $user;
         }
 

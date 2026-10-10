@@ -17,7 +17,9 @@
 
     <PendingDepartmentInvitesPanel />
 
-    <GrossanlassDashboardPanel v-if="departmentId" :key="departmentId" :department-id="departmentId" />
+    <!-- Offene Ersteinrichtung: nur der Einrichtungsstand statt der Betriebs-Widgets (die Sperre erzwingt der Server). -->
+    <GrossanlassSetupPanel v-if="departmentId && setupPending" :key="`setup-${departmentId}`" :department-id="departmentId" />
+    <GrossanlassDashboardPanel v-else-if="departmentId" :key="departmentId" :department-id="departmentId" />
   </PageShell>
 
   <div v-else class="dashboard">
@@ -345,6 +347,7 @@ import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import PageShell from '@/components/layout/PageShell.vue'
 import GrossanlassDashboardPanel from '@/components/grossanlass/GrossanlassDashboardPanel.vue'
+import GrossanlassSetupPanel from '@/components/grossanlass/GrossanlassSetupPanel.vue'
 import PendingDepartmentInvitesPanel from '@/components/dashboard/PendingDepartmentInvitesPanel.vue'
 import { EButton } from '@/components/form/base'
 import { formatPeriodCompact } from '@/utils/formatPeriod'
@@ -381,6 +384,7 @@ const activeMembership = computed(() => {
 })
 
 const isGrossanlassDept = computed(() => Boolean(activeMembership.value?.department?.is_grossanlass))
+const setupPending = computed(() => authStore.isGrossanlassSetupPending(departmentId.value))
 
 const grossanlassDeptName = computed(
   () => activeMembership.value?.department?.name || t('dashboard.title'),

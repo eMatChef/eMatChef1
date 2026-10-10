@@ -6,6 +6,7 @@ use App\Entity\Category;
 use App\Entity\Department;
 use App\Entity\User;
 use App\Util\IdGenerator;
+use App\Service\Security\DepartmentAccessGuard;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -17,8 +18,23 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class CategoryController extends AbstractController
 {
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private DepartmentAccessGuard $departmentAccess,
     ) {}
+
+    private function denyDepartment(?string $departmentId): ?JsonResponse
+    {
+        $user = $this->getUser();
+
+        return $this->departmentAccess->deny($user instanceof User ? $user : null, $departmentId);
+    }
+
+    private function denyManage(?string $departmentId): ?JsonResponse
+    {
+        $user = $this->getUser();
+
+        return $this->departmentAccess->denyManage($user instanceof User ? $user : null, $departmentId);
+    }
 
     /**
      * Liste aller Kategorien für ein Department
@@ -31,6 +47,9 @@ class CategoryController extends AbstractController
         
         if (!$departmentId) {
             return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
+        }
+        if ($denied = $this->denyDepartment((string) $departmentId)) {
+            return $denied;
         }
 
         $categories = $this->entityManager->getRepository(Category::class)
@@ -86,6 +105,9 @@ class CategoryController extends AbstractController
         if (!$category) {
             return new JsonResponse(['error' => 'Kategorie nicht gefunden'], 404);
         }
+        if ($denied = $this->denyDepartment($category->getDepartmentId())) {
+            return $denied;
+        }
 
         return new JsonResponse([
             'id' => $category->getId(),
@@ -115,6 +137,9 @@ class CategoryController extends AbstractController
             ->find($data['department_id']);
         if (!$department) {
             return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
+        }
+        if ($denied = $this->denyManage($department->getId())) {
+            return $denied;
         }
 
         try {
@@ -171,6 +196,9 @@ class CategoryController extends AbstractController
         
         if (!$category) {
             return new JsonResponse(['error' => 'Kategorie nicht gefunden'], 404);
+        }
+        if ($denied = $this->denyManage($category->getDepartmentId())) {
+            return $denied;
         }
 
         $data = json_decode($request->getContent(), true);
@@ -230,6 +258,9 @@ class CategoryController extends AbstractController
         
         if (!$category) {
             return new JsonResponse(['error' => 'Kategorie nicht gefunden'], 404);
+        }
+        if ($denied = $this->denyManage($category->getDepartmentId())) {
+            return $denied;
         }
 
         // Prüfe ob Materialien in dieser Kategorie existieren

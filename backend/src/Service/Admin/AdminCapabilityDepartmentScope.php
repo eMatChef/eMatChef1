@@ -80,19 +80,28 @@ final class AdminCapabilityDepartmentScope
     }
 
     /**
-     * @param list<string>|null $organisationIds null = keine Org-Einschränkung
+     * Alle Departments der angegebenen Organisationen (jede Tiefe). Eine leere Liste ergibt kein Department,
+     * nie «alle».
+     *
+     * @param list<string> $organisationIds
      *
      * @return list<string>
      */
-    public function departmentIdsForOrganisations(?array $organisationIds): array
+    public function departmentIdsForOrganisations(array $organisationIds): array
     {
-        $qb = $this->entityManager->getRepository(Department::class)->createQueryBuilder('d');
-        if ($organisationIds !== null && $organisationIds !== []) {
-            $qb->where('d.organisationId IN (:orgIds)')->setParameter('orgIds', $organisationIds);
+        if ($organisationIds === []) {
+            return [];
         }
-        $rows = $qb->select('d.id')->getQuery()->getSingleColumnResult();
+        $this->ensureDepartmentMaps();
+        $wanted = array_flip($organisationIds);
+        $ids = [];
+        foreach ($this->departmentById as $id => $department) {
+            if (isset($wanted[$department->getOrganisationId()])) {
+                $ids[] = (string) $id;
+            }
+        }
 
-        return array_values(array_unique(array_map('strval', $rows)));
+        return $ids;
     }
 
     /**

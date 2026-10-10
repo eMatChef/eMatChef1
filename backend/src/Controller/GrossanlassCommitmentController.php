@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Department;
 use App\Entity\User;
+use App\Service\Grossanlass\GrossanlassAvailabilityConflict;
 use App\Service\Grossanlass\GrossanlassChargeMovementService;
 use App\Service\Grossanlass\GrossanlassCommitmentService;
 use App\Service\GroupAccessService;
@@ -133,6 +134,8 @@ class GrossanlassCommitmentController extends AbstractController
             return new JsonResponse($fn($department, $user), $okStatus);
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (GrossanlassAvailabilityConflict $e) {
+            return new JsonResponse($e->toPayload(), 409);
         } catch (\RuntimeException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 403);
         }

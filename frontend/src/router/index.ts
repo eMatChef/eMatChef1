@@ -27,8 +27,10 @@ import {
 import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 import {
   canUseHelpTours,
+  canUseGrossanlassSetupTour,
   isHelpToursPath,
 } from '@/utils/onboardingGate'
+import { isGrossanlassSetupAllowedPath } from '@/utils/grossanlassSetupRoutes'
 import {
   gaCanManageDepartmentUsers,
   gaCanSeeAnlassOverview,
@@ -710,7 +712,7 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/TemplatesSettingsView.vue'),
             props: { mode: 'global-admin' },
             meta: {
-              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              requiredRoles: ['superadmin'],
               ...routeHead('globalMaterialTemplates'),
             }
           }
@@ -2506,6 +2508,8 @@ router.beforeEach(async (to, from, next) => {
     return userRoles.includes('ROLE_WEBADMIN')
   }
   const canEditPublicSite = () => isSuperAdmin() || isWebAdmin()
+  /** Verwaltungskontext aktiv (Superadmin global, Orgchef/Suborgchef Verwaltungsbereich): kein Department aktiv. */
+  const inAdminContext = () => authStore.isAdminContextActive
 
   // Devices-Origin: Startseite ohne Login → Login (kein Marketing-Landing)
   if (isDevicesHost() && to.path === '/') {
@@ -2569,7 +2573,7 @@ router.beforeEach(async (to, from, next) => {
     // Primäre Department-ID ermitteln
     let primaryDepartmentId = authStore.activeDepartmentId
     
-    if (!primaryDepartmentId && authStore.departments.length > 0 && !isSuperAdmin()) {
+    if (!primaryDepartmentId && authStore.departments.length > 0 && !isSuperAdmin() && !inAdminContext()) {
       const primaryDept = authStore.departments.find(d => d.is_primary) || authStore.departments[0]
       if (primaryDept) {
         primaryDepartmentId = primaryDept.department_id
@@ -2577,19 +2581,23 @@ router.beforeEach(async (to, from, next) => {
       }
     }
 
-    // Superadmin-Home nur ohne Department; mit Department immer Abteilungs-Dashboard
+    // Globales Dashboard nur im Superadmin-Systemkontext; mit aktivem Department immer Abteilungs-Dashboard
     if (to.path === '/dashboard') {
-      if (!isSuperAdmin()) {
-        if (primaryDepartmentId) {
-          return next(`/${primaryDepartmentId}`)
-        }
-        const supplierHome = defaultSupplierPath()
-        if (supplierHome) {
-          return next(supplierHome)
-        }
-        return next('/pending-assignment')
+      if (primaryDepartmentId) {
+        return next(`/${primaryDepartmentId}`)
       }
-      return next()
+      if (isSuperAdmin()) {
+        return next()
+      }
+      if (inAdminContext()) {
+        // Orgchef/Suborgchef haben kein globales Dashboard, ihr Kontext ist die Verwaltung
+        return next('/admin-dashboard/verwaltung')
+      }
+      const supplierHome = defaultSupplierPath()
+      if (supplierHome) {
+        return next(supplierHome)
+      }
+      return next('/pending-assignment')
     }
 
     // SA ohne Department: Admin-„Übersicht“ unter /verwaltung/dashboard → schlankes /dashboard
@@ -2604,10 +2612,10 @@ router.beforeEach(async (to, from, next) => {
     // User ohne Department werden auf Pending-Seite geleitet (Supplier-only → Supplier-Bereich)
     if (!primaryDepartmentId) {
       if (
-        isSuperAdmin() &&
+        (isSuperAdmin() || inAdminContext()) &&
         (to.path.startsWith('/admin-dashboard') || to.path === '/dashboard')
       ) {
-        // SA darf ohne Department im Admin-Bereich bzw. globalem Dashboard arbeiten
+        // Verwaltungskontext ohne Department: Admin-Bereich bzw. (Superadmin) globales Dashboard
       } else if (to.path.startsWith('/supplier/')) {
         // Supplier-Routen — Zugriff unten geprüft
       } else if (authStore.isSupplierOnly && authStore.hasSupplierAccess) {
@@ -2657,8 +2665,8 @@ router.beforeEach(async (to, from, next) => {
 
     // App-/Devices-Login-Root: eingeloggt → Abteilung oder Dashboard (Hauptdomain-„/“ bleibt Landing)
     const appLoginOrRoot = (isAppOrigin() && to.path === '/') || to.path === '/login'
-    if (appLoginOrRoot && isSuperAdmin()) {
-      return next('/dashboard')
+    if (appLoginOrRoot && !primaryDepartmentId && inAdminContext()) {
+      return next(isSuperAdmin() ? '/dashboard' : '/admin-dashboard/verwaltung')
     }
 
     if (appLoginOrRoot && primaryDepartmentId) {
@@ -2684,9 +2692,6 @@ router.beforeEach(async (to, from, next) => {
 
     // Wenn User inzwischen Department hat, Pending-Seite verlassen
     if (to.path === '/pending-assignment' && primaryDepartmentId && !departmentInviteLandingPath(to) && !isMiDataOnboardingLanding(to.query)) {
-      if (isSuperAdmin()) {
-        return next('/dashboard')
-      }
       return next(`/${primaryDepartmentId}`)
     }
 
@@ -2696,9 +2701,9 @@ router.beforeEach(async (to, from, next) => {
       if (supplierHome) return next(supplierHome)
     }
 
-    // SA ohne Department: Pending-Seite → globales Dashboard (kein Wartebereich wie neue Nutzer)
-    if (to.path === '/pending-assignment' && !primaryDepartmentId && isSuperAdmin()) {
-      return next('/dashboard')
+    // Verwaltungskontext ohne Department: Pending-Seite → Kontext-Startseite (kein Wartebereich wie neue Nutzer)
+    if (to.path === '/pending-assignment' && !primaryDepartmentId && inAdminContext()) {
+      return next(isSuperAdmin() ? '/dashboard' : '/admin-dashboard/verwaltung')
     }
   }
 
@@ -2748,8 +2753,9 @@ router.beforeEach(async (to, from, next) => {
   if (to.params.departmentId && authStore.isLoggedIn) {
     const departmentId = to.params.departmentId as string
 
-    // Superadmin: Dashboard/Verwaltung ohne Department-Präfix in der URL
-    if (isSuperAdmin()) {
+    // Superadmin im Systemkontext (oder bei fremdem Department): Dashboard/Verwaltung ohne Department-Präfix in der URL.
+    // Eigene Department-Mitgliedschaften des Superadmins bleiben normale Department-Kontexte.
+    if (isSuperAdmin() && !authStore.departments.some((d) => d.department_id === departmentId)) {
       const prefix = `/${departmentId}`
       const suffix = to.path.length > prefix.length ? to.path.slice(prefix.length) : ''
       if (suffix === '' || suffix === '/' || suffix === '/dashboard') {
@@ -2898,6 +2904,16 @@ router.beforeEach(async (to, from, next) => {
     if (workshopDeptId && authStore.isDepartmentGrossanlass(workshopDeptId)) {
       return next({ name: 'GrossanlassWerkstatt', params: { departmentId: workshopDeptId }, replace: true })
     }
+  }
+
+  // Grossanlass mit offener Ersteinrichtung: nur Dashboard und Einrichtung (der Server sperrt unabhängig davon).
+  const setupDeptId = (to.params.departmentId as string) || ''
+  if (
+    setupDeptId
+    && authStore.isGrossanlassSetupPending(setupDeptId)
+    && !isGrossanlassSetupAllowedPath(to.path, setupDeptId, canUseGrossanlassSetupTour(authStore, setupDeptId))
+  ) {
+    return next({ name: 'Dashboard', params: { departmentId: setupDeptId }, replace: true })
   }
 
   // Grossanlass-only routes (Planung, Beschaffung)

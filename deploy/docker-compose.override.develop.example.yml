@@ -22,6 +22,9 @@ services:
       - no-new-privileges:true
     environment:
       APP_ENV: prod
+      # Backend nur über 127.0.0.1 (Caddy) erreichbar; Absender ist das Gateway des Compose-Netzes (Docker-Standardpool 172.16.0.0/12,
+      # lokal verifiziert: 172.18.0.1). Nach dem Deploy auf das exakte Netz einengen: docker network inspect <projekt>_default (Subnet).
+      TRUSTED_PROXIES: "172.16.0.0/12"
       APP_DEBUG: "0"
       APP_SECRET: ${APP_SECRET}
       DATABASE_URL: "postgresql://mvuser:${POSTGRES_PASSWORD}@db:5432/mvdb?serverVersion=16&charset=utf8"
@@ -33,6 +36,9 @@ services:
       AUTH_COOKIE_DOMAIN: ".ematchef.ch"
       AUTH_COOKIE_SECURE: "1"
       EMATCHEF_DEV_TOOLS: "1"
+      # Pflicht für Demo-Befehle (reicht DEV_TOOLS allein nicht). Löschende Demo-Befehle zusätzlich nur bewusst pro Sitzung:
+      #   docker compose exec -e EMATCHEF_DEMO_DESTRUCTIVE=1 backend php bin/console …  (nie dauerhaft setzen)
+      EMATCHEF_ENV_NAME: "develop"
       # Hierarchie + kurze Übergangs-Hosts (app-dev / bare dev)
       CORS_ALLOW_ORIGIN: '^https://((app|qr|devices)\.dev\.ematchef\.ch|(dev|app-dev|qr-dev|devices-dev)\.ematchef\.ch)$'
       MAILER_DSN: "${MAILER_DSN:-null://null}"

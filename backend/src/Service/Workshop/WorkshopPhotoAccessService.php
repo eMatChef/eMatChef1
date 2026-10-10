@@ -7,6 +7,7 @@ namespace App\Service\Workshop;
 use App\Entity\Membership;
 use App\Entity\SupplierCompany;
 use App\Entity\User;
+use App\Service\Admin\AdminCapabilityChecker;
 use App\Entity\WorkshopTicket;
 use App\Repository\SupplierMembershipRepository;
 use App\Service\Media\MediaPhotoNormalizer;
@@ -25,6 +26,7 @@ class WorkshopPhotoAccessService
         private EntityManagerInterface $entityManager,
         private SupplierMembershipRepository $supplierMembershipRepository,
         private MediaPhotoNormalizer $photoNormalizer,
+        private AdminCapabilityChecker $adminCapabilities,
     ) {
     }
 
@@ -48,7 +50,7 @@ class WorkshopPhotoAccessService
 
     public function canUploadTicketPhotos(User $user, WorkshopTicket $ticket): bool
     {
-        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], $user->getRoles())) > 0) {
+        if ($this->adminCapabilities->canAdministerDepartment($user, $ticket->getDepartmentId())) {
             return true;
         }
 
@@ -88,7 +90,7 @@ class WorkshopPhotoAccessService
 
     public function canViewTicketPhotos(User $user, WorkshopTicket $ticket): bool
     {
-        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], $user->getRoles())) > 0) {
+        if ($this->adminCapabilities->canAdministerDepartment($user, $ticket->getDepartmentId())) {
             return true;
         }
 

@@ -9,6 +9,7 @@ use App\Entity\ActivityIssueReport;
 use App\Entity\Membership;
 use App\Entity\SupplierCompany;
 use App\Entity\User;
+use App\Service\Admin\AdminCapabilityChecker;
 use App\Entity\WorkshopTicket;
 use App\Repository\SupplierMembershipRepository;
 use App\Service\ActivityAccessService;
@@ -27,6 +28,7 @@ class IssuePhotoAccessService
         private EntityManagerInterface $entityManager,
         private ActivityAccessService $activityAccess,
         private SupplierMembershipRepository $supplierMembershipRepository,
+        private AdminCapabilityChecker $adminCapabilities,
     ) {
     }
 
@@ -86,7 +88,7 @@ class IssuePhotoAccessService
 
     private function isDepartmentManagerForActivity(User $user, Activity $activity): bool
     {
-        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], $user->getRoles())) > 0) {
+        if ($this->adminCapabilities->canAdministerDepartment($user, $activity->getDepartmentId())) {
             return true;
         }
 

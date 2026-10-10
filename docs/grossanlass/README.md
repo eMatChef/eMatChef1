@@ -297,7 +297,7 @@ Im **Pfadi-Dept:** kein Typ `grossanlass` im Aktivitäten-Wizard.
 | 6   | **Chief-MW (User)**                   | empfohlen | `membership` `role: mw`, `is_primary: true` — Warnung wenn leer     |
 
 
-**Nicht im Wizard** (Planung nach Create): Ressorts, Planungsrunden, Teilnehmer, Ort, Notizen, Freigabe.
+**Nicht im Wizard** (Planung nach Create): Ressorts, Planungsrunden, Teilnehmer, Ort, Notizen, Freigabe. Danach folgt die verbindliche Ersteinrichtung ([§2.7](#27-ersteinrichtung-und-freigabe-ist)).
 
 User-Auswahl Chief-MW: gleiches Pattern wie `[DepartmentModal.vue](../../frontend/src/components/DepartmentModal.vue)` (Org-User-Suche).
 
@@ -383,6 +383,36 @@ Optional im Dropdown: Label «Grossanlass» neben Dept-Name zur Unterscheidung v
 
 
 ---
+
+### 2.7 Ersteinrichtung und Freigabe (IST)
+
+Ein neu angelegter Grossanlass ist **nicht freigegeben**. Der persistente Einrichtungsstand liegt an `department_grossanlass_config` (`setup_released_at`, `setup_released_by_user_id`) und ist unabhängig von `status` (draft/published = Einladung der Gast-Departments, [§0.7](#07-freigabe-und-teilnehmer)) und vom Tour-Fortschritt des Benutzers. Die Migration `Version20261011100000` setzt den Stand für **alle bestehenden** Grossanlässe auf freigegeben, damit produktive Anlässe nicht gesperrt werden; nur neue starten offen. Die Einladung der Gast-Departments (`POST …/publish`) verlangt die freigegebene Einrichtung.
+
+**Drei unabhängige Konzepte:** der GA-Typ (`guest_activity_type`: Lager `camp` oder `event`), die teilnehmenden Departments (`has_guest_departments`, Teilnehmer) und die Material verleihenden Departments (Gast-Freigaben, [materialfluss.md §9](./materialfluss.md#9-department--camp--grossanlass)). Teilnahme setzt keine Materialleihe voraus und löst keine aus, und umgekehrt.
+
+**Pflichtbereiche** (`GrossanlassSetupService`, `GET …/grossanlass/setup`):
+
+| # | Bereich | Pflichtdaten |
+| --- | --- | --- |
+| 1 | Stammdaten | Name, Ort (Text oder Adresse), gültiger GA-Typ, Ende nicht vor Beginn |
+| 2 | Ressorts und Verantwortlichkeiten | mindestens ein Ressort, jedes Ressort mit mindestens einer Leitung (`leader`) |
+| 3 | Mitglieder und OK-Zuordnung | mindestens ein Mitglied mit Rolle `mw` und eines mit `dc` (OK-Leitung) |
+
+**Rechte** (Rollen aus `membership.role`; globale Admins im Scope des Departments behalten ihre Rechte und unterliegen der Sperre nicht):
+
+| Rolle | Einrichten | Freigeben | Vor der Freigabe |
+| --- | --- | --- | --- |
+| `mw`, `dc` (OK-Leitung) | ja | ja (`POST …/setup/release`) | Dashboard, Stammdaten, Ressorts, Mitglieder |
+| `cmw` | ja | **nein** (403) | wie MW, ohne Freigabe |
+| `bl`, `lw`, `clw`, `komm`, `spon`, `u` | nein | nein | kein GA-Zugang |
+
+**Serverseitige Sperre** (`GrossanlassSetupGateSubscriber`, vor der Freigabe): alle `/api/departments/{id}/grossanlass/…`-Endpunkte antworten mit 403 (`code: grossanlass_setup_pending`). Ausgenommen für `mw`/`cmw`/`dc` sind nur `setup`, `setup/release`, `planung` (GET, PATCH = Stammdaten), `groups` (Liste, Anlegen, Ändern, Löschen) und `groups/{id}/members`. Gast-Endpunkte (`…/{gast-department}/grossanlass/hosts/…`) sind nicht betroffen; Nicht-Mitglieder bleiben bei den bisherigen Prüfungen der Endpunkte. Allgemeine Department-Endpunkte (Benutzer, Material, Aktivitäten des Grossanlass-Departments) sind nicht Teil der Sperre.
+
+**Freigabe** nur bei vollständigen Pflichtdaten (sonst 422 `grossanlass_setup_incomplete` mit den offenen Punkten je Bereich), idempotent (Zeitpunkt und Person der ersten Freigabe bleiben). Danach gilt die normale rollenabhängige Navigation.
+
+**Frontend:** Das Dashboard zeigt bis zur Freigabe `GrossanlassSetupPanel` (drei Bereiche, Freigabe-Knopf nur für MW/OK-Leitung, Hinweis für andere Rollen). Die Navigation zeigt nur Dashboard, «Grossanlass verwalten» und die Einstellungen (Router: `isGrossanlassSetupAllowedPath`; nur Navigation, die Sperre erzwingt der Server). Die Tour `ga-setup` (`config/onboardingTours.ts`, Audience `ga-setup`) nutzt die vorhandene Tour-Infrastruktur und hebt echte Elemente hervor (`data-onboarding`: `nav-ga-verwalten`, `ga-setup-stammdaten`, `ga-setup-type`, `ga-setup-tab-ressorts`, `ga-setup-ressorts`, `nav-settings`, `settings-nav-users`, `ga-setup-release`). Sie startet beim ersten Öffnen des offenen Grossanlasses einmal automatisch (Merker in `localStorage` je Profil und Department), ist über den Hilfe-Hub (Hilfe → Touren) und den Knopf im Panel jederzeit erneut startbar und der Fortschritt (`onboarding_tours_<profil>_<dept>`) ist vom Freigabestatus getrennt.
+
+Demo-Zustand und Testablauf: [../demo/SEED-KONZEPT.md §7.12](../demo/SEED-KONZEPT.md#712-ga-typ-und-einrichtungsstand-der-grossanlässe-ist-katalog-2026105).
 
 ## 3. Navigation & Dashboard
 
@@ -1216,7 +1246,7 @@ Ressort «Bau»
 2. Zuweisung = **Einsatz** auf eine Charge, pro Ressort/Bauprojekt und Zeitraum → **Zugewiesen** (`place=assigned`). Bereichsleitungen reichen Einsätze ein, MW/CMW/OK-Leitung geben frei.
 3. Pack / Fahrt / Selbstabholung → **Draussen** (`place=out`); Einsatz-Status `returned` → **Im Lager** (Backend; keine Rücknahme-UI für Einsätze).
 
-Liste und Zeitachse pro Charge × Ressort/Bauprojekt (Planung → Belegung, Konflikte). Konfliktprüfung: Unikate (Menge ≤ 1, Fahrzeuge) bei überlappenden Fenstern, Mengen bei Summe > Charge-Menge, Einsatz ausserhalb des Partnerfensters. Wunsch-Zeitraum ≠ Einsatz, bis gebucht. Details: [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md), [materialfluss.md §2, §7](./materialfluss.md#2-kernmodell-artikel--charge--einsatz--pack--ort-ist).
+Liste und Zeitachse pro Charge × Ressort/Bauprojekt (Planung → Belegung, Konflikte). Konfliktprüfung und serverseitige Buchungssperre (HTTP 409): Unikate (Menge ≤ 1, Fahrzeuge) bei überlappenden Fenstern, höchste gleichzeitige Menge > Charge-Menge, Ausgabe nur der physisch vorhandenen Menge ([materialfluss.md §7.4](./materialfluss.md#74-verfügbarkeit-und-überbuchungsschutz-ist)); Einsatz ausserhalb des Partnerfensters wird nur angezeigt. Wunsch-Zeitraum ≠ Einsatz, bis gebucht. Details: [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md), [materialfluss.md §2, §7](./materialfluss.md#2-kernmodell-artikel--charge--einsatz--pack--ort-ist).
 
 Die Status in §11.1 gelten pro Einsatz für die ganze Einsatzmenge.
 

@@ -130,12 +130,14 @@ final class JwtSessionSubscriber implements EventSubscriberInterface
             throw new \LogicException('JWT issued outside a known login flow.');
         }
 
-        $session = $this->sessionManager->startSession($user, $authMethod);
-        $this->currentSession->setIssued($session);
-
         // Login-MFA entfiel dank Trusted Device (nur dieses Users): Sitzung entsprechend kennzeichnen.
         $trusted = $this->currentSession->getPendingTrustedDevice();
-        if ($trusted !== null && $trusted->getUser()->getId() === $user->getId()) {
+        $trustedForUser = $trusted !== null && $trusted->getUser()->getId() === $user->getId();
+
+        $session = $this->sessionManager->startSession($user, $authMethod, $trustedForUser ? 'trusted_device' : null);
+        $this->currentSession->setIssued($session);
+
+        if ($trusted !== null && $trustedForUser) {
             $this->sessionManager->markTrustedDeviceLogin($session, $trusted);
         }
         $this->currentSession->setPendingTrustedDevice(null);

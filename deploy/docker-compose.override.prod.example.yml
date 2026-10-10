@@ -34,6 +34,11 @@ services:
       - no-new-privileges:true
     environment:
       APP_ENV: prod
+      # Backend nur über 127.0.0.1 (Caddy) erreichbar; Absender ist das Gateway des Compose-Netzes (Docker-Standardpool 172.16.0.0/12,
+      # lokal verifiziert: 172.18.0.1). Nach dem Deploy auf das exakte Netz einengen: docker network inspect <projekt>_default (Subnet).
+      TRUSTED_PROXIES: "172.16.0.0/12"
+      # Alle Demo-Befehle gesperrt (auch ohne diese Zeile: fail-closed bei fehlendem Namen)
+      EMATCHEF_ENV_NAME: "production"
       APP_DEBUG: "0"
       APP_SECRET: ${APP_SECRET}
       DATABASE_URL: "postgresql://mvuser:${POSTGRES_PASSWORD}@db:5432/mvdb?serverVersion=16&charset=utf8"

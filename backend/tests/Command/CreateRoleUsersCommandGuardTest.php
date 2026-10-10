@@ -9,7 +9,7 @@ use App\Service\Auth\TotpService;
 use App\Service\Bootstrap\DemoGrossanlassSeedService;
 use App\Service\Bootstrap\DemoSupplierSeedService;
 use App\Service\Bootstrap\DevBootstrapContextService;
-use App\Service\DevEnvironmentService;
+use App\Service\Demo\DemoEnvironmentGuard;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -22,21 +22,61 @@ final class CreateRoleUsersCommandGuardTest extends TestCase
         $em = $this->createMock(EntityManagerInterface::class);
         $em->expects(self::never())->method('persist');
         $em->expects(self::never())->method('flush');
-        $devTools = $this->createMock(DevEnvironmentService::class);
-        $devTools->method('isDevToolsEnabled')->willReturn(false);
+        $guard = $this->createMock(DemoEnvironmentGuard::class);
+        $guard->method('additiveDenial')->willReturn('Dev-Tools sind deaktiviert');
 
-        $command = new CreateRoleUsersCommand(
-            $em,
-            $this->createMock(UserPasswordHasherInterface::class),
-            (new \ReflectionClass(DevBootstrapContextService::class))->newInstanceWithoutConstructor(),
-            (new \ReflectionClass(DemoSupplierSeedService::class))->newInstanceWithoutConstructor(),
-            (new \ReflectionClass(DemoGrossanlassSeedService::class))->newInstanceWithoutConstructor(),
-            $devTools,
-            (new \ReflectionClass(TotpService::class))->newInstanceWithoutConstructor(),
-        );
-        $tester = new CommandTester($command);
+        self::assertSame(1, ($tester = new CommandTester($this->command($em, $guard)))->execute([]));
+        self::assertStringContainsString('Dev-Tools sind deaktiviert', $tester->getDisplay());
+    }
+
+    public function testDeleteDemoUsersIsBlockedWithoutDestructiveApproval(): void
+    {
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->expects(self::never())->method('getRepository');
+        $em->expects(self::never())->method('remove');
+        $em->expects(self::never())->method('flush');
+        $guard = $this->createMock(DemoEnvironmentGuard::class);
+        $guard->method('additiveDenial')->willReturn(null);
+        $guard->method('destructiveDenial')->willReturn('Löschen gesperrt');
+
+        $tester = new CommandTester($this->command($em, $guard));
+
+        self::assertSame(1, $tester->execute(['--delete-demo-users' => true]));
+        self::assertStringContainsString('Löschen gesperrt', $tester->getDisplay());
+    }
+
+    public function testAmbiguousDemoDepartmentAbortsBeforeAnyWrite(): void
+    {
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->expects(self::never())->method('persist');
+        $em->expects(self::never())->method('remove');
+        $em->expects(self::never())->method('flush');
+        $guard = $this->createMock(DemoEnvironmentGuard::class);
+        $guard->method('additiveDenial')->willReturn(null);
+        $guard->method('destructiveDenial')->willReturn('x');
+        $context = $this->createMock(DevBootstrapContextService::class);
+        $context->method('findOwnedDemoOrganisationAndDepartment')
+            ->willThrowException(new \RuntimeException('Kein eindeutiges Demo-Department'));
+
+        $tester = new CommandTester($this->command($em, $guard, $context));
 
         self::assertSame(1, $tester->execute([]));
-        self::assertStringContainsString('Dev-Tools sind deaktiviert', $tester->getDisplay());
+        self::assertStringContainsString('Kein eindeutiges Demo-Department', $tester->getDisplay());
+    }
+
+    private function command(
+        EntityManagerInterface $em,
+        DemoEnvironmentGuard $guard,
+        ?DevBootstrapContextService $context = null,
+    ): CreateRoleUsersCommand {
+        return new CreateRoleUsersCommand(
+            $em,
+            $this->createMock(UserPasswordHasherInterface::class),
+            $context ?? (new \ReflectionClass(DevBootstrapContextService::class))->newInstanceWithoutConstructor(),
+            (new \ReflectionClass(DemoSupplierSeedService::class))->newInstanceWithoutConstructor(),
+            (new \ReflectionClass(DemoGrossanlassSeedService::class))->newInstanceWithoutConstructor(),
+            $guard,
+            (new \ReflectionClass(TotpService::class))->newInstanceWithoutConstructor(),
+        );
     }
 }

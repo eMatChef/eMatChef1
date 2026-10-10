@@ -43,6 +43,15 @@
           </svg>
           {{ t('settings.myDepartment.primaryDepartment') }}
         </span>
+        <EButton
+          v-if="isSelectedDeptPrimary"
+          variant="secondary"
+          size="small"
+          :disabled="isSavingPrimary"
+          @click="removePrimary"
+        >
+          {{ t('settings.myDepartment.removePrimary') }}
+        </EButton>
       </div>
       <p class="selector-hint">{{ t('settings.myDepartment.departmentMembershipHint', { count: userDepartments.length }) }}</p>
     </div>
@@ -709,27 +718,61 @@ async function onDepartmentChange() {
   window.location.reload()
 }
 
-// Primäres Department in der DB speichern
+function departmentName(departmentId: string): string {
+  const dept = userDepartments.value.find((d) => d.department_id === departmentId)
+  return dept?.department?.name || departmentId
+}
+
+// Primäres Department in der DB speichern. Ersetzt es ein bestehendes Primär, erst alt und neu bestätigen.
 async function setAsPrimary() {
   if (!selectedDepartmentId.value || isSavingPrimary.value) return
-  
+  const target = selectedDepartmentId.value
+
+  const current = userDepartments.value.find((d) => d.is_primary === true && d.department_id !== target)
+  if (current) {
+    const ok = await confirm.confirm({
+      title: t('settings.myDepartment.primaryChange.confirmTitle'),
+      message: t('settings.myDepartment.primaryChange.confirmMessage', {
+        from: departmentName(current.department_id),
+        to: departmentName(target),
+      }),
+      confirmText: t('settings.myDepartment.primaryChange.confirmAction'),
+      cancelText: t('common.cancel'),
+    })
+    if (!ok) return
+  }
+
+  await savePrimary(target, t('settings.myDepartment.toastPrimarySaved'))
+}
+
+// Primärstatus entfernen (die Mitgliedschaft bleibt)
+async function removePrimary() {
+  if (!selectedDepartmentId.value || isSavingPrimary.value) return
+  const ok = await confirm.confirm({
+    title: t('settings.myDepartment.primaryRemove.confirmTitle'),
+    message: t('settings.myDepartment.primaryRemove.confirmMessage', { name: departmentName(selectedDepartmentId.value) }),
+    confirmText: t('settings.myDepartment.primaryRemove.confirmAction'),
+    cancelText: t('common.cancel'),
+  })
+  if (!ok) return
+
+  await savePrimary(null, t('settings.myDepartment.toastPrimaryRemoved'))
+}
+
+async function savePrimary(departmentId: string | null, successMessage: string) {
   isSavingPrimary.value = true
-  
+
   try {
-    // In der DB speichern
     const uid = authStore.userId
     if (!uid) throw new Error('Nicht angemeldet')
-    await apiSetPrimaryDepartment(uid, selectedDepartmentId.value)
-    
-    // Auth Store lokal aktualisieren (is_primary Flags updaten)
+    await apiSetPrimaryDepartment(uid, departmentId)
+
+    // Auth Store lokal aktualisieren (is_primary Flags); der aktive Kontext (Department oder Verwaltung) bleibt unverändert
     authStore.departments.forEach(d => {
-      d.is_primary = d.department_id === selectedDepartmentId.value
+      d.is_primary = departmentId !== null && d.department_id === departmentId
     })
-    
-    // Auch den aktiven Department-ID im Store setzen
-    authStore.setActiveDepartment(selectedDepartmentId.value)
-    
-    toast.success(t('settings.myDepartment.toastPrimarySaved'))
+
+    toast.success(successMessage)
   } catch (err: any) {
     toast.error(err.response?.data?.error || t('settings.myDepartment.toastPrimarySaveError'))
   } finally {

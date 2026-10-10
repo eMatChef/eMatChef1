@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\DepartmentSetting;
 use App\Entity\Department;
 use App\Entity\User;
+use App\Service\Security\DepartmentAccessGuard;
 use App\Service\Workshop\WorkshopDepartmentSettingsValidator;
 use App\Service\Workshop\WorkshopSparePartsCategoryBootstrapService;
 use App\Util\IdGenerator;
@@ -22,6 +23,7 @@ class DepartmentSettingController extends AbstractController
         private EntityManagerInterface $entityManager,
         private WorkshopDepartmentSettingsValidator $workshopSettingsValidator,
         private WorkshopSparePartsCategoryBootstrapService $workshopSparePartsCategoryBootstrap,
+        private DepartmentAccessGuard $departmentAccess,
     ) {}
 
     /**
@@ -31,6 +33,10 @@ class DepartmentSettingController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function list(string $departmentId): JsonResponse
     {
+        if ($denied = $this->departmentAccess->deny($this->getUser() instanceof User ? $this->getUser() : null, $departmentId)) {
+            return $denied;
+        }
+
         $department = $this->entityManager->getRepository(Department::class)->find($departmentId);
         if (!$department) {
             return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
@@ -56,6 +62,10 @@ class DepartmentSettingController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function group(string $departmentId, string $prefix): JsonResponse
     {
+        if ($denied = $this->departmentAccess->deny($this->getUser() instanceof User ? $this->getUser() : null, $departmentId)) {
+            return $denied;
+        }
+
         $department = $this->entityManager->getRepository(Department::class)->find($departmentId);
         if (!$department) {
             return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
@@ -102,6 +112,10 @@ class DepartmentSettingController extends AbstractController
     #[IsGranted('ROLE_USER')]
     public function update(string $departmentId, Request $request): JsonResponse
     {
+        if ($denied = $this->departmentAccess->denyManage($this->getUser() instanceof User ? $this->getUser() : null, $departmentId)) {
+            return $denied;
+        }
+
         $currentUser = $this->getUser();
         if (!$currentUser instanceof User) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);

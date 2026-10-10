@@ -42,8 +42,9 @@ final class MaterialAvailabilityReservationQuery
      * LATERAL-Subquery: reserved_qty pro material_item.
      *
      * @param bool $withPeriodOverlap Bestell-Reservierung nur wenn Abfrage einen Zeitraum hat
+     * @param string $excludeGuestShareSql optionale Bedingung auf `gs`, um eine Gast-Zusage selbst nicht mitzuzählen
      */
-    public static function lateralReservedQtySql(bool $withPeriodOverlap, string $excludeActivitySql): string
+    public static function lateralReservedQtySql(bool $withPeriodOverlap, string $excludeActivitySql, string $excludeGuestShareSql = ''): string
     {
         $orderStatuses = self::sqlInList(self::orderReservationStatuses());
         $pipelineStatuses = self::sqlInList(self::pipelineLockStatuses());
@@ -58,6 +59,13 @@ final class MaterialAvailabilityReservationQuery
             : '';
 
         $pipelineLockQty = self::pipelineLockQtyCaseSql('pi');
+
+        // Angenommene Gast-Zusagen eines Grossanlasses (Leihe) blockieren die Menge im Eigentümer-Department, solange die
+        // Charge besteht und nicht zurückgegeben ist. Ohne Fenster an der Zusage gilt sie unbegrenzt; Löschen der Charge
+        // (FK SET NULL) oder Rückgabe an die Firma gibt die Menge frei. Dieselbe Rechnung für Aktivitäten und Grossanlass.
+        $guestPeriodSql = $withPeriodOverlap
+            ? 'AND (gs.starts_at IS NULL OR gs.starts_at < :end_date) AND (gs.ends_at IS NULL OR gs.ends_at > :start_date)'
+            : '';
 
         return <<<SQL
 LEFT JOIN LATERAL (
@@ -92,6 +100,18 @@ LEFT JOIN LATERAL (
           AND ({$pipelineLockQty}) > 0
           {$pipelinePeriodOverlapSql}
           {$excludeActivitySql}
+
+        UNION ALL
+
+        SELECT gs.qty AS qty
+        FROM department_grossanlass_guest_share gs
+        INNER JOIN department_grossanlass_commitment gc ON gc.id = gs.commitment_id
+        WHERE gs.material_item_id = mi.id
+          AND gs.kind = 'offer'
+          AND gs.status = 'accepted'
+          AND gc.returned_to_firm = FALSE
+          {$guestPeriodSql}
+          {$excludeGuestShareSql}
     ) part
 ) reserved ON TRUE
 SQL;

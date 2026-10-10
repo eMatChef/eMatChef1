@@ -1744,6 +1744,27 @@
       }
     },
     "tours": {
+        "gaSetup": {
+          "title": "Set up the large event",
+          "description": "Get to know the system and set up master data, areas and members.",
+          "ctaStay": "Stay here",
+          "step1Title": "Welcome to the large event",
+          "step1Body": "First get to know the system. We still need a few important details before you can start. Click “Manage large event”.",
+          "step2Title": "1. Master data",
+          "step2Body": "Name, date and place of the large event. These details are required.",
+          "step3Title": "Type: camp or event",
+          "step3Body": "Choose whether guests run a camp or an event. Participation of departments and material loans are independent of this and can be chosen freely later.",
+          "step4Title": "2. Areas",
+          "step4Body": "Switch to the areas.",
+          "step5Title": "Areas and responsibilities",
+          "step5Body": "Create at least one area and assign a lead to each.",
+          "step6Title": "3. Members",
+          "step6Body": "You manage members and the OK lead in the settings.",
+          "step7Title": "Users",
+          "step7Body": "Invite members and assign roles. At least one MW and one OK lead are needed.",
+          "step8Title": "Release",
+          "step8Body": "When all three areas are done, the MW or the OK lead releases the setup here. Only then is the large event open to all roles."
+        },
       "start": "Start tour",
       "restart": "Go through tour again",
       "next": "Next",
@@ -2259,6 +2280,13 @@
       "devicesScanner": "Warehouse scanner",
       "devicesScannerHint": "Handheld or gun scanner — piece by piece",
       "switchDepartment": "Switch department",
+      "adminContexts": "Administration",
+      "globalContext": "Global administration",
+      "globalContextHint": "Superadmin · whole system",
+      "managementHintOrgOrganisation": "Organisation chief · organisation",
+      "managementHintOrgDepartment": "Organisation chief · department administration",
+      "managementHintSubOrganisation": "Sub-organisation chief · organisation",
+      "managementHintSubDepartment": "Sub-organisation chief · department administration",
       "primary": "Primary",
       "primaryDepartment": "Primary department",
       "departmentSettings": "Department settings",
@@ -2282,15 +2310,23 @@
     "profileModal": {
       "securitySection": "Security",
         "externalIdentities": {
-          "title": "Connected sign-ins",
-          "hint": "External accounts you can use to sign in to eMatChef.",
+          "title": "Linked sign-ins",
+          "hint": "You can sign in to eMatChef with these accounts. Departments, roles and groups stay unchanged when you disconnect.",
           "linkedAt": "Connected since {date}",
           "disconnect": "Disconnect",
           "confirmTitle": "Disconnect from MiData?",
           "confirmMessage": "You will no longer be able to sign in with MiData. Your departments, roles and groups in eMatChef stay unchanged.",
           "lastMethod": "MiData is your only way to sign in. Verify your email address or connect another provider first.",
           "disconnected": "Disconnected.",
-          "error": "Could not disconnect."
+          "error": "Could not disconnect.",
+          "linked": "Connected",
+          "notLinked": "Not connected",
+          "connect": "Connect",
+          "googleNote": "The Google sign-in is created when you first sign in with Google and cannot be changed here.",
+          "providers": {
+            "google": "Google",
+            "midata": "MiData / db.scout.ch"
+          }
         },
       "sessions": {
         "title": "Devices & sessions",
@@ -2332,7 +2368,7 @@
       },
       "activity": {
         "title": "Security activity",
-        "hint": "The latest security events of your account.",
+        "hint": "Your personal security log. Only you can see it.",
         "empty": "No events yet.",
         "loadError": "Could not load activity.",
         "events": {
@@ -2355,8 +2391,63 @@
           "profile_primary_email_changed": "Primary address changed",
           "profile_email_added": "Email address added",
           "profile_email_verified": "Email address confirmed",
-          "profile_email_removed": "Email address removed"
-        }
+          "profile_email_removed": "Email address removed",
+          "profile_updated": "Profile changed",
+          "profile_email_change_requested": "Email change requested",
+          "profile_email_change_confirmed": "Email change confirmed",
+          "external_identity_linked": "Sign-in linked",
+          "external_identity_unlinked": "Sign-in disconnected",
+          "membership_created": "Department assignment added",
+          "membership_role_changed": "Role changed",
+          "membership_removed": "Department assignment removed"
+        },
+        "loadMore": "Load more",
+        "loading": "Loading …",
+        "retention": "IP addresses and browser details are deleted after {days} days.",
+        "meta": {
+          "method": "Sign-in via {value}",
+          "mfa": "MFA: {value}",
+          "device": "{value}",
+          "ip": "IP {value}",
+          "actor": "Triggered by {name}",
+          "actorUnknown": "Triggered by an administrator",
+          "self": "By you",
+          "fields": "Changed: {fields}"
+        },
+        "authMethods": {
+          "password": "password",
+          "google": "Google",
+          "midata": "MiData",
+          "legacy": "existing session"
+        },
+        "mfaSources": {
+          "totp": "authenticator code",
+          "recovery_code": "recovery code",
+          "trusted_device": "trusted device"
+        },
+        "providers": {
+          "google": "Google",
+          "midata": "MiData"
+        },
+        "fields": {
+          "first_name": "First name",
+          "last_name": "Last name",
+          "nickname": "Scout name",
+          "avatar_initials": "Initials",
+          "language": "Language",
+          "background_color": "Background colour",
+          "text_color": "Text colour",
+          "global_admin_role": "Global role",
+          "admin_capabilities": "Administration rights"
+        },
+        "fullLog": "Full log",
+        "fullLogTitle": "Security log",
+        "filterType": "Event type",
+        "filterFrom": "From",
+        "filterTo": "To",
+        "filterAllTypes": "All events",
+        "filterApply": "Filter",
+        "filterReset": "Reset"
       },
       "totp": {
         "title": "Two-factor authentication",
@@ -2427,7 +2518,8 @@
       "title": "Edit profile",
       "firstName": "First name",
       "email": "Email",
-      "editEmailTitle": "Edit email",
+      "editEmailTitle": "Manage email addresses",
+      "emailManagedInSecurity": "Manage your primary address under “Security → Email addresses”.",
       "emailNewMustVerify": "The new email must be confirmed. Until then, your previous email stays valid.",
       "emailPendingSent": "Confirmation link sent for the new address: {pending}. Until confirmed, {current} stays active.",
       "nickname": "Nickname",
@@ -4604,6 +4696,18 @@
   },
   "settings": {
     "myDepartment": {
+      "toastPrimaryRemoved": "Primary status removed. The membership remains.",
+      "removePrimary": "Remove primary status",
+      "primaryChange": {
+        "confirmTitle": "Change primary department?",
+        "confirmMessage": "Currently primary: “{from}”. New primary: “{to}”. There can only be one primary department; the current one loses its primary status (the membership remains).",
+        "confirmAction": "Change primary"
+      },
+      "primaryRemove": {
+        "confirmTitle": "Remove primary status?",
+        "confirmMessage": "“{name}” will no longer be primary. The membership remains.",
+        "confirmAction": "Remove"
+      },
       "notificationEmail": {
         "label": "Notification address",
         "hint": "Department and large-event notifications are sent to this address. Only your verified addresses can be chosen; login and primary address are not affected.",
@@ -8062,6 +8166,43 @@
     }
   },
   "grossanlass": {
+      "setup": {
+        "title": "Initial setup",
+        "lead": "We need a few important details before the large event can start. After that you release it for all roles.",
+        "leadOther": "This large event is being set up. Once the MW or the OK lead releases it, your area becomes available.",
+        "pendingForRole": "The large event is still being set up and is not yet released for your role.",
+        "open": "Open",
+        "release": "Release setup",
+        "releasedToast": "The large event is released.",
+        "releaseError": "Release is not possible.",
+        "releaseBlocked": "The large event can only be released once all three areas are done.",
+        "releaseByMwOrOk": "The MW and the OK lead can release.",
+        "startTour": "Start introduction",
+        "steps": {
+          "stammdaten": {
+            "title": "Master data",
+            "hint": "Name, start of the event, place and type (camp or event)."
+          },
+          "ressorts": {
+            "title": "Departments and responsibilities",
+            "hint": "At least one area, each with a lead."
+          },
+          "mitglieder": {
+            "title": "Members and OK assignment",
+            "hint": "At least one material lead (MW) and one OK lead."
+          }
+        },
+        "missing": {
+          "name": "The name is missing.",
+          "location": "The place is missing.",
+          "type": "The type is not set.",
+          "period": "The end is before the start.",
+          "no_ressort": "There is no area yet.",
+          "ressort_without_leader": "Area “{name}” has no lead yet.",
+          "no_mw": "A material lead (MW) is missing.",
+          "no_ok": "An OK lead is missing."
+        }
+      },
     "displays": {
       "title": "Displays",
       "subtitle": "Control-room screens for large monitors (TV)",

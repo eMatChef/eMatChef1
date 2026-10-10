@@ -19,11 +19,7 @@ final class BusinessClockWiringTest extends TestCase
 {
     public function testGrossanlassResolverIsInjectedViaTaggedIterator(): void
     {
-        // Der Container wird nur kompiliert; es wird keine DB-Verbindung aufgebaut.
-        $_ENV['DATABASE_URL'] = $_SERVER['DATABASE_URL'] = 'postgresql://wiring:wiring@127.0.0.1:5432/wiring?serverVersion=16';
-        $kernel = new Kernel('test', false);
-        $kernel->boot();
-        try {
+        FreshKernel::run(function (Kernel $kernel): void {
             $controller = $kernel->getContainer()->get(DepartmentClockController::class);
             self::assertInstanceOf(DepartmentClockController::class, $controller);
 
@@ -34,9 +30,8 @@ final class BusinessClockWiringTest extends TestCase
             $classes = array_map(static fn (object $r): string => $r::class, iterator_to_array($resolvers, false));
 
             self::assertContains(GrossanlassClockOriginResolver::class, $classes);
+            self::assertContains(\App\Service\Demo\Scenario\ScenarioClockOriginResolver::class, $classes);
             self::assertSame('app.clock_origin_resolver', ClockOriginResolverInterface::TAG);
-        } finally {
-            $kernel->shutdown();
-        }
+        });
     }
 }
