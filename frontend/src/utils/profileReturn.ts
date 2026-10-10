@@ -96,3 +96,21 @@ export function takeRememberedProfileFrom(): string | null {
     return null
   }
 }
+
+/**
+ * `from` to add when the profile is entered without one (menu, onboarding tour, any link): the page the user
+ * came from. Nothing is added on a fresh load (no previous page) or when moving between profile routes.
+ */
+export function profileFromForEntry(
+  to: { query: RouteLocationNormalizedLoaded['query'] },
+  previous: { matched: readonly unknown[]; path: string; fullPath: string },
+): string | null {
+  if (to.query[PROFILE_FROM_PARAM] !== undefined) return null
+  if (previous.matched.length === 0 || isProfilePath(previous.path)) return null
+  return sanitizeProfileFrom(previous.fullPath)
+}
+
+/** Key of the page component in the app layout: profile tabs share one key so the profile page stays mounted. */
+export function layoutViewKey(route: { path: string; meta: Record<string, unknown> }, clockRevision: number): string {
+  return `${route.meta.globalProfile ? '/profile' : route.path}:${clockRevision}`
+}

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { profileEntryQuery, profileFallbackPath, profileFromQuery, sanitizeProfileFrom } from './profileReturn'
+import {
+  layoutViewKey,
+  profileEntryQuery,
+  profileFallbackPath,
+  profileFromForEntry,
+  profileFromQuery,
+  sanitizeProfileFrom,
+} from './profileReturn'
 
 describe('sanitizeProfileFrom', () => {
   it('accepts internal paths and keeps query and hash', () => {
@@ -75,5 +82,34 @@ describe('profile return helpers', () => {
     })
     expect(profileEntryQuery({ path: '/profile', fullPath: '/profile?from=https%3A%2F%2Fevil', query: { from: 'https://evil' } })).toEqual({})
     expect(profileEntryQuery({ path: '/login', fullPath: '/login', query: {} })).toEqual({})
+  })
+})
+
+describe('profile entry without from (tour start, direct link from the app)', () => {
+  const dept = { matched: [{}], path: '/dept/ga/planning', fullPath: '/dept/ga/planning?onboardingTour=profile-overview&onboardingTourStep=12' }
+
+  it('uses the previous page, without tour parameters', () => {
+    expect(profileFromForEntry({ query: { onboardingTour: 'profile-overview', onboardingTourStep: '13' } }, dept)).toBe('/dept/ga/planning')
+  })
+
+  it('keeps an existing from and does not add one on a fresh load or between profile pages', () => {
+    expect(profileFromForEntry({ query: { from: '/x' } }, dept)).toBeNull()
+    expect(profileFromForEntry({ query: {} }, { matched: [], path: '/', fullPath: '/' })).toBeNull()
+    expect(profileFromForEntry({ query: {} }, { matched: [{}], path: '/profile/security', fullPath: '/profile/security?from=%2Fx' })).toBeNull()
+    expect(profileFromForEntry({ query: {} }, { matched: [{}], path: '/login', fullPath: '/login' })).toBeNull()
+  })
+})
+
+describe('layoutViewKey', () => {
+  it('shares one key across the profile tabs so the profile page is not re-created', () => {
+    const a = layoutViewKey({ path: '/profile', meta: { globalProfile: true } }, 3)
+    const b = layoutViewKey({ path: '/profile/security', meta: { globalProfile: true } }, 3)
+    expect(a).toBe(b)
+    expect(layoutViewKey({ path: '/profile', meta: { globalProfile: true } }, 4)).not.toBe(a)
+  })
+
+  it('keeps one key per path for every other page', () => {
+    expect(layoutViewKey({ path: '/dept/a', meta: {} }, 1)).toBe('/dept/a:1')
+    expect(layoutViewKey({ path: '/dept/b', meta: {} }, 1)).not.toBe(layoutViewKey({ path: '/dept/a', meta: {} }, 1))
   })
 })

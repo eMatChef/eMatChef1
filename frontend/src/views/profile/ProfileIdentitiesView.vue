@@ -59,12 +59,7 @@ async function handleLinkReturn() {
     })
   }
   const profileId = authStore.profileId || authStore.profile?.id || ''
-  let result: Awaited<ReturnType<typeof takeExternalIdentityLinkResult>> = null
-  try {
-    result = profileId ? await takeExternalIdentityLinkResult(profileId) : null
-  } catch {
-    result = null
-  }
+  const result = await (profileId ? takeExternalIdentityLinkResult(profileId) : Promise.resolve(null)).catch(() => null)
   if (!result) return
   await nextTick()
   window.dispatchEvent(

@@ -29,7 +29,7 @@
       />
       <router-view v-slot="{ Component }">
         <keep-alive :include="['MaterialsView', 'ActivitiesView']" :max="8">
-          <component :is="Component" :key="`${route.path}:${clockStore.revision}`" />
+          <component :is="Component" :key="layoutViewKey(route, clockStore.revision)" />
         </keep-alive>
       </router-view>
     </div>
@@ -57,6 +57,7 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useBusinessClockStore } from '@/stores/businessClock'
 import { useUnsavedChangesReminder } from '@/composables/useUnsavedChangesReminder'
+import { layoutViewKey } from '@/utils/profileReturn'
 import { useDepartmentOnboardingAccess } from '@/composables/useDepartmentOnboardingAccess'
 import { useHelpShortcut } from '@/composables/useHelpShortcut'
 import { refreshOnboardingCompletionStatus } from '@/utils/onboardingChecklist'

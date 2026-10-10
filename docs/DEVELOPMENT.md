@@ -65,6 +65,22 @@ Playwright gegen die laufende Develop-App, nicht gegen localhost: [E2E.md](./E2E
 
 Git-Hooks (Pre-Push ohne Playwright, Prepare-Commit-Msg): `./scripts/install-git-hooks.sh`.
 
+## Lokalen Docker-Stack auf einen Worktree umstellen
+
+Der lokale Stack (`https://app.ematchef.test`) bindet `./backend` und `./frontend` per Bind-Mount ein; Datenbank (`ematchef_postgres_data`), `backend_vendor` und `frontend_node_modules` sind benannte Volumes und bleiben erhalten. Um einen anderen Worktree zu zeigen, im Worktree ausführen (Projektname kommt aus `COMPOSE_PROJECT_NAME` der `.env`):
+
+```bash
+cp -a <haupt>/.env <haupt>/docker-compose.override.yml .
+cp -a <haupt>/backend/.env.local backend/
+mkdir -p backend/config/jwt docker/certs && cp -a <haupt>/backend/config/jwt/. backend/config/jwt/ && cp -a <haupt>/docker/certs/. docker/certs/
+docker compose -p ematchef up -d --no-deps --force-recreate backend frontend
+docker exec ematchef-nginx-1 nginx -s reload   # Upstream-IPs neu auflösen, sonst 502
+```
+
+- Der Entrypoint des Backends führt beim Start `doctrine:migrations:migrate` gegen die gemeinsame Datenbank aus. Kennt der Worktree Migrationen nicht, die bereits angewendet sind (anderer Branch), meldet Doctrine nur eine Warnung.
+- Zurück zum Hauptworktree: derselbe `up`-Befehl im Hauptverzeichnis.
+- Kein `node_modules`-Symlink im Worktree anlegen (liegt im Volume); Tests im Container ausführen: `docker exec ematchef-frontend-1 sh -c "cd /app && npx vitest run"`.
+
 ## Tests
 
 | Suite | Ort | CI |

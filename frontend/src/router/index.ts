@@ -47,7 +47,7 @@ import { gaHomePath, gaResolveHomePath } from '@/utils/grossanlassHome'
 import { resolveVerwaltungLandingPath } from '@/utils/verwaltungNavigation'
 import { isMiDataOnboardingLanding } from '@/utils/midataOnboarding'
 import { carryOAuthReturnParams, PROFILE_SECURITY_RETURN_PARAM } from '@/utils/oauthReturnParams'
-import { PROFILE_FROM_PARAM, isProfilePath, sanitizeProfileFrom } from '@/utils/profileReturn'
+import { PROFILE_FROM_PARAM, isProfilePath, profileFromForEntry, sanitizeProfileFrom } from '@/utils/profileReturn'
 
 /** Login-Redirect ohne Tour-Query (sonst nach Relogin Tour-URL statt Dashboard). */
 function loginAuthRedirectQuery(fullPath: string): Record<string, string> {
@@ -2593,6 +2593,10 @@ router.beforeEach(async (to, from, nextRaw) => {
 
   // Globales Profil: nur Anmeldung nötig, keine Department-Rolle; keine Umleitung auf Department- oder Pending-Seiten.
   if (to.meta.globalProfile && authStore.isLoggedIn) {
+    const profileFrom = profileFromForEntry(to, from)
+    if (profileFrom) {
+      return next({ path: to.path, query: { ...to.query, [PROFILE_FROM_PARAM]: profileFrom }, hash: to.hash, replace: true })
+    }
     return next()
   }
 
