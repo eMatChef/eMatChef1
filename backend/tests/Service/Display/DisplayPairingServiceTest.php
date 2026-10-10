@@ -116,6 +116,74 @@ final class DisplayPairingServiceTest extends TestCase
         self::assertSame(DisplayPairingService::APPROVE_NOT_FOUND, $this->service()->approve($created['token'], $this->user(), $screen->getId()));
     }
 
+    public function testNewScreenIsCreatedAndPairedAtomically(): void
+    {
+        $created = $this->service()->create();
+        $outcome = $this->service()->createScreenAndApprove($created['token'], $this->user(), 'b57aa6184ef5', 'Neu am Eingang');
+
+        self::assertSame(DisplayPairingService::APPROVE_OK, $outcome['result']);
+        self::assertSame('Neu am Eingang', $outcome['screen']->getName());
+        self::assertSame('b57aa6184ef5', $outcome['screen']->getDepartmentId());
+        self::assertMatchesRegularExpression('/^dsp/', $outcome['screen']->getId());
+        self::assertMatchesRegularExpression('/^dsi/', $outcome['screen']->getPublicId());
+
+        $polled = $this->service()->poll($created['request']->getId(), $created['poll_secret']);
+        self::assertSame('approved', $polled['status']);
+        self::assertSame($outcome['screen']->getId(), $polled['screen']->getId());
+    }
+
+    public function testNoScreenIsLeftBehindWhenTokenIsUnusable(): void
+    {
+        $before = (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM department_display_screen');
+
+        $outcome = $this->service()->createScreenAndApprove('not-a-valid-token', $this->user(), 'b57aa6184ef5', 'Geist');
+        self::assertSame(DisplayPairingService::APPROVE_GONE, $outcome['result']);
+
+        $created = $this->service()->create();
+        $this->service()->createScreenAndApprove($created['token'], $this->user(), 'b57aa6184ef5', 'Erster');
+        $second = $this->service()->createScreenAndApprove($created['token'], $this->user(), 'b57aa6184ef5', 'Zweiter');
+        self::assertSame(DisplayPairingService::APPROVE_GONE, $second['result']);
+
+        $names = $this->em->getConnection()->fetchFirstColumn("SELECT name FROM department_display_screen WHERE name IN ('Geist','Zweiter')");
+        self::assertSame([], $names);
+        self::assertSame($before + 1, (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM department_display_screen'));
+    }
+
+    public function testUnauthorizedUserCannotCreateAndPair(): void
+    {
+        $created = $this->service()->create();
+        $this->canManage = false;
+
+        $outcome = $this->service()->createScreenAndApprove($created['token'], $this->user(), 'b57aa6184ef5', 'Nein');
+        self::assertSame(DisplayPairingService::APPROVE_FORBIDDEN, $outcome['result']);
+        self::assertSame(0, (int) $this->em->getConnection()->fetchOne("SELECT COUNT(*) FROM department_display_screen WHERE name = 'Nein'"));
+    }
+
+    public function testOnlyRevokedScreensCanBeDeletedAndIdsStayBlocked(): void
+    {
+        $screen = $this->createScreen();
+        $created = $this->service()->create();
+        $this->service()->approve($created['token'], $this->user(), $screen->getId());
+
+        try {
+            $this->screenService()->deletePermanently($screen, $this->user());
+            self::fail('active screen must not be deletable');
+        } catch (\InvalidArgumentException) {
+        }
+
+        $screen->setRevokedAt(new \DateTime());
+        $this->em->flush();
+        $id = $screen->getId();
+        $publicId = $screen->getPublicId();
+        $this->screenService()->deletePermanently($screen, $this->user());
+
+        $conn = $this->em->getConnection();
+        self::assertFalse($conn->fetchOne('SELECT 1 FROM department_display_screen WHERE id = ?', [$id]));
+        self::assertFalse($conn->fetchOne('SELECT 1 FROM display_pairing_request WHERE screen_id = ?', [$id]));
+        self::assertSame(2, (int) $conn->fetchOne('SELECT COUNT(*) FROM display_deleted_id WHERE id IN (?, ?)', [$id, $publicId]));
+        self::assertNull($this->screenService()->findByPublicId($publicId));
+    }
+
     public function testPairUrlUsesAppOriginAndPathToken(): void
     {
         self::assertMatchesRegularExpression('#^https?://[^/]+/connect-display/abc$#', $this->service()->buildPairUrl('abc'));
@@ -129,6 +197,11 @@ final class DisplayPairingServiceTest extends TestCase
 
     private function service(): DisplayPairingService
     {
+        return new DisplayPairingService($this->em, $this->screenService(), 'https://app.ematchef.test');
+    }
+
+    private function screenService(): DepartmentDisplayScreenService
+    {
         $test = $this;
         $screenService = $this->getMockBuilder(DepartmentDisplayScreenService::class)
             ->setConstructorArgs([$this->em, new DisplayAccessCodeGenerator(), 'https://app.ematchef.test'])
@@ -136,7 +209,7 @@ final class DisplayPairingServiceTest extends TestCase
             ->getMock();
         $screenService->method('canManageDepartment')->willReturnCallback(fn () => $test->canManage);
 
-        return new DisplayPairingService($this->em, $screenService, 'https://app.ematchef.test');
+        return $screenService;
     }
 
     private function user(): User

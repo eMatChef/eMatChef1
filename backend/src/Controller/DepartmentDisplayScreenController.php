@@ -6,6 +6,7 @@ use App\Entity\DepartmentDisplayScreen;
 use App\Entity\User;
 use App\Service\Display\DepartmentDisplayDataService;
 use App\Service\Display\DepartmentDisplayScreenService;
+use App\Service\Display\DisplayPairingService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -20,6 +21,7 @@ class DepartmentDisplayScreenController extends AbstractController
         private EntityManagerInterface $entityManager,
         private DepartmentDisplayScreenService $displayScreenService,
         private DepartmentDisplayDataService $displayDataService,
+        private DisplayPairingService $pairingService,
     ) {
     }
 
@@ -63,6 +65,37 @@ class DepartmentDisplayScreenController extends AbstractController
         $payload['access_code'] = $result['access_code'];
 
         return new JsonResponse($payload, 201);
+    }
+
+    /**
+     * Neuer Infoscreen im Department und sofortige Kopplung mit dem Fernseher (gescannter QR-Token).
+     */
+    #[Route('/pairing', name: 'create_and_pair', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function createAndPair(string $departmentId, Request $request): JsonResponse
+    {
+        $user = $this->requireManager($departmentId);
+        if ($user instanceof JsonResponse) {
+            return $user;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $token = is_array($data) ? trim((string) ($data['token'] ?? '')) : '';
+        $name = is_array($data) ? trim((string) ($data['name'] ?? '')) : '';
+        if ($token === '' || $name === '' || mb_strlen($name) > 120) {
+            return new JsonResponse(['error' => 'token und name sind erforderlich'], 400);
+        }
+
+        $outcome = $this->pairingService->createScreenAndApprove($token, $user, $departmentId, $name);
+        if ($outcome['result'] !== DisplayPairingService::APPROVE_OK) {
+            return match ($outcome['result']) {
+                DisplayPairingService::APPROVE_FORBIDDEN => new JsonResponse(['error' => 'Keine Berechtigung'], 403),
+                DisplayPairingService::APPROVE_NOT_FOUND => new JsonResponse(['error' => 'Screen nicht gefunden'], 404),
+                default => new JsonResponse(['error' => 'Kopplungsanfrage abgelaufen oder bereits verwendet'], 410),
+            };
+        }
+
+        return new JsonResponse($this->displayScreenService->serializeForSettings($outcome['screen']), 201);
     }
 
     /**
@@ -187,6 +220,29 @@ class DepartmentDisplayScreenController extends AbstractController
         $payload['access_code'] = $result['access_code'];
 
         return new JsonResponse($payload);
+    }
+
+    #[Route('/{screenId}', name: 'delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function delete(string $departmentId, string $screenId): JsonResponse
+    {
+        $user = $this->requireManager($departmentId);
+        if ($user instanceof JsonResponse) {
+            return $user;
+        }
+
+        $screen = $this->findScreen($departmentId, $screenId);
+        if ($screen instanceof JsonResponse) {
+            return $screen;
+        }
+
+        try {
+            $this->displayScreenService->deletePermanently($screen, $user);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 409);
+        }
+
+        return new JsonResponse(null, 204);
     }
 
     private function requireManager(string $departmentId): User|JsonResponse

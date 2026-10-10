@@ -5,7 +5,8 @@ namespace App\Service\Display;
 use Psr\Cache\CacheItemPoolInterface;
 
 /**
- * Einfacher Zähler pro Schlüssel und Zeitfenster für öffentliche Display-Endpunkte.
+ * Einfacher Zähler pro Schlüssel mit festem Zeitfenster für öffentliche Display-Endpunkte.
+ * Das Fenster beginnt beim ersten Treffer und wird durch weitere Treffer nicht verlängert.
  */
 final class DisplayRateLimiter
 {
@@ -15,20 +16,39 @@ final class DisplayRateLimiter
 
     public function isLimited(string $bucket, string $subject, int $max): bool
     {
-        $item = $this->cache->getItem($this->key($bucket, $subject));
+        $state = $this->state($bucket, $subject);
 
-        return $item->isHit() && (int) $item->get() >= $max;
+        return $state !== null && $state['count'] >= $max;
     }
 
     public function hit(string $bucket, string $subject, int $windowSeconds): void
     {
         $item = $this->cache->getItem($this->key($bucket, $subject));
-        $count = $item->isHit() ? (int) $item->get() : 0;
-        $item->set($count + 1);
-        if (!$item->isHit()) {
-            $item->expiresAfter($windowSeconds);
+        $state = $this->state($bucket, $subject);
+        $now = time();
+        if ($state === null) {
+            $state = ['count' => 0, 'until' => $now + $windowSeconds];
         }
+        $state['count']++;
+        $item->set($state);
+        // Verbleibende Zeit des Fensters: ein erneutes save() ohne Ablauf würde sonst nie verfallen.
+        $item->expiresAfter(max(1, $state['until'] - $now));
         $this->cache->save($item);
+    }
+
+    /** @return array{count: int, until: int}|null */
+    private function state(string $bucket, string $subject): ?array
+    {
+        $item = $this->cache->getItem($this->key($bucket, $subject));
+        if (!$item->isHit()) {
+            return null;
+        }
+        $value = $item->get();
+        if (!is_array($value) || !isset($value['count'], $value['until']) || (int) $value['until'] <= time()) {
+            return null;
+        }
+
+        return ['count' => (int) $value['count'], 'until' => (int) $value['until']];
     }
 
     private function key(string $bucket, string $subject): string

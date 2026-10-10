@@ -130,6 +130,47 @@ class DisplayPairingService
     }
 
     /**
+     * Legt einen neuen Screen im Department an und bindet die Kopplungsanfrage daran. Alles oder nichts:
+     * schlägt die Freigabe fehl (Token abgelaufen/verbraucht), wird der Screen wieder entfernt.
+     *
+     * @return array{result: string, screen?: DepartmentDisplayScreen}
+     */
+    public function createScreenAndApprove(string $token, User $user, string $departmentId, string $name): array
+    {
+        if ($this->findOpenByToken($token) === null) {
+            return ['result' => self::APPROVE_GONE];
+        }
+        if (!$this->screenService->canManageDepartment($user, $departmentId)) {
+            return ['result' => self::APPROVE_FORBIDDEN];
+        }
+
+        $connection = $this->entityManager->getConnection();
+        $connection->beginTransaction();
+        try {
+            $screen = $this->screenService->create($departmentId, $name, $user)['screen'];
+            $result = $this->approve($token, $user, $screen->getId());
+            if ($result !== self::APPROVE_OK) {
+                $screenId = $screen->getId();
+                $connection->rollBack();
+                $this->entityManager->clear();
+                // Zusätzlich explizit entfernen: greift auch, wenn dieser Aufruf in einer äusseren Transaktion läuft.
+                $connection->executeStatement('DELETE FROM department_display_screen WHERE id = ?', [$screenId]);
+
+                return ['result' => $result];
+            }
+            $connection->commit();
+        } catch (\Throwable $e) {
+            if ($connection->isTransactionActive()) {
+                $connection->rollBack();
+            }
+            $this->entityManager->clear();
+            throw $e;
+        }
+
+        return ['result' => self::APPROVE_OK, 'screen' => $screen];
+    }
+
+    /**
      * Abfrage durch den Fernseher. Bei Freigabe wird die Anfrage atomar verbraucht und der Screen geliefert.
      *
      * @return array{status: string, screen?: DepartmentDisplayScreen, expires_at?: \DateTimeInterface}|null null = unbekannt oder falsches Secret

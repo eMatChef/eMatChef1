@@ -144,10 +144,10 @@ final class DepartmentDisplayScreenService
 
         $accessCode = $this->accessCodeGenerator->generate(8);
         $screen = new DepartmentDisplayScreen();
-        $screen->setId(IdGenerator::generate12UniqueWithPrefix($this->entityManager, DepartmentDisplayScreen::class, 'dsp'));
+        $screen->setId($this->generateUnusedId('dsp', 'id'));
         $screen->setDepartmentId($departmentId);
         $screen->setName($name);
-        $screen->setPublicId(IdGenerator::generate12UniqueWithPrefix($this->entityManager, DepartmentDisplayScreen::class, 'dsi', 'publicId'));
+        $screen->setPublicId($this->generateUnusedId('dsi', 'publicId'));
         $screen->setAccessCodeHash($this->hashAccessCode($accessCode));
         $screen->setAccessCodeHint(substr($accessCode, -2));
         $screen->setCreatedByUserId($createdBy?->getId());
@@ -177,6 +177,14 @@ final class DepartmentDisplayScreenService
     {
         if ($screen->isRevoked()) {
             throw new \InvalidArgumentException('Screen ist widerrufen.');
+        }
+
+        if (\array_key_exists('name', $data)) {
+            $name = trim((string) $data['name']);
+            if ($name === '' || mb_strlen($name) > 120) {
+                throw new \InvalidArgumentException('Name ist erforderlich (maximal 120 Zeichen).');
+            }
+            $screen->setName($name);
         }
 
         if (\array_key_exists('subtitle_text', $data)) {
@@ -238,6 +246,52 @@ final class DepartmentDisplayScreenService
         $this->entityManager->flush();
 
         return $screen;
+    }
+
+    /**
+     * Neue ID, die weder vergeben ist noch je vergeben war (gelöschte Screens hinterlassen einen Eintrag in display_deleted_id).
+     */
+    private function generateUnusedId(string $prefix, string $field): string
+    {
+        $connection = $this->entityManager->getConnection();
+        for ($attempt = 0; $attempt < 10; $attempt++) {
+            $id = IdGenerator::generate12UniqueWithPrefix($this->entityManager, DepartmentDisplayScreen::class, $prefix, $field);
+            if ($connection->fetchOne('SELECT 1 FROM display_deleted_id WHERE id = ?', [$id]) === false) {
+                return $id;
+            }
+        }
+
+        throw new \RuntimeException('Konnte keine unbenutzte Infoscreen-ID erzeugen.');
+    }
+
+    /**
+     * Endgültiges Löschen: nur bei widerrufenem Screen. Zugehörige Kopplungsanfragen werden gezielt entfernt,
+     * die IDs bleiben als Tombstone gesperrt (keine Wiederverwendung).
+     */
+    public function deletePermanently(DepartmentDisplayScreen $screen, ?User $deletedBy): void
+    {
+        if (!$screen->isRevoked()) {
+            throw new \InvalidArgumentException('Nur widerrufene Screens können endgültig gelöscht werden.');
+        }
+
+        $connection = $this->entityManager->getConnection();
+        $connection->beginTransaction();
+        try {
+            $now = (new \DateTime())->format('Y-m-d H:i:s');
+            foreach ([[$screen->getId(), 'screen'], [$screen->getPublicId(), 'public']] as [$id, $kind]) {
+                $connection->executeStatement(
+                    'INSERT INTO display_deleted_id (id, kind, deleted_at, deleted_by_user_id) VALUES (?, ?, ?, ?) ON CONFLICT (id) DO NOTHING',
+                    [$id, $kind, $now, $deletedBy?->getId()],
+                );
+            }
+            $connection->executeStatement('DELETE FROM display_pairing_request WHERE screen_id = ?', [$screen->getId()]);
+            $this->entityManager->remove($screen);
+            $this->entityManager->flush();
+            $connection->commit();
+        } catch (\Throwable $e) {
+            $connection->rollBack();
+            throw $e;
+        }
     }
 
     /**

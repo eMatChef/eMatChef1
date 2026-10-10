@@ -8,7 +8,12 @@ Ein Infoscreen zeigt ohne Benutzerlogin Anlässe, Werkstatt und Statistik eines 
 - Ein Grossanlass ist technisch ein Department (`Department.isGrossanlass`). Screens hängen über `department_id` am Department bzw. GA; es gibt keine GA-eigenen IDs, Entities oder Sitzungen.
 - Verwaltung: eine Komponente, `MyDepartmentDisplayScreensView.vue`, erreichbar unter
   - `/{departmentId}/dept/settings/my-department/display-screens`
-  - `/{departmentId}/ga/displays` (die alten GA-Demo-Displays mit Mock-Daten liegen weiter unter `/{departmentId}/ga/displays/demo`)
+  - `/{departmentId}/ga/displays` (die GA-Anzeigebeispiele mit Mock-Daten liegen weiter unter `/{departmentId}/ga/displays/demo`)
+- Das Department kommt ausschliesslich aus der Route; es gibt auf der Seite keine Department-Auswahl.
+- Ablauf „Infoscreen hinzufügen“: Fernseher öffnet die Display-Adresse (QR) → in der Verwaltung „Infoscreen hinzufügen“ → der vorhandene QR-Scanner (`BarcodeScannerPanel`, Modus `qr`; Fallback: Link einfügen) liest den Kopplungs-QR → der Prüfcode wird angezeigt → Name vergeben → „Verbinden“. Der Scan allein gibt nichts frei. Dialog: `components/display/DisplayPairDialog.vue`, Token-Erkennung `utils/displayPairingLink.ts`.
+- Neuer Screen und Kopplung in einem Schritt: `POST /api/departments/{id}/display-screens/pairing` (`token`, `name`). Serverseitig Verwaltungsrecht, alles oder nichts (bei unbrauchbarem Token bleibt kein Screen zurück). Vorhandene Screens werden über „Bildschirm verbinden“ (`POST /api/display-pairing/requests/{token}/approve`) mit einem weiteren Fernseher gekoppelt.
+- „Manueller Zugang“ zeigt Adresse und Einstieg für die manuelle ID-/Code-Eingabe. Klartext-Codes gibt es nur bei Erstellung (Weg „Ohne Scanner anlegen“) oder Code-Erneuerung, einmalig.
+- Lebenszyklus: aktiv → widerrufen (Sitzungen sofort ungültig, keine Kopplung, Reaktivierung möglich) → endgültig löschen (`DELETE /api/departments/{id}/display-screens/{screenId}`, nur widerrufene Screens, Bestätigung mit Namen im UI). Zugehörige Kopplungsanfragen werden gezielt gelöscht; `dsp…`/`dsi…`-IDs bleiben in `display_deleted_id` gesperrt und werden nie wieder vergeben.
 - Rechte: Rollen mw, dc, org, sub, sa (`DepartmentDisplayScreenService::MANAGER_ROLES`) und Superadmin.
 - Anzeige-Engine: `DepartmentDisplayView.vue` (Daten: `DepartmentDisplayDataService`). Das Payload enthält `scope` (`department` | `grossanlass`) als Anknüpfungspunkt für GA-Inhaltsmodule (Phase 5.2).
 

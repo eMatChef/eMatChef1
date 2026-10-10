@@ -44,6 +44,7 @@ export type PublicDisplayData = DepartmentDisplayData & {
 }
 
 export interface DisplayScreenSettingsUpdate {
+  name?: string
   subtitle_text?: string | null
   show_activities?: boolean
   show_workshop?: boolean
@@ -182,4 +183,24 @@ export async function getDisplayPreviewData(
     `/api/departments/${encodeURIComponent(departmentId)}/display-screens/${encodeURIComponent(screenId)}/preview-data`,
   )
   return mapDisplayPayload(res.data)
+}
+
+/** Neuen Infoscreen im Department anlegen und mit dem gescannten Fernseher koppeln (alles oder nichts). */
+export async function createAndPairDisplayScreen(
+  departmentId: string,
+  token: string,
+  name: string,
+): Promise<DisplayScreenSettings> {
+  const res = await apiClient.post<DisplayScreenSettings>(
+    `/api/departments/${encodeURIComponent(departmentId)}/display-screens/pairing`,
+    { token, name },
+  )
+  return res.data
+}
+
+/** Widerrufenen Infoscreen endgültig löschen. */
+export async function deleteDisplayScreen(departmentId: string, screenId: string): Promise<void> {
+  await apiClient.delete(
+    `/api/departments/${encodeURIComponent(departmentId)}/display-screens/${encodeURIComponent(screenId)}`,
+  )
 }
