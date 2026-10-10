@@ -2906,9 +2906,6 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  // Grossanlass-only routes (Planung, Beschaffung)
-  if (to.meta.requiresGrossanlassDepartment) {
-    const deptId = (to.params.departmentId as string) || authStore.activeDepartmentId || ''
   // Grossanlass mit offener Ersteinrichtung: nur Dashboard und Einrichtung (der Server sperrt unabhängig davon).
   const setupDeptId = (to.params.departmentId as string) || ''
   if (
@@ -2919,6 +2916,9 @@ router.beforeEach(async (to, from, next) => {
     return next({ name: 'Dashboard', params: { departmentId: setupDeptId }, replace: true })
   }
 
+  // Grossanlass-only routes (Planung, Beschaffung)
+  if (to.meta.requiresGrossanlassDepartment) {
+    const deptId = (to.params.departmentId as string) || authStore.activeDepartmentId || ''
     if (!deptId || !authStore.isDepartmentGrossanlass(deptId)) {
       if (deptId) {
         return next(`/${deptId}`)

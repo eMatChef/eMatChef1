@@ -5333,6 +5333,18 @@
       },
       "toastPrimarySaved": "Primäres Department erfolgreich gespeichert!",
       "toastPrimarySaveError": "Fehler beim Speichern des primären Departments",
+      "toastPrimaryRemoved": "Primärstatus entfernt. Die Mitgliedschaft bleibt bestehen.",
+      "removePrimary": "Primärstatus entfernen",
+      "primaryChange": {
+        "confirmTitle": "Primäres Department ändern?",
+        "confirmMessage": "Bisher primär: «{from}». Neu primär: «{to}». Es kann nur ein primäres Department geben; das bisherige verliert den Primärstatus (die Mitgliedschaft bleibt).",
+        "confirmAction": "Primär ändern"
+      },
+      "primaryRemove": {
+        "confirmTitle": "Primärstatus entfernen?",
+        "confirmMessage": "«{name}» ist danach nicht mehr primär. Die Mitgliedschaft bleibt bestehen.",
+        "confirmAction": "Entfernen"
+      },
       "onboarding": {
         "notApplicableLeader": "Nicht zutreffend (Leitungsrolle)",
         "notApplicableSuperadmin": "Nicht zutreffend (Superadmin)",
@@ -5397,18 +5409,6 @@
       "previewEmailLine": "E-Mail: {email}",
       "previewSendMessageTitle": "Nachricht senden",
       "previewSendMessageHint": "Du hast diesen Artikel gefunden oder möchtest den Materialwart erreichen? Sende eine kurze Nachricht.",
-      "toastPrimaryRemoved": "Primärstatus entfernt. Die Mitgliedschaft bleibt bestehen.",
-      "removePrimary": "Primärstatus entfernen",
-      "primaryChange": {
-        "confirmTitle": "Primäres Department ändern?",
-        "confirmMessage": "Bisher primär: «{from}». Neu primär: «{to}». Es kann nur ein primäres Department geben; das bisherige verliert den Primärstatus (die Mitgliedschaft bleibt).",
-        "confirmAction": "Primär ändern"
-      },
-      "primaryRemove": {
-        "confirmTitle": "Primärstatus entfernen?",
-        "confirmMessage": "«{name}» ist danach nicht mehr primär. Die Mitgliedschaft bleibt bestehen.",
-        "confirmAction": "Entfernen"
-      },
       "previewYourName": "Dein Name",
       "previewOptionalParen": "(optional)",
       "previewYourEmail": "Deine E-Mail",
@@ -10819,38 +10819,6 @@
     }
   },
   "grossanlass": {
-    "displays": {
-      "title": "Displays",
-      "subtitle": "Leitstände für Grossbildschirme (TV/Monitor)",
-      "new": "Display hinzufügen",
-      "edit": "Display bearbeiten",
-      "intro": "Mock-Displays für Material, Logistik, Projekte und Gesamtübersicht. Sie lesen denselben Demo-State wie die normalen Grossanlass-Seiten; Änderungen dort erscheinen sofort auf dem Display.",
-      "prototype": "Prototyp · Demo-Daten",
-      "existing": "Die bestehenden Infoscreens des Departments (öffentlich, mit PIN) bleiben unverändert.",
-      "existingLink": "Zu den Infoscreens",
-      "type": {
-        "material": "Material-Leitstand",
-        "logistik": "Logistik-Leitstand",
-        "projekt": "Projektkarte",
-        "gesamt": "Gesamt-Leitstand"
-      },
-      "open": "Als TV öffnen",
-      "noFilter": "Kein Filter (alles)",
-      "unknown": "Display",
-      "missing": "Dieses Display gibt es nicht (mehr). Konfigurationen liegen nur im Demo-State.",
-      "demo": "Demo",
-      "views": "Ansichten",
-      "rotation": "Rotation alle {sec} s",
-      "fullscreen": "Vollbild",
-      "exitFullscreen": "Vollbild beenden",
-      "toAdmin": "Zur Verwaltung",
-      "deadline": "Deadline {when}",
-      "f": {
-        "name": "Name",
-        "type": "Typ",
-        "location": "Standort",
-        "ressort": "Ressort",
-        "bereich": "Bereich",
       "setup": {
         "title": "Ersteinrichtung",
         "lead": "Bevor der Grossanlass startet, brauchen wir noch ein paar wichtige Angaben. Danach schaltest du ihn für alle Rollen frei.",
@@ -10888,6 +10856,38 @@
           "no_ok": "Es fehlt eine OK-Leitung."
         }
       },
+    "displays": {
+      "title": "Displays",
+      "subtitle": "Leitstände für Grossbildschirme (TV/Monitor)",
+      "new": "Display hinzufügen",
+      "edit": "Display bearbeiten",
+      "intro": "Mock-Displays für Material, Logistik, Projekte und Gesamtübersicht. Sie lesen denselben Demo-State wie die normalen Grossanlass-Seiten; Änderungen dort erscheinen sofort auf dem Display.",
+      "prototype": "Prototyp · Demo-Daten",
+      "existing": "Die bestehenden Infoscreens des Departments (öffentlich, mit PIN) bleiben unverändert.",
+      "existingLink": "Zu den Infoscreens",
+      "type": {
+        "material": "Material-Leitstand",
+        "logistik": "Logistik-Leitstand",
+        "projekt": "Projektkarte",
+        "gesamt": "Gesamt-Leitstand"
+      },
+      "open": "Als TV öffnen",
+      "noFilter": "Kein Filter (alles)",
+      "unknown": "Display",
+      "missing": "Dieses Display gibt es nicht (mehr). Konfigurationen liegen nur im Demo-State.",
+      "demo": "Demo",
+      "views": "Ansichten",
+      "rotation": "Rotation alle {sec} s",
+      "fullscreen": "Vollbild",
+      "exitFullscreen": "Vollbild beenden",
+      "toAdmin": "Zur Verwaltung",
+      "deadline": "Deadline {when}",
+      "f": {
+        "name": "Name",
+        "type": "Typ",
+        "location": "Standort",
+        "ressort": "Ressort",
+        "bereich": "Bereich",
         "project": "Bauprojekt (Textfilter)",
         "rotate": "Ansichten automatisch wechseln (nur simuliert)",
         "rotateSec": "Sekunden pro Ansicht"

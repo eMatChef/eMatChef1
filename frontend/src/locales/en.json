@@ -8166,38 +8166,6 @@
     }
   },
   "grossanlass": {
-    "displays": {
-      "title": "Displays",
-      "subtitle": "Control-room screens for large monitors (TV)",
-      "new": "Add display",
-      "edit": "Edit display",
-      "intro": "Mock displays for material, logistics, projects and overview. They read the same demo state as the normal major-event pages; changes there show up on the display immediately.",
-      "prototype": "Prototype · demo data",
-      "existing": "The existing department info screens (public, with PIN) are unchanged.",
-      "existingLink": "To the info screens",
-      "type": {
-        "material": "Material control room",
-        "logistik": "Logistics control room",
-        "projekt": "Project map",
-        "gesamt": "Overall control room"
-      },
-      "open": "Open as TV",
-      "noFilter": "No filter (everything)",
-      "unknown": "Display",
-      "missing": "This display does not exist (any more). Configurations only live in the demo state.",
-      "demo": "Demo",
-      "views": "Views",
-      "rotation": "Rotate every {sec} s",
-      "fullscreen": "Fullscreen",
-      "exitFullscreen": "Exit fullscreen",
-      "toAdmin": "To administration",
-      "deadline": "Deadline {when}",
-      "f": {
-        "name": "Name",
-        "type": "Type",
-        "location": "Location",
-        "ressort": "Department",
-        "bereich": "Area",
       "setup": {
         "title": "Initial setup",
         "lead": "We need a few important details before the large event can start. After that you release it for all roles.",
@@ -8235,6 +8203,38 @@
           "no_ok": "An OK lead is missing."
         }
       },
+    "displays": {
+      "title": "Displays",
+      "subtitle": "Control-room screens for large monitors (TV)",
+      "new": "Add display",
+      "edit": "Edit display",
+      "intro": "Mock displays for material, logistics, projects and overview. They read the same demo state as the normal major-event pages; changes there show up on the display immediately.",
+      "prototype": "Prototype · demo data",
+      "existing": "The existing department info screens (public, with PIN) are unchanged.",
+      "existingLink": "To the info screens",
+      "type": {
+        "material": "Material control room",
+        "logistik": "Logistics control room",
+        "projekt": "Project map",
+        "gesamt": "Overall control room"
+      },
+      "open": "Open as TV",
+      "noFilter": "No filter (everything)",
+      "unknown": "Display",
+      "missing": "This display does not exist (any more). Configurations only live in the demo state.",
+      "demo": "Demo",
+      "views": "Views",
+      "rotation": "Rotate every {sec} s",
+      "fullscreen": "Fullscreen",
+      "exitFullscreen": "Exit fullscreen",
+      "toAdmin": "To administration",
+      "deadline": "Deadline {when}",
+      "f": {
+        "name": "Name",
+        "type": "Type",
+        "location": "Location",
+        "ressort": "Department",
+        "bereich": "Area",
         "project": "Construction project (text filter)",
         "rotate": "Rotate views automatically (simulated only)",
         "rotateSec": "Seconds per view"
