@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Command;
 
 use App\Service\Bootstrap\DemoGrossanlassEventJobsSeedService;
-use App\Service\DevEnvironmentService;
+use App\Service\Demo\DemoEnvironmentGuard;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -20,7 +20,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 final class DemoGrossanlassEventJobsCommand extends Command
 {
     public function __construct(
-        private DevEnvironmentService $devEnvironmentService,
+        private DemoEnvironmentGuard $environmentGuard,
         private DemoGrossanlassEventJobsSeedService $seedService,
     ) {
         parent::__construct();
@@ -28,6 +28,7 @@ final class DemoGrossanlassEventJobsCommand extends Command
 
     protected function configure(): void
     {
+        $this->addOption('mark-demo', null, InputOption::VALUE_NONE, 'Department ausdrücklich als Demo (demo_mode) markieren');
         $this->addOption(
             'name',
             null,
@@ -41,8 +42,9 @@ final class DemoGrossanlassEventJobsCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
 
-        if (!$this->devEnvironmentService->isDevToolsEnabled()) {
-            $io->error('Dev-Tools sind deaktiviert (EMATCHEF_DEV_TOOLS / APP_ENV). Abbruch.');
+        $denial = $this->environmentGuard->additiveDenial();
+        if ($denial !== null) {
+            $io->error($denial);
 
             return Command::FAILURE;
         }
@@ -50,7 +52,7 @@ final class DemoGrossanlassEventJobsCommand extends Command
         $name = (string) $input->getOption('name');
 
         try {
-            $result = $this->seedService->seedByName($name);
+            $result = $this->seedService->seedByName($name, (bool) $input->getOption('mark-demo'));
         } catch (\InvalidArgumentException|\RuntimeException $e) {
             $io->error($e->getMessage());
 

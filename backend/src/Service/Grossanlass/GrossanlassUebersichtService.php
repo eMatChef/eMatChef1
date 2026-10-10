@@ -31,6 +31,7 @@ final class GrossanlassUebersichtService
         private GrossanlassPlaceService $places,
         private GroupHierarchyService $hierarchy,
         private GrossanlassProcurementService $procurement,
+        private GrossanlassAvailabilityService $availability,
         private BusinessClock $clock,
     ) {}
 
@@ -140,7 +141,8 @@ final class GrossanlassUebersichtService
         if (!$this->access->canSubmitEinsatz($user, $department, $group)) {
             throw new \RuntimeException('Keine Berechtigung für Einsätze');
         }
-        $pending = !empty($data['pending']) || !empty($data['has_conflict']);
+        // Ob eine Buchung möglich ist, entscheidet allein der Server (Verfügbarkeitsprüfung unten); `has_conflict` des Clients zählt nicht.
+        $pending = !empty($data['pending']);
         if (!$this->access->submitsEinsatzDirectlyFree($user, $department)) {
             $pending = true;
         }
@@ -165,10 +167,23 @@ final class GrossanlassUebersichtService
             throw new \InvalidArgumentException('Objekt ist erforderlich');
         }
 
-        $this->entityManager->persist($row);
-        $this->syncPlaceFromPack($row);
-        $this->packs->ensureDefaultPack($row);
-        $this->entityManager->flush();
+        $store = function () use ($row): void {
+            $this->entityManager->persist($row);
+            $this->syncPlaceFromPack($row);
+            $this->packs->ensureDefaultPack($row);
+            $this->entityManager->flush();
+        };
+        $bookedCommitment = $row->getCommitment();
+        if ($kind === DepartmentGrossanlassEinsatz::KIND_EINSATZ && $bookedCommitment instanceof DepartmentGrossanlassCommitment) {
+            // Charge sperren, dann gegen alle gleichzeitigen Einsätze prüfen und im selben Schritt speichern.
+            $this->availability->transactional(function () use ($bookedCommitment, $row, $from, $to, $store): void {
+                $this->availability->lock($bookedCommitment);
+                $this->availability->assertWithinCapacity($bookedCommitment, null, $from, $to, $row->getQty());
+                $store();
+            });
+        } else {
+            $store();
+        }
         $wishLineId = trim((string) $row->getWishLineId());
         if ($wishLineId !== '' && $row->getKind() === DepartmentGrossanlassEinsatz::KIND_EINSATZ) {
             $this->procurement->syncUncoveredWishDemand($department, $user, $wishLineId);
@@ -365,8 +380,21 @@ final class GrossanlassUebersichtService
      */
     public function updateEinsatz(Department $department, User $user, string $id, array $data): array
     {
+        return $this->availability->transactional(fn (): array => $this->applyEinsatzUpdate($department, $user, $id, $data));
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function applyEinsatzUpdate(Department $department, User $user, string $id, array $data): array
+    {
         $row = $this->findEinsatz($department, $id);
         $this->assertSeeOrOwn($department, $user, $row);
+        $beforeCommitmentId = $row->getCommitmentId();
+        $beforeStatus = $row->getStatus();
+        $beforeReserving = $this->availability->reserves($row);
+        $before = [$row->getQty(), $row->getStartsAt()->format('U.u'), $row->getEndsAt()->format('U.u')];
         $helperOwns = $this->access->canOperateAssignedEinsatz($user, $department, $row)
             && !$this->access->canSeeMaterialUebersicht($user, $department);
         if ($helperOwns) {
@@ -503,6 +531,7 @@ final class GrossanlassUebersichtService
             $row->setPackPhase($this->phaseFor($from));
         }
         $this->syncPlaceFromPack($row);
+        $this->assertAvailabilityAfterChange($row, $beforeCommitmentId, $beforeStatus, $beforeReserving, $before);
         $this->entityManager->flush();
         $wishLineId = trim((string) $row->getWishLineId());
         if ($wishLineId !== '' && $row->getKind() === DepartmentGrossanlassEinsatz::KIND_EINSATZ) {
@@ -517,15 +546,64 @@ final class GrossanlassUebersichtService
     }
 
     /**
+     * Nach einer Änderung dieselbe Verfügbarkeitsregel wie beim Anlegen: Reservierung (Menge, Zeitraum, Charge, Freigabe)
+     * und Ausgabe (physisch vorhandene Menge). Reine Pack-/Fahrt-Änderungen lösen keine Prüfung aus.
+     *
+     * @param array{0: int, 1: string, 2: string} $before
+     */
+    private function assertAvailabilityAfterChange(
+        DepartmentGrossanlassEinsatz $row,
+        ?string $beforeCommitmentId,
+        string $beforeStatus,
+        bool $beforeReserving,
+        array $before,
+    ): void {
+        $commitment = $row->getCommitment();
+        if (!$commitment instanceof DepartmentGrossanlassCommitment) {
+            return;
+        }
+        $after = [$row->getQty(), $row->getStartsAt()->format('U.u'), $row->getEndsAt()->format('U.u')];
+        $moved = $beforeCommitmentId !== $row->getCommitmentId() || $before !== $after;
+        $status = $row->getStatus();
+
+        if ($this->availability->reserves($row)
+            && ($moved || !$beforeReserving || ($beforeStatus === DepartmentGrossanlassEinsatz::STATUS_PENDING && $status !== $beforeStatus))
+        ) {
+            $this->availability->lock($commitment);
+            $this->availability->assertWithinCapacity($commitment, $row, $row->getStartsAt(), $row->getEndsAt(), $row->getQty());
+        }
+        if ($status === DepartmentGrossanlassEinsatz::STATUS_ISSUED
+            && ($beforeStatus !== $status || $moved)
+        ) {
+            $this->availability->lock($commitment);
+            $this->availability->assertIssuable($row);
+        }
+    }
+
+    /**
      * @param array<string, mixed> $data
      * @return array<string, mixed>
      */
     public function issueEinsatz(Department $department, User $user, string $id, array $data): array
     {
+        return $this->availability->transactional(fn (): array => $this->applyIssue($department, $user, $id, $data));
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function applyIssue(Department $department, User $user, string $id, array $data): array
+    {
         $this->assertAusgabe($department, $user);
         $row = $this->findEinsatz($department, $id);
         if ($row->getStatus() === DepartmentGrossanlassEinsatz::STATUS_PENDING) {
             throw new \InvalidArgumentException('Einsatz ist noch nicht frei');
+        }
+        $commitment = $row->getCommitment();
+        if ($commitment instanceof DepartmentGrossanlassCommitment && $row->getStatus() !== DepartmentGrossanlassEinsatz::STATUS_ISSUED) {
+            $this->availability->lock($commitment);
+            $this->availability->assertIssuable($row);
         }
         $toUser = trim((string) ($data['user_id'] ?? ''));
         $vehicle = $row->getCommitment()?->getFamily() === DepartmentGrossanlassCommitment::FAMILY_VEHICLE;
@@ -596,63 +674,25 @@ final class GrossanlassUebersichtService
      */
     private function detectConflicts(array $einsaetze, array $commitments): array
     {
-        $byObject = [];
-        foreach ($einsaetze as $row) {
-            if ($row->getKind() !== DepartmentGrossanlassEinsatz::KIND_EINSATZ) {
-                continue;
-            }
-            if ($row->getStatus() === DepartmentGrossanlassEinsatz::STATUS_RETURNED) {
-                continue;
-            }
-            $cid = $row->getCommitmentId() ?? '';
-            if ($cid === '') {
-                continue;
-            }
-            $byObject[$cid][] = $row;
-        }
-        $stock = [];
-        $names = [];
-        $unique = [];
-        foreach ($commitments as $commitment) {
-            $stock[$commitment->getId()] = max(0, $commitment->getQuantity());
-            $names[$commitment->getId()] = $commitment->getName();
-            $unique[$commitment->getId()] = $commitment->getFamily() === DepartmentGrossanlassCommitment::FAMILY_VEHICLE
-                || $commitment->getQuantity() <= 1;
-        }
-
+        // Dieselbe Rechnung wie die Buchungssperre (gleichzeitige Menge, Unikate, Abhol-/Liefer-Einsätze ausgenommen).
         $out = [];
         $n = 1;
-        foreach ($byObject as $cid => $rows) {
-            $count = count($rows);
-            for ($i = 0; $i < $count; $i++) {
-                for ($j = $i + 1; $j < $count; $j++) {
-                    $a = $rows[$i];
-                    $b = $rows[$j];
-                    if ($a->getEndsAt() <= $b->getStartsAt() || $b->getEndsAt() <= $a->getStartsAt()) {
-                        continue;
-                    }
-                    $used = $a->getQty() + $b->getQty();
-                    $cap = $stock[$cid] ?? 1;
-                    if (!empty($unique[$cid]) || $used > $cap) {
-                        $kind = !empty($unique[$cid]) ? 'unique_overlap' : 'quantity_overbook';
-                        $name = $names[$cid] ?? $cid;
-                        $out[] = [
-                            'id' => 'cf-' . $n,
-                            'kind' => $kind,
-                            'object_id' => $cid,
-                            'object_name' => $name,
-                            'einsatz_ids' => [$a->getId(), $b->getId()],
-                            'title' => $kind === 'unique_overlap'
-                                ? $name . ': überlappende Einsätze'
-                                : $name . ': Menge überbucht',
-                            'text' => $kind === 'unique_overlap'
-                                ? 'Zwei Einsätze wollen dasselbe Objekt zur gleichen Zeit.'
-                                : 'Überlappende Einsätze brauchen mehr als den Bestand (' . $cap . ').',
-                        ];
-                        $n++;
-                    }
-                }
-            }
+        foreach ($this->availability->overbookedGroups($einsaetze, $commitments) as $group) {
+            $name = $group['commitment']->getName();
+            $out[] = [
+                'id' => 'cf-' . $n,
+                'kind' => $group['unique'] ? 'unique_overlap' : 'quantity_overbook',
+                'object_id' => $group['commitment']->getId(),
+                'object_name' => $name,
+                'einsatz_ids' => $group['ids'],
+                'title' => $group['unique']
+                    ? $name . ': überlappende Einsätze'
+                    : $name . ': Menge überbucht',
+                'text' => $group['unique']
+                    ? 'Mehrere Einsätze wollen dasselbe Objekt zur gleichen Zeit.'
+                    : 'Gleichzeitig sind ' . $group['peak'] . ' reserviert, der Bestand beträgt ' . $group['capacity'] . '.',
+            ];
+            $n++;
         }
 
         $inboundIds = [];

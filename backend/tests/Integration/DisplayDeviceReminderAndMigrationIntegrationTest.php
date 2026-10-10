@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Service\Display;
+namespace App\Tests\Integration;
 
 use App\Controller\PublicDisplayController;
 use App\Entity\DepartmentDisplayDevice;
@@ -24,10 +24,13 @@ use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Address;
 
 /**
- * DB-gestützt in einer zurückgerollten Transaktion; Department b57aa6184ef5 (Demo) hat Verwalter (dc, mw).
+ * Läuft gegen eine isolierte Test-Datenbank (EMATCHEF_TEST_DB_URL, siehe IsolatedDatabase) in einer zurückgerollten
+ * Transaktion; das Department DEPT legt der Test samt Verwaltern (dc, mw) selbst an.
  */
-final class DisplayDeviceReminderAndMigrationTest extends TestCase
+final class DisplayDeviceReminderAndMigrationIntegrationTest extends TestCase
 {
+    use IsolatedDatabase;
+
     private const DEPT = 'b57aa6184ef5';
 
     private EntityManagerInterface $em;
@@ -36,19 +39,15 @@ final class DisplayDeviceReminderAndMigrationTest extends TestCase
 
     protected function setUp(): void
     {
-        $kernel = new \App\Kernel('dev', false);
-        $kernel->boot();
-        $this->em = $kernel->getContainer()->get('doctrine.orm.entity_manager');
-        $this->em->getConnection()->beginTransaction();
+        $this->em = $this->isolatedEntityManager([self::DEPT]);
+        $this->seedManagers($this->em->getConnection(), self::DEPT);
         $this->screens = new DepartmentDisplayScreenService($this->em, new DisplayAccessCodeGenerator(), 'https://app.ematchef.test');
         $this->devices = new DepartmentDisplayDeviceService($this->em, $this->screens, true);
     }
 
     protected function tearDown(): void
     {
-        if ($this->em->getConnection()->isTransactionActive()) {
-            $this->em->getConnection()->rollBack();
-        }
+        $this->releaseIsolatedDatabase($this->em ?? null);
     }
 
     public function testRemindersAt14And3DaysWithoutDuplicatesAndNewCycleAfterExtension(): void

@@ -31,6 +31,18 @@ final class GrossanlassAccessRoles
         return in_array(self::normalize($role), $allowed, true);
     }
 
+    /** Ersteinrichtung bearbeiten (Stammdaten, Ressorts, Mitglieder): MW, Co-MW und OK-Leitung. */
+    public static function canSetup(string $role): bool
+    {
+        return self::isOneOf($role, ['mw', 'cmw', 'dc']);
+    }
+
+    /** Ersteinrichtung freigeben: MW und OK-Leitung, nicht der Co-MW. */
+    public static function canReleaseSetup(string $role): bool
+    {
+        return self::isOneOf($role, ['mw', 'dc']);
+    }
+
     public static function canWorkMailbox(string $role): bool
     {
         return self::isOneOf($role, ['mw', 'cmw', 'komm', 'spon']);

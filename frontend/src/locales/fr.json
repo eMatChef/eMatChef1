@@ -1,4 +1,43 @@
 {
+  "grossanlass": {
+      "setup": {
+        "title": "Première configuration",
+        "lead": "Il nous faut encore quelques informations importantes avant le démarrage du grand événement. Ensuite, tu le libères pour tous les rôles.",
+        "leadOther": "Ce grand événement est en cours de configuration. Dès que le MW ou la direction OK le libère, ton espace sera disponible.",
+        "pendingForRole": "Le grand événement est encore en configuration et pas encore libéré pour ton rôle.",
+        "open": "Ouvrir",
+        "release": "Libérer la configuration",
+        "releasedToast": "Le grand événement est libéré.",
+        "releaseError": "La libération n’est pas possible.",
+        "releaseBlocked": "Le grand événement ne peut être libéré que lorsque les trois domaines sont terminés.",
+        "releaseByMwOrOk": "Le MW et la direction OK peuvent libérer.",
+        "startTour": "Démarrer l’introduction",
+        "steps": {
+          "stammdaten": {
+            "title": "Données de base",
+            "hint": "Nom, début, lieu et type (camp ou événement)."
+          },
+          "ressorts": {
+            "title": "Départements et responsabilités",
+            "hint": "Au moins un secteur, chacun avec une direction."
+          },
+          "mitglieder": {
+            "title": "Membres et attribution OK",
+            "hint": "Au moins un chef du matériel (MW) et une direction OK."
+          }
+        },
+        "missing": {
+          "name": "Le nom manque.",
+          "location": "Le lieu manque.",
+          "type": "Le type n’est pas défini.",
+          "period": "La fin est avant le début.",
+          "no_ressort": "Il n’y a pas encore de secteur.",
+          "ressort_without_leader": "Le secteur « {name} » n’a pas encore de direction.",
+          "no_mw": "Un chef du matériel (MW) manque.",
+          "no_ok": "Une direction OK manque."
+        }
+      }
+  },
   "app": {
     "name": "eMatChef",
     "devEnvironmentBanner": "Environnement de test – pas les données de production.",
@@ -391,6 +430,13 @@
       "manageDepartmentMaterial": "Gérer le matériel de ta section",
       "editProfile": "Modifier le profil",
       "switchDepartment": "Changer de département",
+      "adminContexts": "Administration",
+      "globalContext": "Administration globale",
+      "globalContextHint": "Superadmin · tout le système",
+      "managementHintOrgOrganisation": "Chef d’organisation · organisation",
+      "managementHintOrgDepartment": "Chef d’organisation · gestion du département",
+      "managementHintSubOrganisation": "Sous-chef d’organisation · organisation",
+      "managementHintSubDepartment": "Sous-chef d’organisation · gestion du département",
       "logout": "Se déconnecter"
     },
     "totpRequiredNotice": "L'authentification à deux facteurs est obligatoire pour ton rôle d'administrateur. Configure-la sous Profil → Sécurité, sinon les fonctions d'administration restent bloquées.",
@@ -409,14 +455,22 @@
       "securitySection": "Sécurité",
         "externalIdentities": {
           "title": "Connexions liées",
-          "hint": "Comptes externes avec lesquels vous pouvez vous connecter à eMatChef.",
+          "hint": "Avec ces comptes, vous pouvez vous connecter à eMatChef. Les départements, rôles et groupes restent inchangés en cas de déconnexion.",
           "linkedAt": "Lié depuis le {date}",
           "disconnect": "Déconnecter",
           "confirmTitle": "Déconnecter MiData ?",
           "confirmMessage": "Vous ne pourrez plus vous connecter avec MiData. Vos départements, rôles et groupes dans eMatChef restent inchangés.",
           "lastMethod": "MiData est votre seul moyen de connexion. Confirmez d'abord votre adresse e-mail ou liez un autre fournisseur.",
           "disconnected": "Connexion supprimée.",
-          "error": "Impossible de déconnecter."
+          "error": "Impossible de déconnecter.",
+          "linked": "Lié",
+          "notLinked": "Non lié",
+          "connect": "Lier",
+          "googleNote": "La connexion Google est créée lors de la première connexion avec Google et ne peut pas être modifiée ici.",
+          "providers": {
+            "google": "Google",
+            "midata": "MiData / db.scout.ch"
+          }
         },
       "sessions": {
         "title": "Appareils et sessions",
@@ -458,7 +512,7 @@
       },
       "activity": {
         "title": "Activité de sécurité",
-        "hint": "Les derniers événements de sécurité de ton compte.",
+        "hint": "Votre journal de sécurité personnel. Vous seul pouvez le voir.",
         "empty": "Aucun événement.",
         "loadError": "Impossible de charger l'activité.",
         "events": {
@@ -481,8 +535,63 @@
           "profile_primary_email_changed": "Adresse principale modifiée",
           "profile_email_added": "Adresse e-mail ajoutée",
           "profile_email_verified": "Adresse e-mail confirmée",
-          "profile_email_removed": "Adresse e-mail supprimée"
-        }
+          "profile_email_removed": "Adresse e-mail supprimée",
+          "profile_updated": "Profil modifié",
+          "profile_email_change_requested": "Changement d'e-mail demandé",
+          "profile_email_change_confirmed": "Changement d'e-mail confirmé",
+          "external_identity_linked": "Connexion liée",
+          "external_identity_unlinked": "Connexion déconnectée",
+          "membership_created": "Affectation à un département ajoutée",
+          "membership_role_changed": "Rôle modifié",
+          "membership_removed": "Affectation à un département supprimée"
+        },
+        "loadMore": "Charger plus",
+        "loading": "Chargement …",
+        "retention": "Les adresses IP et les informations du navigateur sont supprimées après {days} jours.",
+        "meta": {
+          "method": "Connexion via {value}",
+          "mfa": "MFA : {value}",
+          "device": "{value}",
+          "ip": "IP {value}",
+          "actor": "Déclenché par {name}",
+          "actorUnknown": "Déclenché par un administrateur",
+          "self": "Par vous",
+          "fields": "Modifié : {fields}"
+        },
+        "authMethods": {
+          "password": "mot de passe",
+          "google": "Google",
+          "midata": "MiData",
+          "legacy": "session existante"
+        },
+        "mfaSources": {
+          "totp": "code d'authentification",
+          "recovery_code": "code de récupération",
+          "trusted_device": "appareil de confiance"
+        },
+        "providers": {
+          "google": "Google",
+          "midata": "MiData"
+        },
+        "fields": {
+          "first_name": "Prénom",
+          "last_name": "Nom",
+          "nickname": "Totem",
+          "avatar_initials": "Initiales",
+          "language": "Langue",
+          "background_color": "Couleur de fond",
+          "text_color": "Couleur du texte",
+          "global_admin_role": "Rôle global",
+          "admin_capabilities": "Droits d'administration"
+        },
+        "fullLog": "Journal complet",
+        "fullLogTitle": "Journal de sécurité",
+        "filterType": "Type d'événement",
+        "filterFrom": "Du",
+        "filterTo": "Au",
+        "filterAllTypes": "Tous les événements",
+        "filterApply": "Filtrer",
+        "filterReset": "Réinitialiser"
       },
       "totp": {
         "title": "Authentification à deux facteurs",
@@ -553,7 +662,8 @@
       "lastName": "Nom",
       "firstName": "Prénom",
       "email": "E-mail",
-      "editEmailTitle": "Modifier l'e-mail",
+      "editEmailTitle": "Gérer les adresses e-mail",
+      "emailManagedInSecurity": "L'adresse principale se gère sous « Sécurité → Adresses e-mail ».",
       "emailNewMustVerify": "La nouvelle adresse doit être confirmée. Jusqu'à confirmation, l'ancienne reste valide.",
       "emailPendingSent": "Lien de confirmation envoyé pour la nouvelle adresse : {pending}. Jusqu'à confirmation, {current} reste actif.",
       "nickname": "Surnom",
@@ -713,6 +823,18 @@
   },
   "settings": {
     "myDepartment": {
+      "toastPrimaryRemoved": "Statut principal retiré. L’appartenance est conservée.",
+      "removePrimary": "Retirer le statut principal",
+      "primaryChange": {
+        "confirmTitle": "Changer le département principal ?",
+        "confirmMessage": "Actuellement principal : « {from} ». Nouveau principal : « {to} ». Il ne peut y avoir qu’un seul département principal ; l’actuel perd son statut principal (l’appartenance est conservée).",
+        "confirmAction": "Changer le principal"
+      },
+      "primaryRemove": {
+        "confirmTitle": "Retirer le statut principal ?",
+        "confirmMessage": "« {name} » ne sera plus principal. L’appartenance est conservée.",
+        "confirmAction": "Retirer"
+      },
       "notificationEmail": {
         "label": "Adresse de notification",
         "hint": "Les notifications du département et du grand événement sont envoyées à cette adresse. Seules tes adresses confirmées peuvent être choisies ; la connexion et l'adresse principale ne changent pas.",
@@ -1431,6 +1553,28 @@
     "dropImageHint": "Déposez ou collez une image ici"
   },
   "onboarding": {
-    "tours": {}
+    "tours": {
+        "gaSetup": {
+          "title": "Configurer le grand événement",
+          "description": "Découvre le système et configure données de base, secteurs et membres.",
+          "ctaStay": "Rester ici",
+          "step1Title": "Bienvenue au grand événement",
+          "step1Body": "Découvre d’abord le système. Il nous faut encore quelques informations importantes avant que tu puisses démarrer. Clique sur « Gérer le grand événement ».",
+          "step2Title": "1. Données de base",
+          "step2Body": "Nom, date et lieu du grand événement. Ces données sont obligatoires.",
+          "step3Title": "Type : camp ou événement",
+          "step3Body": "Choisis si les invités organisent un camp ou un événement. La participation de départements et le prêt de matériel en sont indépendants et se choisissent librement plus tard.",
+          "step4Title": "2. Secteurs",
+          "step4Body": "Passe aux secteurs.",
+          "step5Title": "Secteurs et responsabilités",
+          "step5Body": "Crée au moins un secteur et désigne une direction pour chacun.",
+          "step6Title": "3. Membres",
+          "step6Body": "Tu gères les membres et la direction OK dans les paramètres.",
+          "step7Title": "Utilisateurs",
+          "step7Body": "Invite des membres et attribue-leur des rôles. Il faut au moins un MW et une direction OK.",
+          "step8Title": "Libérer",
+          "step8Body": "Lorsque les trois domaines sont terminés, le MW ou la direction OK libère la configuration ici. Ensuite seulement, le grand événement est ouvert à tous les rôles."
+        }
+    }
   }
 }

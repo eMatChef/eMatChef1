@@ -15,6 +15,7 @@ use App\Repository\UserRepository;
 use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\AuditLogger;
 use App\Service\Auth\CrossSubdomainAuthCookies;
+use App\Service\Auth\AdminContextResolver;
 use App\Service\Auth\SessionContextResolver;
 use App\Service\Auth\UserSessionManager;
 use App\EventSubscriber\JwtSessionSubscriber;
@@ -71,6 +72,7 @@ class AuthController extends AbstractController
         private UserEmailAliasService $emailAliases,
         private LoggerInterface $logger,
         private SessionContextResolver $sessionContextResolver,
+        private AdminContextResolver $adminContextResolver,
         private UserSessionManager $userSessionManager,
         private UserSessionRepository $userSessionRepository,
         private JWTTokenManagerInterface $jwtManager,
@@ -178,6 +180,7 @@ class AuthController extends AbstractController
                 'text_color' => $profile->getTextColor() ?? null,
             ],
             'departments' => $context['departments'],
+            'admin_contexts' => $this->adminContextResolver->resolve($user),
             'primary_department' => $context['primary_department'],
             'last_used_department' => $lastUsedResolved,
             'supplier_companies' => $supplierCompanies,

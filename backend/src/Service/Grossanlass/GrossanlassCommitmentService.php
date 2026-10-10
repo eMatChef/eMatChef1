@@ -10,8 +10,10 @@ use App\Entity\ActivityGrossanlassProcurementQuote;
 use App\Entity\ActivityGrossanlassWishLine;
 use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassCommitment;
+use App\Entity\DepartmentGrossanlassChargeMovement;
 use App\Entity\DepartmentGrossanlassCost;
 use App\Entity\DepartmentGrossanlassEinsatz;
+use App\Entity\DepartmentGrossanlassGuestShare;
 use App\Entity\DepartmentGrossanlassInquiry;
 use App\Entity\DepartmentGrossanlassPackLine;
 use App\Entity\User;
@@ -25,6 +27,7 @@ final class GrossanlassCommitmentService
         private GrossanlassAccessService $access,
         private GrossanlassCostService $costService,
         private GrossanlassChargeMovementService $movements,
+        private GrossanlassAvailabilityService $availability,
     ) {}
 
     /**
@@ -91,9 +94,11 @@ final class GrossanlassCommitmentService
     {
         $this->assertManage($department, $user);
         $row = $this->find($department, $id);
-        $this->apply($row, $department, $data, false);
-        $this->syncCost($row, $data);
-        $this->entityManager->flush();
+        $this->availability->transactional(function () use ($row, $department, $data): void {
+            $this->apply($row, $department, $data, false);
+            $this->syncCost($row, $data);
+            $this->entityManager->flush();
+        });
 
         return $this->serialize($row);
     }
@@ -111,6 +116,29 @@ final class GrossanlassCommitmentService
             return;
         }
         $this->costService->syncFromCommitment($row, $data);
+    }
+
+    /**
+     * Entfernt eine noch ungenutzte Gast-Charge, wenn das Gast-Department seine angenommene Freigabe zurückzieht.
+     * Gebucht, erhalten oder je in einem Einsatz verwendet: nicht entfernen (Rückgabe läuft über den Grossanlass).
+     *
+     * @throws GrossanlassAvailabilityConflict
+     */
+    public function removeUnusedGuestCharge(DepartmentGrossanlassCommitment $row): void
+    {
+        $this->availability->lock($row);
+        $used = $this->entityManager->getRepository(DepartmentGrossanlassEinsatz::class)->count(['commitmentId' => $row->getId()])
+            + $this->entityManager->getRepository(DepartmentGrossanlassChargeMovement::class)->count(['commitmentId' => $row->getId()]);
+        if ($used > 0 || $row->isPacked()) {
+            throw new GrossanlassAvailabilityConflict(
+                sprintf('%s: bereits im Grossanlass in Verwendung (gebucht, erhalten oder gepackt). Die Rückgabe wird dort gebucht.', $row->getName()),
+                GrossanlassAvailabilityConflict::KIND_IN_USE,
+                ['commitment_id' => $row->getId(), 'commitment_name' => $row->getName()],
+            );
+        }
+        $this->detachRelated($row);
+        $this->entityManager->remove($row);
+        $this->entityManager->flush();
     }
 
     public function delete(Department $department, User $user, string $id): void
@@ -162,6 +190,17 @@ final class GrossanlassCommitmentService
      * Keine Absprache und keine zweite Kostenzeile — die Offerte bleibt die Akte.
      */
     public function ensureBuyChargeFromOrder(
+        Department $department,
+        User $user,
+        ActivityGrossanlassProcurementLine $line,
+        ActivityGrossanlassProcurementOrder $order,
+        ?ActivityGrossanlassProcurementQuote $quote,
+    ): void {
+        // Die Bestellung kann die Menge der Kauf-Charge ändern: gleiche Transaktion und Chargensperre wie die Buchungen.
+        $this->availability->transactional(fn () => $this->syncBuyChargeFromOrder($department, $user, $line, $order, $quote));
+    }
+
+    private function syncBuyChargeFromOrder(
         Department $department,
         User $user,
         ActivityGrossanlassProcurementLine $line,
@@ -323,6 +362,25 @@ final class GrossanlassCommitmentService
                         $received,
                     ));
                 }
+            }
+            if (!$creating && $nextQty > $previousQty) {
+                // Die Menge einer Gast-Leihe bestimmt das Gast-Department mit seiner Freigabe, nicht der Grossanlass.
+                $share = $this->entityManager->getRepository(DepartmentGrossanlassGuestShare::class)->findOneBy(['commitmentId' => $row->getId()]);
+                if ($share instanceof DepartmentGrossanlassGuestShare
+                    && $share->getKind() === DepartmentGrossanlassGuestShare::KIND_OFFER
+                    && $nextQty > $share->getQty()
+                ) {
+                    throw new \InvalidArgumentException(sprintf(
+                        'Die Menge gehört zur Freigabe von %s (%d). Mehr Menge muss das Gast-Department freigeben.',
+                        $share->getGuestDepartment()->getName(),
+                        $share->getQty(),
+                    ));
+                }
+            }
+            if (!$creating && $nextQty > 0 && $nextQty < $previousQty) {
+                // Weniger Menge darf bestehende Reservierungen nicht unterschreiten (Menge 0 gibt sie über releaseBookingsForZeroQuantity frei).
+                $this->availability->lock($row);
+                $this->availability->assertQuantityCoversBookings($row, $nextQty);
             }
             $row->setQuantity($nextQty);
         }

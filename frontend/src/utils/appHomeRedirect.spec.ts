@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   departmentDashboardPathFromFullPath,
+  resolveAuthenticatedHomePath,
   parseInternalRedirectPath,
   pathHasOnboardingTourQuery,
   sanitizeLoginRedirectPath,
@@ -39,5 +40,42 @@ describe('login redirect without onboarding tour', () => {
     expect(
       loginRedirectUrl('/abc-dept/activities?onboardingTour=activity-create&onboardingTourStep=2')
     ).toBe('/login?redirect=%2Fabc-dept')
+  })
+})
+
+describe('resolveAuthenticatedHomePath with administration contexts', () => {
+  const base = {
+    userRoles: ['ROLE_USER'],
+    activeDepartmentId: null as string | null,
+    activeAdminContext: null as { kind: 'global' | 'management' } | null,
+    departments: [] as Array<{ department_id: string; is_primary?: boolean }>,
+    hasSupplierAccess: false,
+    activeSupplierCompanies: [],
+    activeSupplierCompanyId: null,
+    currentDepartmentRole: 'u',
+    isDepartmentGrossanlass: () => false,
+  }
+  const home = (over: Partial<typeof base>) =>
+    resolveAuthenticatedHomePath({ ...base, ...over } as unknown as Parameters<typeof resolveAuthenticatedHomePath>[0])
+
+  it('opens the global dashboard in the superadmin system context', () => {
+    expect(home({ userRoles: ['ROLE_SUPERADMIN'], activeAdminContext: { kind: 'global' } })).toBe('/dashboard')
+  })
+
+  it('opens the chosen department when the superadmin acts as a normal member', () => {
+    expect(
+      home({ userRoles: ['ROLE_SUPERADMIN'], activeDepartmentId: 'd1', departments: [{ department_id: 'd1', is_primary: true }] }),
+    ).toBe('/d1')
+  })
+
+  it('opens the administration for an org/sub management context and the department otherwise', () => {
+    expect(home({ userRoles: ['ROLE_ORGANISATIONSCHEF'], activeAdminContext: { kind: 'management' } })).toBe('/admin-dashboard/verwaltung')
+    expect(
+      home({ userRoles: ['ROLE_ORGANISATIONSCHEF'], activeDepartmentId: 'c1', departments: [{ department_id: 'c1', is_primary: true }] }),
+    ).toBe('/c1')
+  })
+
+  it('keeps the waiting room for members without any assignment', () => {
+    expect(home({})).toBe('/pending-assignment')
   })
 })

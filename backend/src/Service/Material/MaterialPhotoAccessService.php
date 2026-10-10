@@ -7,6 +7,7 @@ namespace App\Service\Material;
 use App\Entity\MaterialItem;
 use App\Entity\Membership;
 use App\Entity\User;
+use App\Service\Admin\AdminCapabilityChecker;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
@@ -20,6 +21,7 @@ class MaterialPhotoAccessService
 
     public function __construct(
         private EntityManagerInterface $entityManager,
+        private AdminCapabilityChecker $adminCapabilities,
     ) {
     }
 
@@ -43,7 +45,7 @@ class MaterialPhotoAccessService
 
     public function canViewPhoto(User $user, MaterialItem $material): bool
     {
-        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], $user->getRoles())) > 0) {
+        if ($this->adminCapabilities->canAdministerDepartment($user, $material->getDepartmentId())) {
             return true;
         }
 
@@ -55,7 +57,7 @@ class MaterialPhotoAccessService
 
     public function canUploadPhoto(User $user, MaterialItem $material): bool
     {
-        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], $user->getRoles())) > 0) {
+        if ($this->adminCapabilities->canAdministerDepartment($user, $material->getDepartmentId())) {
             return true;
         }
 

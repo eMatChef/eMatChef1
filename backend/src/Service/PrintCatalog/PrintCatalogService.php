@@ -57,7 +57,8 @@ final class PrintCatalogService
 
     public function canManageDepartment(User $user, string $departmentId): bool
     {
-        if (PrintCatalogVisibility::isReviewer($user->getRoles())) {
+        // Verwaltungszuständigkeit nur im eigenen Scope-Baum (nicht mehr pauschal für jede Orgchef-/Suborgchef-Rolle)
+        if ($this->adminCapabilities->canAdministerDepartment($user, $departmentId)) {
             return true;
         }
         $membership = $this->membership($user, $departmentId);
@@ -67,7 +68,7 @@ final class PrintCatalogService
 
     public function isPrintManager(User $user): bool
     {
-        if (PrintCatalogVisibility::isReviewer($user->getRoles())) {
+        if ($this->adminCapabilities->hasAdministrativeScope($user)) {
             return true;
         }
         $memberships = $this->entityManager->getRepository(Membership::class)->findBy([
@@ -84,7 +85,7 @@ final class PrintCatalogService
 
     public function isDepartmentMember(User $user, string $departmentId): bool
     {
-        if (PrintCatalogVisibility::isReviewer($user->getRoles())) {
+        if ($this->adminCapabilities->canAdministerDepartment($user, $departmentId)) {
             return true;
         }
 
@@ -371,7 +372,7 @@ final class PrintCatalogService
 
     public function reviewModel(User $reviewer, PrintDeviceModel $model, string $action): PrintDeviceModel
     {
-        $this->assertCanReview($reviewer, $model->getOrganisationId());
+        $this->assertCanReview($reviewer, $model->getOrganisationId(), $action);
         $this->applyReview($model, $reviewer, $action, static function (PrintDeviceModel $item, string $status, string $scope): void {
             $item->setStatus($status);
             $item->setScope($scope);
@@ -404,7 +405,7 @@ final class PrintCatalogService
 
     public function reviewMedia(User $reviewer, PrintMedia $media, string $action): PrintMedia
     {
-        $this->assertCanReview($reviewer, $media->getOrganisationId());
+        $this->assertCanReview($reviewer, $media->getOrganisationId(), $action);
         $this->applyReview($media, $reviewer, $action, static function (PrintMedia $item, string $status, string $scope): void {
             $item->setStatus($status);
             $item->setScope($scope);
@@ -618,18 +619,24 @@ final class PrintCatalogService
         }
     }
 
-    private function assertCanReview(User $reviewer, ?string $organisationId): void
+    /**
+     * Prüfen darf der Superadmin überall. Orgchef/Suborgchef dürfen nur Einträge von Organisationen prüfen, die ihnen
+     * ausdrücklich zugewiesen sind, und nur ablehnen: Freigabe (= globale Veröffentlichung) und Hochstufen verändern
+     * systemweite Inhalte und bleiben dem Superadmin vorbehalten.
+     */
+    public function assertCanReview(User $reviewer, ?string $organisationId, string $action): void
     {
-        $roles = $reviewer->getRoles();
-        if (!PrintCatalogVisibility::isReviewer($roles)) {
+        if (PrintCatalogVisibility::isSuperAdmin($reviewer->getRoles())) {
+            return;
+        }
+        if (!PrintCatalogVisibility::isReviewer($reviewer->getRoles())) {
             throw new \RuntimeException('Keine Berechtigung zur Prüfung');
         }
-        if (!PrintCatalogVisibility::canReviewItem(
-            $organisationId,
-            $this->organisationIdsForUser($reviewer),
-            $this->canSeeAllOrganisations($reviewer),
-        )) {
+        if (!PrintCatalogVisibility::canReviewItem($organisationId, $this->adminCapabilities->getAdministeredOrganisationIds($reviewer) ?? [], false)) {
             throw new \RuntimeException('Keine Berechtigung für diese Organisation');
+        }
+        if (strtolower(trim($action)) !== 'reject') {
+            throw new \RuntimeException('Nur Superadmin kann Einträge global veröffentlichen');
         }
     }
 

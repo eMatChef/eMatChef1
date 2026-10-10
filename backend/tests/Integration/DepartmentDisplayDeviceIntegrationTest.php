@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Service\Display;
+namespace App\Tests\Integration;
 
 use App\Entity\DepartmentDisplayDevice;
 use App\Entity\DepartmentDisplayScreen;
@@ -14,11 +14,13 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
- * Läuft gegen die lokale DB, jeder Test in einer Transaktion, die zurückgerollt wird.
- * Department b57aa6184ef5 (Demo) liefert ein existierendes Department; fremdes Department: dccffd078d5c.
+ * Läuft gegen eine isolierte Test-Datenbank (EMATCHEF_TEST_DB_URL, siehe IsolatedDatabase); jeder Test in einer
+ * Transaktion, die zurückgerollt wird. Die Departments DEPT und OTHER_DEPT legt der Test selbst an.
  */
-final class DepartmentDisplayDeviceServiceTest extends TestCase
+final class DepartmentDisplayDeviceIntegrationTest extends TestCase
 {
+    use IsolatedDatabase;
+
     private const DEPT = 'b57aa6184ef5';
     private const OTHER_DEPT = 'dccffd078d5c';
 
@@ -28,19 +30,14 @@ final class DepartmentDisplayDeviceServiceTest extends TestCase
 
     protected function setUp(): void
     {
-        $kernel = new \App\Kernel('dev', false);
-        $kernel->boot();
-        $this->em = $kernel->getContainer()->get('doctrine.orm.entity_manager');
-        $this->em->getConnection()->beginTransaction();
+        $this->em = $this->isolatedEntityManager([self::DEPT, self::OTHER_DEPT]);
         $this->screens = new DepartmentDisplayScreenService($this->em, new DisplayAccessCodeGenerator(), 'https://app.ematchef.test');
         $this->devices = new DepartmentDisplayDeviceService($this->em, $this->screens, true);
     }
 
     protected function tearDown(): void
     {
-        if ($this->em->getConnection()->isTransactionActive()) {
-            $this->em->getConnection()->rollBack();
-        }
+        $this->releaseIsolatedDatabase($this->em ?? null);
     }
 
     public function testDeviceCookieIsHostBoundHttpOnlyAndSecretIsOnlyStoredHashed(): void
@@ -245,8 +242,11 @@ final class DepartmentDisplayDeviceServiceTest extends TestCase
 
     public function testGrossanlassScreensDoNotAcceptDepartmentAreas(): void
     {
-        $ga = (string) $this->em->getConnection()->fetchOne('SELECT id FROM department WHERE is_grossanlass = true LIMIT 1');
-        self::assertNotSame('', $ga);
+        $ga = 'gaitest00001';
+        $this->em->getConnection()->executeStatement(
+            'INSERT INTO department (id,organisation_id,name,created_at,updated_at,demo_mode,is_grossanlass) VALUES (?,?,?,now(),now(),false,true)',
+            [$ga, 'orgitest0001', 'Test GA'],
+        );
         $screen = $this->screens->create($ga, 'GA-Screen', null)['screen'];
         self::assertFalse($screen->isShowActivities());
         self::assertFalse($screen->isShowWorkshop());

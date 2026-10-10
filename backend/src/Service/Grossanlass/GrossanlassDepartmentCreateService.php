@@ -59,7 +59,8 @@ class GrossanlassDepartmentCreateService
         if (!OrganisationUserPickerFilter::isVisibleForUserPickers($organisation)) {
             throw new \InvalidArgumentException('Organisation nicht verfuegbar');
         }
-        if (!$this->adminCapabilityChecker->canAccessOrganisation($currentUser, $organisation->getId())) {
+        // Organisationsebene braucht eine Organisations-Zuweisung; unter einem Parent genügt dessen Verwaltungsbereich.
+        if (empty($data['parent_id']) && !$this->adminCapabilityChecker->canAdministerOrganisation($currentUser, $organisation->getId())) {
             throw new \RuntimeException('Zugriff verweigert');
         }
 

@@ -14,6 +14,7 @@ use App\Entity\ActivityJsOrder;
 use App\Entity\Department;
 use App\Entity\Membership;
 use App\Entity\User;
+use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\ActivityAccessService;
 use App\Service\Grossanlass\GrossanlassAccessService;
 use App\Service\Issue\IssuePhotoAccessService;
@@ -37,6 +38,7 @@ class MediaFileAccessService
         private IssuePhotoAccessService $issuePhotoAccess,
         private ActivityAccessService $activityAccess,
         private GrossanlassAccessService $grossanlassAccess,
+        private AdminCapabilityChecker $adminCapabilities,
     ) {
     }
 
@@ -199,7 +201,7 @@ class MediaFileAccessService
 
     public function assertCanBrowseDepartmentMedia(User $user, string $departmentId): void
     {
-        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], $user->getRoles())) > 0) {
+        if ($this->adminCapabilities->canAdministerDepartment($user, $departmentId)) {
             return;
         }
 
@@ -217,7 +219,7 @@ class MediaFileAccessService
 
     private function assertAccountingMwOrDc(User $user, string $departmentId): void
     {
-        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'], $user->getRoles())) > 0) {
+        if ($this->adminCapabilities->canAdministerDepartment($user, $departmentId)) {
             return;
         }
         $membership = $this->entityManager->getRepository(Membership::class)
@@ -236,8 +238,16 @@ class MediaFileAccessService
         if ($user->getId() === $contextId) {
             return;
         }
-        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_ADMIN'], $user->getRoles())) > 0) {
+        if ($this->adminCapabilities->isSuperAdmin($user)) {
             return;
+        }
+        // Orgchef/Suborgchef nur für Personen mit Mitgliedschaft in ihrem Verwaltungsbereich
+        if ($this->adminCapabilities->hasGlobalAdminRole($user)) {
+            foreach ($this->entityManager->getRepository(Membership::class)->findBy(['userId' => $contextId]) as $membership) {
+                if ($this->adminCapabilities->canAdministerDepartment($user, $membership->getDepartmentId())) {
+                    return;
+                }
+            }
         }
 
         throw new AccessDeniedHttpException('Kein Zugriff auf diese Datei');

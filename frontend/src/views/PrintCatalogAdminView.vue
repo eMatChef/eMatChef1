@@ -31,7 +31,7 @@
               <span class="meta">{{ familyLabel(model.family) }}</span>
             </div>
             <div class="row-actions">
-              <EButton variant="primary" size="small" @click="review('model', model.id, 'approve')">
+              <EButton v-if="catalog?.is_superadmin" variant="primary" size="small" @click="review('model', model.id, 'approve')">
                 {{ t('printCatalogAdmin.approveGlobal') }}
               </EButton>
               <EButton variant="danger" size="small" @click="review('model', model.id, 'reject')">
@@ -46,7 +46,7 @@
               <span class="meta">{{ media.sku }} · {{ familyLabel(media.family) }}</span>
             </div>
             <div class="row-actions">
-              <EButton variant="primary" size="small" @click="review('media', media.id, 'approve')">
+              <EButton v-if="catalog?.is_superadmin" variant="primary" size="small" @click="review('media', media.id, 'approve')">
                 {{ t('printCatalogAdmin.approveGlobal') }}
               </EButton>
               <EButton variant="danger" size="small" @click="review('media', media.id, 'reject')">

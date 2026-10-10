@@ -46,6 +46,12 @@ Migrationen gegen eine Wegwerf-DB, ohne die lokale `mvdb` zu verändern:
 ./scripts/test-migrations.sh
 ```
 
+Tests mit Datenbankzugriff (Infoscreen-Geräte, Kopplung und Erinnerungen, Grossanlass, Demo-Seeds) liegen unter `backend/tests/Integration/` und nutzen `IsolatedDatabase`. Sie laufen nur mit `EMATCHEF_TEST_DB_URL` gegen eine isolierte, migrierte Datenbank (Name `val_*` oder `*_test`, nie `mvdb`) und sind ohne die Variable übersprungen. Der CI-Job «Backend» stellt dafür eine Wegwerf-PostgreSQL (`val_ci`) bereit, migriert sie und führt `phpunit --fail-on-skipped` aus: ein übersprungener Test macht den Check rot. Jeder Test legt seine Departments selbst an und endet mit Rollback:
+
+```bash
+EMATCHEF_TEST_DB_URL='postgresql://val:val@127.0.0.1:55432/val_display?serverVersion=16&charset=utf8' ./vendor/bin/phpunit tests/Integration
+```
+
 Frontend (auf dem Host in `frontend/`, oder im Container wenn der Stack läuft):
 
 ```bash

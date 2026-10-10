@@ -92,10 +92,8 @@ class OrganisationController extends AbstractController
             return new JsonResponse(['error' => 'Organisation not found'], 404);
         }
 
-        if (
-            !$this->adminCapabilityChecker->can($currentUser, 'organisations.view')
-            && !$this->adminCapabilityChecker->canAccessOrganisation($currentUser, $organisation->getId())
-        ) {
+        // Sichtbarkeit richtet sich nach dem Scope bzw. den Mitgliedschaften, nicht allein nach der Capability.
+        if (!$this->adminCapabilityChecker->canAccessOrganisation($currentUser, $organisation->getId())) {
             return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
         }
 
@@ -175,7 +173,7 @@ class OrganisationController extends AbstractController
             return new JsonResponse(['error' => 'Organisation not found'], 404);
         }
 
-        if (!$this->adminCapabilityChecker->canAccessOrganisation($currentUser, $organisation->getId())) {
+        if (!$this->adminCapabilityChecker->canAdministerOrganisation($currentUser, $organisation->getId())) {
             return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
         }
 

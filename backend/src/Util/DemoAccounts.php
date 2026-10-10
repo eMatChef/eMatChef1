@@ -34,7 +34,7 @@ final class DemoAccounts
     }
 
     /**
-     * @return list<array<string, string>> key, email, legacyEmail, label, role, group[, totpSecret]
+     * @return list<array<string, string>> key, email, [legacyEmail], label, role, group[, totpSecret]
      */
     public static function all(): array
     {
@@ -49,12 +49,37 @@ final class DemoAccounts
     /** Frühere Adresse (`*@ematchef.ch`), nur zur Migration bestehender Dev-/Staging-Datenbanken. */
     public static function legacyEmail(string $key): string
     {
-        return self::account($key)['legacyEmail'];
+        return self::account($key)['legacyEmail'] ?? throw new \InvalidArgumentException(sprintf('Demo-Konto "%s" hat keine Altadresse.', $key));
+    }
+
+    /** @return array<string, string> Konto-Eintrag zum Schlüssel (key, email, label, role, group[, …]) */
+    public static function accountByKey(string $key): array
+    {
+        return self::account($key);
     }
 
     public static function isDemoEmail(?string $email): bool
     {
         return $email !== null && str_ends_with(strtolower(trim($email)), '@' . self::domain());
+    }
+
+    /**
+     * Exakte Adresse eines Kontos aus demo-accounts.json (nur diese gelten als vom Seed besessen).
+     * Die Domain allein ist keine Ownership; `*@ematchef.ch` schon gar nicht.
+     */
+    public static function isSeedOwnedEmail(?string $email): bool
+    {
+        if ($email === null) {
+            return false;
+        }
+        $email = strtolower(trim($email));
+        foreach (self::all() as $account) {
+            if ($account['email'] === $email) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Fester Test-TOTP-Secret des Demo-Kontos oder null (nur superadmin/orgchef/suborgchef). */

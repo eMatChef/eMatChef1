@@ -23,7 +23,7 @@
 
 ## 0. UI — Hilfe → Einrichtung
 
-Der Hub lebt unter **`/:departmentId/help/einrichtung`** (Shell: `HelpView`). Dokumentation unter **`/:departmentId/help/dokumentation`**.
+Der Hub lebt unter **`/:departmentId/dept/help/tours`** (alt: `…/help/einrichtung` bleibt als Alias; Shell: `HelpView`). Dokumentation unter **`/:departmentId/dept/help/department`** (alt: `…/dept/help/dokumentation`, `…/dept/help/overview` leiten weiter).
 
 ### Accordion / Inhalt
 
@@ -98,9 +98,9 @@ Bei eMatChef (Vue Router, History-Mode):
 |-------|--------|--------|
 | `/:departmentId/onboarding/welcome` | Vollbild, **keine Sidebar** | Willkommen, «Einrichtung starten» |
 | `/:departmentId/onboarding/setup` | Vollbild | Setup-Wizard Phase 1 |
-| `/:departmentId/help` | Normale App-Shell | **Hilfe** mit Tabs (Subnav) |
-| `/:departmentId/help/einrichtung` | Tab «Einrichtung» | Touren (alle berechtigten Rollen) + Checkliste (MW/DC) |
-| `/:departmentId/help/dokumentation` | Tab «Dokumentation» | Happy Path + Mini-FAQ |
+| `/:departmentId/dept/help` | Normale App-Shell | **Hilfe** mit Tabs (Subnav) |
+| `/:departmentId/dept/help/tours` | Tab «Einrichtung» | Touren (alle berechtigten Rollen) + Checkliste (MW/DC) |
+| `/:departmentId/dept/help/department` | Tab «Dokumentation» | Happy Path + Mini-FAQ |
 
 Nach Abschluss oder «Später» → Redirect auf `/:departmentId/dashboard`.
 

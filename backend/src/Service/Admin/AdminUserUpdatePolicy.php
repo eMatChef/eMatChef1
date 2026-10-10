@@ -103,6 +103,11 @@ final class AdminUserUpdatePolicy
                 throw new AdminUserUpdateDeniedException('Keine Berechtigung, diesen Admin zu bearbeiten');
             }
 
+            // Ein Admin-Konto ohne Zuweisung hat keinen Verwaltungsbereich: nicht Teil des Bereichs eines anderen Admins.
+            if (!$this->adminCapabilityChecker->hasAdministrativeScope($target)) {
+                throw new AdminUserUpdateDeniedException('Der Bereich dieses Admins liegt ausserhalb deines Verwaltungsbereichs');
+            }
+
             $withinScope = self::isSubset(
                 $this->adminCapabilityChecker->getAccessibleOrganisationIds($target),
                 $this->adminCapabilityChecker->getAccessibleOrganisationIds($actor)

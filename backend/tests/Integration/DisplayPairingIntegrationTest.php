@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Service\Display;
+namespace App\Tests\Integration;
 
 use App\Entity\DepartmentDisplayScreen;
 use App\Entity\DisplayPairingRequest;
@@ -15,26 +15,26 @@ use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Läuft gegen die lokale DB, jeder Test in einer Transaktion, die zurückgerollt wird.
+ * Läuft gegen eine isolierte Test-Datenbank (EMATCHEF_TEST_DB_URL, siehe IsolatedDatabase); jeder Test in einer
+ * Transaktion, die zurückgerollt wird.
  */
-final class DisplayPairingServiceTest extends TestCase
+final class DisplayPairingIntegrationTest extends TestCase
 {
+    use IsolatedDatabase;
+
+    private const DEPT = 'b57aa6184ef5';
+
     private EntityManagerInterface $em;
     private bool $canManage = true;
 
     protected function setUp(): void
     {
-        $kernel = new \App\Kernel('dev', false);
-        $kernel->boot();
-        $this->em = $kernel->getContainer()->get('doctrine.orm.entity_manager');
-        $this->em->getConnection()->beginTransaction();
+        $this->em = $this->isolatedEntityManager([self::DEPT]);
     }
 
     protected function tearDown(): void
     {
-        if ($this->em->getConnection()->isTransactionActive()) {
-            $this->em->getConnection()->rollBack();
-        }
+        $this->releaseIsolatedDatabase($this->em ?? null);
     }
 
     public function testPairingIsSingleUseAndTvOnlyGetsSessionAfterApproval(): void
@@ -125,11 +125,11 @@ final class DisplayPairingServiceTest extends TestCase
     public function testNewScreenIsCreatedAndPairedAtomically(): void
     {
         $created = $this->service()->create();
-        $outcome = $this->service()->createScreenAndApprove($created['token'], $this->user(), 'b57aa6184ef5', 'Neu am Eingang');
+        $outcome = $this->service()->createScreenAndApprove($created['token'], $this->user(), self::DEPT, 'Neu am Eingang');
 
         self::assertSame(DisplayPairingService::APPROVE_OK, $outcome['result']);
         self::assertSame('Neu am Eingang', $outcome['screen']->getName());
-        self::assertSame('b57aa6184ef5', $outcome['screen']->getDepartmentId());
+        self::assertSame(self::DEPT, $outcome['screen']->getDepartmentId());
         self::assertMatchesRegularExpression('/^dsp/', $outcome['screen']->getId());
         self::assertMatchesRegularExpression('/^dsi/', $outcome['screen']->getPublicId());
 
@@ -142,12 +142,12 @@ final class DisplayPairingServiceTest extends TestCase
     {
         $before = (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM department_display_screen');
 
-        $outcome = $this->service()->createScreenAndApprove('not-a-valid-token', $this->user(), 'b57aa6184ef5', 'Geist');
+        $outcome = $this->service()->createScreenAndApprove('not-a-valid-token', $this->user(), self::DEPT, 'Geist');
         self::assertSame(DisplayPairingService::APPROVE_GONE, $outcome['result']);
 
         $created = $this->service()->create();
-        $this->service()->createScreenAndApprove($created['token'], $this->user(), 'b57aa6184ef5', 'Erster');
-        $second = $this->service()->createScreenAndApprove($created['token'], $this->user(), 'b57aa6184ef5', 'Zweiter');
+        $this->service()->createScreenAndApprove($created['token'], $this->user(), self::DEPT, 'Erster');
+        $second = $this->service()->createScreenAndApprove($created['token'], $this->user(), self::DEPT, 'Zweiter');
         self::assertSame(DisplayPairingService::APPROVE_GONE, $second['result']);
 
         $names = $this->em->getConnection()->fetchFirstColumn("SELECT name FROM department_display_screen WHERE name IN ('Geist','Zweiter')");
@@ -160,7 +160,7 @@ final class DisplayPairingServiceTest extends TestCase
         $created = $this->service()->create();
         $this->canManage = false;
 
-        $outcome = $this->service()->createScreenAndApprove($created['token'], $this->user(), 'b57aa6184ef5', 'Nein');
+        $outcome = $this->service()->createScreenAndApprove($created['token'], $this->user(), self::DEPT, 'Nein');
         self::assertSame(DisplayPairingService::APPROVE_FORBIDDEN, $outcome['result']);
         self::assertSame(0, (int) $this->em->getConnection()->fetchOne("SELECT COUNT(*) FROM department_display_screen WHERE name = 'Nein'"));
     }
