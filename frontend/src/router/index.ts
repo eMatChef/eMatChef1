@@ -2639,6 +2639,7 @@ router.beforeEach(async (to, from, nextRaw) => {
       !isAdminPath &&
       !to.path.startsWith('/site-inhalt') &&
       !to.path.startsWith('/supplier/') &&
+      !to.path.startsWith('/connect-display/') &&
       (to.path.startsWith('/app/') ||
         (to.meta.requiresAuth &&
         !to.params.departmentId &&

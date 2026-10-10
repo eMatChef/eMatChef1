@@ -54,5 +54,6 @@ Sicherheitsmodell:
 
 - Hosts-Eintrag (Windows, als Administrator, `C:\Windows\System32\drivers\etc\hosts`): `127.0.0.1 display.ematchef.test`
 - Das mkcert-Zertifikat enthält `*.ematchef.test` und deckt die Subdomain ab. Bei einem älteren Zertifikat `scripts/generate-local-https-certs.sh` neu ausführen.
-- Nginx: `display.ematchef.test` steht in `docker/nginx/*.conf`; Konfiguration neu laden (`docker exec ematchef-nginx-1 nginx -s reload`), wenn der Stack aus einem anderen Worktree gemountet ist.
+- Nginx: `display.ematchef.test` steht in `docker/nginx/*.conf`. Mountet der laufende Nginx die Konfiguration eines anderen Worktrees, der den Host nicht kennt, landet die Domain im Default-Virtual-Host (Frontend wird zwar ausgeliefert, aber nicht deterministisch). Lokale Abhilfe ohne Änderung im anderen Worktree: eigener Virtual Host `docker/nginx/display.local.conf` (nicht eingecheckt, über `.git/info/exclude` ausgeblendet) plus Compose-Override `docker-compose.display.local.yml` mit zusätzlichem Mount nach `/etc/nginx/conf.d/display.conf`. Prüfen mit `docker exec ematchef-nginx-1 nginx -t`, dann `nginx -s reload`. Beim nächsten Neuanlegen des Containers den Override mit `-f` angeben.
+- Backend: `APP_DISPLAY_URL=https://display.ematchef.test` (lokales `docker-compose.override.yml`), Container neu anlegen, damit neue `display_url`-Werte die Domain verwenden.
 - Frontend-Container neu starten, damit `VITE_DISPLAY_HOST` und `allowedHosts` greifen.

@@ -9,7 +9,7 @@
         <code class="inline-code">{{ kioskEntryUrl }}</code>
       </p>
       <p v-if="isGrossanlassRoute" class="muted path-hint">
-        <router-link :to="{ name: 'GrossanlassDisplaysDemo', params: { departmentId: selectedDepartmentId } }">
+        <router-link :to="{ name: 'GrossanlassDisplaysDemo', params: { departmentId: String(route.params.departmentId || selectedDepartmentId) } }">
           {{ t('settings.displayScreens.gaDemoLink') }}
         </router-link>
       </p>
