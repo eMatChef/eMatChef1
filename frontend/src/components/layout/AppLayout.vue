@@ -35,6 +35,8 @@
     </div>
   </v-main>
 
+  <ProfileModal />
+
   <button
     v-if="showHelpShortcut"
     type="button"
@@ -57,6 +59,7 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useBusinessClockStore } from '@/stores/businessClock'
 import { useUnsavedChangesReminder } from '@/composables/useUnsavedChangesReminder'
+import ProfileModal from '@/components/profile/ProfileModal.vue'
 import { layoutViewKey } from '@/utils/profileReturn'
 import { useDepartmentOnboardingAccess } from '@/composables/useDepartmentOnboardingAccess'
 import { useHelpShortcut } from '@/composables/useHelpShortcut'

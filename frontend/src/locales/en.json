@@ -2213,6 +2213,9 @@
       },
       "addressNeedsDepartment": "The address is stored in the active department. Select a department first to edit it."
     },
+    "modal": {
+      "openAsPage": "Open as page"
+    },
     "departments": {
       "title": "My departments",
       "hint": "Your memberships. Changes are made in the settings of the respective department.",

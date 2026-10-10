@@ -259,8 +259,7 @@ describe('E-Mail-Verwaltung im Profil', () => {
     expect(source).not.toContain('toggleEmailEdit')
     expect(source).not.toContain('isEmailEditEnabled')
     expect(source).toMatch(/v-model="profileForm\.email"[\s\S]{0,200}\bdisabled\b/)
-    expect(source).toContain(":to=\"emailsTab\"")
-    expect(source).toContain("name: 'ProfileEmails'")
+    expect(source).toContain("context.openTab('emails')")
     // Gespeichert wird immer die bestehende Hauptadresse; Änderungen laufen über /profile/emails
     const form = readFileSync(resolve(__dirname, '../../composables/useProfileForm.ts'), 'utf8')
     expect(form).toContain('email: authStore.profile?.email || email')

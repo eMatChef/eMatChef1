@@ -2342,6 +2342,9 @@
       },
       "addressNeedsDepartment": "Die Adresse wird im aktiven Department gespeichert. Wähle zuerst ein Department, um sie zu bearbeiten."
     },
+    "modal": {
+      "openAsPage": "Als Seite öffnen"
+    },
     "departments": {
       "title": "Meine Departments",
       "hint": "Deine Mitgliedschaften. Änderungen nimmst du in den Einstellungen des jeweiligen Departments vor.",

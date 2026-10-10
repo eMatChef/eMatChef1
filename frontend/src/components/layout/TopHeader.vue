@@ -448,7 +448,8 @@ import {
 import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
 import { useToast } from '../../composables/useToast'
 import { useConfirm } from '../../composables/useConfirm'
-import { profileEntryQuery } from '@/utils/profileReturn'
+import { isProfilePath, profileEntryQuery } from '@/utils/profileReturn'
+import { useProfileModal } from '@/composables/useProfileContext'
 import { useUnsavedLeaveGuard } from '../../composables/useUnsavedLeaveGuard'
 import {
   getPendingDepartmentActivityInvites,
@@ -535,6 +536,7 @@ const headerNotificationsStore = useHeaderNotificationsStore()
 const route = useRoute()
 const authStore = useAuthStore()
 const roleLabelsStore = useDepartmentRoleLabelsStore()
+const { open: openProfileModal } = useProfileModal()
 
 function departmentRoleLabel(role: string, departmentId?: string | null): string {
   return roleLabelsStore.labelFor(role, departmentId || authStore.activeDepartmentId, t, {
@@ -1427,9 +1429,18 @@ function goAbteilungsmat() {
   void router.push({ name: 'GrossanlassAbteilungsmat', params: { departmentId: id } })
 }
 
-/** Das Profil ist eine globale Seite: Rücksprung (from) und laufende Tour bleiben erhalten, Department/GA-Auswahl ebenso. */
+/**
+ * «Profil bearbeiten»: Dialog über der aktuellen Seite (Seite bleibt erhalten). Die URL-Ansicht (/profile) ist der
+ * kanonische Einstieg: wer schon im Profil ist oder die Onboarding-Tour läuft, navigiert dorthin (Rücksprung `from`
+ * und Tour-Parameter bleiben erhalten).
+ */
 function openProfile() {
   showUserDropdown.value = false
+  const tourActive = route.query[ONBOARDING_TOUR_QUERY] === 'profile-overview'
+  if (!tourActive && !isProfilePath(route.path)) {
+    openProfileModal()
+    return
+  }
   const query: Record<string, string> = { ...(profileEntryQuery(route) as Record<string, string>) }
   for (const key of [ONBOARDING_TOUR_QUERY, ONBOARDING_TOUR_STEP_QUERY]) {
     const value = route.query[key]
