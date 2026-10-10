@@ -188,7 +188,7 @@
               </p>
               <router-link
                 class="linked-kiste-link"
-                :to="`/${departmentId}/materials/${material.linked_container_batch.material_id}`"
+                :to="`/${departmentId}/dept/materials/${material.linked_container_batch.material_id}`"
               >
                 {{ material.linked_container_batch.display_label }}
               </router-link>
@@ -233,7 +233,7 @@
                   <router-link
                     v-if="material.linked_container_batch?.material_id"
                     class="linked-kiste-link"
-                    :to="`/${departmentId}/materials/${material.linked_container_batch.material_id}`"
+                    :to="`/${departmentId}/dept/materials/${material.linked_container_batch.material_id}`"
                   >
                     {{ material.linked_container_batch.display_label }}
                   </router-link>
@@ -412,7 +412,7 @@
                   </p>
                   <router-link
                     class="linked-kiste-link"
-                    :to="`/${departmentId}/materials/${material.linked_container_batch.material_id}`"
+                    :to="`/${departmentId}/dept/materials/${material.linked_container_batch.material_id}`"
                   >
                     {{ material.linked_container_batch.display_label }}
                   </router-link>
@@ -732,7 +732,7 @@
                   <li v-for="row in material.combo_allocations" :key="row.parent_material_id">
                     <router-link
                       class="combo-allocation-link"
-                      :to="`/${departmentId}/materials/${row.parent_material_id}`"
+                      :to="`/${departmentId}/dept/materials/${row.parent_material_id}`"
                     >
                       {{ row.parent_name }}
                     </router-link>
@@ -1125,7 +1125,7 @@
                     </p>
                     <router-link
                       class="combo-allocation-link container-combo-linked-link"
-                      :to="`/${departmentId}/materials/${selectedContainerPhysicalCombo.id}?tab=composition`"
+                      :to="`/${departmentId}/dept/materials/${selectedContainerPhysicalCombo.id}?tab=composition`"
                     >
                       {{ selectedContainerPhysicalCombo.name }}
                       <span class="container-combo-linked-link-suffix">
@@ -1294,7 +1294,7 @@
                 <div class="workshop-tab-actions">
                   <router-link
                     class="btn-primary"
-                    :to="{ path: `/${departmentId}/workshop`, query: { material_id: materialId } }"
+                    :to="{ path: `/${departmentId}/dept/workshop`, query: { material_id: materialId } }"
                   >
                     {{ t('components.materialDetail.btnWorkshopFiltered') }}
                   </router-link>
@@ -1311,7 +1311,7 @@
                 <div class="workshop-tab-actions mt-3">
                   <router-link
                     class="btn-outline btn-sm"
-                    :to="{ path: `/${departmentId}/workshop`, query: { material_id: materialId } }"
+                    :to="{ path: `/${departmentId}/dept/workshop`, query: { material_id: materialId } }"
                   >
                     {{ t('components.materialDetail.btnAllInWorkshop') }}
                   </router-link>
@@ -4915,7 +4915,7 @@ async function executeRemoveComposition(
 
 function openComponentMaterialDetail(componentMaterialId: string) {
   if (!componentMaterialId) return
-  router.push({ path: `/${props.departmentId}/materials/${componentMaterialId}` })
+  router.push({ path: `/${props.departmentId}/dept/materials/${componentMaterialId}` })
 }
 
 async function loadMaterialStorageLocations() {
@@ -5147,7 +5147,7 @@ async function loadContainerContentOverview() {
 
 function openMaterialById(materialId: string) {
   if (!materialId) return
-  router.push({ path: `/${props.departmentId}/materials/${materialId}` })
+  router.push({ path: `/${props.departmentId}/dept/materials/${materialId}` })
 }
 
 function populateFormData(m: Material) {
@@ -5340,7 +5340,7 @@ function updateMaterialDetailTabLabel(m: Material) {
     type: 'material',
     label: m.name || t('components.materialDetail.tabFallbackMaterialName', { id: props.materialId }),
     departmentId: props.departmentId,
-    path: `/${props.departmentId}/materials/${props.materialId}`,
+    path: `/${props.departmentId}/dept/materials/${props.materialId}`,
   })
 }
 
@@ -5905,7 +5905,7 @@ function openContainerMaterial(materialId: string, containerBatchId?: string | n
   // Prefer exact container instance selection via dropdown (batch id).
   if (containerBatchId) query[DETAIL_QUERY_KEYS.containerBatch] = containerBatchId
   else if (containerSearchSeed) query[DETAIL_QUERY_KEYS.containerSearch] = containerSearchSeed
-  router.push({ path: `/${props.departmentId}/materials/${materialId}`, query })
+  router.push({ path: `/${props.departmentId}/dept/materials/${materialId}`, query })
 }
 
 async function loadContainerEditorForSelectedBatch() {
@@ -6416,7 +6416,7 @@ async function loadUsedIn() {
 }
 
 function navigateToCombo(comboId: string) {
-  router.push(`/${props.departmentId}/materials/${comboId}`)
+  router.push(`/${props.departmentId}/dept/materials/${comboId}`)
 }
 
 async function loadHistory() {

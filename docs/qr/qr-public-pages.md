@@ -83,8 +83,8 @@ Verwendung: QR auf **Packplan-PDF**, auf dem **Abteilungs-Display** (`app.…/di
 
 ### Intern (nach Scan mit App / Link von Seite)
 
-- `app.ematchef.ch/{departmentId}/activities/{activityId}`
-- Lager: `devices.ematchef.ch/{departmentId}/pack/{activityId}` (Packen)
+- `app.ematchef.ch/{departmentId}/dept/activities/{activityId}`
+- Lager: `devices.ematchef.ch/{departmentId}/dept/pack/{activityId}` (Packen)
 
 Öffentliche Seite verlinkt nur, führt Packen **nicht** auf `qr.` aus.
 
@@ -114,7 +114,7 @@ Für Finder selten relevant; Hauptzweck: QR auf Listen/Display, den MW mit dem H
 
 ### Intern
 
-- `app.ematchef.ch/{departmentId}/workshop` — Ticket aus Code auflösen und fokussieren
+- `app.ematchef.ch/{departmentId}/dept/workshop` — Ticket aus Code auflösen und fokussieren
 
 ---
 

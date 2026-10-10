@@ -12,7 +12,7 @@ Aktuelle Ist-Dokumentation für department-übergreifende Grossanlässe (PFF, Ka
 
 ## Kurzüberblick
 
-> **URLs:** Alle Grossanlass-Seiten liegen unter `/{deptId}/ga/…` (z. B. `/{deptId}/ga/planung/wuensche`). Die alten Pfade ohne `ga/` (`/{deptId}/planung/…`, `/material/…` usw.) leiten mit Query und Hash dorthin um (`GA_LEGACY_SEGMENTS` im Router). API-Pfade sind unverändert.
+> **URLs:** Alle Grossanlass-Seiten liegen unter `/{deptId}/ga/…` (z. B. `/{deptId}/ga/planung/wuensche`). Alte Pfade ohne `ga/` werden nicht mehr umgeleitet. API-Pfade sind unverändert.
 
 
 | Was                             | Entscheidung                                                                                                                                                                                                              |
@@ -54,16 +54,16 @@ Grossanlass-Dept: kein Pfadi-`/activities`, kein Pfadi-`/accounting`. Sichtbarke
 | – | Dashboard | `/{deptId}` | Home der Rolle |
 | Anlass | Ressorts | `/{deptId}/ga/mein-ressort` | bestehende Seite «Mein Ressort», beim MW alle Ressorts |
 | Anlass | Planung | `/{deptId}/ga/planung` | inkl. Transporte (bleibt) |
-| Anlass | Aufgaben | `/{deptId}/tasks` | zentrale Ausführungssicht, vorerst für alle Rollen gleich sichtbar (Rollen-Sichten folgen). **UI-Prototyp mit Demo-Daten** (`tasks/aufgaben` MW-Master, `tasks/meine` Helfer mobil). Bestehende Tabs Allgemein, Inventur und Drucken bleiben. Planung zeigt, was wann geplant ist, Aufgaben zeigt, was jemand konkret erledigen muss |
+| Anlass | Aufgaben | `/{deptId}/dept/tasks` | zentrale Ausführungssicht, vorerst für alle Rollen gleich sichtbar (Rollen-Sichten folgen). **UI-Prototyp mit Demo-Daten** (`tasks/aufgaben` MW-Master, `tasks/meine` Helfer mobil). Bestehende Tabs Allgemein, Inventur und Drucken bleiben. Planung zeigt, was wann geplant ist, Aufgaben zeigt, was jemand konkret erledigen muss |
 | Material | Beschaffung | `/{deptId}/ga/beschaffung` | |
 | Material | Material | `/{deptId}/ga/material` | bisher «Materialübersicht», nur umbenannt |
 | Logistik | Logistik | `/{deptId}/ga/logistik/disposition` | **UI-Prototyp mit Demo-Daten:** Leitstand für alle Transportbedarfe (Beschaffung, Planung, Packen, Ressort, Retour, Werkstatt), Disponieren in Touren mit Stopps, Live-Fälle. Keine eigenen Rechte |
 | Logistik | Fahrzeuge | `/{deptId}/ga/fahrzeuge` | |
 | Betrieb | Werkstatt | `/{deptId}/ga/werkstatt` | eigenständig: betrifft Material und Fahrzeuge |
 | Finanzen | Kosten | `/{deptId}/ga/kosten` | |
-| Kommunikation | Nachrichten | `/{deptId}/notifications` | |
+| Kommunikation | Nachrichten | `/{deptId}/dept/notifications` | |
 | unten | Grossanlass verwalten | `/{deptId}/ga/einstellungen` | bisher «Einstellungen» |
-| unten | Konfiguration | `/{deptId}/settings` | |
+| unten | Konfiguration | `/{deptId}/dept/settings` | |
 | unten | UI Sandbox | `/{deptId}/dev/ui-playground` | nur Development |
 
 Weitere Rollen (flache Sidebar, Ist):
@@ -488,11 +488,11 @@ Implementierung: `[SidebarNavigation.vue](../../frontend/src/components/layout/S
 | 4   | Materialübersicht | `mdi-truck-delivery-outline` | `/{deptId}/ga/material` | **Ist** — Bestand, Wareneingang, Ausgabe, Pack, Retour. Einsätze/Konflikte unter Planung |
 | 5   | **Beschaffung**   | `mdi-cart-outline`           | `/{deptId}/ga/beschaffung`         | **Ist** — Inhalt [§0.5](#05-beschaffung-anfragen-wareneingang-kosten), keine Shell |
 | —   | *Divider*         |                              |                                 |                                             |
-| 6   | **Aufgaben**      | `mdi-clipboard-list`         | `/{deptId}/tasks`               | ab Phase 2 (Runden-Inbox, MW-Tasks)         |
-| 7   | **Nachrichten**   | `mdi-bell-outline`           | `/{deptId}/notifications`       | ab Phase 2                                  |
-| 8   | Kontakte          | `mdi-account-group`          | `/{deptId}/contacts`            | optional (CM; RL vorerst aus)               |
-| 9   | **Einstellungen** | `mdi-cog-outline`            | `/{deptId}/settings`            | immer                                       |
-| 10  | Hilfe             | `mdi-help-circle-outline`    | `/{deptId}/help/overview`       | optional wie Pfadi                          |
+| 6   | **Aufgaben**      | `mdi-clipboard-list`         | `/{deptId}/dept/tasks`               | ab Phase 2 (Runden-Inbox, MW-Tasks)         |
+| 7   | **Nachrichten**   | `mdi-bell-outline`           | `/{deptId}/dept/notifications`       | ab Phase 2                                  |
+| 8   | Kontakte          | `mdi-account-group`          | `/{deptId}/dept/contacts`            | optional (CM; RL vorerst aus)               |
+| 9   | **Einstellungen** | `mdi-cog-outline`            | `/{deptId}/dept/settings`            | immer                                       |
+| 10  | Hilfe             | `mdi-help-circle-outline`    | `/{deptId}/dept/help/overview`       | optional wie Pfadi                          |
 
 
 #### Bewusst ausgeblendet (Grossanlass-Dept)

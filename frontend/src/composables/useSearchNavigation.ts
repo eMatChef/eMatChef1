@@ -115,13 +115,13 @@ export function getSearchTarget(
 
   switch (parsed.type) {
     case 'material':
-      return { path: `${base}/materials`, query: q ? { q } : {} }
+      return { path: `${base}/dept/materials`, query: q ? { q } : {} }
     case 'activity':
-      return { path: `${base}/activities`, query: q ? { q } : {} }
+      return { path: `${base}/dept/activities`, query: q ? { q } : {} }
     case 'reparatur':
-      return { path: `${base}/workshop`, query: q ? { q } : {} }
+      return { path: `${base}/dept/workshop`, query: q ? { q } : {} }
     default:
-      return { path: `${base}/materials`, query: q ? { q } : {} }
+      return { path: `${base}/dept/materials`, query: q ? { q } : {} }
   }
 }
 
@@ -147,19 +147,19 @@ export function getGlobalSearchPageTarget(
   const trimmed = term.trim()
   if (trimmed) query.q = trimmed
   if (typeFilter) query.type = typeFilter
-  return { path: `/${departmentId}/search`, query }
+  return { path: `/${departmentId}/dept/search`, query }
 }
 
 function buildSuggestionPath(base: string, type: SearchTargetType, id: string): string {
   switch (type) {
     case 'material':
-      return `${base}/materials/${id}`
+      return `${base}/dept/materials/${id}`
     case 'activity':
-      return `${base}/activities/${id}`
+      return `${base}/dept/activities/${id}`
     case 'reparatur':
-      return `${base}/workshop?ticket=${id}`
+      return `${base}/dept/workshop?ticket=${id}`
     default:
-      return `${base}/materials/${id}`
+      return `${base}/dept/materials/${id}`
   }
 }
 

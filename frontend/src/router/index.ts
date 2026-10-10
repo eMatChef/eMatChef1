@@ -1,6 +1,6 @@
 import { nextTick } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
-import type { LocationQuery, NavigationGuardNext, RouteLocationNormalized, RouteRecordRaw } from 'vue-router'
+import type { NavigationGuardNext, RouteLocationNormalized, RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionsStore } from '@/stores/permissions'
 import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
@@ -48,28 +48,6 @@ import { resolveVerwaltungLandingPath } from '@/utils/verwaltungNavigation'
 import { isMiDataOnboardingLanding } from '@/utils/midataOnboarding'
 import { carryOAuthReturnParams, PROFILE_SECURITY_RETURN_PARAM } from '@/utils/oauthReturnParams'
 import { PROFILE_FROM_PARAM, isProfilePath, profileFromForEntry, sanitizeProfileFrom } from '@/utils/profileReturn'
-
-/** Erste Pfadsegmente der Grossanlass-Seiten vor der Umstellung auf /:departmentId/ga/… */
-const GA_LEGACY_SEGMENTS = [
-  'planung',
-  'planungsrunden',
-  'einstellungen',
-  'beschaffung',
-  'kosten',
-  'fahrzeuge',
-  'material',
-  'materialien',
-  'displays',
-  'helferpool',
-  'logistik',
-  'werkstatt',
-  'abteilungsmat',
-  'mein-ressort',
-  'meine-einsaetze',
-  'helferauftrag',
-  'gast-vorschau',
-  'ressorts',
-]
 
 const AUTH_ENTRY_PATHS = ['/login', '/register', '/forgot-password', '/reset-password']
 
@@ -199,13 +177,13 @@ function devicesModeHostGuard(
       if (to.name === 'Dashboard') {
         return next()
       }
-      return next({ name: 'Dashboard', params: { departmentId: deptId }, replace: true })
+      return next({ name: 'DepartmentEntry', params: { departmentId: deptId }, replace: true })
     }
     return next({ path: '/', replace: true })
   }
   const deptId = String(to.params.departmentId || '')
   if (deptId && !devicesWarehouseRoleOk(deptId)) {
-    return next({ path: `/${deptId}/settings`, replace: true })
+    return next({ path: `/${deptId}/dept/settings`, replace: true })
   }
   return next()
 }
@@ -921,7 +899,7 @@ const routes: RouteRecordRaw[] = [
     ],
   },
   {
-    path: '/:departmentId/pack/:activityId',
+    path: '/:departmentId/dept/pack/:activityId',
     name: 'DevicesPackSession',
     component: () => import('@/views/devices/DevicesPackSessionView.vue'),
     meta: {
@@ -938,33 +916,35 @@ const routes: RouteRecordRaw[] = [
     children: [
       {
         path: '',
-        alias: 'dashboard',
-        name: 'Dashboard',
+        name: 'DepartmentEntry',
         component: () => import('@/views/DashboardView.vue'),
-        meta: {
-          ...routeHead('dashboard'),
-        },
+        // Echter Einstieg: wählt abhängig vom Department-Typ die kanonische Start-URL (GA oder Department).
         beforeEnter: async (to) => {
           const authStore = useAuthStore()
           const deptId = String(to.params.departmentId || '')
-          if (!deptId || !authStore.isDepartmentGrossanlass(deptId)) return true
+          if (!deptId) return true
+          if (!authStore.isDepartmentGrossanlass(deptId)) {
+            return { path: `/${deptId}/dept/dashboard`, query: to.query, hash: to.hash, replace: true }
+          }
           const home = await gaResolveHomePath(
             deptId,
             authStore.currentDepartmentRole,
             authStore.userId,
           )
-          if (home !== `/${deptId}`) {
-            return { path: home, replace: true }
-          }
-          return true
+          return { path: home, query: to.query, hash: to.hash, replace: true }
         },
       },
       {
         path: 'ga',
         children: [
           {
-            path: '',
-            redirect: (to) => ({ path: `/${to.params.departmentId}`, query: to.query }),
+            path: 'dashboard',
+            name: 'GrossanlassDashboard',
+            component: () => import('@/views/DashboardView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              ...routeHead('dashboard'),
+            },
           },
           {
             path: 'ressorts',
@@ -1103,7 +1083,7 @@ const routes: RouteRecordRaw[] = [
               },
               {
                 path: 'abholen',
-                redirect: (to) => ({ path: `/${to.params.departmentId}/tasks/allgemein` }),
+                redirect: (to) => ({ path: `/${to.params.departmentId}/dept/tasks/allgemein` }),
               },
               {
                 path: 'belegung',
@@ -1187,7 +1167,7 @@ const routes: RouteRecordRaw[] = [
               },
               {
                 path: 'karten',
-                redirect: (to) => ({ path: `/${to.params.departmentId}/settings/user-karten` }),
+                redirect: (to) => ({ path: `/${to.params.departmentId}/dept/settings/user-karten` }),
               },
               {
                 path: 'standorte',
@@ -1742,718 +1722,716 @@ const routes: RouteRecordRaw[] = [
           },
         ],
       },
-      // Bis Phase 3: GA-Seiten lagen direkt unter /:departmentId/… — alte Links leiten auf /:departmentId/ga/… um.
-      ...GA_LEGACY_SEGMENTS.map((segment) => ({
-        path: `${segment}/:rest(.*)*`,
-        redirect: (to: { params: Record<string, string | string[]>; query: LocationQuery; hash: string }) => {
-          const rest = Array.isArray(to.params.rest) ? to.params.rest.join('/') : String(to.params.rest || '')
-          return {
-            path: `/${to.params.departmentId}/ga/${segment}${rest ? `/${rest}` : ''}`,
-            query: to.query,
-            hash: to.hash,
-          }
-        },
-      })),
       {
-        path: 'verwaltung',
-        component: () => import('@/views/VerwaltungView.vue'),
+        path: 'dept',
         children: [
           {
-            path: '',
-            redirect: (to) => {
-              const authStore = useAuthStore()
-              const departmentId = to.params.departmentId as string | undefined
-              return resolveVerwaltungLandingPath(authStore, { departmentId })
+            path: 'dashboard',
+            name: 'Dashboard',
+            component: () => import('@/views/DashboardView.vue'),
+            meta: {
+              ...routeHead('dashboard'),
             },
           },
           {
-            path: 'global-addresses',
-            name: 'DepartmentGlobalAddresses',
-            component: () => import('@/views/GlobalAddressesView.vue'),
-            meta: {
-              requiredRoles: ['superadmin'],
-              ...routeHead('globalAddresses'),
-            }
+            path: 'verwaltung',
+            component: () => import('@/views/VerwaltungView.vue'),
+            children: [
+              {
+                path: '',
+                redirect: (to) => {
+                  const authStore = useAuthStore()
+                  const departmentId = to.params.departmentId as string | undefined
+                  return resolveVerwaltungLandingPath(authStore, { departmentId })
+                },
+              },
+              {
+                path: 'global-addresses',
+                name: 'DepartmentGlobalAddresses',
+                component: () => import('@/views/GlobalAddressesView.vue'),
+                meta: {
+                  requiredRoles: ['superadmin'],
+                  ...routeHead('globalAddresses'),
+                }
+              },
+              {
+                path: 'jobs',
+                name: 'Jobs',
+                component: () => import('@/views/JobsView.vue'),
+                meta: {
+                  requiredRoles: ['superadmin'],
+                  ...routeHead('systemJobs'),
+                }
+              },
+              {
+                path: 'support-requests',
+                name: 'SupportRequests',
+                component: () => import('@/views/SupportRequestsView.vue'),
+                meta: {
+                  requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+                  ...routeHead('supportRequests'),
+                }
+              },
+              {
+                path: 'organisations',
+                name: 'DepartmentVerwaltungOrganisations',
+                component: () => import('@/views/settings/OrganisationsSettingsView.vue'),
+                meta: {
+                  requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+                  ...routeHead('organisations'),
+                }
+              },
+              {
+                path: 'departments',
+                name: 'DepartmentVerwaltungDepartments',
+                component: () => import('@/views/settings/DepartmentsSettingsView.vue'),
+                meta: {
+                  requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+                  ...routeHead('departments'),
+                }
+              },
+              {
+                path: 'mail-templates',
+                redirect: (to) => ({ path: to.path.replace(/\/mail-templates\/?$/, '/mail/versand') }),
+              },
+              {
+                path: 'mail',
+                component: () => import('@/views/mail/MailVerwaltungLayout.vue'),
+                redirect: { name: 'DepartmentMailVersand' },
+                meta: {
+                  requiredRoles: ['superadmin'],
+                  ...routeHead('mailRoot'),
+                },
+                children: [
+                  {
+                    path: 'versand',
+                    name: 'DepartmentMailVersand',
+                    component: () => import('@/views/settings/MailTemplatesSettingsView.vue'),
+                    meta: {
+                      requiredRoles: ['superadmin'],
+                      ...routeHead('mailTemplates'),
+                    },
+                  },
+                  {
+                    path: 'einstellungen',
+                    name: 'DepartmentMailEinstellungen',
+                    component: () => import('@/views/mail/MailOutboundSettingsView.vue'),
+                    meta: {
+                      requiredRoles: ['superadmin'],
+                      ...routeHead('mailSettings'),
+                    },
+                  },
+                  {
+                    path: 'log',
+                    name: 'DepartmentMailLog',
+                    component: () => import('@/views/mail/MailSendLogView.vue'),
+                    meta: {
+                      requiredRoles: ['superadmin'],
+                      ...routeHead('mailLog'),
+                    },
+                  },
+                ],
+              },
+              {
+                path: 'permissions',
+                name: 'DepartmentVerwaltungPermissions',
+                component: () => import('@/views/settings/PermissionsSettingsView.vue'),
+                meta: {
+                  requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+                  ...routeHead('permissions'),
+                }
+              },
+              {
+                path: 'supplier-global-review',
+                redirect: '/admin-dashboard/verwaltung/supplier-global-review',
+              },
+              {
+                path: 'js-leihkatalog',
+                redirect: '/admin-dashboard/verwaltung/js-leihkatalog',
+              },
+              {
+                path: 'print-catalog',
+                name: 'DepartmentPrintCatalog',
+                component: () => import('@/views/PrintCatalogAdminView.vue'),
+                meta: {
+                  requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+                  ...routeHead('printCatalogAdmin'),
+                }
+              },
+            ]
           },
           {
-            path: 'jobs',
-            name: 'Jobs',
-            component: () => import('@/views/JobsView.vue'),
+            path: 'activities',
+            name: 'Activities',
+            component: () => import('@/views/ActivitiesView.vue'),
             meta: {
-              requiredRoles: ['superadmin'],
-              ...routeHead('systemJobs'),
-            }
-          },
-          {
-            path: 'support-requests',
-            name: 'SupportRequests',
-            component: () => import('@/views/SupportRequestsView.vue'),
-            meta: {
-              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
-              ...routeHead('supportRequests'),
-            }
-          },
-          {
-            path: 'organisations',
-            name: 'DepartmentVerwaltungOrganisations',
-            component: () => import('@/views/settings/OrganisationsSettingsView.vue'),
-            meta: {
-              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
-              ...routeHead('organisations'),
-            }
-          },
-          {
-            path: 'departments',
-            name: 'DepartmentVerwaltungDepartments',
-            component: () => import('@/views/settings/DepartmentsSettingsView.vue'),
-            meta: {
-              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
-              ...routeHead('departments'),
-            }
-          },
-          {
-            path: 'mail-templates',
-            redirect: (to) => ({ path: to.path.replace(/\/mail-templates\/?$/, '/mail/versand') }),
-          },
-          {
-            path: 'mail',
-            component: () => import('@/views/mail/MailVerwaltungLayout.vue'),
-            redirect: { name: 'DepartmentMailVersand' },
-            meta: {
-              requiredRoles: ['superadmin'],
-              ...routeHead('mailRoot'),
+              ...routeHead('activities'),
             },
             children: [
               {
-                path: 'versand',
-                name: 'DepartmentMailVersand',
-                component: () => import('@/views/settings/MailTemplatesSettingsView.vue'),
+                path: ':activityId/packlist',
+                redirect: (to) => ({
+                  name: 'ActivityDetailTab',
+                  params: {
+                    departmentId: to.params.departmentId,
+                    activityId: to.params.activityId,
+                    tab: 'packs',
+                  },
+                }),
+              },
+              {
+                path: ':activityId/pack-journey/:step?',
+                name: 'ActivityPackJourney',
+                component: () => import('@/views/ActivityPackJourneyView.vue'),
                 meta: {
-                  requiredRoles: ['superadmin'],
-                  ...routeHead('mailTemplates'),
+                  ...routeHead('activityPackJourney'),
                 },
               },
               {
-                path: 'einstellungen',
-                name: 'DepartmentMailEinstellungen',
-                component: () => import('@/views/mail/MailOutboundSettingsView.vue'),
+                path: ':activityId',
+                name: 'ActivityDetail',
+                component: () => import('@/views/ActivitiesView.vue'),
                 meta: {
-                  requiredRoles: ['superadmin'],
-                  ...routeHead('mailSettings'),
+                  ...routeHead('activityDetail'),
+                }
+              },
+              {
+                path: ':activityId/:tab',
+                name: 'ActivityDetailTab',
+                component: () => import('@/views/ActivitiesView.vue'),
+                meta: {
+                  ...routeHead('activityDetail'),
+                }
+              }
+            ]
+          },
+          {
+            path: 'materials',
+            name: 'Materials',
+            component: () => import('@/views/MaterialsView.vue'),
+            meta: {
+              ...routeHead('materials'),
+            },
+            beforeEnter: (to) => {
+              const authStore = useAuthStore()
+              const deptId = String(to.params.departmentId || '')
+              if (deptId && authStore.isDepartmentGrossanlass(deptId)) {
+                return { path: `/${deptId}/ga/material` }
+              }
+            },
+            children: [
+              {
+                path: 'alle',
+                name: 'MaterialsTabAll',
+                component: () => import('@/views/MaterialsView.vue'),
+                meta: {
+                  ...routeHead('materialsAll'),
+                }
+              },
+              {
+                path: 'kombos',
+                name: 'MaterialsTabCombos',
+                component: () => import('@/views/MaterialsView.vue'),
+                meta: {
+                  ...routeHead('materialsCombos'),
+                }
+              },
+              {
+                path: 'virtuelle-kombis',
+                name: 'MaterialsTabVirtualCombos',
+                component: () => import('@/views/MaterialsView.vue'),
+                meta: {
+                  ...routeHead('materialsVirtualCombos'),
+                }
+              },
+              {
+                path: 'verbrauchsmaterial',
+                name: 'MaterialsTabConsumables',
+                component: () => import('@/views/MaterialsView.vue'),
+                meta: {
+                  ...routeHead('materialsConsumables'),
+                }
+              },
+              {
+                path: 'esswaren',
+                name: 'MaterialsTabFood',
+                component: () => import('@/views/MaterialsView.vue'),
+                meta: {
+                  ...routeHead('materialsFood'),
+                }
+              },
+              {
+                path: 'regale',
+                name: 'MaterialsTabStorage',
+                component: () => import('@/views/MaterialsView.vue'),
+                meta: {
+                  ...routeHead('materialsStorage'),
+                }
+              },
+              {
+                path: ':materialId',
+                name: 'MaterialDetail',
+                component: () => import('@/views/MaterialsView.vue'),
+                meta: {
+                  ...routeHead('materialDetail', 'materialDetail'),
+                }
+              }
+            ]
+          },
+          {
+            path: 'supplier-shop',
+            name: 'SupplierShop',
+            component: () => import('@/views/SupplierShopView.vue'),
+            meta: {
+              requiredRoles: ['matwart', 'depchef', 'mw', 'dc'],
+              ...routeHead('supplierShop'),
+            },
+          },
+          {
+            path: 'accounting',
+            component: () => import('@/views/accounting/AccountingShellView.vue'),
+            meta: {
+              ...routeHead('accounting'),
+            },
+            children: [
+              {
+                path: '',
+                name: 'AccountingOverview',
+                component: () => import('@/views/accounting/AccountingOverviewView.vue'),
+                meta: {
+                  requiredRoles: ['matwart', 'depchef'],
+                  ...routeHead('accounting'),
                 },
               },
               {
-                path: 'log',
-                name: 'DepartmentMailLog',
-                component: () => import('@/views/mail/MailSendLogView.vue'),
+                path: 'kostenstellen',
+                name: 'AccountingCostCenters',
+                component: () => import('@/views/accounting/AccountingCostCentersView.vue'),
                 meta: {
-                  requiredRoles: ['superadmin'],
-                  ...routeHead('mailLog'),
+                  requiredRoles: ['matwart', 'depchef'],
+                  ...routeHead('accountingCostCenters'),
+                },
+              },
+              {
+                path: 'buchungen',
+                name: 'AccountingBookings',
+                component: () => import('@/views/accounting/AccountingBookingsView.vue'),
+                meta: {
+                  requiredRoles: ['matwart', 'depchef'],
+                  ...routeHead('accountingBookings'),
+                },
+              },
+              {
+                path: 'gruppen',
+                name: 'AccountingGroupCosts',
+                component: () => import('@/views/accounting/AccountingGroupCostsView.vue'),
+                meta: {
+                  requiredRoles: ['matwart', 'depchef', 'leader1', 'leader2', 'leader3', 'user'],
+                  ...routeHead('accountingGroupCosts'),
+                },
+              },
+              {
+                path: 'materialkosten',
+                name: 'AccountingMaterialCosts',
+                component: () => import('@/views/accounting/AccountingMaterialCostsView.vue'),
+                meta: {
+                  requiredRoles: ['matwart', 'depchef'],
+                  ...routeHead('accountingMaterialCosts'),
+                },
+              },
+              {
+                path: 'abschreibung',
+                name: 'AccountingAmortization',
+                component: () => import('@/views/accounting/AccountingAmortizationView.vue'),
+                meta: {
+                  requiredRoles: ['matwart', 'depchef'],
+                  ...routeHead('accountingAmortization'),
+                },
+              },
+              {
+                path: 'budget',
+                name: 'AccountingBudget',
+                component: () => import('@/views/accounting/AccountingBudgetView.vue'),
+                meta: {
+                  requiredRoles: ['matwart', 'depchef'],
+                  ...routeHead('accountingBudget'),
                 },
               },
             ],
           },
           {
-            path: 'permissions',
-            name: 'DepartmentVerwaltungPermissions',
-            component: () => import('@/views/settings/PermissionsSettingsView.vue'),
-            meta: {
-              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
-              ...routeHead('permissions'),
-            }
-          },
-          {
-            path: 'supplier-global-review',
-            redirect: '/admin-dashboard/verwaltung/supplier-global-review',
-          },
-          {
-            path: 'js-leihkatalog',
-            redirect: '/admin-dashboard/verwaltung/js-leihkatalog',
-          },
-          {
-            path: 'print-catalog',
-            name: 'DepartmentPrintCatalog',
-            component: () => import('@/views/PrintCatalogAdminView.vue'),
-            meta: {
-              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
-              ...routeHead('printCatalogAdmin'),
-            }
-          },
-        ]
-      },
-      {
-        path: 'activities',
-        name: 'Activities',
-        component: () => import('@/views/ActivitiesView.vue'),
-        meta: {
-          ...routeHead('activities'),
-        },
-        children: [
-          {
-            path: ':activityId/packlist',
-            redirect: (to) => ({
-              name: 'ActivityDetailTab',
-              params: {
-                departmentId: to.params.departmentId,
-                activityId: to.params.activityId,
-                tab: 'packs',
-              },
-            }),
-          },
-          {
-            path: ':activityId/pack-journey/:step?',
-            name: 'ActivityPackJourney',
-            component: () => import('@/views/ActivityPackJourneyView.vue'),
-            meta: {
-              ...routeHead('activityPackJourney'),
-            },
-          },
-          {
-            path: ':activityId',
-            name: 'ActivityDetail',
-            component: () => import('@/views/ActivitiesView.vue'),
-            meta: {
-              ...routeHead('activityDetail'),
-            }
-          },
-          {
-            path: ':activityId/:tab',
-            name: 'ActivityDetailTab',
-            component: () => import('@/views/ActivitiesView.vue'),
-            meta: {
-              ...routeHead('activityDetail'),
-            }
-          }
-        ]
-      },
-      {
-        path: 'materials',
-        name: 'Materials',
-        component: () => import('@/views/MaterialsView.vue'),
-        meta: {
-          ...routeHead('materials'),
-        },
-        beforeEnter: (to) => {
-          const authStore = useAuthStore()
-          const deptId = String(to.params.departmentId || '')
-          if (deptId && authStore.isDepartmentGrossanlass(deptId)) {
-            return { path: `/${deptId}/ga/material` }
-          }
-        },
-        children: [
-          {
-            path: 'alle',
-            name: 'MaterialsTabAll',
-            component: () => import('@/views/MaterialsView.vue'),
-            meta: {
-              ...routeHead('materialsAll'),
-            }
-          },
-          {
-            path: 'kombos',
-            name: 'MaterialsTabCombos',
-            component: () => import('@/views/MaterialsView.vue'),
-            meta: {
-              ...routeHead('materialsCombos'),
-            }
-          },
-          {
-            path: 'virtuelle-kombis',
-            name: 'MaterialsTabVirtualCombos',
-            component: () => import('@/views/MaterialsView.vue'),
-            meta: {
-              ...routeHead('materialsVirtualCombos'),
-            }
-          },
-          {
-            path: 'verbrauchsmaterial',
-            name: 'MaterialsTabConsumables',
-            component: () => import('@/views/MaterialsView.vue'),
-            meta: {
-              ...routeHead('materialsConsumables'),
-            }
-          },
-          {
-            path: 'esswaren',
-            name: 'MaterialsTabFood',
-            component: () => import('@/views/MaterialsView.vue'),
-            meta: {
-              ...routeHead('materialsFood'),
-            }
-          },
-          {
-            path: 'regale',
-            name: 'MaterialsTabStorage',
-            component: () => import('@/views/MaterialsView.vue'),
-            meta: {
-              ...routeHead('materialsStorage'),
-            }
-          },
-          {
-            path: ':materialId',
-            name: 'MaterialDetail',
-            component: () => import('@/views/MaterialsView.vue'),
-            meta: {
-              ...routeHead('materialDetail', 'materialDetail'),
-            }
-          }
-        ]
-      },
-      {
-        path: 'supplier-shop',
-        name: 'SupplierShop',
-        component: () => import('@/views/SupplierShopView.vue'),
-        meta: {
-          requiredRoles: ['matwart', 'depchef', 'mw', 'dc'],
-          ...routeHead('supplierShop'),
-        },
-      },
-      {
-        path: 'accounting',
-        component: () => import('@/views/accounting/AccountingShellView.vue'),
-        meta: {
-          ...routeHead('accounting'),
-        },
-        children: [
-          {
-            path: '',
-            name: 'AccountingOverview',
-            component: () => import('@/views/accounting/AccountingOverviewView.vue'),
-            meta: {
-              requiredRoles: ['matwart', 'depchef'],
-              ...routeHead('accounting'),
-            },
-          },
-          {
-            path: 'kostenstellen',
-            name: 'AccountingCostCenters',
-            component: () => import('@/views/accounting/AccountingCostCentersView.vue'),
-            meta: {
-              requiredRoles: ['matwart', 'depchef'],
-              ...routeHead('accountingCostCenters'),
-            },
-          },
-          {
-            path: 'buchungen',
-            name: 'AccountingBookings',
-            component: () => import('@/views/accounting/AccountingBookingsView.vue'),
-            meta: {
-              requiredRoles: ['matwart', 'depchef'],
-              ...routeHead('accountingBookings'),
-            },
-          },
-          {
-            path: 'gruppen',
-            name: 'AccountingGroupCosts',
-            component: () => import('@/views/accounting/AccountingGroupCostsView.vue'),
-            meta: {
-              requiredRoles: ['matwart', 'depchef', 'leader1', 'leader2', 'leader3', 'user'],
-              ...routeHead('accountingGroupCosts'),
-            },
-          },
-          {
-            path: 'materialkosten',
-            name: 'AccountingMaterialCosts',
-            component: () => import('@/views/accounting/AccountingMaterialCostsView.vue'),
-            meta: {
-              requiredRoles: ['matwart', 'depchef'],
-              ...routeHead('accountingMaterialCosts'),
-            },
-          },
-          {
-            path: 'abschreibung',
-            name: 'AccountingAmortization',
-            component: () => import('@/views/accounting/AccountingAmortizationView.vue'),
-            meta: {
-              requiredRoles: ['matwart', 'depchef'],
-              ...routeHead('accountingAmortization'),
-            },
-          },
-          {
-            path: 'budget',
-            name: 'AccountingBudget',
-            component: () => import('@/views/accounting/AccountingBudgetView.vue'),
-            meta: {
-              requiredRoles: ['matwart', 'depchef'],
-              ...routeHead('accountingBudget'),
-            },
-          },
-        ],
-      },
-      {
-        path: 'contacts',
-        name: 'Contacts',
-        component: () => import('@/views/ContactsView.vue'),
-        meta: {
-          ...routeHead('contacts'),
-        },
-        children: [
-          {
-            path: ':contactId',
-            name: 'ContactDetail',
+            path: 'contacts',
+            name: 'Contacts',
             component: () => import('@/views/ContactsView.vue'),
             meta: {
-              ...routeHead('contactDetail'),
-            }
-          }
-        ]
-      },
-      {
-        path: 'tasks',
-        name: 'Tasks',
-        component: () => import('@/views/TasksShellView.vue'),
-        redirect: (to) => {
-          const authStore = useAuthStore()
-          const deptId = String(to.params.departmentId || '')
-          if (deptId && authStore.isDepartmentGrossanlass(deptId)) {
-            return { name: gaIsGrossanlassHelper(authStore.currentDepartmentRole) ? 'TasksGaMine' : 'TasksGaMaster' }
-          }
-          return { name: 'TasksGeneral' }
-        },
-        meta: {
-          ...routeHead('tasks'),
-        },
-        children: [
+              ...routeHead('contacts'),
+            },
+            children: [
+              {
+                path: ':contactId',
+                name: 'ContactDetail',
+                component: () => import('@/views/ContactsView.vue'),
+                meta: {
+                  ...routeHead('contactDetail'),
+                }
+              }
+            ]
+          },
           {
-            path: 'aufgaben',
-            name: 'TasksGaMaster',
-            component: () => import('@/views/grossanlass/aufgaben/GrossanlassAufgabenMasterView.vue'),
+            path: 'tasks',
+            name: 'Tasks',
+            component: () => import('@/views/TasksShellView.vue'),
+            redirect: (to) => {
+              const authStore = useAuthStore()
+              const deptId = String(to.params.departmentId || '')
+              if (deptId && authStore.isDepartmentGrossanlass(deptId)) {
+                return { name: gaIsGrossanlassHelper(authStore.currentDepartmentRole) ? 'TasksGaMine' : 'TasksGaMaster' }
+              }
+              return { name: 'TasksGeneral' }
+            },
             meta: {
-              requiresGrossanlassDepartment: true,
-              ...routeHead('tasksGaMaster'),
+              ...routeHead('tasks'),
+            },
+            children: [
+              {
+                path: 'aufgaben',
+                name: 'TasksGaMaster',
+                component: () => import('@/views/grossanlass/aufgaben/GrossanlassAufgabenMasterView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  ...routeHead('tasksGaMaster'),
+                },
+              },
+              {
+                path: 'meine',
+                name: 'TasksGaMine',
+                component: () => import('@/views/grossanlass/aufgaben/GrossanlassMeineAufgabenView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  ...routeHead('tasksGaMine'),
+                },
+              },
+              {
+                path: 'allgemein',
+                name: 'TasksGeneral',
+                component: () => import('@/views/TasksGeneralView.vue'),
+                meta: {
+                  ...routeHead('tasksGeneral'),
+                },
+              },
+              {
+                path: 'inventory',
+                name: 'TasksInventory',
+                component: () => import('@/views/TasksInventoryView.vue'),
+                meta: {
+                  ...routeHead('tasksInventory'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'TasksGeneral' },
+                },
+              },
+              {
+                path: 'druck',
+                name: 'TasksPrint',
+                component: () => import('@/views/TasksPrintView.vue'),
+                meta: {
+                  ...routeHead('tasksPrint'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'TasksGeneral' },
+                },
+              },
+            ],
+          },
+          {
+            path: 'notifications',
+            name: 'NotificationsCenter',
+            component: () => import('@/views/NotificationsCenterView.vue'),
+            meta: {
+              ...routeHead('notificationsCenter'),
+            }
+          },
+          {
+            path: 'search',
+            name: 'GlobalSearch',
+            component: () => import('@/views/GlobalSearchView.vue'),
+            meta: {
+              ...routeHead('globalSearch'),
+            }
+          },
+          {
+            path: 'dev/ui-playground',
+            name: 'DevUiPlayground',
+            component: () => import('@/views/dev/DevUiPlaygroundView.vue'),
+            meta: {
+              devToolsOnly: true,
+              ...routeHead('devUiSandbox'),
             },
           },
           {
-            path: 'meine',
-            name: 'TasksGaMine',
-            component: () => import('@/views/grossanlass/aufgaben/GrossanlassMeineAufgabenView.vue'),
+            path: 'workshop',
+            name: 'Workshop',
+            component: () => import('@/views/WorkshopView.vue'),
             meta: {
-              requiresGrossanlassDepartment: true,
-              ...routeHead('tasksGaMine'),
+              ...routeHead('workshop'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+            }
+          },
+          {
+            path: 'statistics',
+            name: 'Statistics',
+            component: () => import('@/views/StatisticsView.vue'),
+            meta: {
+              ...routeHead('statistics'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+            }
+          },
+          {
+            path: 'settings',
+            component: () => import('@/views/SettingsView.vue'),
+            children: [
+              {
+                path: '',
+                redirect: { name: 'SettingsMyDepartment' },
+              },
+              {
+                path: 'module',
+                name: 'SettingsModule',
+                component: () => import('@/views/settings/ModuleSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsModule'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'zeit',
+                name: 'SettingsZeit',
+                component: () => import('@/views/settings/GeneralSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsTime'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'categories',
+                name: 'SettingsCategories',
+                component: () => import('@/views/settings/CategoriesSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsCategories'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'my-department',
+                name: 'SettingsMyDepartment',
+                component: () => import('@/views/settings/MyDepartmentSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsMyDepartment'),
+                }
+              },
+              {
+                path: 'my-department/join-code',
+                name: 'SettingsMyDepartmentJoinCode',
+                component: () => import('@/views/settings/MyDepartmentJoinCodeView.vue'),
+                meta: {
+                  ...routeHead('settingsJoinCode'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'my-department/fixed-dates',
+                name: 'SettingsMyDepartmentFixedDates',
+                component: () => import('@/views/settings/MyDepartmentFixedDatesView.vue'),
+                meta: {
+                  ...routeHead('settingsFixedDates'),
+                  requireDepartmentRoles: [...DEPARTMENT_MW_DC_ROLES],
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'print',
+                name: 'SettingsPrint',
+                component: () => import('@/views/settings/PrintSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsPrint'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'user-karten',
+                name: 'SettingsGrossanlassUserKarten',
+                component: () => import('@/views/grossanlass/GrossanlassUserKartenView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
+                  ...routeHead('grossanlassUserKarten'),
+                }
+              },
+              {
+                path: 'my-department/display-screens',
+                name: 'SettingsMyDepartmentDisplayScreens',
+                component: () => import('@/views/settings/MyDepartmentDisplayScreensView.vue'),
+                meta: {
+                  ...routeHead('settingsDisplayScreens'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'my-department/storage-locations',
+                name: 'SettingsMyDepartmentStorageLocations',
+                component: () => import('@/views/settings/MyDepartmentAddressSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsStorageLocations'),
+                  addressKind: 'storage',
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'my-department/billing-address',
+                name: 'SettingsMyDepartmentBillingAddress',
+                component: () => import('@/views/settings/MyDepartmentAddressSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsBillingAddress'),
+                  addressKind: 'billing',
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'my-department/public-material-page',
+                name: 'SettingsMyDepartmentPublicMaterialPage',
+                component: () => import('@/views/settings/MyDepartmentPublicMaterialPageView.vue'),
+                meta: {
+                  ...routeHead('settingsPublicMaterialPage'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'addons',
+                name: 'SettingsAddons',
+                component: () => import('@/views/settings/AddonsSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsAddons'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'users',
+                name: 'SettingsUsers',
+                component: () => import('@/views/settings/UsersSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsUsers'),
+                  denyDepartmentRoles: ['u', 'user'],
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'groups',
+                name: 'SettingsGroups',
+                component: () => import('@/views/settings/GroupsSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsGroups'),
+                }
+              },
+              {
+                path: 'storage',
+                name: 'SettingsStorage',
+                component: () => import('@/views/settings/StorageSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsStorage'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'media',
+                name: 'SettingsMedia',
+                component: () => import('@/views/settings/MediaLibraryView.vue'),
+                meta: {
+                  ...routeHead('settingsMedia'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'templates',
+                name: 'SettingsTemplates',
+                component: () => import('@/views/settings/TemplatesSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsTemplates'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'material-import',
+                name: 'SettingsMaterialImport',
+                component: () => import('@/views/settings/MaterialImportSettingsView.vue'),
+                meta: {
+                  ...routeHead('settingsMaterialImport'),
+                  denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+                  denyRedirectTo: { name: 'SettingsMyDepartment' },
+                }
+              },
+              {
+                path: 'supplier-deliveries',
+                redirect: (to) => ({
+                  name: 'SupplierShop',
+                  params: { departmentId: to.params.departmentId },
+                  query: { tab: 'deliveries' },
+                }),
+              },
+            ]
+          },
+          {
+            path: 'help',
+            component: () => import('@/views/HelpView.vue'),
+            meta: {
+              ...routeHead('helpOverview'),
             },
-          },
-          {
-            path: 'allgemein',
-            name: 'TasksGeneral',
-            component: () => import('@/views/TasksGeneralView.vue'),
-            meta: {
-              ...routeHead('tasksGeneral'),
-            },
-          },
-          {
-            path: 'inventory',
-            name: 'TasksInventory',
-            component: () => import('@/views/TasksInventoryView.vue'),
-            meta: {
-              ...routeHead('tasksInventory'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'TasksGeneral' },
-            },
-          },
-          {
-            path: 'druck',
-            name: 'TasksPrint',
-            component: () => import('@/views/TasksPrintView.vue'),
-            meta: {
-              ...routeHead('tasksPrint'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'TasksGeneral' },
-            },
-          },
-        ],
-      },
-      {
-        path: 'notifications',
-        name: 'NotificationsCenter',
-        component: () => import('@/views/NotificationsCenterView.vue'),
-        meta: {
-          ...routeHead('notificationsCenter'),
-        }
-      },
-      {
-        path: 'search',
-        name: 'GlobalSearch',
-        component: () => import('@/views/GlobalSearchView.vue'),
-        meta: {
-          ...routeHead('globalSearch'),
-        }
-      },
-      {
-        path: 'dev/ui-playground',
-        alias: 'sandbox',
-        name: 'DevUiPlayground',
-        component: () => import('@/views/dev/DevUiPlaygroundView.vue'),
-        meta: {
-          devToolsOnly: true,
-          ...routeHead('devUiSandbox'),
-        },
-      },
-      {
-        path: 'workshop',
-        name: 'Workshop',
-        component: () => import('@/views/WorkshopView.vue'),
-        meta: {
-          ...routeHead('workshop'),
-          denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-        }
-      },
-      {
-        path: 'statistics',
-        name: 'Statistics',
-        component: () => import('@/views/StatisticsView.vue'),
-        meta: {
-          ...routeHead('statistics'),
-          denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-        }
-      },
-      {
-        path: 'settings',
-        component: () => import('@/views/SettingsView.vue'),
-        children: [
-          {
-            path: '',
-            redirect: { name: 'SettingsMyDepartment' },
-          },
-          {
-            path: 'module',
-            name: 'SettingsModule',
-            component: () => import('@/views/settings/ModuleSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsModule'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'zeit',
-            name: 'SettingsZeit',
-            component: () => import('@/views/settings/GeneralSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsTime'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'categories',
-            name: 'SettingsCategories',
-            component: () => import('@/views/settings/CategoriesSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsCategories'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'my-department',
-            name: 'SettingsMyDepartment',
-            component: () => import('@/views/settings/MyDepartmentSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsMyDepartment'),
-            }
-          },
-          {
-            path: 'my-department/join-code',
-            name: 'SettingsMyDepartmentJoinCode',
-            component: () => import('@/views/settings/MyDepartmentJoinCodeView.vue'),
-            meta: {
-              ...routeHead('settingsJoinCode'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'my-department/fixed-dates',
-            name: 'SettingsMyDepartmentFixedDates',
-            component: () => import('@/views/settings/MyDepartmentFixedDatesView.vue'),
-            meta: {
-              ...routeHead('settingsFixedDates'),
-              requireDepartmentRoles: [...DEPARTMENT_MW_DC_ROLES],
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'print',
-            name: 'SettingsPrint',
-            component: () => import('@/views/settings/PrintSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsPrint'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'user-karten',
-            name: 'SettingsGrossanlassUserKarten',
-            component: () => import('@/views/grossanlass/GrossanlassUserKartenView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
-              ...routeHead('grossanlassUserKarten'),
-            }
-          },
-          {
-            path: 'my-department/display-screens',
-            name: 'SettingsMyDepartmentDisplayScreens',
-            component: () => import('@/views/settings/MyDepartmentDisplayScreensView.vue'),
-            meta: {
-              ...routeHead('settingsDisplayScreens'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'my-department/storage-locations',
-            name: 'SettingsMyDepartmentStorageLocations',
-            component: () => import('@/views/settings/MyDepartmentAddressSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsStorageLocations'),
-              addressKind: 'storage',
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'my-department/billing-address',
-            name: 'SettingsMyDepartmentBillingAddress',
-            component: () => import('@/views/settings/MyDepartmentAddressSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsBillingAddress'),
-              addressKind: 'billing',
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'my-department/public-material-page',
-            name: 'SettingsMyDepartmentPublicMaterialPage',
-            component: () => import('@/views/settings/MyDepartmentPublicMaterialPageView.vue'),
-            meta: {
-              ...routeHead('settingsPublicMaterialPage'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'addons',
-            name: 'SettingsAddons',
-            component: () => import('@/views/settings/AddonsSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsAddons'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'users',
-            name: 'SettingsUsers',
-            component: () => import('@/views/settings/UsersSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsUsers'),
-              denyDepartmentRoles: ['u', 'user'],
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'groups',
-            name: 'SettingsGroups',
-            component: () => import('@/views/settings/GroupsSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsGroups'),
-            }
-          },
-          {
-            path: 'storage',
-            name: 'SettingsStorage',
-            component: () => import('@/views/settings/StorageSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsStorage'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'media',
-            name: 'SettingsMedia',
-            component: () => import('@/views/settings/MediaLibraryView.vue'),
-            meta: {
-              ...routeHead('settingsMedia'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'templates',
-            name: 'SettingsTemplates',
-            component: () => import('@/views/settings/TemplatesSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsTemplates'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'material-import',
-            name: 'SettingsMaterialImport',
-            component: () => import('@/views/settings/MaterialImportSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsMaterialImport'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'supplier-deliveries',
-            redirect: (to) => ({
-              name: 'SupplierShop',
-              params: { departmentId: to.params.departmentId },
-              query: { tab: 'deliveries' },
-            }),
-          },
-        ]
-      },
-      {
-        path: 'help',
-        component: () => import('@/views/HelpView.vue'),
-        meta: {
-          ...routeHead('helpOverview'),
-        },
-        children: [
-          {
-            path: '',
-            name: 'HelpRoot',
-            redirect: (to) => ({
-              name: 'HelpDokumentation',
-              params: { departmentId: to.params.departmentId },
-            }),
-          },
-          {
-            path: 'tours',
-            name: 'HelpTours',
-            alias: ['einrichtung'],
-            component: () => import('@/views/onboarding/OnboardingHubView.vue'),
-            meta: {
-              requireDepartmentRoles: [
-                'mw',
-                'matwart',
-                'dc',
-                'depchef',
-                'l1',
-                'l2',
-                'l3',
-                'u',
-                'user',
-              ],
-              denyRedirectTo: { name: 'HelpDokumentation' },
-              ...routeHead('helpTours'),
-            },
-          },
-          {
-            path: 'dokumentation',
-            name: 'HelpDokumentation',
-            alias: 'overview',
-            component: () => import('@/views/help/HelpDokumentationView.vue'),
-            meta: routeHead('helpOverview'),
+            children: [
+              {
+                path: '',
+                name: 'HelpRoot',
+                redirect: (to) => ({
+                  name: 'HelpDokumentation',
+                  params: { departmentId: to.params.departmentId },
+                }),
+              },
+              {
+                path: 'tours',
+                name: 'HelpTours',
+                component: () => import('@/views/onboarding/OnboardingHubView.vue'),
+                meta: {
+                  requireDepartmentRoles: [
+                    'mw',
+                    'matwart',
+                    'dc',
+                    'depchef',
+                    'l1',
+                    'l2',
+                    'l3',
+                    'u',
+                    'user',
+                  ],
+                  denyRedirectTo: { name: 'HelpDokumentation' },
+                  ...routeHead('helpTours'),
+                },
+              },
+              {
+                path: 'dokumentation',
+                name: 'HelpDokumentation',
+                component: () => import('@/views/help/HelpDokumentationView.vue'),
+                meta: routeHead('helpOverview'),
+              },
+            ],
           },
         ],
       },
@@ -2899,11 +2877,11 @@ router.beforeEach(async (to, from, nextRaw) => {
     if (isSuperAdmin()) {
       const prefix = `/${departmentId}`
       const suffix = to.path.length > prefix.length ? to.path.slice(prefix.length) : ''
-      if (suffix === '' || suffix === '/' || suffix === '/dashboard') {
+      if (suffix === '' || suffix === '/' || suffix === '/dept/dashboard') {
         return next('/dashboard')
       }
-      if (suffix === '/verwaltung' || suffix.startsWith('/verwaltung/')) {
-        const tail = suffix.replace(/^\/verwaltung/, '') || ''
+      if (suffix === '/dept/verwaltung' || suffix.startsWith('/dept/verwaltung/')) {
+        const tail = suffix.replace(/^\/dept\/verwaltung/, '') || ''
         const target = `/admin-dashboard/verwaltung${tail}`
         if (target !== to.path) {
           return next(target)
@@ -3005,7 +2983,7 @@ router.beforeEach(async (to, from, nextRaw) => {
     authStore.isDepartmentGrossanlass(deptIdForSettings)
   ) {
     const settingsTail = to.path
-      .replace(new RegExp(`^/${deptIdForSettings}/settings/?`), '')
+      .replace(new RegExp(`^/${deptIdForSettings}/dept/settings/?`), '')
       .replace(/\/$/, '')
     const role = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
     const isBasicUser = isDepartmentBasicMemberRole(role)
@@ -3024,19 +3002,19 @@ router.beforeEach(async (to, from, nextRaw) => {
     if (settingsTail === 'groups') {
       return next(
         isBasicUser || gaIsMailboxOnly(role)
-          ? `/${deptIdForSettings}/settings/my-department`
+          ? `/${deptIdForSettings}/dept/settings/my-department`
           : `/${deptIdForSettings}/ga/einstellungen/ressorts`,
       )
     }
     if (settingsTail === 'module') {
       return next(
         canStructureSettings
-          ? `/${deptIdForSettings}/settings/zeit`
-          : `/${deptIdForSettings}/settings/my-department`,
+          ? `/${deptIdForSettings}/dept/settings/zeit`
+          : `/${deptIdForSettings}/dept/settings/my-department`,
       )
     }
     if (!allowed) {
-      return next(`/${deptIdForSettings}/settings/my-department`)
+      return next(`/${deptIdForSettings}/dept/settings/my-department`)
     }
   }
 
@@ -3094,7 +3072,7 @@ router.beforeEach(async (to, from, nextRaw) => {
         if (authStore.isDepartmentGrossanlass(String(deptId))) {
           return next(gaHomePath(String(deptId), authStore.currentDepartmentRole))
         }
-        return next(`/${deptId}/settings`)
+        return next(`/${deptId}/dept/settings`)
       }
       return next('/login')
     }

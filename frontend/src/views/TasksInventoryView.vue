@@ -430,7 +430,7 @@ function buildCompletionSummary(): string {
 function openWorkshopTicket(ticketId?: string) {
   if (!ticketId) return
   void router.push({
-    path: `/${departmentId.value}/workshop`,
+    path: `/${departmentId.value}/dept/workshop`,
     query: { ticket: ticketId },
   })
 }

@@ -60,7 +60,7 @@ Alles liegt in `inbox_message`. In der **Nachrichtenzentrale** gilt:
 | --- | --- | --- |
 | **Nachricht** | Direktnachricht, Aktivitäts-Info, `invite_accepted` | Lesen, fertig |
 | **Nachricht + Aufgabe** | QR-Kontakt, Dept-Einladung, Camp/Anlass-Einladung | Zuerst Nachricht lesen → Button **„Aufgabe bearbeiten“** → Status / Annehmen-Ablehnen / Antwort |
-| **Reine Aufgabe** | Buchhaltung (`accounting_followup`) | Seite **Aufgaben** (`/{departmentId}/tasks`) |
+| **Reine Aufgabe** | Buchhaltung (`accounting_followup`) | Seite **Aufgaben** (`/{departmentId}/dept/tasks`) |
 
 **Nachricht lesen** → Nachrichtenzentrale. **Aufgabe bearbeiten** → Button leitet zur Aufgaben-Seite (`?open=kind:id`). In der **Glocke**: Nachrichten oben, Buchhaltung unter **Aufgaben** (Link zur Aufgaben-Seite).
 
@@ -116,7 +116,7 @@ Aktivitäts-Meldungen werden bei **completed** oder **cancelled** der zugehörig
 | Vorschau | `activityMwInboxPreview()` | `Lager · Gruppe Nord · #042` |
 | Badge | `inboxCategoryActivity` | `Aktivität` |
 
-Klick: öffnet die Aktivität (`/{departmentId}/activities/{activityId}`), markiert als gelesen.
+Klick: öffnet die Aktivität (`/{departmentId}/dept/activities/{activityId}`), markiert als gelesen.
 
 **Glocke** (`TopHeader.vue`): nutzt dieselben Daten, Text etwas anders über `layout.notifications.newActivitySubtitle` (i18n mit `{activity}` und Meta Typ/Gruppe).
 

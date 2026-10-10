@@ -354,7 +354,7 @@ Technisch: neue Spalten am `workshop_ticket` oder Mapping von altem `status` wä
 
 ### 10.2 Tab „Inventur" unter Aufgaben
 
-Route bestehend: `/{departmentId}/tasks/` (`TasksShellView` — Tabs: Allgemein, Druck).
+Route bestehend: `/{departmentId}/dept/tasks/` (`TasksShellView` — Tabs: Allgemein, Druck).
 
 **Geplant:** weiterer Tab **Inventur** (`TasksInventoryView`):
 

@@ -9,7 +9,7 @@ export type VerwaltungNavigationContext = {
 
 export function getVerwaltungBasePath(ctx: VerwaltungNavigationContext = {}): string {
   if (ctx.isAdminDashboard) return '/admin-dashboard/verwaltung'
-  if (ctx.departmentId) return `/${ctx.departmentId}/verwaltung`
+  if (ctx.departmentId) return `/${ctx.departmentId}/dept/verwaltung`
   return '/admin-dashboard/verwaltung'
 }
 

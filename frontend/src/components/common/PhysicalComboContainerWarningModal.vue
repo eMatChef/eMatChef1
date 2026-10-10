@@ -86,7 +86,7 @@ function onOpenCombo() {
   const first = store.combos[0]
   const deptId = String(route.params.departmentId || '').trim()
   if (first && deptId) {
-    router.push({ path: `/${deptId}/materials/${first.id}` })
+    router.push({ path: `/${deptId}/dept/materials/${first.id}` })
   }
   store.abortAfterOpenCombo()
 }

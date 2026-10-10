@@ -844,7 +844,7 @@ async function resetDepartmentActivitiesAction() {
   try {
     const result = await apiResetDepartmentActivities(selectedDepartmentId.value)
     toast.success(result.message || t('settings.myDepartment.activitiesReset.toastSuccess'))
-    window.location.href = `/${selectedDepartmentId.value}/activities`
+    window.location.href = `/${selectedDepartmentId.value}/dept/activities`
   } catch (err: any) {
     toast.error(err.response?.data?.error || t('settings.myDepartment.activitiesReset.toastError'))
   } finally {

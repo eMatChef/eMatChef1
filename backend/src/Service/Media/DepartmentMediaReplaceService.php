@@ -78,7 +78,7 @@ class DepartmentMediaReplaceService
             $departmentId,
             $materialId,
             $material->getName(),
-            '/materials/' . $materialId,
+            '/dept/materials/' . $materialId,
             $photo,
         );
         if ($mapped === null) {
@@ -121,15 +121,15 @@ class DepartmentMediaReplaceService
 
         $material = $ticket->getMaterialItem();
         $links = [
-            ['kind' => 'workshop', 'label' => $ticket->getTitle(), 'path' => '/workshop?ticket=' . rawurlencode($ticketId)],
-            ['kind' => 'material', 'label' => $material->getName(), 'path' => '/materials/' . $material->getId()],
+            ['kind' => 'workshop', 'label' => $ticket->getTitle(), 'path' => '/dept/workshop?ticket=' . rawurlencode($ticketId)],
+            ['kind' => 'material', 'label' => $material->getName(), 'path' => '/dept/materials/' . $material->getId()],
         ];
         $mapped = $this->browser->mapStoredFile(
             MediaStorageService::CONTEXT_WORKSHOP_TICKET,
             $departmentId,
             $ticketId,
             $ticket->getTitle(),
-            '/workshop?ticket=' . rawurlencode($ticketId),
+            '/dept/workshop?ticket=' . rawurlencode($ticketId),
             $newPhoto,
             null,
             $links,
@@ -177,14 +177,14 @@ class DepartmentMediaReplaceService
         $links = [[
             'kind' => 'activity',
             'label' => $activity->getName(),
-            'path' => '/activities/' . $activity->getId(),
+            'path' => '/dept/activities/' . $activity->getId(),
         ]];
         $material = $report->getMaterialItem();
         if ($material instanceof MaterialItem) {
             $links[] = [
                 'kind' => 'material',
                 'label' => $material->getName(),
-                'path' => '/materials/' . $material->getId(),
+                'path' => '/dept/materials/' . $material->getId(),
             ];
         }
 
@@ -193,7 +193,7 @@ class DepartmentMediaReplaceService
             $departmentId,
             $issueId,
             $activity->getName(),
-            '/activities/' . $activity->getId(),
+            '/dept/activities/' . $activity->getId(),
             $newPhoto,
             null,
             $links,
@@ -239,7 +239,7 @@ class DepartmentMediaReplaceService
             $departmentId,
             $bookingId,
             $label,
-            '/accounting/bookings',
+            '/dept/accounting/bookings',
             $newPhoto,
         );
         if ($mapped === null) {
@@ -286,7 +286,7 @@ class DepartmentMediaReplaceService
             $departmentId,
             $followUpId,
             $label,
-            '/accounting/bookings',
+            '/dept/accounting/bookings',
             $newPhoto,
         );
         if ($mapped === null) {
@@ -342,7 +342,7 @@ class DepartmentMediaReplaceService
                 $departmentId,
                 $materialId,
                 $material->getName(),
-                '/materials/' . $materialId,
+                '/dept/materials/' . $materialId,
                 $photo,
             ),
         );
@@ -362,8 +362,8 @@ class DepartmentMediaReplaceService
         $photo = $photos[$this->indexOfFilename($photos, $filename)];
         $material = $ticket->getMaterialItem();
         $links = [
-            ['kind' => 'workshop', 'label' => $ticket->getTitle(), 'path' => '/workshop?ticket=' . rawurlencode($ticketId)],
-            ['kind' => 'material', 'label' => $material->getName(), 'path' => '/materials/' . $material->getId()],
+            ['kind' => 'workshop', 'label' => $ticket->getTitle(), 'path' => '/dept/workshop?ticket=' . rawurlencode($ticketId)],
+            ['kind' => 'material', 'label' => $material->getName(), 'path' => '/dept/materials/' . $material->getId()],
         ];
 
         return $this->requireMapped(
@@ -372,7 +372,7 @@ class DepartmentMediaReplaceService
                 $departmentId,
                 $ticketId,
                 $ticket->getTitle(),
-                '/workshop?ticket=' . rawurlencode($ticketId),
+                '/dept/workshop?ticket=' . rawurlencode($ticketId),
                 $photo,
                 null,
                 $links,
@@ -398,14 +398,14 @@ class DepartmentMediaReplaceService
         $links = [[
             'kind' => 'activity',
             'label' => $activity->getName(),
-            'path' => '/activities/' . $activity->getId(),
+            'path' => '/dept/activities/' . $activity->getId(),
         ]];
         $material = $report->getMaterialItem();
         if ($material instanceof MaterialItem) {
             $links[] = [
                 'kind' => 'material',
                 'label' => $material->getName(),
-                'path' => '/materials/' . $material->getId(),
+                'path' => '/dept/materials/' . $material->getId(),
             ];
         }
 
@@ -415,7 +415,7 @@ class DepartmentMediaReplaceService
                 $departmentId,
                 $issueId,
                 $activity->getName(),
-                '/activities/' . $activity->getId(),
+                '/dept/activities/' . $activity->getId(),
                 $photo,
                 null,
                 $links,
@@ -443,7 +443,7 @@ class DepartmentMediaReplaceService
                 $departmentId,
                 $bookingId,
                 $label,
-                '/accounting/bookings',
+                '/dept/accounting/bookings',
                 $photo,
             ),
         );
@@ -469,7 +469,7 @@ class DepartmentMediaReplaceService
                 $departmentId,
                 $followUpId,
                 $label,
-                '/accounting/bookings',
+                '/dept/accounting/bookings',
                 $photo,
             ),
         );

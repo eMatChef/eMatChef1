@@ -304,7 +304,7 @@ trait InboxMessageKindsTrait
         ?string $senderUserId = null,
     ): void {
         $deptId = $department->getId();
-        $planungUrl = '/' . $deptId . '/planung';
+        $planungUrl = '/' . $deptId . '/ga/planung';
 
         foreach ($recipientUserIds as $userId) {
             if ($senderUserId !== null && $userId === $senderUserId) {
@@ -426,7 +426,7 @@ trait InboxMessageKindsTrait
         ?string $senderUserId = null,
     ): void {
         $deptId = $department->getId();
-        $dashboardUrl = '/' . $deptId . '/dashboard';
+        $dashboardUrl = '/' . $deptId . '/ga/dashboard';
 
         $row = new InboxMessage();
         $row->setId(IdGenerator::generateUnique($this->entityManager, InboxMessage::class));

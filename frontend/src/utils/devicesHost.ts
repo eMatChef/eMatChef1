@@ -43,7 +43,7 @@ export function getDevicesHomeUrl(departmentId: string): string {
 export function getDevicesPackSessionUrl(departmentId: string, activityId: string): string {
   const dept = departmentId.trim()
   const act = activityId.trim()
-  return buildDevicesUrl(`/${encodeURIComponent(dept)}/pack/${encodeURIComponent(act)}`)
+  return buildDevicesUrl(`/${encodeURIComponent(dept)}/dept/pack/${encodeURIComponent(act)}`)
 }
 
 /** Abteilungsrollen mit Lager-/Pack-Zugriff auf devices. */

@@ -367,7 +367,7 @@ function openFoundMaterial(msg: PublicFoundItemMessage) {
   const q: Record<string, string> = {}
   if (msg.batch_id) q.batch = msg.batch_id
   void router.push({
-    path: `/${departmentId.value}/materials/${msg.material_id}`,
+    path: `/${departmentId.value}/dept/materials/${msg.material_id}`,
     query: Object.keys(q).length ? q : undefined,
   })
 }
@@ -378,7 +378,7 @@ function goToMessageForQr(msg: PublicFoundItemMessage) {
     return
   }
   void router.push({
-    path: `/${departmentId.value}/notifications`,
+    path: `/${departmentId.value}/dept/notifications`,
     query: { highlight: msg.id },
   })
 }
@@ -432,14 +432,14 @@ function openGaEinsatzTask(task: DepartmentTaskItem) {
 
 function goToMessageForDeptInvite(inv: ReceivedDepartmentInviteNotification) {
   void router.push({
-    path: `/${departmentId.value}/notifications`,
+    path: `/${departmentId.value}/dept/notifications`,
     query: { openDeptInvite: inv.id },
   })
 }
 
 function goToMessageForCampInvite(inv: PendingDepartmentActivityInvite) {
   void router.push({
-    path: `/${departmentId.value}/notifications`,
+    path: `/${departmentId.value}/dept/notifications`,
     query: {
       openCampInvite: `${inv.activity_id}:${inv.source_department_id}`,
     },

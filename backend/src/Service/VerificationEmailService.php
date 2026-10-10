@@ -601,8 +601,8 @@ class VerificationEmailService
     public function buildDepartmentMemberAddedAppUrl(string $departmentId, bool $isGrossanlass = false): string
     {
         $targetPath = $isGrossanlass
-            ? '/' . $departmentId . '/dashboard'
-            : '/' . $departmentId;
+            ? '/' . $departmentId . '/ga/dashboard'
+            : '/' . $departmentId . '/dept/dashboard';
 
         return $this->buildAppLoginRedirectUrl($targetPath);
     }

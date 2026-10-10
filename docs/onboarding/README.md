@@ -65,9 +65,9 @@ app.inventory-one.com/#/receivers?onboardingTourStep=who-has-what-step
 Bei eMatChef (Vue Router, History-Mode):
 
 ```text
-/{departmentId}/materials?onboardingTour=material-create&onboardingTourStep=1
-/{departmentId}/activities?onboardingTour=activity-create&onboardingTourStep=category-tabs
-/{departmentId}/settings/categories?onboardingTour=categories&onboardingTourStep=2
+/{departmentId}/dept/materials?onboardingTour=material-create&onboardingTourStep=1
+/{departmentId}/dept/activities?onboardingTour=activity-create&onboardingTourStep=category-tabs
+/{departmentId}/dept/settings/categories?onboardingTour=categories&onboardingTourStep=2
 ```
 
 ### 2.2 Query-Parameter (Touren)
@@ -134,7 +134,7 @@ Badge an «Hilfe»: offene Einrichtungs-Schritte (solange Checkliste nicht volls
 ```text
 Hub → Karte «Material erfassen» → Start
   → router.push({
-       path: `/${deptId}/materials`,
+       path: `/${deptId}/dept/materials`,
        query: { onboardingTour: 'material-create', onboardingTourStep: '1' }
      })
   → MaterialsView mountet → useOnboardingTour() liest Query → Spotlight-Overlay
@@ -269,11 +269,11 @@ export const onboardingTours = {
 ### 6.4 Tour-Schritt-URLs (Beispiele)
 
 ```text
-/{deptId}/materials?onboardingTour=material-create&onboardingTourStep=1
-/{deptId}/materials?onboardingTour=material-create&onboardingTourStep=2
-/{deptId}/materials?onboardingTour=material-create&onboardingTourStep=3
+/{deptId}/dept/materials?onboardingTour=material-create&onboardingTourStep=1
+/{deptId}/dept/materials?onboardingTour=material-create&onboardingTourStep=2
+/{deptId}/dept/materials?onboardingTour=material-create&onboardingTourStep=3
 
-/{deptId}/settings/users?onboardingTour=invite-users&onboardingTourStep=recipient-types
+/{deptId}/dept/settings/users?onboardingTour=invite-users&onboardingTourStep=recipient-types
 ```
 
 Slug-Schritte (`recipient-types`) sind sinnvoll, wenn Schritte umbenannt/neu eingefügt werden — Zahlen reichen für stabile lineare Touren.
@@ -362,7 +362,7 @@ Block in **Einstellungen → Mein Department**:
 ```text
 ┌─ Einrichtung & Hilfe ─────────────────────────┐
 │ Status: 7/10 erledigt                           │
-│ [Hilfe → Einrichtung öffnen]  → /{deptId}/help/einrichtung │
+│ [Hilfe → Einrichtung öffnen]  → /{deptId}/dept/help/einrichtung │
 └─────────────────────────────────────────────────┘
 ```
 

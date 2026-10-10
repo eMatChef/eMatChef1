@@ -72,7 +72,7 @@
       <router-link
         v-if="['at_event', 'transport_back', 'returned', 'storing', 'completed'].includes(item.status)"
         class="activity-list-shared__issues-link"
-        :to="`/${departmentId}/activities/${item.id}?tab=issues`"
+        :to="`/${departmentId}/dept/activities/${item.id}?tab=issues`"
         @click.stop
       >
         {{ t('activities.table.issues') }}

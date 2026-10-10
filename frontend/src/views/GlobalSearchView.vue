@@ -168,7 +168,7 @@ watch(localQuery, (val) => {
   queryPushTimer = setTimeout(() => {
     if (!departmentId.value) return
     if (trimmed.length < minChars) {
-      router.replace({ path: `/${departmentId.value}/search`, query: {} })
+      router.replace({ path: `/${departmentId.value}/dept/search`, query: {} })
       return
     }
     const parsed = parseSearchQuery(trimmed, 'material')

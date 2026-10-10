@@ -226,7 +226,7 @@ function goTasks() {
   const id = departmentId.value
   if (!id) return
   open.value = false
-  void router.push(`/${id}/tasks/allgemein`)
+  void router.push(`/${id}/dept/tasks/allgemein`)
 }
 
 function goAgreements() {

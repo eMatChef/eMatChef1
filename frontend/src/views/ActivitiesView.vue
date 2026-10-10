@@ -694,14 +694,14 @@ function openActivityDetail(activity: ActivityListItem) {
   if (typeof tour === 'string' && tour) query[ONBOARDING_TOUR_QUERY] = tour
   if (typeof step === 'string' && step) query[ONBOARDING_TOUR_STEP_QUERY] = step
   void router.push({
-    path: `/${departmentId.value}/activities/${id}`,
+    path: `/${departmentId.value}/dept/activities/${id}`,
     query,
   })
 }
 
 function openCreateActivityWizard() {
   if (activityRouteId.value) {
-    void router.push({ path: `/${departmentId.value}/activities`, query: { new: '1' } })
+    void router.push({ path: `/${departmentId.value}/dept/activities`, query: { new: '1' } })
     return
   }
   showCreateActivityWizard.value = true
@@ -749,7 +749,7 @@ async function onActivityCreateWizardCreated(id: string) {
       query[ONBOARDING_TOUR_STEP_QUERY] = '21'
     }
     await router.push({
-      path: `/${departmentId.value}/activities/${id}`,
+      path: `/${departmentId.value}/dept/activities/${id}`,
       query,
     })
   }
@@ -783,7 +783,7 @@ watch(
       type: 'activity',
       label,
       departmentId: deptId,
-      path: `/${deptId}/activities/${id}`,
+      path: `/${deptId}/dept/activities/${id}`,
     })
   },
   { immediate: true }
@@ -796,7 +796,7 @@ watch(
     if (val !== '1') return
     if (activityRouteId.value) {
       void router.replace({
-        path: `/${departmentId.value}/activities`,
+        path: `/${departmentId.value}/dept/activities`,
         query: { new: '1' },
       })
       return

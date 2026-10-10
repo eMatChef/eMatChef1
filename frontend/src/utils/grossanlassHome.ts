@@ -31,7 +31,7 @@ export function gaHomePath(
     case 'mein-bereich':
       return `/${id}/ga/mein-ressort`
     default:
-      return `/${id}`
+      return `/${id}/ga/dashboard`
   }
 }
 
@@ -52,7 +52,7 @@ export function gaIsRoleHomePath(
     case 'mein-bereich':
       return p.includes(`/${id}/ga/mein-ressort`)
     default:
-      return p === `/${id}` || p === `/${id}/dashboard`
+      return p === `/${id}/ga/dashboard`
   }
 }
 

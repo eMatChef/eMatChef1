@@ -34,9 +34,9 @@ export function useHelpShortcut() {
     const preferTours =
       canUseDepartmentOnboarding(authStore, depId) && openChecklistCount(depId) > 0
     if (preferTours || canUseHelpTours(authStore, depId)) {
-      return `/${depId}/help/tours`
+      return `/${depId}/dept/help/tours`
     }
-    return `/${depId}/help/dokumentation`
+    return `/${depId}/dept/help/dokumentation`
   })
 
   function openChecklistCount(depId: string): number {

@@ -425,7 +425,7 @@ function goToApp() {
         params.set('batch', d.batch.id)
       }
       const qs = params.toString()
-      openAppPath(`/${d.department.id}/materials/${d.material.id}${qs ? `?${qs}` : ''}`)
+      openAppPath(`/${d.department.id}/dept/materials/${d.material.id}${qs ? `?${qs}` : ''}`)
       return
     }
     navigateToAppMaterialDetail(

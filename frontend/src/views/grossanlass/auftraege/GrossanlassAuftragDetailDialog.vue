@@ -69,7 +69,7 @@
         <h4>{{ t('grossanlass.auftraege.links.title') }}</h4>
         <ul class="links">
           <li>
-            <router-link :to="`/${departmentId}/tasks/aufgaben`"><v-icon icon="mdi-clipboard-list" size="16" /> {{ t('grossanlass.auftraege.links.tasks', { n: tasks.length }) }}</router-link>
+            <router-link :to="`/${departmentId}/dept/tasks/aufgaben`"><v-icon icon="mdi-clipboard-list" size="16" /> {{ t('grossanlass.auftraege.links.tasks', { n: tasks.length }) }}</router-link>
             <ul class="links__sub"><li v-for="task in tasks" :key="task.id">{{ task.title }} · {{ taskProgress(task) }} %</li></ul>
           </li>
           <li><router-link :to="`/${departmentId}/ga/helferpool`"><v-icon icon="mdi-account-group-outline" size="16" /> {{ t('grossanlass.auftraege.links.helpers', { assigned: staffing.assigned, need: staffing.need }) }}</router-link></li>

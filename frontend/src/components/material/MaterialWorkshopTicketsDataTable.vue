@@ -17,7 +17,7 @@
     <template #item.activity="{ item }">
       <router-link
         v-if="item.activity_id"
-        :to="`/${departmentId}/activities/${item.activity_id}`"
+        :to="`/${departmentId}/dept/activities/${item.activity_id}`"
         class="link-btn"
       >
         {{ openLabel }}
@@ -27,7 +27,7 @@
     <template #item.actions="{ item }">
       <router-link
         class="btn-outline btn-sm"
-        :to="{ path: `/${departmentId}/workshop`, query: { material_id: materialId, ticket: item.id } }"
+        :to="{ path: `/${departmentId}/dept/workshop`, query: { material_id: materialId, ticket: item.id } }"
       >
         {{ workshopLabel }}
       </router-link>

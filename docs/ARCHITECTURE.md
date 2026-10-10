@@ -16,6 +16,17 @@ Die HTTP-API sind Symfony-Controller mit `#[Route('/api/…')]` (`backend/config
 
 ## Frontend
 
+### URL-Struktur
+
+| Bereich | URL |
+|---|---|
+| Global | `/login`, `/register`, `/forgot-password`, `/reset-password`, `/profile/*` |
+| Department-Einstieg | `/{departmentId}` — wählt je nach Department-Typ die kanonische Start-URL |
+| Grossanlass | `/{departmentId}/ga/…` (Start: `/ga/dashboard`) |
+| Normales Department | `/{departmentId}/dept/…` (Start: `/dept/dashboard`) |
+
+Es gibt keine Legacy-Redirects für frühere Pfade ohne `ga/` bzw. `dept/`. Interne und vom Backend erzeugte Links (Benachrichtigungen, E-Mails, Media-Verwendungslinks) zeigen direkt auf die kanonischen URLs. Bewusste Kompatibilitätsentscheidung: bereits versandte E-Mails und gespeicherte Benachrichtigungen mit alten Pfaden führen auf eine unbekannte Seite. API-Pfade (`/api/…`) sind unverändert.
+
 | Bereich | Pfad |
 | --- | --- |
 | Routen | `frontend/src/router/index.ts` |

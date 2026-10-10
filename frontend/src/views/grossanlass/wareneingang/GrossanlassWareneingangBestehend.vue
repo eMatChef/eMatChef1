@@ -448,7 +448,7 @@ async function onInboundAction(row: GrossanlassCommitment) {
     const loosePickup = inboundMode(latest) === 'pickup' && booked && !booked.groupId
     void router.push(
       loosePickup
-        ? `/${departmentId.value}/tasks/allgemein`
+        ? `/${departmentId.value}/dept/tasks/allgemein`
         : `/${departmentId.value}/ga/planung/belegung`,
     )
     return

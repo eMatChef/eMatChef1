@@ -97,7 +97,7 @@ Material kommt zurück (z. B. `transport_back_returned`, `at_event_returned`, 
 ```text
 devices.ematchef.ch/login
 devices.ematchef.ch/{deptId}/              → Abteilung (gepinnt), „Aktivität scannen“, Liste „packing“
-devices.ematchef.ch/{deptId}/pack/{activityId}  → Pack-Session (flow=out|return)
+devices.ematchef.ch/{deptId}/dept/pack/{activityId}  → Pack-Session (flow=out|return)
 ```
 
 Optional: Link aus `app.` — „Im Lager öffnen“.

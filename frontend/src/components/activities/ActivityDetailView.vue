@@ -2728,7 +2728,7 @@ async function handleActivityQrPrint() {
 
 function handleClose() {
   // Zurück zur Liste: Tab im Header bleibt offen (nur × im Header entfernt Chip)
-  void router.push(`/${props.departmentId}/activities`)
+  void router.push(`/${props.departmentId}/dept/activities`)
 }
 
 async function loadActivityIssues() {
@@ -3438,7 +3438,7 @@ watch(
       type: 'activity',
       label,
       departmentId: props.departmentId,
-      path: `/${props.departmentId}/activities/${props.activityId}`,
+      path: `/${props.departmentId}/dept/activities/${props.activityId}`,
     })
   }
 )

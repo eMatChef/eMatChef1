@@ -97,7 +97,7 @@ const detailByRouteName: Record<string, string> = {
 async function applyAccessRedirects() {
   await ensureGroupsForAccess()
   if (!canViewGroupCosts.value && route.path.includes('/accounting')) {
-    void router.replace({ name: 'Dashboard', params: { departmentId: departmentId.value } })
+    void router.replace({ name: 'DepartmentEntry', params: { departmentId: departmentId.value } })
     return
   }
   if (!canManageAccounting.value && canViewGroupCosts.value) {

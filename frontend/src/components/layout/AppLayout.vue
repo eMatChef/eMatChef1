@@ -93,7 +93,7 @@ const isDashboardRoute = computed(() => {
   if (p === '/dashboard') return true
   const deptId = String(route.params.departmentId || '').trim()
   if (!deptId) return false
-  return p === `/${deptId}` || p === `/${deptId}/dashboard`
+  return p === `/${deptId}/dept/dashboard` || p === `/${deptId}/ga/dashboard`
 })
 
 const isPendingAssignmentRoute = computed(() => route.name === 'PendingAssignment')

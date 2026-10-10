@@ -124,7 +124,7 @@ function openPack(activityId: string) {
   if (!isDevicesHost()) {
     const origin = getDevicesOrigin()
     if (origin) {
-      window.location.assign(`${origin}/${encodeURIComponent(dept)}/pack/${encodeURIComponent(id)}`)
+      window.location.assign(`${origin}/${encodeURIComponent(dept)}/dept/pack/${encodeURIComponent(id)}`)
       return
     }
   }

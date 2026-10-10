@@ -831,7 +831,7 @@ function navigateToTab(tab: DetailTab) {
   if (tab.type === 'workshop') {
     const ticketId = ticketIdFromWorkshopTabPath(tab.path)
     router.push({
-      path: `/${tab.departmentId}/workshop`,
+      path: `/${tab.departmentId}/dept/workshop`,
       query: ticketId ? { ticket: ticketId } : {},
     })
     return
@@ -897,7 +897,7 @@ function goToNotificationsCenter() {
     (route.params.departmentId as string | undefined) || authStore.activeDepartmentId || ''
   if (!deptId) return
   showNotifications.value = false
-  router.push(`/${deptId}/notifications`)
+  router.push(`/${deptId}/dept/notifications`)
 }
 
 async function dismissActivityBellEntry(entry: BellActivityEntry) {
@@ -1074,7 +1074,7 @@ function goToAccountingAssign() {
   const n = pendingFollowUpCount.value
   if (n > 0) decrementUnreadCount(n)
   void router.push({
-    path: `/${deptId}/tasks`,
+    path: `/${deptId}/dept/tasks`,
     query: { open: 'accounting_followup:all' },
   })
 }
@@ -1148,14 +1148,14 @@ async function openDepartmentInviteFromBell(inv: ReceivedDepartmentInviteNotific
       /* navigate anyway */
     }
   }
-  void router.push({ path: `/${deptId}/notifications` })
+  void router.push({ path: `/${deptId}/dept/notifications` })
 }
 
 function openCampInviteFromBell(invite: PendingDepartmentActivityInvite) {
   const deptId = authStore.activeDepartmentId
   if (!deptId) return
   showNotifications.value = false
-  void router.push({ path: `/${deptId}/notifications` })
+  void router.push({ path: `/${deptId}/dept/notifications` })
 }
 
 function inviteAcceptedBellTitle(note: InviteAcceptedNotification): string {
@@ -1184,7 +1184,7 @@ async function openInviteAcceptedFromBell(note: InviteAcceptedNotification) {
       /* navigate anyway */
     }
   }
-  void router.push({ path: `/${deptId}/notifications` })
+  void router.push({ path: `/${deptId}/dept/notifications` })
 }
 
 /** Glocke: nur ungelesene Nachrichten + offene Aufgaben (QR, Einladungen). */
@@ -1373,7 +1373,7 @@ async function openUserMessageFromBell(msg: UserDirectMessage) {
     /* navigate anyway */
   }
   void router.push({
-    path: `/${deptId}/notifications`,
+    path: `/${deptId}/dept/notifications`,
     query: { openMessage: msg.id },
   })
 }
@@ -1383,7 +1383,7 @@ async function openFoundMessageFromBell(msg: PublicFoundItemMessage) {
   if (!deptId) return
   showNotifications.value = false
   void router.push({
-    path: `/${deptId}/notifications`,
+    path: `/${deptId}/dept/notifications`,
     query: { highlight: msg.id },
   })
 }

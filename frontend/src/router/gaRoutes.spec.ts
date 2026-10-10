@@ -16,26 +16,34 @@ describe('grossanlass routes under /:departmentId/ga', () => {
     expect(resolved.matched.some((r) => r.meta.requiresGrossanlassDepartment)).toBe(true)
   })
 
-  it.each([
-    ['/dep-1/planung/transporte?create=1#x', '/dep-1/ga/planung/transporte?create=1#x'],
-    ['/dep-1/material/bestand/eigen', '/dep-1/ga/material/bestand/eigen'],
-    ['/dep-1/mein-ressort', '/dep-1/ga/mein-ressort'],
-    ['/dep-1/helferauftrag/g1', '/dep-1/ga/helferauftrag/g1'],
-  ])('legacy %s redirects to %s', (legacy, target) => {
-    const resolved = router.resolve(legacy)
-    const redirect = resolved.matched[resolved.matched.length - 1]?.redirect
-    expect(typeof redirect).toBe('function')
-    const result = (redirect as (to: unknown) => { path: string; query?: Record<string, string>; hash?: string })(resolved)
-    const url = new URL(
-      router.resolve({ path: result.path, query: result.query, hash: result.hash }).fullPath,
-      'http://x',
-    )
-    expect(url.pathname + url.search + url.hash).toBe(target)
+  it('keeps no legacy GA routes below /:departmentId', () => {
+    for (const legacy of ['/dep-1/planung/transporte', '/dep-1/material/bestand', '/dep-1/mein-ressort']) {
+      expect(router.resolve(legacy).matched.some((r) => r.meta.requiresGrossanlassDepartment)).toBe(false)
+      expect(router.resolve(legacy).name).toBeUndefined()
+    }
   })
 
   it('does not capture global URLs', () => {
     expect(router.resolve('/profile').params.departmentId).toBeUndefined()
     expect(router.resolve('/login').name).toBe('Login')
     expect(router.resolve('/register').name).toBe('Register')
+  })
+
+  it.each([
+    ['/dep-1/dept/activities', 'Activities'],
+    ['/dep-1/dept/materials', 'Materials'],
+    ['/dep-1/dept/dashboard', 'Dashboard'],
+  ])('department page %s resolves to %s', (path, name) => {
+    expect(router.resolve(path).name).toBe(name)
+  })
+
+  it('has no old department routes', () => {
+    for (const old of ['/dep-1/activities', '/dep-1/materials', '/dep-1/settings', '/dep-1/dashboard']) {
+      expect(router.resolve(old).name).toBeUndefined()
+    }
+  })
+
+  it('keeps /:departmentId as the real entry', () => {
+    expect(router.resolve('/dep-1').name).toBe('DepartmentEntry')
   })
 })

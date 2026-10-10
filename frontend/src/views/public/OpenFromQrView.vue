@@ -62,7 +62,7 @@ onMounted(async () => {
     }
 
     await router.replace({
-      path: `/${departmentId}/materials/${materialId}`,
+      path: `/${departmentId}/dept/materials/${materialId}`,
     })
   } catch {
     await fallbackToPublicQr()

@@ -571,7 +571,7 @@ Spezifikation und Code sind **zwei Spuren** — das ist beabsichtigt (Leitprinzi
 **Schritte:**
 
 - `TasksShellView`: Tab „Inventur" (`TasksInventoryView`)
-- Router: `/{departmentId}/tasks/inventory`
+- Router: `/{departmentId}/dept/tasks/inventory`
 - Liste: offene Inspektions-Tickets (`strategy=inspection`) + `inventory_task`
 - UI: Zähl-Workflow (Ist vs. Soll) — Wiederverwendung aus Activity `shellForwardInventory` wo möglich
 - Abschluss aktualisiert Ticket / Task
