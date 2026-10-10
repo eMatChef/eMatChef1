@@ -29,7 +29,12 @@ final class MiDataOAuthAccountService
         private readonly UserEmailAliasService $emailAliases,
     ) {}
 
-    public function resolveOrCreate(MiDataOAuthUserInfo $info, ?User $linkToUser = null): User
+    /**
+     * @param bool $allowAdditionalAccount false (Onboarding/Gruppenimport): ein User mit bereits verbundenem MiData-Konto
+     *                                     darf kein weiteres, unbekanntes Konto anhängen; das geht nur in Profil → Sicherheit
+     *                                     (dort mit Step-up/Reauthentifizierung)
+     */
+    public function resolveOrCreate(MiDataOAuthUserInfo $info, ?User $linkToUser = null, bool $allowAdditionalAccount = true): User
     {
         if ($info->subject === '') {
             throw new MiDataOAuthException('failed', 'MiData userinfo is missing sub');
@@ -43,6 +48,7 @@ final class MiDataOAuthAccountService
             }
             $this->assertActive($identityUser);
             $identity->setEmail($info->email);
+            $identity->setDisplayName($this->displayName($info) ?? $identity->getDisplayName());
             $identity->setUpdatedAt(new \DateTime());
             $this->flushIdentity($identityUser, $info->subject);
 
@@ -51,6 +57,9 @@ final class MiDataOAuthAccountService
 
         if ($linkToUser instanceof User) {
             $this->assertActive($linkToUser);
+            if (!$allowAdditionalAccount && $this->hasMiDataIdentity($linkToUser)) {
+                throw new MiDataOAuthException('additional_account', 'Additional MiData accounts are linked in the profile');
+            }
             $this->createIdentity($linkToUser, $info);
             $this->auditLogger->log(
                 'user',
@@ -140,8 +149,27 @@ final class MiDataOAuthAccountService
         $identity->setProvider('midata');
         $identity->setExternalUserId($info->subject);
         $identity->setEmail($info->email);
+        $identity->setDisplayName($this->displayName($info));
         $user->addExternalIdentity($identity);
         $this->entityManager->persist($identity);
+    }
+
+    private function hasMiDataIdentity(User $user): bool
+    {
+        foreach ($user->getExternalIdentities() as $identity) {
+            if ($identity->getProvider() === 'midata') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function displayName(MiDataOAuthUserInfo $info): ?string
+    {
+        $name = trim(trim((string) $info->firstName) . ' ' . trim((string) $info->lastName));
+
+        return $name !== '' ? $name : ($info->nickname !== null && trim($info->nickname) !== '' ? trim($info->nickname) : null);
     }
 
     private function flushIdentity(User $user, string $subject): void

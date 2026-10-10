@@ -776,9 +776,11 @@ final class MiDataDepartmentOnboardingServiceTest extends TestCase
 
     private function givenIdentity(string $externalUserId): void
     {
-        $this->externalIdentities->method('findOneBy')
-            ->with(['user' => $this->user, 'provider' => 'midata'])
-            ->willReturn((new ExternalIdentity())->setUser($this->user)->setProvider('midata')->setExternalUserId($externalUserId));
+        // Mehrere MiData-Konten pro User möglich: gesucht wird genau die Identität mit der Subject-ID der Sitzung.
+        $identity = (new ExternalIdentity())->setUser($this->user)->setProvider('midata')->setExternalUserId($externalUserId);
+        $this->externalIdentities->method('findOneBy')->willReturnCallback(
+            static fn (array $criteria): ?ExternalIdentity => ($criteria['provider'] ?? null) === 'midata' && ($criteria['externalUserId'] ?? null) === $externalUserId ? $identity : null,
+        );
     }
 
     private function givenMappedBund(): void

@@ -6,7 +6,13 @@ namespace App\Controller;
 
 use App\Entity\Department;
 use App\Entity\User;
-use App\Repository\UserRepository;
+use App\Service\Auth\AdminMfaGuard;
+use App\Service\Auth\AdminMfaPolicy;
+use App\Service\Auth\CurrentAuthSession;
+use App\Service\Auth\AuthIntent;
+use App\Service\Auth\LinkResultStore;
+use App\Service\Auth\OAuthCallbackSessionResolver;
+use App\Service\Auth\OAuthStateReplayGuard;
 use App\Service\Auth\DepartmentJoinFlowService;
 use App\Service\Auth\DepartmentJoinOutcome;
 use App\Service\Auth\DepartmentJoinOutcomeStatus;
@@ -39,13 +45,17 @@ final class MiDataOAuthController extends AbstractController
         private readonly MiDataOAuthAccountService $accountService,
         private readonly DepartmentJoinFlowService $departmentJoinFlow,
         private readonly MiDataDepartmentOnboardingService $departmentOnboarding,
-        private readonly UserRepository $userRepository,
         private readonly MiDataGroupImportService $groupImport,
         private readonly EntityManagerInterface $entityManager,
         #[Autowire(service: 'lexik_jwt_authentication.handler.authentication_success')]
         private readonly AuthenticationSuccessHandler $authenticationSuccessHandler,
         private readonly LoggerInterface $logger,
         private readonly MfaChallengeService $mfaChallenges,
+        private readonly CurrentAuthSession $currentSession,
+        private readonly OAuthStateReplayGuard $replayGuard,
+        private readonly AdminMfaGuard $mfaGuard,
+        private readonly OAuthCallbackSessionResolver $callbackSessions,
+        private readonly LinkResultStore $linkResults,
         #[Autowire('%env(bool:AUTH_COOKIE_SECURE)%')]
         private readonly bool $authCookieSecure = false,
         #[Autowire('%env(default::AUTH_COOKIE_DOMAIN)%')]
@@ -62,19 +72,47 @@ final class MiDataOAuthController extends AbstractController
     public function callback(Request $request): Response
     {
         $error = trim((string) $request->query->get('error', ''));
-        if ($error === 'access_denied') {
-            return $this->finishWithClearedState('error', 'denied');
-        }
-        if ($error !== '') {
-            return $this->finishWithClearedState('error', 'failed');
-        }
-
         $state = (string) $request->query->get('state', '');
         $code = (string) $request->query->get('code', '');
         $cookieValue = (string) $request->cookies->get(MiDataOAuthState::COOKIE_NAME, '');
+        if ($error !== '') {
+            // Abbruch beim Anbieter: das Verbinden aus dem Profil kehrt ins Profil zurück, alles andere wie bisher zur Anmeldung.
+            $pending = $this->oauthState->verify($cookieValue, $state);
+            $reason = $error === 'access_denied' ? 'denied' : 'failed';
+            if ($pending !== null && $pending['profile_link'] && $pending['intent'] === AuthIntent::LINK_IDENTITY) {
+                $session = $this->callbackSessions->resolve($request);
+
+                return $session === null
+                    ? $this->finishWithClearedState('error', 'session_expired')
+                    : $this->profileLinkResult($pending, $session->getId(), 'error', $reason);
+            }
+
+            // Zurück zum ursprünglichen Einstieg (Einladung, Join-Code, Onboarding, geschützte Route), soweit der State gültig ist.
+            return $this->finishWithClearedState('error', $reason, $pending['redirect'] ?? null);
+        }
+
         $verifiedState = $this->oauthState->verify($cookieValue, $state);
-        if ($verifiedState === null) {
+        // Einmaliger State: ein bereits eingelöster Callback-Link (Replay) wird abgelehnt.
+        if ($verifiedState === null || !$this->replayGuard->consume('midata', $state)) {
             return $this->finishWithClearedState('error', 'invalid_state');
+        }
+        $boundUser = null;
+        $boundSession = null;
+        if ($verifiedState['link_user_id'] !== null) {
+            // Die OAuth-Firewall kennt keinen Benutzer: das JWT-Cookie wird explizit geprüft (abgelaufen/ungültig → null).
+            $boundSession = $this->callbackSessions->resolve($request);
+            if ($boundSession === null) {
+                return $this->finishWithClearedState('error', 'session_expired');
+            }
+            if ($boundSession->getUser()->getId() !== $verifiedState['link_user_id'] || $boundSession->getId() !== $verifiedState['session_id']) {
+                return $verifiedState['profile_link']
+                    ? $this->profileLinkResult($verifiedState, $boundSession->getId(), 'error', 'session_mismatch')
+                    : $this->finishWithClearedState('error', 'session_mismatch', $verifiedState['redirect']);
+            }
+            $boundUser = $boundSession->getUser();
+        }
+        if ($verifiedState['profile_link'] && $boundUser instanceof User && $boundSession !== null) {
+            return $this->completeProfileLink($code, $verifiedState, $boundSession);
         }
 
         $joinResult = null;
@@ -89,14 +127,10 @@ final class MiDataOAuthController extends AbstractController
                 $verifiedState['code_verifier'],
                 $verifiedState['nonce'],
             );
-            $linkUser = $verifiedState['link_user_id'] !== null
-                ? $this->userRepository->find($verifiedState['link_user_id'])
-                : null;
-            if ($verifiedState['link_user_id'] !== null && !($linkUser instanceof User)) {
-                throw new MiDataOAuthException('link_conflict', 'The account to link no longer exists');
-            }
+            $linkUser = $boundUser;
 
-            $user = $this->accountService->resolveOrCreate($session->userInfo, $linkUser);
+            // Onboarding/Gruppenimport bestätigen nur ein bereits verbundenes Konto; weitere Konten nur über Profil → Sicherheit.
+            $user = $this->accountService->resolveOrCreate($session->userInfo, $linkUser, false);
             // Verknüpfen ist kein Login: die bestehende Sitzung des eingeloggten Users bleibt, keine neuen Tokens.
             // MiData liefert keinen belastbaren MFA-Nachweis (kein amr/acr/auth_time): aktives eMatChef-TOTP wird verlangt.
             $mfa = $linkUser instanceof User ? null : $this->mfaChallenges->issueIfRequired($user, AuthMethod::MIDATA, false, $request);
@@ -154,11 +188,11 @@ final class MiDataOAuthController extends AbstractController
                 }
             }
         } catch (MiDataOAuthException $exception) {
-            return $this->finishWithClearedState('error', $exception->reason);
+            return $this->finishWithClearedState('error', $exception->reason, $verifiedState['redirect']);
         } catch (\Throwable $exception) {
             $this->logger->error('MiData OAuth callback failed', ['exception' => $exception]);
 
-            return $this->finishWithClearedState('error', 'failed');
+            return $this->finishWithClearedState('error', 'failed', $verifiedState['redirect']);
         }
 
         $isLinkFlow = $verifiedState['link_user_id'] !== null;
@@ -207,6 +241,10 @@ final class MiDataOAuthController extends AbstractController
         return $response;
     }
 
+    /**
+     * Link-Start für Onboarding und Gruppenimport (Browser-Navigation). Verbinden ist sicherheitskritisch:
+     * ohne frisches Step-up (TOTP) bzw. kürzliche Anmeldung (ohne TOTP) kehrt der User mit Fehlergrund zurück.
+     */
     #[Route('/link/midata', name: 'midata_link_start', methods: ['GET'])]
     public function linkStart(Request $request): Response
     {
@@ -214,8 +252,111 @@ final class MiDataOAuthController extends AbstractController
         if (!$user instanceof User) {
             return new JsonResponse(['error' => 'Authentication required'], Response::HTTP_UNAUTHORIZED);
         }
+        // Step-up/Reauth nur beim erstmaligen Verbinden von MiData (Onboarding). Wer schon ein MiData-Konto verbunden hat,
+        // bestätigt hier nur dieses (Gruppenimport/Onboarding); ein weiteres Konto lehnt der Callback ab (additional_account).
+        $firstLink = !$this->hasMiDataIdentity($user);
+        $denial = $firstLink
+            ? $this->mfaGuard->denialReason($user, $this->currentSession->getAuthenticated(), AdminMfaPolicy::LEVEL_SELF_SENSITIVE)
+            : null;
+        if ($denial !== null) {
+            $redirect = $this->oauthState->sanitizeRedirect($request->query->get('redirect')) ?? '/';
+
+            return new RedirectResponse($this->appendQuery(
+                $this->frontendUrl(preg_replace('/[?#].*$/', '', $redirect) ?? '/'),
+                ['oauth' => 'error', 'provider' => 'midata', 'reason' => $denial],
+            ));
+        }
 
         return $this->startFlow($request, $user);
+    }
+
+    /**
+     * Startet das Verbinden eines (weiteren) MiData-Kontos aus Profil → Sicherheit. POST: Step-up/Reauth greift zentral
+     * per AdminMfaPolicy. Der State ist an User und Sitzung gebunden; der Callback legt nur die Identität an
+     * (kein Login, kein Onboarding, kein Import). Body: {"redirect": "/interner/pfad"}.
+     */
+    #[Route('/link/midata', name: 'midata_link_start_post', methods: ['POST'])]
+    public function profileLinkStart(Request $request): Response
+    {
+        $user = $this->getUser();
+        $session = $this->currentSession->getAuthenticated();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Authentication required'], Response::HTTP_UNAUTHORIZED);
+        }
+        if ($session === null) {
+            return new JsonResponse(['error' => 'session_required'], Response::HTTP_CONFLICT);
+        }
+        if (!$this->oauthClient->isConfigured()) {
+            return new JsonResponse(['error' => 'not_configured'], Response::HTTP_SERVICE_UNAVAILABLE);
+        }
+
+        $body = json_decode($request->getContent(), true);
+        $redirect = $this->oauthState->sanitizeRedirect(\is_array($body) && \is_string($body['redirect'] ?? null) ? $body['redirect'] : null);
+        $issued = $this->oauthState->issue($redirect, $user->getId(), $session->getId(), true);
+        try {
+            // Immer Anmeldung erzwingen: ein weiteres Konto soll bewusst gewählt werden, nicht still die laufende MiData-Sitzung übernehmen.
+            $url = $this->oauthClient->buildAuthorizationUrl($issued, HitobitoOAuthClient::PROMPT_LOGIN);
+        } catch (MiDataOAuthException $exception) {
+            $this->logger->error('MiData OAuth link start failed', ['reason' => $exception->reason, 'exception' => $exception]);
+
+            return new JsonResponse(['error' => $exception->reason], Response::HTTP_SERVICE_UNAVAILABLE);
+        }
+
+        $response = new JsonResponse(['authorization_url' => $url]);
+        $response->headers->setCookie($this->stateCookie($issued['cookieValue'], time() + 600));
+        $response->headers->set('Cache-Control', 'no-store');
+
+        return $response;
+    }
+
+    private function hasMiDataIdentity(User $user): bool
+    {
+        foreach ($user->getExternalIdentities() as $identity) {
+            if ($identity->getProvider() === 'midata') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Nur die Identität verbinden: kein Login, keine neuen Tokens, kein Onboarding-Angebot, kein Join, kein Gruppenimport.
+     *
+     * @param array{nonce: string, code_verifier: string, redirect: string} $verified
+     */
+    private function completeProfileLink(string $code, array $verified, \App\Entity\UserSession $boundSession): Response
+    {
+        $user = $boundSession->getUser();
+        try {
+            $session = $this->oauthClient->fetchUserInfo($code, $verified['code_verifier'], $verified['nonce']);
+            $this->accountService->resolveOrCreate($session->userInfo, $user);
+        } catch (MiDataOAuthException $exception) {
+            return $this->profileLinkResult($verified, $boundSession->getId(), 'error', $exception->reason);
+        } catch (\Throwable $exception) {
+            $this->logger->error('MiData profile link failed', ['exception' => $exception]);
+
+            return $this->profileLinkResult($verified, $boundSession->getId(), 'error', 'failed');
+        }
+
+        return $this->profileLinkResult($verified, $boundSession->getId(), 'linked', null);
+    }
+
+    /**
+     * Zurück in die App. Das Ergebnis liegt serverseitig (einmalig, an die Sitzung gebunden); die URL trägt nur den
+     * Hinweis «profile_security=1», keinen Erfolg/Fehler und keine Tokens.
+     *
+     * @param array{redirect: string} $verified
+     */
+    private function profileLinkResult(array $verified, string $sessionId, string $status, ?string $reason): RedirectResponse
+    {
+        $this->linkResults->put($sessionId, 'midata', $status, $reason);
+        $path = $this->oauthState->sanitizeRedirect($verified['redirect']) ?? '/';
+        $response = new RedirectResponse($this->appendQuery($this->frontendUrl(preg_replace('/[?#].*$/', '', $path) ?? '/'), ['profile_security' => '1']));
+        $response->headers->setCookie($this->stateCookie('', 1));
+        $response->headers->set('Cache-Control', 'no-store');
+
+        return $response;
     }
 
     private function startFlow(Request $request, ?User $linkToUser): Response
@@ -225,7 +366,7 @@ final class MiDataOAuthController extends AbstractController
         }
 
         $redirect = $this->oauthState->sanitizeRedirect($request->query->get('redirect'));
-        $issued = $this->oauthState->issue($redirect, $linkToUser?->getId());
+        $issued = $this->oauthState->issue($redirect, $linkToUser?->getId(), $linkToUser !== null ? $this->currentSession->getAuthenticated()?->getId() : null);
         // A normal login must never silently take over an existing MiData browser session.
         // Link and onboarding flows verify the MiData subject against the linked identity instead.
         $prompt = $linkToUser === null ? HitobitoOAuthClient::PROMPT_LOGIN : null;
@@ -243,19 +384,24 @@ final class MiDataOAuthController extends AbstractController
         return $response;
     }
 
-    private function finishWithClearedState(string $status, string $reason): RedirectResponse
+    private function finishWithClearedState(string $status, string $reason, ?string $redirect = null): RedirectResponse
     {
-        $response = $this->frontendRedirect($status, $reason);
+        $response = $this->frontendRedirect($status, $reason, $redirect);
         $response->headers->setCookie($this->stateCookie('', 1));
 
         return $response;
     }
 
-    private function frontendRedirect(string $status, ?string $reason = null): RedirectResponse
+    private function frontendRedirect(string $status, ?string $reason = null, ?string $redirect = null): RedirectResponse
     {
         $query = ['oauth' => $status, 'provider' => 'midata'];
         if ($reason !== null && $reason !== '') {
             $query['reason'] = $reason;
+        }
+        // Ursprünglicher Einstieg (bereinigter interner Pfad aus dem State) bleibt für den nächsten Versuch erhalten.
+        $safeRedirect = $this->oauthState->sanitizeRedirect($redirect);
+        if ($safeRedirect !== null && AuthIntent::fromRedirect($safeRedirect) !== AuthIntent::LOGIN) {
+            $query['redirect'] = $safeRedirect;
         }
 
         return new RedirectResponse($this->frontendUrl('/login?' . http_build_query($query)));

@@ -386,7 +386,12 @@ final class MiDataDepartmentOnboardingService
 
     private function identityMatchesSession(User $user, HitobitoOAuthSession $session, string $expectedPersonId): bool
     {
-        $identity = $this->externalIdentities->findOneBy(['user' => $user, 'provider' => 'midata']);
+        // Mehrere MiData-Konten pro User möglich: genau die Identität, mit der diese Sitzung authentifiziert wurde.
+        $identity = $this->externalIdentities->findOneBy([
+            'user' => $user,
+            'provider' => 'midata',
+            'externalUserId' => $session->userInfo->subject,
+        ]);
 
         return $identity !== null
             && $expectedPersonId !== ''

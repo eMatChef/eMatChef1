@@ -118,6 +118,13 @@ class UserSession
         return $this;
     }
 
+    /** Sitzung ist kürzlich durch eine echte Anmeldung entstanden (nicht Legacy-Übernahme per Refresh). */
+    public function hasRecentLogin(int $seconds, ?\DateTime $now = null): bool
+    {
+        return $this->authMethod !== AuthMethod::LEGACY
+            && $this->createdAt >= (clone ($now ?? new \DateTime()))->modify('-' . $seconds . ' seconds');
+    }
+
     public function hasFreshStepUp(int $seconds, ?\DateTime $now = null): bool
     {
         return $this->stepUpAt !== null

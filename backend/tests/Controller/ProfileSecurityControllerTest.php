@@ -47,6 +47,8 @@ final class ProfileSecurityControllerTest extends TestCase
 
     private CurrentAuthSession $currentHolder;
 
+    private \App\Service\Auth\LinkResultStore $linkResults;
+
     private TrustedDeviceService $trusted;
 
     protected function setUp(): void
@@ -54,6 +56,7 @@ final class ProfileSecurityControllerTest extends TestCase
         $this->calls = [];
         $this->activityCalls = [];
         $this->activityFilters = [];
+        $this->linkResults = new \App\Service\Auth\LinkResultStore(new \Symfony\Component\Cache\Adapter\ArrayAdapter());
         $this->me = $this->user('me', 'p_me');
         $this->other = $this->user('other', 'p_other');
         $this->current = new UserSession($this->me, AuthMethod::PASSWORD, 'Mozilla/5.0 (Windows NT 10.0) Chrome/120');
@@ -247,8 +250,10 @@ final class ProfileSecurityControllerTest extends TestCase
             $this->currentHolder,
             $trusted,
             $activity,
-            $this->entityManager = $this->createMock(\Doctrine\ORM\EntityManagerInterface::class),
-            $this->createMock(\App\Service\AuditLogger::class),
+            $this->identityService(),
+            $this->googleClient(true),
+            $this->midataClient(false),
+            $this->linkResults,
         );
         $storage = new TokenStorage();
         $storage->setToken(new UsernamePasswordToken($this->me, 'api', ['ROLE_USER']));
@@ -259,49 +264,136 @@ final class ProfileSecurityControllerTest extends TestCase
         return $controller;
     }
 
-    private function midataIdentity(User $user, string $provider = 'midata'): \App\Entity\ExternalIdentity
+    private function identityService(): \App\Service\Auth\ExternalIdentityService
     {
-        $identity = (new \App\Entity\ExternalIdentity())->setProvider($provider)->setExternalUserId('ext-' . $provider);
+        $this->entityManager = $this->createMock(\Doctrine\ORM\EntityManagerInterface::class);
+
+        return new \App\Service\Auth\ExternalIdentityService(
+            $this->entityManager,
+            $this->createMock(\App\Repository\ExternalIdentityRepository::class),
+            $this->createMock(\App\Service\AuditLogger::class),
+        );
+    }
+
+    private function googleClient(bool $configured): \App\Service\Auth\GoogleOAuthClient
+    {
+        return new \App\Service\Auth\GoogleOAuthClient(
+            new \Symfony\Component\HttpClient\MockHttpClient(),
+            'https://app.example.test',
+            $configured ? 'id' : '',
+            $configured ? 'secret' : '',
+        );
+    }
+
+    private function midataClient(bool $configured): \App\Service\Auth\HitobitoOAuthClient
+    {
+        return new \App\Service\Auth\HitobitoOAuthClient(
+            new \Symfony\Component\HttpClient\MockHttpClient(),
+            'https://app.example.test',
+            'https://db.scout.ch',
+            $configured ? 'id' : '',
+            $configured ? 'secret' : '',
+            'https://app.example.test/api/auth/midata/callback',
+        );
+    }
+
+    private function identity(User $user, string $provider, string $externalId, string $id, ?string $name = null, ?string $email = null): \App\Entity\ExternalIdentity
+    {
+        $identity = (new \App\Entity\ExternalIdentity())->setId($id)->setProvider($provider)->setExternalUserId($externalId)->setDisplayName($name)->setEmail($email);
         $user->addExternalIdentity($identity);
 
         return $identity;
     }
 
-    public function testMiDataCannotBeDisconnectedWhenItIsTheOnlyLoginMethod(): void
+    public function testListsOnlyActuallyLinkedIdentitiesIndividuallyIncludingSeveralOfOneProvider(): void
+    {
+        $this->me->setEmailVerified(true);
+        $this->identity($this->me, 'google', 'g-sub-111111', 'idn000000001', 'Anna A', 'anna@gmail.test');
+        $this->identity($this->me, 'google', 'g-sub-222222', 'idn000000002', null, 'anna.work@gmail.test');
+        $this->identity($this->other, 'midata', 'm-other', 'idn000000009');
+
+        $body = json_decode((string) $this->controller()->externalIdentities($this->me->getProfileId())->getContent(), true);
+
+        self::assertSame(['idn000000001', 'idn000000002'], array_column($body['identities'], 'id'));
+        self::assertSame(['google', 'google'], array_column($body['identities'], 'provider'));
+        self::assertSame('Anna A', $body['identities'][0]['display_name']);
+        self::assertSame('anna.work@gmail.test', $body['identities'][1]['email']);
+        // Nie die volle externe Kennung oder Tokens
+        self::assertSame('…1111', $body['identities'][0]['external_id_hint']);
+        $json = json_encode($body, JSON_THROW_ON_ERROR);
+        self::assertStringNotContainsString('g-sub-111111', $json);
+        self::assertStringNotContainsString('m-other', $json);
+        self::assertDoesNotMatchRegularExpression('/token|secret|password/i', $json);
+        self::assertSame(
+            [['provider' => 'google', 'label' => 'Google', 'configured' => true], ['provider' => 'midata', 'label' => 'MiData / db.scout.ch', 'configured' => false]],
+            $body['providers'],
+        );
+    }
+
+    public function testLinkResultIsDeliveredOnceAndOnlyForTheCurrentSession(): void
+    {
+        $controller = $this->controller();
+        self::assertNull(json_decode((string) $controller->linkResult($this->me->getProfileId())->getContent(), true)['result'], 'ohne Ergebnis (präparierte URL) nichts');
+
+        $this->linkResults->put($this->current->getId(), 'google', 'error', 'link_conflict');
+        $this->linkResults->put($this->second->getId(), 'midata', 'linked', null);
+
+        $first = json_decode((string) $controller->linkResult($this->me->getProfileId())->getContent(), true)['result'];
+        self::assertSame(['provider' => 'google', 'status' => 'error', 'reason' => 'link_conflict'], $first);
+        self::assertNull(json_decode((string) $controller->linkResult($this->me->getProfileId())->getContent(), true)['result'], 'einmalig');
+        self::assertSame(403, $controller->linkResult($this->other->getProfileId())->getStatusCode());
+        // Das Ergebnis einer anderen Sitzung desselben Users bleibt für diese unsichtbar
+        self::assertSame('linked', $this->linkResults->take($this->second->getId())['status']);
+    }
+
+    public function testEmptyListHasNoPlaceholderRowsForUnlinkedProviders(): void
+    {
+        $body = json_decode((string) $this->controller()->externalIdentities($this->me->getProfileId())->getContent(), true);
+
+        self::assertSame([], $body['identities']);
+    }
+
+    public function testLastLoginMethodCannotBeDisconnected(): void
     {
         $this->me->setEmailVerified(false);
-        $this->midataIdentity($this->me);
-        $controller = $this->controller();
+        $this->identity($this->me, 'midata', 'm1', 'idn000000001');
 
-        $response = $controller->disconnectExternalIdentity($this->me->getProfileId(), 'midata');
+        $response = $this->controller()->disconnectExternalIdentity($this->me->getProfileId(), 'idn000000001');
 
         self::assertSame(409, $response->getStatusCode());
+        self::assertSame('last_login_method', json_decode((string) $response->getContent(), true)['error']);
         self::assertCount(1, $this->me->getExternalIdentities());
     }
 
-    public function testDisconnectRemovesOnlyTheMiDataIdentity(): void
+    public function testDisconnectRemovesExactlyTheChosenIdentityOfSeveralOfOneProvider(): void
     {
         $this->me->setEmailVerified(true);
-        $midata = $this->midataIdentity($this->me);
-        $google = $this->midataIdentity($this->me, 'google');
+        $first = $this->identity($this->me, 'google', 'g1', 'idn000000001');
+        $second = $this->identity($this->me, 'google', 'g2', 'idn000000002');
         $controller = $this->controller();
         $removed = [];
         $this->entityManager->method('remove')->willReturnCallback(function (object $o) use (&$removed): void {
             $removed[] = $o;
         });
 
-        $response = $controller->disconnectExternalIdentity($this->me->getProfileId(), 'midata');
+        $response = $controller->disconnectExternalIdentity($this->me->getProfileId(), 'idn000000001');
 
         self::assertSame(200, $response->getStatusCode());
-        self::assertSame([$midata], $removed);
-        self::assertSame([$google], array_values($this->me->getExternalIdentities()->toArray()));
+        self::assertSame([$first], $removed);
+        self::assertSame([$second], array_values($this->me->getExternalIdentities()->toArray()));
     }
 
-    public function testOnlyMiDataCanBeDisconnectedHere(): void
+    public function testForeignOrUnknownIdentityIsNotFoundAndForeignProfileForbidden(): void
     {
-        $this->midataIdentity($this->me, 'google');
+        $this->me->setEmailVerified(true);
+        $this->identity($this->other, 'midata', 'm-other', 'idn000000009');
+        $controller = $this->controller();
 
-        self::assertSame(400, $this->controller()->disconnectExternalIdentity($this->me->getProfileId(), 'google')->getStatusCode());
+        self::assertSame(404, $controller->disconnectExternalIdentity($this->me->getProfileId(), 'idn000000009')->getStatusCode());
+        self::assertSame(404, $controller->disconnectExternalIdentity($this->me->getProfileId(), 'nope')->getStatusCode());
+        self::assertSame(403, $controller->disconnectExternalIdentity($this->other->getProfileId(), 'idn000000009')->getStatusCode());
+        self::assertSame(403, $controller->externalIdentities($this->other->getProfileId())->getStatusCode());
+        self::assertCount(1, $this->other->getExternalIdentities());
     }
 
     private function user(string $id, string $profileId): User

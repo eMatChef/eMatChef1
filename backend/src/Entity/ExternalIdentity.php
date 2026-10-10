@@ -30,6 +30,10 @@ class ExternalIdentity
     #[ORM\Column(type: 'string', length: 180, nullable: true)]
     private ?string $email = null;
 
+    /** Anzeigename laut Anbieter (nur Anzeige in Profil → Sicherheit, nie für Zuordnung/Login). */
+    #[ORM\Column(name: 'display_name', type: 'string', length: 180, nullable: true)]
+    private ?string $displayName = null;
+
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
 
@@ -104,6 +108,19 @@ class ExternalIdentity
     public function setEmail(?string $email): self
     {
         $this->email = $email;
+
+        return $this;
+    }
+
+    public function getDisplayName(): ?string
+    {
+        return $this->displayName;
+    }
+
+    public function setDisplayName(?string $displayName): self
+    {
+        $displayName = $displayName !== null ? trim($displayName) : null;
+        $this->displayName = $displayName !== null && $displayName !== '' ? mb_substr($displayName, 0, 180) : null;
 
         return $this;
     }

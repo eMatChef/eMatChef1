@@ -58,6 +58,7 @@ class SecurityActivityService
         'membership_created' => 'role',
         'membership_role_changed' => 'role',
         'membership_removed' => 'role',
+        'membership_notification_email_changed' => null,
     ];
 
     /** Aktionen, bei denen die MFA-Quelle aus dem Ereignistyp selbst folgt. */

@@ -125,6 +125,78 @@ final class MiDataOAuthAccountServiceTest extends TestCase
         }
     }
 
+    public function testLinkingASecondMiDataAccountKeepsTheFirstAndStoresDisplayNameButNoAlias(): void
+    {
+        $user = $this->user('link-target');
+        $user->setProfile((new Profile())->setId('p1')->setEmail('primary@example.com'));
+        $first = $this->identity($user, 'first-sub');
+        $entityManager = $this->entityManager();
+        $entityManager->expects(self::once())->method('flush');
+        $identityRepository = $this->createMock(ExternalIdentityRepository::class);
+        $identityRepository->method('findOneByProviderAndExternalUserId')->willReturn(null);
+
+        $service = $this->service($entityManager, $identityRepository, $this->createMock(ProfileRepository::class));
+        $resolved = $service->resolveOrCreate(new MiDataOAuthUserInfo('second-sub', 'other@midata.example', true, 'Ada', 'Lovelace'), $user);
+
+        self::assertSame($user, $resolved);
+        self::assertCount(2, $user->getExternalIdentities());
+        self::assertSame('first-sub', $first->getExternalUserId());
+        $second = $user->getExternalIdentities()->last();
+        self::assertSame('second-sub', $second->getExternalUserId());
+        self::assertSame('Ada Lovelace', $second->getDisplayName());
+        self::assertSame('other@midata.example', $second->getEmail());
+        // Provider-E-Mail weder Primary noch automatisch Alias
+        self::assertSame('primary@example.com', $user->getProfile()?->getEmail());
+    }
+
+    public function testOnboardingAndGroupImportMayNotAttachAnAdditionalAccount(): void
+    {
+        $user = $this->user('link-target');
+        $this->identity($user, 'first-sub');
+        $entityManager = $this->entityManager();
+        $entityManager->expects(self::never())->method('flush');
+        $identityRepository = $this->createMock(ExternalIdentityRepository::class);
+        $identityRepository->method('findOneByProviderAndExternalUserId')->willReturn(null);
+
+        try {
+            $this->service($entityManager, $identityRepository, $this->createMock(ProfileRepository::class))
+                ->resolveOrCreate(new MiDataOAuthUserInfo('other-sub', null, false, null, null), $user, false);
+            self::fail('Weitere Konten nur über das Profil');
+        } catch (MiDataOAuthException $e) {
+            self::assertSame('additional_account', $e->reason);
+        }
+        self::assertCount(1, $user->getExternalIdentities());
+    }
+
+    public function testOnboardingStillLinksTheVeryFirstMiDataAccount(): void
+    {
+        $user = $this->user('link-target');
+        $identityRepository = $this->createMock(ExternalIdentityRepository::class);
+        $identityRepository->method('findOneByProviderAndExternalUserId')->willReturn(null);
+
+        $this->service($this->entityManager(), $identityRepository, $this->createMock(ProfileRepository::class))
+            ->resolveOrCreate(new MiDataOAuthUserInfo('first-sub', null, false, null, null), $user, false);
+
+        self::assertCount(1, $user->getExternalIdentities());
+    }
+
+    public function testLinkingNeverMergesByEqualEmailWhenTheSubjectIsUnknown(): void
+    {
+        $victim = $this->user('victim');
+        $attacker = $this->user('attacker');
+        $entityManager = $this->entityManager();
+        $identityRepository = $this->createMock(ExternalIdentityRepository::class);
+        $identityRepository->method('findOneByProviderAndExternalUserId')->willReturn(null);
+        $profileRepository = $this->createMock(ProfileRepository::class);
+        $profileRepository->expects(self::never())->method('findOneBy');
+
+        $this->service($entityManager, $identityRepository, $profileRepository)
+            ->resolveOrCreate(new MiDataOAuthUserInfo('attacker-sub', 'victim@example.com', true, null, null), $attacker);
+
+        self::assertCount(0, $victim->getExternalIdentities());
+        self::assertCount(1, $attacker->getExternalIdentities());
+    }
+
     private function service(
         EntityManagerInterface $entityManager,
         ExternalIdentityRepository $identityRepository,

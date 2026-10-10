@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Entity\Membership;
 use App\Entity\User;
 use App\Entity\UserEmailAlias;
+use App\Service\MembershipNotificationEmailResolver;
 use App\Service\UserEmailAliasConflictException;
 use App\Service\UserEmailAliasService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -24,6 +26,7 @@ final class ProfileEmailController extends AbstractController
 {
     public function __construct(
         private readonly UserEmailAliasService $emailAliases,
+        private readonly MembershipNotificationEmailResolver $notificationEmails,
     ) {
     }
 
@@ -36,6 +39,44 @@ final class ProfileEmailController extends AbstractController
         }
 
         return $this->listResponse($user);
+    }
+
+    /**
+     * Benachrichtigungsadresse je eigener Mitgliedschaft (Department/Grossanlass). Nur Memberships des eigenen Users;
+     * ändern läuft über PUT /api/departments/{id}/my-notification-email (kein zweiter Speicherweg).
+     */
+    #[Route('/department-assignments', name: 'department_assignments', methods: ['GET'])]
+    public function departmentAssignments(string $id): JsonResponse
+    {
+        $user = $this->requireOwnUser($id);
+        if ($user instanceof JsonResponse) {
+            return $user;
+        }
+
+        $primary = strtolower(trim((string) ($user->getProfile()?->getEmail() ?? '')));
+        $assignments = [];
+        foreach ($user->getMemberships() as $membership) {
+            if (!$membership instanceof Membership) {
+                continue;
+            }
+            $department = $membership->getDepartment();
+            $effective = $this->notificationEmails->effectiveEmail($membership);
+            $assignments[] = [
+                'department_id' => $department->getId(),
+                'name' => $department->getName(),
+                'parent_name' => $department->getParent()?->getName(),
+                'is_grossanlass' => $department->isGrossanlass(),
+                'effective_email' => $effective,
+                // null = Standard (Hauptadresse), auch wenn eine gespeicherte Adresse nicht mehr gültig ist
+                'selected_email' => $effective !== $primary ? $effective : null,
+            ];
+        }
+        usort($assignments, static fn (array $a, array $b): int => strcasecmp($a['name'], $b['name']));
+
+        return new JsonResponse([
+            'assignments' => $assignments,
+            'options' => $this->notificationEmails->selectableEmails($user),
+        ]);
     }
 
     #[Route('', name: 'add', methods: ['POST'])]
