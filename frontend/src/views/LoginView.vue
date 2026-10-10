@@ -453,7 +453,7 @@
           </EButton>
 
           <EButton
-            v-if="inviteFlowActive && inviteEmailLabel"
+            v-if="inviteFlowActive"
             type="button"
             variant="secondary"
             block

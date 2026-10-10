@@ -54,7 +54,7 @@ function loginAuthRedirectQuery(fullPath: string): Record<string, string> {
   return target ? { redirect: target } : {}
 }
 
-/** Einladungslink bleibt auf /pending-assignment, auch wenn schon ein Department da ist. */
+/** Einladungslink und QR-/Join-Code-Link bleiben auf /pending-assignment, auch wenn schon ein Department da ist. */
 function departmentInviteLandingPath(to: RouteLocationNormalized): string | null {
   const rawRedirect = typeof to.query.redirect === 'string' ? to.query.redirect : ''
   const candidate = to.path === '/pending-assignment'
@@ -65,7 +65,8 @@ function departmentInviteLandingPath(to: RouteLocationNormalized): string | null
     const url = new URL(candidate, 'https://local.invalid')
     const inviteId = (url.searchParams.get('invite_id') || '').trim()
     const departmentId = (url.searchParams.get('department_id') || '').trim()
-    if (!inviteId || !departmentId) return null
+    const joinCode = (url.searchParams.get('join_code') || '').trim()
+    if (!joinCode && (!inviteId || !departmentId)) return null
     return candidate
   } catch {
     return null
