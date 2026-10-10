@@ -120,14 +120,14 @@ function getHelpLink(path: string): string {
 }
 
 function navLinkForItem(itemId: string): string {
-  return getHelpLink(`/${itemId}`)
+  return getHelpLink(itemId === 'dokumentation' ? '/department' : `/${itemId}`)
 }
 
 function isHelpItemActive(itemId: string): boolean {
   const base = departmentId.value ? `/${departmentId.value}/help`.replace(/\/$/, '') : ''
   const p = (route.path || '').replace(/\/$/, '') || '/'
   if (itemId === 'dokumentation') {
-    return p === base || p === `${base}/dokumentation` || p === `${base}/overview`
+    return p === base || p.startsWith(`${base}/department`) || p === `${base}/dokumentation` || p === `${base}/overview`
   }
   if (itemId === 'tours') {
     return p === `${base}/tours` || p === `${base}/einrichtung`

@@ -9,7 +9,9 @@ describe('Grossanlass setup navigation', () => {
       expect(isGrossanlassSetupAllowedPath(`/${D}`, D, canSetup)).toBe(true)
       expect(isGrossanlassSetupAllowedPath(`/${D}/`, D, canSetup)).toBe(true)
       expect(isGrossanlassSetupAllowedPath(`/${D}/dashboard`, D, canSetup)).toBe(true)
-      expect(isGrossanlassSetupAllowedPath(`/${D}/help/dokumentation`, D, canSetup)).toBe(true)
+      expect(isGrossanlassSetupAllowedPath(`/${D}/help/department`, D, canSetup)).toBe(true)
+      expect(isGrossanlassSetupAllowedPath(`/${D}/ga-hilfe`, D, canSetup)).toBe(true)
+      expect(isGrossanlassSetupAllowedPath(`/${D}/ga-hilfe/freigabe`, D, canSetup)).toBe(true)
     }
   })
 

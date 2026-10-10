@@ -1,13 +1,16 @@
 <template>
   <div class="enough-field">
-    <ECheckbox
-      :model-value="value.enough"
-      :label="t('grossanlass.wishes.enoughOnHand')"
-      :hint="t('grossanlass.wishes.enoughOnHandHint')"
-      persistent-hint
-      hide-details="auto"
-      @update:model-value="onToggle"
-    />
+    <div class="enough-field__toggle">
+      <ECheckbox
+        :model-value="value.enough"
+        :label="t('grossanlass.wishes.enoughOnHand')"
+        :hint="t('grossanlass.wishes.enoughOnHandHint')"
+        persistent-hint
+        hide-details="auto"
+        @update:model-value="onToggle"
+      />
+      <GaHelpHint field="enoughOnHand" :label="t('grossanlass.wishes.enoughOnHand')" />
+    </div>
 
     <div v-if="value.enough" class="enough-field__source">
       <p class="enough-field__q">{{ t('grossanlass.wishes.enoughOnHandSource') }}</p>
@@ -60,6 +63,7 @@
 import { computed, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ECheckbox, ESelect, ETextField } from '@/components/form/base'
+import GaHelpHint from '@/components/grossanlass/GaHelpHint.vue'
 import type { GrossanlassCommitment } from '@/api/grossanlassCommitments'
 import {
   emptyEnoughOnHand,
@@ -155,6 +159,11 @@ function onCommitmentId(id: unknown) {
 <style scoped>
 .enough-field {
   display: grid;
+  gap: 4px;
+}
+.enough-field__toggle {
+  display: flex;
+  align-items: flex-start;
   gap: 4px;
 }
 .enough-field__source {
