@@ -46,6 +46,7 @@ import {
 import { gaHomePath, gaResolveHomePath } from '@/utils/grossanlassHome'
 import { resolveVerwaltungLandingPath } from '@/utils/verwaltungNavigation'
 import { isMiDataOnboardingLanding } from '@/utils/midataOnboarding'
+import { carryOAuthReturnParams } from '@/utils/oauthReturnParams'
 
 /** Login-Redirect ohne Tour-Query (sonst nach Relogin Tour-URL statt Dashboard). */
 function loginAuthRedirectQuery(fullPath: string): Record<string, string> {
@@ -2477,7 +2478,9 @@ async function handleAppOriginRouting(
 }
 
 // Navigation Guard
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to, from, nextRaw) => {
+  // Rückweg aus dem Identitäts-Verknüpfen übersteht Redirects dieser Navigation (siehe oauthReturnParams).
+  const next = carryOAuthReturnParams(to, nextRaw)
   if (applyQrHostRedirects(to)) {
     return next(false)
   }
