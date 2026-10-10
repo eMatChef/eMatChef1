@@ -947,10 +947,6 @@ const routes: RouteRecordRaw[] = [
             },
           },
           {
-            path: 'ressorts',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/ga/einstellungen/ressorts` }),
-          },
-          {
             path: 'abteilungsmat',
             name: 'GrossanlassAbteilungsmat',
             component: () => import('@/views/grossanlass/GrossanlassAbteilungsmatView.vue'),
@@ -1075,17 +1071,6 @@ const routes: RouteRecordRaw[] = [
                 },
               },
               {
-                path: 'fahrauftraege',
-                redirect: (to) => ({
-                  path: `/${to.params.departmentId}/ga/planung/transporte`,
-                  query: to.query,
-                }),
-              },
-              {
-                path: 'abholen',
-                redirect: (to) => ({ path: `/${to.params.departmentId}/dept/tasks/allgemein` }),
-              },
-              {
                 path: 'belegung',
                 name: 'GrossanlassPlanungBelegung',
                 component: () => import('@/views/grossanlass/GrossanlassMaterialEinsaetzeView.vue'),
@@ -1094,21 +1079,6 @@ const routes: RouteRecordRaw[] = [
                   requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
                   planungTab: 'belegung',
                   ...routeHead('grossanlassPlanungBelegung'),
-                },
-              },
-              {
-                path: 'einsaetze',
-                redirect: (to) => {
-                  if (String(to.query.delivery || '') === 'trip') {
-                    return {
-                      path: `/${to.params.departmentId}/ga/planung/transporte`,
-                      query: to.query,
-                    }
-                  }
-                  return {
-                    path: `/${to.params.departmentId}/ga/planung/belegung`,
-                    query: to.query,
-                  }
                 },
               },
               {
@@ -1166,10 +1136,6 @@ const routes: RouteRecordRaw[] = [
                 },
               },
               {
-                path: 'karten',
-                redirect: (to) => ({ path: `/${to.params.departmentId}/dept/settings/user-karten` }),
-              },
-              {
                 path: 'standorte',
                 name: 'GrossanlassEinstellungenStandorte',
                 component: () => import('@/views/grossanlass/GrossanlassEinstellungenStandorteView.vue'),
@@ -1214,14 +1180,6 @@ const routes: RouteRecordRaw[] = [
                 },
               },
               {
-                path: 'struktur',
-                redirect: (to) => ({ path: `/${to.params.departmentId}/ga/einstellungen/teilnehmer` }),
-              },
-              {
-                path: 'activities',
-                redirect: (to) => ({ path: `/${to.params.departmentId}/ga/einstellungen/teilnehmer` }),
-              },
-              {
                 path: 'freigabe',
                 name: 'GrossanlassPlanungFreigabe',
                 component: () => import('@/views/grossanlass/GrossanlassPlanungFreigabeView.vue'),
@@ -1233,38 +1191,6 @@ const routes: RouteRecordRaw[] = [
                 },
               },
             ],
-          },
-          {
-            path: 'planung/ressorts',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/ga/einstellungen/ressorts` }),
-          },
-          {
-            path: 'planung/stammdaten',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/ga/einstellungen/stammdaten` }),
-          },
-          {
-            path: 'planung/struktur',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/ga/einstellungen/teilnehmer` }),
-          },
-          {
-            path: 'planung/activities',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/ga/einstellungen/teilnehmer` }),
-          },
-          {
-            path: 'planung/freigabe',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/ga/einstellungen/freigabe` }),
-          },
-          {
-            path: 'planungsrunden',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/ga/planung` }),
-          },
-          {
-            path: 'planung/rounds',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/ga/planung` }),
-          },
-          {
-            path: 'planung/rounds/:roundId',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/ga/planung/runden/${to.params.roundId}` }),
           },
           {
             path: 'kosten',
@@ -1294,14 +1220,6 @@ const routes: RouteRecordRaw[] = [
                   }
                   return { name: 'GrossanlassBeschaffungBedarf' }
                 },
-              },
-              {
-                path: 'uebersicht',
-                redirect: (to) => ({ path: `/${to.params.departmentId}/ga/kosten` }),
-              },
-              {
-                path: 'finanzen',
-                redirect: (to) => ({ path: `/${to.params.departmentId}/ga/kosten` }),
               },
               {
                 path: 'bedarf',
@@ -1357,10 +1275,6 @@ const routes: RouteRecordRaw[] = [
                   ...routeHead('grossanlassBeschaffungBestellungen'),
                 },
               },
-              {
-                path: 'erhalten',
-                redirect: (to) => ({ path: `/${to.params.departmentId}/ga/material/wareneingang` }),
-              },
             ],
           },
           {
@@ -1409,59 +1323,6 @@ const routes: RouteRecordRaw[] = [
                 },
               },
             ],
-          },
-          {
-            path: 'materialien',
-            redirect: (to) => ({
-              path: `/${to.params.departmentId}/ga/material/bestand`,
-              query: to.query,
-            }),
-          },
-          {
-            path: 'materialien/uebersicht',
-            redirect: (to) => ({
-              path: `/${to.params.departmentId}/ga/material/bestand`,
-              query: to.query,
-            }),
-          },
-          {
-            path: 'materialien/eigen',
-            redirect: (to) => ({
-              path: `/${to.params.departmentId}/ga/material/bestand/eigen`,
-              query: to.query,
-            }),
-          },
-          {
-            path: 'materialien/leihweise',
-            redirect: (to) => ({
-              path: `/${to.params.departmentId}/ga/material/bestand/leihweise`,
-              query: to.query,
-            }),
-          },
-          {
-            path: 'materialien/gaeste',
-            redirect: (to) => ({
-              path: `/${to.params.departmentId}/ga/material/bestand/gaeste`,
-              query: to.query,
-            }),
-          },
-          {
-            path: 'materialien/js',
-            redirect: (to) => ({
-              path: `/${to.params.departmentId}/ga/material/bestand/js`,
-              query: to.query,
-            }),
-          },
-          {
-            path: 'materialien/fahrzeuge',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/ga/fahrzeuge` }),
-          },
-          {
-            path: 'materialien/artikel/:itemId',
-            redirect: (to) => ({
-              path: `/${to.params.departmentId}/ga/material/artikel/${to.params.itemId}`,
-              query: to.query,
-            }),
           },
           {
             path: 'material',
@@ -1567,35 +1428,6 @@ const routes: RouteRecordRaw[] = [
                 },
               },
               {
-                path: 'einsaetze',
-                redirect: (to) => {
-                  if (String(to.query.delivery || '') === 'trip') {
-                    return {
-                      path: `/${to.params.departmentId}/ga/planung/transporte`,
-                      query: to.query,
-                    }
-                  }
-                  return {
-                    path: `/${to.params.departmentId}/ga/planung/belegung`,
-                    query: to.query,
-                  }
-                },
-              },
-              {
-                path: 'bauauftraege',
-                redirect: (to) => ({
-                  path: `/${to.params.departmentId}/ga/planung/bauauftraege`,
-                  query: to.query,
-                }),
-              },
-              {
-                path: 'fahrauftraege',
-                redirect: (to) => ({
-                  path: `/${to.params.departmentId}/ga/planung/transporte`,
-                  query: to.query,
-                }),
-              },
-              {
                 path: 'wareneingang',
                 name: 'GrossanlassMaterialWareneingang',
                 component: () => import('@/views/grossanlass/GrossanlassMaterialWareneingangView.vue'),
@@ -1605,13 +1437,6 @@ const routes: RouteRecordRaw[] = [
                   materialTab: 'wareneingang',
                   ...routeHead('grossanlassMaterialWareneingang'),
                 },
-              },
-              {
-                path: 'konflikte',
-                redirect: (to) => ({
-                  path: `/${to.params.departmentId}/ga/planung/konflikte`,
-                  query: to.query,
-                }),
               },
               {
                 path: 'ausgabe',
@@ -1656,10 +1481,6 @@ const routes: RouteRecordRaw[] = [
                   materialTab: 'rueckbau',
                   ...routeHead('grossanlassMaterialRueckbau'),
                 },
-              },
-              {
-                path: 'retour',
-                redirect: (to) => ({ path: `/${to.params.departmentId}/ga/material/rueckbau`, query: to.query }),
               },
             ],
           },

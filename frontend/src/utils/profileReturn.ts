@@ -48,7 +48,7 @@ export function sanitizeProfileFrom(raw: unknown): string | null {
     return null
   }
   if (url.origin !== ORIGIN_PROBE) return null
-  if (isProfilePath(url.pathname) || url.pathname === '/login') return null
+  if (isProfilePath(url.pathname) || ['/login', '/register', '/forgot-password', '/reset-password'].includes(url.pathname)) return null
 
   for (const key of STRIPPED_PARAMS) url.searchParams.delete(key)
   return `${url.pathname}${url.search}${url.hash}`

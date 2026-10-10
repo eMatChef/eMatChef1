@@ -20,21 +20,36 @@ Die HTTP-API sind Symfony-Controller mit `#[Route('/api/…')]` (`backend/config
 
 | Bereich | URL |
 |---|---|
-| Global | `/login`, `/register`, `/forgot-password`, `/reset-password`, `/profile/*` |
-| Department-Einstieg | `/{departmentId}` — wählt je nach Department-Typ die kanonische Start-URL |
-| Grossanlass | `/{departmentId}/ga/…` (Start: `/ga/dashboard`) |
-| Normales Department | `/{departmentId}/dept/…` (Start: `/dept/dashboard`) |
+| Login | `/login` |
+| Registrierung | `/register` |
+| Passwort vergessen | `/forgot-password` |
+| Passwort zurücksetzen | `/reset-password` |
+| Profil | `/profile/*` |
+| Department-Einstieg | `/{departmentId}` |
+| Normales Department | `/{departmentId}/dept/*` (Start: `/dept/dashboard`) |
+| Grossanlass | `/{departmentId}/ga/*` (Start: `/ga/dashboard`) |
 
-Es gibt keine Legacy-Redirects für frühere Pfade ohne `ga/` bzw. `dept/`. Interne und vom Backend erzeugte Links (Benachrichtigungen, E-Mails, Media-Verwendungslinks) zeigen direkt auf die kanonischen URLs. Bewusste Kompatibilitätsentscheidung: bereits versandte E-Mails und gespeicherte Benachrichtigungen mit alten Pfaden führen auf eine unbekannte Seite. API-Pfade (`/api/…`) sind unverändert.
+**Global vs. Department.** Globale Routen (Anmeldung, Passwort, Profil) haben kein Department im Pfad und brauchen keine Department-Rolle; sie stehen im Router vor `/:departmentId` (Meta `globalProfile` bzw. `requiresAuth: false`). Alles mit `/{departmentId}/…` ist an ein Department gebunden und läuft durch die Department-Guards (Zugehörigkeit, `requiredRoles`, `requireDepartmentRoles`, `denyDepartmentRoles`). `/login`, `/register`, `/forgot-password` und `/reset-password` rendern dieselbe `LoginView`; die URL folgt dem sichtbaren Formular (Wechsel legt einen Verlaufseintrag an, Zurück/Vor wechselt das Formular). `/login?register=1` und `/login?forgot=1` werden beim Aufruf auf `/register` bzw. `/reset-password` umgeleitet (`legacyAuthQueryRedirect` im Router).
 
-| Bereich | Pfad |
-| --- | --- |
-| Routen | `frontend/src/router/index.ts` |
-| Seiten | `frontend/src/views/` |
-| UI | `frontend/src/components/` |
-| HTTP | `frontend/src/api/` (ein Modul pro Ressource, `apiClient.ts`) |
-| Zustand | `frontend/src/stores/` (Auth, Permissions, …) |
-| Texte | `frontend/src/locales/*.json`, Einstieg `frontend/src/i18n.ts` |
+**Department-Typ.** Der Typ kommt aus der Mitgliedschaft: `authStore.isDepartmentGrossanlass(departmentId)` (`department.is_grossanlass`). Routen unter `ga/` tragen `requiresGrossanlassDepartment`; in einem normalen Department leitet der Guard auf `/{departmentId}` um. Routen unter `dept/` sind für beide Typen offen, sofern keine eigenen Rollen-Metas gelten (z. B. Einstellungen).
+
+**Einstieg `/{departmentId}`** (Route `DepartmentEntry`) ist ein echter Einstieg ohne eigene Ansicht: `beforeEnter` wählt die Start-URL — normal → `/dept/dashboard`, Grossanlass → `gaResolveHomePath` (rollenabhängig, Standard `/ga/dashboard`). Guards und Links, die kein bestimmtes Ziel kennen, verwenden diesen Einstieg.
+
+**Department-Wechsel** (`utils/departmentRoute.ts`, aufgerufen vom Benutzermenü in `TopHeader` und den Department-Auswahlen in den Einstellungen):
+- anderer Typ (GA ↔ normal): Dashboard des neuen Departments (`/ga/dashboard` bzw. `/dept/dashboard`);
+- gleicher Typ: der Unterpfad wird übernommen, wenn die Zielroute existiert und keine Objekt-IDs (z. B. `:activityId`) enthält; sonst Dashboard;
+- Query: nur `tab` wird übernommen;
+- Zugriff: das aktive Department wird gesetzt, dann läuft das Ziel durch die Router-Guards. Landet die Navigation nicht auf dem Ziel (Guard hat umgeleitet), wird das Dashboard geöffnet; danach erfolgt ein voller Reload für frischen State. Es gibt keine eigene Rechteprüfung neben den Guards.
+
+**Ungültige oder nicht erlaubte Ziele.** Pfade, die keine Route treffen (auch frühere Pfade ohne `dept/`/`ga/`), zeigen keine Seite. Verweigerte Rollen führen über die Guard-Fallbacks zum Grossanlass-Home bzw. zu `/{departmentId}` / den Einstellungen; ohne Zugriff auf das Department leitet der Guard weg. Rücksprung-Parameter (`redirect`, `next`, `from`) akzeptieren nur interne Pfade (`parseInternalRedirectPath`, `sanitizeProfileFrom`: kein Schema, kein `//`, kein Backslash, keine Steuerzeichen) und lehnen Auth- und Profilpfade ab (Schleifen).
+
+**Rücksprung und OAuth.** Nach Login geht es zu `redirect` (bzw. `next` nach OAuth-MFA) oder in das Home des Departments. Google/MiData starten mit dem internen Rücksprung und kehren auf `/login?oauth=…&provider=…` zurück (`completeExternalOAuthReturn` in `LoginView`). Beim Verknüpfen aus dem Profil parkt `rememberProfileFrom` die Rückkehrseite im Session Storage (die OAuth-URL verliert die Query); der Rückweg landet auf `/profile/identities` mit `profile_security=1`, `carryOAuthReturnParams` erhält den Hinweis über Router-Redirects. Das Profil wird als Seite (`/profile?from=…`) oder als Modal über der aktuellen Seite geöffnet (Details unten); die Seite bleibt der kanonische Einstieg (MFA-Pflicht → `/profile/security`).
+
+**Konvention für neue Routen.** Globale Seite → eigene Route vor `/:departmentId`. Department-Seite → unter `dept/` in den Kindern von `/:departmentId`; Grossanlass-Seite → unter `ga/` mit `requiresGrossanlassDepartment` und passenden Rollen-Metas. Links nie als alten Pfad schreiben: bevorzugt benannte Routen, sonst `/${departmentId}/dept/…` bzw. `/${departmentId}/ga/…`; Sidebar-Links über `getLink('/dept/…')` / `getLink('/ga/…')`. Backend-erzeugte Links (E-Mails, Benachrichtigungen, Media-Verwendungslinks) verwenden dieselben Pfade.
+
+**Keine Legacy-Redirects als Dauerlösung.** Frühere Pfade ohne `dept/`/`ga/` sowie alte GA-interne Aliase (`planung/struktur`, `materialien/*` u. a.) sind entfernt und werden nicht umgeleitet; alte E-Mail- und Benachrichtigungslinks führen bewusst ins Leere (akzeptierter Bruch in der Entwicklungsphase). Einzige Ausnahme: die Auth-Query-Links `/login?register=1` und `/login?forgot=1` (siehe oben). Neue Redirects nur nach ausdrücklicher Freigabe.
+
+**API unabhängig.** Backend-API-Pfade (`/api/…`) folgen nicht der Frontend-URL-Struktur und bleiben unverändert (z. B. `/api/departments/{id}/grossanlass/…`).
 
 **Globales Profil** (`/profile`, kein Department und keine Department-Rolle nötig; nur Anmeldung): eine Seite `ProfileLayout` mit Tabs und eigener URL je Bereich, benannte Routen vor `/:departmentId` (Meta `globalProfile`, der Router-Guard leitet sie nie auf Department- oder Pending-Seiten um).
 

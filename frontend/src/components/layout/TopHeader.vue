@@ -501,7 +501,7 @@ import {
 import { listAcquisitionFollowups } from '@/api/accountingAcquisitionFollowups'
 import { departmentHasAccountingRole } from '@/composables/useCostBookingFollowUp'
 import { useActivityNotificationText } from '@/composables/useActivityNotificationText'
-import { departmentHomePath } from '@/utils/departmentSwitch'
+import { assignPathAfterDepartmentSwitch } from '@/utils/departmentRoute'
 import { routeForInboxActivityNotification } from '@/utils/inboxPackJourneyDeepLink'
 import { appVersionLabel } from '@/config/appVersion'
 import {
@@ -1457,8 +1457,12 @@ async function selectDepartment(departmentId: string) {
   const canLeave = await confirmLeaveIfDirty(t)
   if (!canLeave) return
   showUserDropdown.value = false
+  const oldDepartmentId = (route.params.departmentId as string | undefined) || undefined
   await authStore.setActiveDepartment(departmentId)
-  window.location.assign(departmentHomePath(departmentId))
+  await assignPathAfterDepartmentSwitch(router, route.path, route.query, oldDepartmentId, departmentId, {
+    oldIsGrossanlass: oldDepartmentId ? authStore.isDepartmentGrossanlass(oldDepartmentId) : false,
+    newIsGrossanlass: authStore.isDepartmentGrossanlass(departmentId),
+  })
 }
 
 function switchSupplierCompany() {

@@ -298,7 +298,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import QRCode from 'qrcode'
 import { useAuthStore } from '@/stores/auth'
@@ -365,6 +365,7 @@ function draftFromScreen(screen: DisplayScreenSettings): ScreenDraft {
 }
 
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const toast = useToast()
 const confirm = useConfirm()
@@ -685,7 +686,10 @@ async function onDepartmentChange() {
   await authStore.setActiveDepartment(newDeptId)
   const oldDeptId = route.params.departmentId as string | undefined
   if (oldDeptId && oldDeptId !== newDeptId) {
-    assignPathAfterDepartmentSwitch(route.path, oldDeptId, newDeptId)
+    await assignPathAfterDepartmentSwitch(router, route.path, route.query, oldDeptId, newDeptId, {
+      oldIsGrossanlass: authStore.isDepartmentGrossanlass(oldDeptId),
+      newIsGrossanlass: authStore.isDepartmentGrossanlass(newDeptId),
+    })
     return
   }
   await loadScreens(newDeptId)

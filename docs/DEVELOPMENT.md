@@ -23,7 +23,7 @@ Lokal: `docker compose up` im Repo-Root (Postgres, Backend, Frontend, Nginx). Ho
 | HTTP-Endpunkt | bestehender Controller unter `backend/src/Controller/`, Logik in `backend/src/Service/` |
 | Tabelle / Beziehung | Entity + Doctrine-Migration in `backend/migrations/` |
 | API-Aufruf im Client | `frontend/src/api/<ressource>.ts` |
-| Seite | `frontend/src/views/…` und Route in `frontend/src/router/index.ts` |
+| Seite | `frontend/src/views/…` und Route in `frontend/src/router/index.ts` — Pfadkonvention (`/dept/…`, `/ga/…`, global) in [ARCHITECTURE.md → URL-Struktur](./ARCHITECTURE.md) |
 | Wiederverwendbare UI | `frontend/src/components/`, Konventionen [ui/vuetify-standards.md](./ui/vuetify-standards.md) |
 | Sichtbarer Text | zuerst `frontend/src/locales/de.json` |
 | Department-Rolle | `DepartmentRole`, `MembershipRoleCatalog`, Router-Guards in `useDepartmentMemberRole.ts` |
