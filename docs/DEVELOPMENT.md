@@ -99,6 +99,16 @@ docker exec ematchef-nginx-1 nginx -s reload   # Upstream-IPs neu auflösen, son
 
 `display.ematchef.test` braucht einen Hosts-Eintrag (Windows, Administrator: `127.0.0.1 display.ematchef.test`); das mkcert-Wildcard-Zertifikat deckt die Subdomain ab. Nach Änderung an Vite-/Nginx-Konfiguration Frontend-Container neu starten und Nginx neu laden; wenn der Nginx die Konfiguration eines anderen Worktrees mountet, `scripts/dev-nginx-display.sh` ausführen. Erinnerungen: `php bin/console app:display:expiry-reminders`. Details: [devices/infoscreen.md](./devices/infoscreen.md).
 
+## Lokale API-Startseite und Swagger UI
+
+Nur lokal (Nginx + `API_DOCS_ENABLED=1`); Development und Produktion sind unverändert (dort 404).
+
+- `https://api.ematchef.test/` – API-Startseite (HTML, `?format=json` für JSON), gleiche Implementierung wie `api.ematchef.ch` (`ApiDiscoveryController`).
+- `https://api.ematchef.test/api/doc` – Swagger UI, `/api/doc.json` – OpenAPI 3. Controller: `ApiDocsController`. Die Beschreibung wird aus den Symfony-Routen (`App\Controller`) erzeugt (nur Pfade, Methoden, Pfadparameter; keine Schemas), weil keine API-Platform-Ressourcen existieren. Swagger-UI-Assets kommen aus `api-platform/core`.
+- Voraussetzungen: `127.0.0.1 api.ematchef.test` in der hosts-Datei (Windows und ggf. WSL), HTTPS-Override (`docker-compose.override.https.example.yml` setzt `API_DOCS_ENABLED=1`; im HTTP-Modus `API_DOCS_ENABLED=1` in die Repo-Root-`.env`), danach `docker compose up -d backend nginx`. Das mkcert-Zertifikat deckt `*.ematchef.test` bereits ab.
+- Login: in der App anmelden (`https://app.ematchef.test`). Das HttpOnly-Cookie `BEARER` (Domain `.ematchef.test`) wird von «Try it out» mitgesendet; Rollen und Berechtigungen gelten unverändert. `POST /api/auth/login_check` in Swagger liefert bei aktivem MFA nur eine Challenge; den Login also in der App abschliessen.
+- `/api/docs` (API Platform) bleibt geschützt und ist ohne Ressourcen leer.
+
 ## Tests
 
 | Suite | Ort | CI |
