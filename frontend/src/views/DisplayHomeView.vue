@@ -38,6 +38,7 @@ import { useI18n } from 'vue-i18n'
 import QRCode from 'qrcode'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import { pollDisplayPairing, startDisplayPairing, type DisplayPairingStart } from '@/api/displayPairing'
+import { getDisplayDeviceSession } from '@/api/displayDevice'
 
 const RETRY_AFTER_ERROR_MS = 10_000
 
@@ -81,7 +82,7 @@ async function poll() {
     const result = await pollDisplayPairing(current.request_id, current.poll_secret)
     if (result.status === 'approved') {
       stopped = true
-      await router.replace({ name: 'PublicDepartmentDisplay', params: { publicId: result.public_id } })
+      await router.replace({ name: 'DisplayDevice' })
       return
     }
     if (result.status === 'pending') {
@@ -98,7 +99,14 @@ async function poll() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // Bekanntes Gerät (auch nach Neustart oder bei abgelaufener Freigabe): direkt zur Anzeige, keine neue Kopplung.
+  const device = await getDisplayDeviceSession().catch(() => null)
+  if (device && (device.state === 'active' || device.state === 'expired')) {
+    stopped = true
+    await router.replace({ name: 'DisplayDevice' })
+    return
+  }
   void start()
 })
 

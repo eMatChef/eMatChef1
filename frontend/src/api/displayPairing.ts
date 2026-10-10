@@ -11,7 +11,7 @@ export interface DisplayPairingStart {
 
 export type DisplayPairingPoll =
   | { status: 'pending' | 'expired' | 'revoked' }
-  | { status: 'approved'; public_id: string; screen_name?: string }
+  | { status: 'approved'; device_name?: string }
 
 export interface PairableDisplayScreen {
   id: string
@@ -55,8 +55,9 @@ export async function getDisplayPairingRequest(token: string): Promise<DisplayPa
   return res.data
 }
 
-export async function approveDisplayPairing(token: string, screenId: string): Promise<void> {
+export async function approveDisplayPairing(token: string, screenId: string, deviceName: string): Promise<void> {
   await apiClient.post(`/api/display-pairing/requests/${encodeURIComponent(token)}/approve`, {
     screen_id: screenId,
+    device_name: deviceName,
   })
 }

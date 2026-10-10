@@ -86,7 +86,8 @@ class DepartmentDisplayScreenController extends AbstractController
             return new JsonResponse(['error' => 'token und name sind erforderlich'], 400);
         }
 
-        $outcome = $this->pairingService->createScreenAndApprove($token, $user, $departmentId, $name);
+        $deviceName = is_array($data) ? trim((string) ($data['device_name'] ?? '')) : '';
+        $outcome = $this->pairingService->createScreenAndApprove($token, $user, $departmentId, $name, $deviceName);
         if ($outcome['result'] !== DisplayPairingService::APPROVE_OK) {
             return match ($outcome['result']) {
                 DisplayPairingService::APPROVE_FORBIDDEN => new JsonResponse(['error' => 'Keine Berechtigung'], 403),

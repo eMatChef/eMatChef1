@@ -37,6 +37,15 @@
         :disabled="submitting"
         hide-details
       />
+      <ETextField
+        v-model="deviceName"
+        class="mt-3"
+        :label="t('display.pairDialog.deviceName')"
+        :placeholder="t('display.pairDialog.deviceNamePlaceholder')"
+        maxlength="120"
+        :disabled="submitting"
+        hide-details
+      />
       <p v-if="submitError" class="pair-dialog-error">{{ submitError }}</p>
     </template>
 
@@ -51,7 +60,7 @@
         v-if="step === 'confirm'"
         variant="primary"
         size="small"
-        :disabled="submitting || (!screen && !name.trim())"
+        :disabled="submitting || (!screen && !name.trim()) || !deviceName.trim()"
         :loading="submitting"
         @click="confirm"
       >
@@ -96,6 +105,7 @@ const step = ref<'scan' | 'confirm'>('scan')
 const token = ref('')
 const userCode = ref('')
 const name = ref('')
+const deviceName = ref('')
 const pastedLink = ref('')
 const scanError = ref<string | null>(null)
 const submitError = ref<string | null>(null)
@@ -111,6 +121,7 @@ function reset() {
   token.value = ''
   userCode.value = ''
   name.value = ''
+  deviceName.value = props.screen?.name ?? ''
   pastedLink.value = ''
   scanError.value = null
   submitError.value = null
@@ -120,6 +131,11 @@ function reset() {
 
 watch(open, (isOpen) => {
   if (isOpen) reset()
+})
+
+// Neuer Infoscreen: Gerätename übernimmt den Namen, solange er nicht selbst geändert wurde.
+watch(name, (value, previous) => {
+  if (!props.screen && (deviceName.value === '' || deviceName.value === previous)) deviceName.value = value
 })
 
 function statusOf(err: unknown): number | undefined {
@@ -167,9 +183,9 @@ async function confirm() {
   submitError.value = null
   try {
     if (props.screen) {
-      await approveDisplayPairing(token.value, props.screen.id)
+      await approveDisplayPairing(token.value, props.screen.id, deviceName.value.trim())
     } else {
-      await createAndPairDisplayScreen(props.departmentId, token.value, name.value.trim())
+      await createAndPairDisplayScreen(props.departmentId, token.value, name.value.trim(), deviceName.value.trim())
     }
     emit('paired')
     open.value = false

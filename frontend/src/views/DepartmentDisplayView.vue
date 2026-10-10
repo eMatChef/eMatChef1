@@ -5,10 +5,10 @@
         <EmcLogoMark size="sm" />
         <div>
           <h1 class="display-title">{{ pageHeading }}</h1>
-          <p v-if="!needsPin && displaySubtitle" class="display-subtitle">{{ displaySubtitle }}</p>
+          <p v-if="!needsPin && deviceState !== 'expired' && displaySubtitle" class="display-subtitle">{{ displaySubtitle }}</p>
         </div>
       </div>
-      <div v-if="!needsPin" class="display-header-meta">
+      <div v-if="!needsPin && deviceState !== 'expired'" class="display-header-meta">
         <span v-if="isPreview" class="display-preview-badge">{{ t('display.preview.badge') }}</span>
         <button v-if="isPreview" type="button" class="display-fullscreen-btn" @click="leavePreview">
           {{ t('display.preview.back') }}
@@ -56,12 +56,22 @@
       </form>
     </ECard>
 
+    <ECard v-else-if="deviceState === 'expired'" variant="outlined" class="display-pin-panel">
+      <h2 class="display-pin-title">{{ t('display.expired.title') }}</h2>
+      <p class="display-pin-hint">{{ t('display.expired.text', { name: deviceName }) }}</p>
+      <p class="display-pin-hint muted">{{ t('display.expired.waiting') }}</p>
+    </ECard>
+
     <template v-else>
-      <p v-if="loading" class="display-status muted">{{ t('display.loading') }}</p>
+      <div v-if="offline" class="display-offline" role="status">
+        <strong>{{ t('display.offline.banner') }}</strong>
+        <span v-if="lastUpdateLabel"> · {{ t('display.offline.lastUpdate', { time: lastUpdateLabel }) }}</span>
+      </div>
+      <p v-if="loading && !loaded" class="display-status muted">{{ t('display.loading') }}</p>
       <p v-else-if="loadError" class="display-status error">{{ loadError }}</p>
 
       <div v-else-if="!showActivities && !showWorkshop && !showStatistics" class="display-status muted">
-        {{ t('display.noPanelsEnabled') }}
+        {{ scope === 'grossanlass' ? t('display.gaTemplatePending') : t('display.noPanelsEnabled') }}
       </div>
 
       <section v-if="showStatistics && statistics" class="display-stats">
@@ -170,15 +180,19 @@ import type { DisplayActivityRow, DisplayStatistics, DisplayWorkshopTicketRow } 
 import {
   authenticatePublicDisplay,
   getDisplayPreviewData,
-  getPublicDisplayData,
   getPublicDisplaySession,
+  type PublicDisplayData,
 } from '@/api/displayScreens'
+import { getDisplayDeviceData, getDisplayDeviceSession } from '@/api/displayDevice'
 import { resolveActivityPublicUrl, resolveWorkshopPublicUrl } from '@/utils/publicQrUrl'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
 
 const PIN_CHARSET = /[^23456789ABCDEFGHJKLMNPQRSTUVWXYZ]/g
 
 const REFRESH_MS = 60_000
+const EXPIRED_POLL_MS = 30_000
+/** Wiederverbindung nach Verbindungsverlust: zunehmender Abstand, höchstens 5 Minuten. */
+const RECONNECT_BACKOFF_MS = [15_000, 30_000, 60_000, 120_000, 300_000]
 const PRIORITY_ORDER: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 }
 
 const route = useRoute()
@@ -188,9 +202,17 @@ const { t, te, locale } = useI18n()
 const publicId = computed(() => String(route.params.publicId || '').trim())
 /** Vorschau für Verwalter (User-Login, keine Display-Sitzung): gleiche Engine, andere Datenquelle. */
 const isPreview = computed(() => route.meta.displayPreview === true)
+/** Gerätemodus: Anzeige über das Geräte-Credential (TV nach Kopplung, Neustart, Fernumschaltung). */
+const isDeviceMode = computed(() => route.meta.displayDevice === true)
 const previewDepartmentId = computed(() => String(route.params.departmentId || '').trim())
 const previewScreenId = computed(() => String(route.params.screenId || '').trim())
-const needsPin = ref(!isPreview.value)
+const needsPin = ref(false)
+const deviceState = ref<'active' | 'expired'>('active')
+const deviceName = ref('')
+const offline = ref(false)
+const loaded = ref(false)
+const lastUpdate = ref<Date | null>(null)
+const scope = ref<'department' | 'grossanlass' | undefined>(undefined)
 const pinInput = ref('')
 const pinError = ref<string | null>(null)
 const pinSubmitting = ref(false)
@@ -213,7 +235,8 @@ const clockIso = ref('')
 const isFullscreen = ref(false)
 const qrSize = 96
 
-let refreshTimer: ReturnType<typeof setInterval> | null = null
+let refreshTimer: ReturnType<typeof setTimeout> | null = null
+let failures = 0
 let clockTimer: ReturnType<typeof setInterval> | null = null
 
 const pageHeading = computed(() => {
@@ -386,26 +409,14 @@ async function submitPin() {
   pinSubmitting.value = true
   pinError.value = null
   try {
+    // Die manuelle Anmeldung legt ein eigenes Gerät an (Credential-Cookie, 90 Tage).
     await authenticatePublicDisplay(id, pinInput.value)
-    needsPin.value = false
     pinInput.value = ''
-    await load()
-    startTimers()
+    await router.replace({ name: 'DisplayDevice' })
   } catch {
     pinError.value = t('display.pin.invalid')
   } finally {
     pinSubmitting.value = false
-  }
-}
-
-async function checkSession(): Promise<boolean> {
-  const id = publicId.value
-  if (!id) return false
-  try {
-    const session = await getPublicDisplaySession(id)
-    return session.authenticated === true
-  } catch {
-    return false
   }
 }
 
@@ -418,79 +429,161 @@ function leavePreview() {
   void router.push(back.startsWith('/') && !back.startsWith('//') ? back : `/${previewDepartmentId.value}`)
 }
 
+function onBrowserOffline() {
+  // Verbindung weg: letzte Anzeige bleibt stehen, aber sofort deutlich als veraltet markiert.
+  if (isDeviceMode.value && loaded.value) offline.value = true
+}
+
+function onBrowserOnline() {
+  // Wieder verbunden: Berechtigung/Zuordnung prüfen und frische Daten laden (ein Aufruf erledigt beides).
+  if (isDeviceMode.value) {
+    failures = 0
+    void load()
+  }
+}
+
 function onVisibilityChange() {
   if (isPreview.value && document.visibilityState === 'visible') void load()
 }
 
+const lastUpdateLabel = computed(() =>
+  lastUpdate.value ? lastUpdate.value.toLocaleString(locale.value, { dateStyle: 'short', timeStyle: 'medium' }) : '',
+)
+
+function applyData(data: PublicDisplayData) {
+  activities.value = data.activities
+  workshopTickets.value = data.workshopTickets
+  departmentName.value = data.department_name || ''
+  screenName.value = data.screen_name || ''
+  subtitleText.value = data.subtitle_text ?? null
+  scope.value = data.scope
+  showActivities.value = data.show_activities !== false
+  showWorkshop.value = data.show_workshop !== false
+  showStatistics.value = data.show_statistics === true
+  allowedActivityTypes.value = data.activity_types?.length ? data.activity_types : []
+  allowedActivityStatuses.value = data.activity_statuses?.length ? data.activity_statuses : []
+  allowedWorkshopStatuses.value = data.workshop_statuses?.length ? data.workshop_statuses : []
+  statistics.value = data.statistics ?? null
+}
+
+/** Verwirft alle angezeigten Inhalte (Widerruf, abgelaufene Freigabe): nichts bleibt im Speicher sichtbar. */
+function clearData() {
+  applyData({ activities: [], workshopTickets: [], statistics: null })
+  loaded.value = false
+  lastUpdate.value = null
+}
+
+function scheduleRefresh(ms: number) {
+  if (refreshTimer) clearTimeout(refreshTimer)
+  refreshTimer = setTimeout(() => void load(), ms)
+}
+
+async function loadDevice() {
+  try {
+    const result = await getDisplayDeviceData()
+    if (result.device) deviceName.value = result.device.name
+    if (result.state === 'active' && result.data) {
+      deviceState.value = 'active'
+      applyData(result.data)
+      loaded.value = true
+      lastUpdate.value = new Date()
+      offline.value = false
+      failures = 0
+      loadError.value = null
+      scheduleRefresh(REFRESH_MS)
+      return
+    }
+    failures = 0
+    offline.value = false
+    if (result.state === 'expired') {
+      // Freigabe abgelaufen: Warteseite, regelmässig prüfen, ob administrativ wieder freigegeben wurde.
+      clearData()
+      deviceState.value = 'expired'
+      scheduleRefresh(EXPIRED_POLL_MS)
+      return
+    }
+    // Kein oder widerrufenes Gerät: zurück zur QR-Kopplung.
+    clearData()
+    stopTimers()
+    await router.replace({ name: 'DisplayHome' })
+  } catch {
+    // Verbindungsverlust: zuletzt geladene Anzeige bleibt sichtbar, deutlich als veraltet markiert.
+    offline.value = true
+    scheduleRefresh(RECONNECT_BACKOFF_MS[Math.min(failures, RECONNECT_BACKOFF_MS.length - 1)] ?? 300_000)
+    failures += 1
+  }
+}
+
 async function load() {
-  const id = isPreview.value ? previewScreenId.value : publicId.value
+  if (isDeviceMode.value) {
+    await loadDevice()
+    return
+  }
+
+  const id = previewScreenId.value
   if (!id) {
     loadError.value = t('display.errorNoScreen')
     loading.value = false
     return
   }
 
-  loading.value = true
+  if (!loaded.value) loading.value = true
   loadError.value = null
   try {
-    const data = isPreview.value
-      ? await getDisplayPreviewData(previewDepartmentId.value, id)
-      : await getPublicDisplayData(id)
-    activities.value = data.activities
-    workshopTickets.value = data.workshopTickets
-    departmentName.value = data.department_name || ''
-    screenName.value = data.screen_name || ''
-    subtitleText.value = data.subtitle_text ?? null
-    showActivities.value = data.show_activities !== false
-    showWorkshop.value = data.show_workshop !== false
-    showStatistics.value = data.show_statistics === true
-    allowedActivityTypes.value = data.activity_types?.length ? data.activity_types : []
-    allowedActivityStatuses.value = data.activity_statuses?.length ? data.activity_statuses : []
-    allowedWorkshopStatuses.value = data.workshop_statuses?.length ? data.workshop_statuses : []
-    statistics.value = data.statistics ?? null
+    applyData(await getDisplayPreviewData(previewDepartmentId.value, id))
+    loaded.value = true
+    lastUpdate.value = new Date()
   } catch (err: unknown) {
-    const status = (err as { response?: { status?: number } })?.response?.status
-    if (status === 401) {
-      needsPin.value = true
-      stopTimers()
-      return
-    }
-    console.error('display load failed', err)
+    console.error('display preview load failed', err)
     loadError.value = t('display.errorLoad')
   } finally {
     loading.value = false
   }
+  scheduleRefresh(REFRESH_MS)
 }
 
 async function bootstrap() {
   if (isPreview.value) {
     needsPin.value = false
     await load()
-    startTimers()
+    startClock()
     return
   }
-  const id = publicId.value
-  if (!id) {
-    needsPin.value = true
-    pinError.value = t('display.errorNoScreen')
+  if (isDeviceMode.value) {
+    needsPin.value = false
+    loading.value = true
+    await load()
+    loading.value = false
+    startClock()
     return
   }
 
-  const authenticated = await checkSession()
-  needsPin.value = !authenticated
-  if (authenticated) {
-    await load()
-    startTimers()
+  // Alt-/Lesezeichen-URL /display/{publicId}: vorhandenes Gerät übernehmen, Alt-Sitzung migrieren oder manuell anmelden.
+  const id = publicId.value
+  const device = await getDisplayDeviceSession().catch(() => null)
+  if (device && (device.state === 'active' || device.state === 'expired')) {
+    await router.replace({ name: 'DisplayDevice' })
+    return
   }
+  if (id) {
+    try {
+      const session = await getPublicDisplaySession(id)
+      if (session.authenticated === true) {
+        await router.replace({ name: 'DisplayDevice' })
+        return
+      }
+    } catch {
+      /* manuelle Anmeldung */
+    }
+  }
+  needsPin.value = true
+  if (!id) pinError.value = t('display.errorNoScreen')
 }
 
-function startTimers() {
-  stopTimers()
+function startClock() {
+  if (clockTimer) clearInterval(clockTimer)
   updateClock()
   clockTimer = setInterval(updateClock, 30_000)
-  refreshTimer = setInterval(() => {
-    void load()
-  }, REFRESH_MS)
 }
 
 function stopTimers() {
@@ -499,7 +592,7 @@ function stopTimers() {
     clockTimer = null
   }
   if (refreshTimer) {
-    clearInterval(refreshTimer)
+    clearTimeout(refreshTimer)
     refreshTimer = null
   }
 }
@@ -507,18 +600,22 @@ function stopTimers() {
 onMounted(() => {
   document.addEventListener('fullscreenchange', onFullscreenChange)
   document.addEventListener('visibilitychange', onVisibilityChange)
+  window.addEventListener('offline', onBrowserOffline)
+  window.addEventListener('online', onBrowserOnline)
   void bootstrap()
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', onFullscreenChange)
   document.removeEventListener('visibilitychange', onVisibilityChange)
+  window.removeEventListener('offline', onBrowserOffline)
+  window.removeEventListener('online', onBrowserOnline)
   stopTimers()
 })
 
 watch(publicId, () => {
+  if (isPreview.value || isDeviceMode.value) return
   stopTimers()
-  needsPin.value = !isPreview.value
   pinInput.value = ''
   pinError.value = null
   void bootstrap()
@@ -573,6 +670,18 @@ watch(publicId, () => {
   font-weight: 600;
   color: #334155;
   font-variant-numeric: tabular-nums;
+}
+
+.display-offline {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: 0 0 12px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 1rem;
 }
 
 .display-preview-badge {

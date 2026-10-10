@@ -83,7 +83,7 @@ docker exec ematchef-nginx-1 nginx -s reload   # Upstream-IPs neu auflösen, son
 
 ## Infoscreen-Domain lokal
 
-`display.ematchef.test` braucht einen Hosts-Eintrag (Windows, Administrator: `127.0.0.1 display.ematchef.test`); das mkcert-Wildcard-Zertifikat deckt die Subdomain ab. Nach Änderung an Vite-/Nginx-Konfiguration Frontend-Container neu starten und Nginx neu laden. Details: [devices/infoscreen.md](./devices/infoscreen.md).
+`display.ematchef.test` braucht einen Hosts-Eintrag (Windows, Administrator: `127.0.0.1 display.ematchef.test`); das mkcert-Wildcard-Zertifikat deckt die Subdomain ab. Nach Änderung an Vite-/Nginx-Konfiguration Frontend-Container neu starten und Nginx neu laden; wenn der Nginx die Konfiguration eines anderen Worktrees mountet, `scripts/dev-nginx-display.sh` ausführen. Erinnerungen: `php bin/console app:display:expiry-reminders`. Details: [devices/infoscreen.md](./devices/infoscreen.md).
 
 ## Tests
 

@@ -38,6 +38,9 @@ class DisplayPairingRequest
     #[ORM\Column(name: 'approved_by_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $approvedByUserId = null;
 
+    #[ORM\Column(name: 'device_name', type: 'string', length: 120, nullable: true)]
+    private ?string $deviceName = null;
+
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTimeInterface $createdAt;
 
@@ -135,6 +138,18 @@ class DisplayPairingRequest
     public function setApprovedByUserId(?string $approvedByUserId): self
     {
         $this->approvedByUserId = $approvedByUserId;
+
+        return $this;
+    }
+
+    public function getDeviceName(): ?string
+    {
+        return $this->deviceName;
+    }
+
+    public function setDeviceName(?string $deviceName): self
+    {
+        $this->deviceName = $deviceName;
 
         return $this;
     }

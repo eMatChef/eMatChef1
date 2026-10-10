@@ -86,7 +86,8 @@ async function confirm() {
   submitting.value = true
   submitError.value = null
   try {
-    await approveDisplayPairing(token.value, selectedScreenId.value)
+    const selected = screens.value.find((s) => s.id === selectedScreenId.value)
+    await approveDisplayPairing(token.value, selectedScreenId.value, selected?.name ?? '')
     done.value = true
   } catch (err) {
     const status = statusOf(err)

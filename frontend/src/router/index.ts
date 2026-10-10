@@ -333,6 +333,17 @@ const routes: RouteRecordRaw[] = [
     },
   },
   {
+    // Anzeige eines gekoppelten Geräts (Credential-Cookie): Autostart, Warteseite, Offline-Betrieb.
+    path: '/display/device',
+    name: 'DisplayDevice',
+    component: () => import('@/views/DepartmentDisplayView.vue'),
+    meta: {
+      requiresAuth: false,
+      displayDevice: true,
+      ...routeHead('departmentDisplay', 'departmentDisplay'),
+    },
+  },
+  {
     // Smartphone: QR-Kopplung bestätigen (normale App-Anmeldung). Bewusst nicht unter /display/…,
     // dort gilt der Kiosk-Modus ohne User-Session.
     path: '/connect-display/:token',

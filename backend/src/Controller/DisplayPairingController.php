@@ -75,7 +75,9 @@ class DisplayPairingController extends AbstractController
             return new JsonResponse(['error' => 'screen_id ist erforderlich'], 400);
         }
 
-        return match ($this->pairingService->approve($token, $user, $screenId)) {
+        $deviceName = is_array($data) ? trim((string) ($data['device_name'] ?? '')) : '';
+
+        return match ($this->pairingService->approve($token, $user, $screenId, $deviceName)) {
             DisplayPairingService::APPROVE_OK => new JsonResponse(['approved' => true]),
             DisplayPairingService::APPROVE_FORBIDDEN => new JsonResponse(['error' => 'Keine Berechtigung'], 403),
             DisplayPairingService::APPROVE_NOT_FOUND => new JsonResponse(['error' => 'Screen nicht gefunden'], 404),

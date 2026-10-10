@@ -7,6 +7,7 @@ namespace App\Tests\Service\Display;
 use App\Entity\DepartmentDisplayScreen;
 use App\Entity\DisplayPairingRequest;
 use App\Entity\User;
+use App\Service\Display\DepartmentDisplayDeviceService;
 use App\Service\Display\DepartmentDisplayScreenService;
 use App\Service\Display\DisplayAccessCodeGenerator;
 use App\Service\Display\DisplayPairingService;
@@ -53,6 +54,11 @@ final class DisplayPairingServiceTest extends TestCase
         $polled = $this->service()->poll($request->getId(), $created['poll_secret']);
         self::assertSame('approved', $polled['status']);
         self::assertSame($screen->getId(), $polled['screen']->getId());
+        // Erst bei der Abholung entsteht das Gerät mit eigener Identität und 90 Tagen Freigabe.
+        self::assertMatchesRegularExpression('/^ddv/', $polled['device']->getId());
+        self::assertSame($screen->getName(), $polled['device']->getName());
+        self::assertSame(hash('sha256', $polled['secret']), $polled['device']->getCredentialHash());
+        self::assertGreaterThan(time() + 89 * 86400, $polled['device']->getApprovalExpiresAt()->getTimestamp());
 
         $again = $this->service()->poll($request->getId(), $created['poll_secret']);
         self::assertSame('expired', $again['status']);
@@ -197,7 +203,9 @@ final class DisplayPairingServiceTest extends TestCase
 
     private function service(): DisplayPairingService
     {
-        return new DisplayPairingService($this->em, $this->screenService(), 'https://app.ematchef.test');
+        $screenService = $this->screenService();
+
+        return new DisplayPairingService($this->em, $screenService, new DepartmentDisplayDeviceService($this->em, $screenService, true), 'https://app.ematchef.test');
     }
 
     private function screenService(): DepartmentDisplayScreenService

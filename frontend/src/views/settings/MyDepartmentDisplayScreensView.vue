@@ -3,9 +3,9 @@
     <div class="header">
       <h1>{{ t('settings.displayScreens.title') }}</h1>
       <p class="description">
-        {{ isGrossanlassRoute ? t('settings.displayScreens.descriptionGa') : t('settings.displayScreens.description') }}
+        {{ isGrossanlassDept ? t('settings.displayScreens.descriptionGa') : t('settings.displayScreens.description') }}
       </p>
-      <p v-if="isGrossanlassRoute" class="muted path-hint">
+      <p v-if="isGrossanlassDept" class="muted path-hint">
         <router-link :to="{ name: 'GrossanlassDisplaysDemo', params: { departmentId: String(route.params.departmentId || '') } }">
           {{ t('settings.displayScreens.gaDemoLink') }}
         </router-link>
@@ -76,6 +76,13 @@
             <div class="screen-columns">
               <section class="settings-block settings-block--content">
                 <h4 class="block-title">{{ t('settings.displayScreens.contentSectionTitle') }}</h4>
+                <ETextField
+                  v-model="drafts[screen.id].name"
+                  class="name-field"
+                  :label="t('settings.displayScreens.screenNameLabel')"
+                  maxlength="120"
+                  hide-details
+                />
                 <ETextarea
                   :id="`subtitle-${screen.id}`"
                   v-model="drafts[screen.id].subtitle_text"
@@ -88,6 +95,8 @@
                 />
                 <p class="muted field-hint">{{ t('settings.displayScreens.subtitleHint') }}</p>
 
+                <p v-if="isGrossanlassDept" class="muted field-hint">{{ t('settings.displayScreens.gaContentHint') }}</p>
+                <template v-else>
                 <p class="label label--tight content-label">{{ t('settings.displayScreens.showPanelsLabel') }}</p>
 
                 <details class="settings-accordion">
@@ -159,6 +168,8 @@
                   </div>
                 </details>
 
+                </template>
+
                 <EButton
                   variant="primary"
                   size="small"
@@ -189,11 +200,13 @@
                   </EButton>
                 </div>
                 <p class="muted setup-hint">{{ t('settings.displayScreens.connectHint') }}</p>
-                <div v-if="screen.last_used_at" class="meta-row">
-                  <span class="muted meta-item">
-                    {{ t('settings.displayScreens.lastUsed', { date: formatDate(screen.last_used_at) }) }}
-                  </span>
-                </div>
+                <h4 class="block-title devices-title">{{ t('display.devices.title') }}</h4>
+                <DisplayDeviceList
+                  :department-id="selectedDepartmentId || ''"
+                  :devices="devicesByScreen[screen.id] || []"
+                  :targets="activeScreens.filter((x) => x.id !== screen.id && !x.revoked_at).map((x) => ({ id: x.id, name: x.name }))"
+                  @changed="reloadDevices"
+                />
               </section>
             </div>
 
@@ -213,7 +226,6 @@
           <div v-else class="revoked-line">
             <p class="muted revoked-meta">
               <span class="badge revoked">{{ t('settings.displayScreens.revoked') }}</span>
-              <span class="revoked-url">{{ screen.display_url }}</span>
             </p>
             <EButton
               variant="primary"
@@ -250,29 +262,12 @@
         <p class="muted">{{ t('settings.displayScreens.manualHint') }}</p>
         <p class="label label--tight">{{ t('settings.displayScreens.manualEntryLabel') }}</p>
         <code class="inline-code">{{ kioskEntryUrl }}</code>
-        <ETextField
-          class="mt-3 url-input-field"
-          :model-value="manualScreen.display_url"
-          :label="t('settings.displayScreens.urlLabel')"
-          readonly
-          hide-details
-          @focus="selectInputText"
-        />
-        <div class="url-actions mt-2">
-          <EButton variant="secondary" size="small" @click="copyUrl(manualScreen.display_url)">
-            {{ t('settings.displayScreens.copyUrl') }}
-          </EButton>
-          <EButton variant="secondary" size="small" @click="openDisplayUrl(manualScreen.display_url)">
-            {{ t('settings.displayScreens.openDisplay') }}
-          </EButton>
-        </div>
+        <p class="label label--tight mt-3">{{ t('settings.displayScreens.idLabel') }}</p>
+        <code class="inline-code">{{ manualScreen.public_id }}</code>
         <p v-if="manualScreen.access_code_hint" class="muted mt-3">
           {{ t('settings.displayScreens.codeHint', { hint: manualScreen.access_code_hint }) }}
         </p>
         <p class="muted">{{ t('settings.displayScreens.manualCodeNote') }}</p>
-        <div v-if="screenQrById[manualScreen.id]" class="qr-block modal-qr">
-          <img :src="screenQrById[manualScreen.id]" :alt="t('settings.displayScreens.qrAlt')" />
-        </div>
       </template>
       <template #actions>
         <EButton
@@ -318,33 +313,16 @@
     >
       <p class="muted">{{ t('settings.displayScreens.setupModalHint') }}</p>
 
-      <ETextField
-        class="mt-3 url-input-field"
-        :model-value="revealedSetup?.url ?? ''"
-        :label="t('settings.displayScreens.urlLabel')"
-        readonly
-        hide-details
-        @focus="selectInputText"
-      />
-      <div class="url-actions mt-2">
-        <EButton variant="primary" size="small" :disabled="!revealedSetup" @click="copyUrl(revealedSetup!.url)">
-          {{ t('settings.displayScreens.copyUrl') }}
-        </EButton>
-        <EButton variant="secondary" size="small" :disabled="!revealedSetup" @click="openDisplayUrl(revealedSetup!.url)">
-          {{ t('settings.displayScreens.openDisplay') }}
-        </EButton>
-      </div>
+      <p class="label label--tight">{{ t('settings.displayScreens.manualEntryLabel') }}</p>
+      <code class="inline-code">{{ kioskEntryUrl }}</code>
+      <p v-if="revealedSetup?.publicId" class="label label--tight mt-3">{{ t('settings.displayScreens.idLabel') }}</p>
+      <code v-if="revealedSetup?.publicId" class="inline-code">{{ revealedSetup.publicId }}</code>
 
       <p class="label code-label">{{ t('settings.displayScreens.accessCodeLabel') }}</p>
       <code class="access-code">{{ revealedSetup?.code }}</code>
 
-      <div v-if="setupQrDataUrl" class="qr-block modal-qr">
-        <img :src="setupQrDataUrl" :alt="t('settings.displayScreens.qrAlt')" />
-      </div>
-
       <template #actions>
-        <EButton variant="primary" size="small" @click="copySetupBundle">{{ t('settings.displayScreens.copyAll') }}</EButton>
-        <EButton variant="secondary" size="small" @click="copyCode">{{ t('settings.displayScreens.copyCode') }}</EButton>
+        <EButton variant="primary" size="small" @click="copyCode">{{ t('settings.displayScreens.copyCode') }}</EButton>
         <EButton variant="secondary" size="small" @click="dismissRevealedSetup">{{ t('common.close') }}</EButton>
       </template>
     </EDialog>
@@ -352,16 +330,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import QRCode from 'qrcode'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { copyTextToClipboard } from '@/utils/clipboard'
 import { getDisplayOrigin } from '@/utils/displayHost'
 import DisplayPairDialog from '@/components/display/DisplayPairDialog.vue'
+import DisplayDeviceList from '@/components/display/DisplayDeviceList.vue'
+import { listDisplayDevices, type DisplayDeviceRow } from '@/api/displayDevice'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import { EButton, ECheckbox, EDialog, ETextField, ETextarea } from '@/components/form/base'
@@ -394,6 +373,7 @@ const displayActivityStatuses = DISPLAY_ACTIVITY_STATUSES
 const displayWorkshopStatuses = DISPLAY_WORKSHOP_STATUSES
 
 interface ScreenDraft {
+  name: string
   subtitle_text: string
   show_activities: boolean
   show_workshop: boolean
@@ -405,6 +385,7 @@ interface ScreenDraft {
 
 function draftFromScreen(screen: DisplayScreenSettings): ScreenDraft {
   return {
+    name: screen.name,
     subtitle_text: screen.subtitle_text || '',
     show_activities: screen.show_activities !== false,
     show_workshop: screen.show_workshop !== false,
@@ -426,7 +407,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 const toast = useToast()
 const confirm = useConfirm()
-const { t, locale } = useI18n()
+const { t } = useI18n()
 
 /** Das Department kommt ausschliesslich aus der Route (/{departmentId}/dept/… bzw. /{departmentId}/ga/…). */
 const selectedDepartmentId = computed<string | null>(() => String(route.params.departmentId || '') || null)
@@ -437,9 +418,9 @@ const newScreenName = ref('')
 const rotatingId = ref<string | null>(null)
 const revokingId = ref<string | null>(null)
 const reactivatingId = ref<string | null>(null)
-const revealedSetup = ref<{ url: string; code: string } | null>(null)
-const setupQrDataUrl = ref('')
-const screenQrById = ref<Record<string, string>>({})
+const revealedSetup = ref<{ publicId: string; code: string } | null>(null)
+const devices = ref<DisplayDeviceRow[]>([])
+let devicePoll: ReturnType<typeof setInterval> | null = null
 const expandedIds = ref<Set<string>>(new Set())
 const drafts = ref<Record<string, ScreenDraft>>({})
 const savingSettingsId = ref<string | null>(null)
@@ -473,6 +454,15 @@ const kioskEntryUrl = computed(() => {
 })
 
 const isGrossanlassRoute = computed(() => route.path.includes('/ga/'))
+/** Fachliche Unterscheidung: Grossanlässe haben keine Department-Anzeigebereiche (Vorlagen folgen). */
+const isGrossanlassDept = computed(
+  () => isGrossanlassRoute.value || authStore.isDepartmentGrossanlass(selectedDepartmentId.value),
+)
+const devicesByScreen = computed(() => {
+  const map: Record<string, DisplayDeviceRow[]> = {}
+  for (const d of devices.value) (map[d.screen_id] ??= []).push(d)
+  return map
+})
 
 const userDepartments = computed(() => authStore.departments || [])
 
@@ -483,11 +473,6 @@ const setupDialogOpen = computed({
     if (!open) dismissRevealedSetup()
   },
 })
-
-function selectInputText(event: FocusEvent) {
-  const el = event.target as HTMLInputElement | null
-  el?.select?.()
-}
 
 /** Vorschau im neuen Tab: gleiche Anzeige-Engine, Daten über die normale User-Berechtigung. */
 function openPreview(screen: DisplayScreenSettings) {
@@ -512,6 +497,8 @@ function openPairExisting(screen: DisplayScreenSettings) {
 async function onPaired() {
   if (selectedDepartmentId.value) await loadScreens(selectedDepartmentId.value)
   toast.success(t('settings.displayScreens.toastPaired'))
+  // Das Gerät entsteht erst, wenn der Fernseher die Freigabe abholt (Polling alle 2 s): danach nachladen.
+  setTimeout(() => void reloadDevices(), 4000)
 }
 
 async function deletePermanently() {
@@ -531,10 +518,6 @@ async function deletePermanently() {
   }
 }
 
-function openDisplayUrl(url: string) {
-  if (!url) return
-  window.open(url, '_blank', 'noopener,noreferrer')
-}
 const currentRole = computed(() => {
   if (!selectedDepartmentId.value) return 'user'
   const dept = userDepartments.value.find((d) => d.department_id === selectedDepartmentId.value)
@@ -580,26 +563,31 @@ async function saveSettings(screen: DisplayScreenSettings) {
   if (!selectedDepartmentId.value || screen.revoked_at) return
   const draft = drafts.value[screen.id]
   if (!draft) return
-  if (!draft.show_activities && !draft.show_workshop && !draft.show_statistics) {
+  if (!draft.name.trim()) return
+  if (!isGrossanlassDept.value && !draft.show_activities && !draft.show_workshop && !draft.show_statistics) {
     toast.error(t('settings.displayScreens.errorNoPanel'))
     return
   }
-  if (draft.show_activities && listFromRecord(DISPLAY_ACTIVITY_TYPES, draft.activity_types).length === 0) {
+  if (!isGrossanlassDept.value && draft.show_activities && listFromRecord(DISPLAY_ACTIVITY_TYPES, draft.activity_types).length === 0) {
     toast.error(t('settings.displayScreens.errorNoActivityType'))
     return
   }
-  if (draft.show_activities && listFromRecord(DISPLAY_ACTIVITY_STATUSES, draft.activity_statuses).length === 0) {
+  if (!isGrossanlassDept.value && draft.show_activities && listFromRecord(DISPLAY_ACTIVITY_STATUSES, draft.activity_statuses).length === 0) {
     toast.error(t('settings.displayScreens.errorNoActivityStatus'))
     return
   }
-  if (draft.show_workshop && listFromRecord(DISPLAY_WORKSHOP_STATUSES, draft.workshop_statuses).length === 0) {
+  if (!isGrossanlassDept.value && draft.show_workshop && listFromRecord(DISPLAY_WORKSHOP_STATUSES, draft.workshop_statuses).length === 0) {
     toast.error(t('settings.displayScreens.errorNoWorkshopStatus'))
     return
   }
 
   savingSettingsId.value = screen.id
   try {
-    const updated = await updateDisplayScreenSettings(selectedDepartmentId.value, screen.id, {
+    const updated = await updateDisplayScreenSettings(selectedDepartmentId.value, screen.id, isGrossanlassDept.value ? {
+      name: draft.name.trim(),
+      subtitle_text: draft.subtitle_text.trim() || null,
+    } : {
+      name: draft.name.trim(),
       subtitle_text: draft.subtitle_text.trim() || null,
       show_activities: draft.show_activities,
       show_workshop: draft.show_workshop,
@@ -619,56 +607,36 @@ async function saveSettings(screen: DisplayScreenSettings) {
   }
 }
 
-async function buildQrDataUrl(url: string): Promise<string> {
-  const payload = url.trim()
-  if (!payload) return ''
-  return QRCode.toDataURL(payload, { width: 128, margin: 1 })
-}
-
-async function refreshScreenQrs(list: DisplayScreenSettings[]) {
-  const next: Record<string, string> = {}
-  await Promise.all(
-    list
-      .filter((s) => !s.revoked_at && s.display_url)
-      .map(async (s) => {
-        next[s.id] = await buildQrDataUrl(s.display_url)
-      }),
-  )
-  screenQrById.value = next
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  const tag = String(locale.value ?? '').startsWith('de') ? 'de-CH' : 'en-CH'
-  return d.toLocaleString(tag, { dateStyle: 'medium', timeStyle: 'short' })
-}
-
-async function showRevealedSetup(url: string, code: string) {
-  revealedSetup.value = { url, code }
-  setupQrDataUrl.value = await buildQrDataUrl(url)
+function showRevealedSetup(publicId: string, code: string) {
+  revealedSetup.value = { publicId, code }
 }
 
 function dismissRevealedSetup() {
   revealedSetup.value = null
-  setupQrDataUrl.value = ''
+}
+
+async function reloadDevices() {
+  if (!selectedDepartmentId.value || !canManage.value) return
+  try {
+    devices.value = await listDisplayDevices(selectedDepartmentId.value)
+  } catch {
+    devices.value = []
+  }
 }
 
 async function loadScreens(deptId: string) {
   if (!canManage.value) {
     screens.value = []
-    screenQrById.value = {}
     return
   }
   loading.value = true
   try {
     screens.value = await listDisplayScreens(deptId)
+    await reloadDevices()
     initDraftsFromScreens(screens.value)
     syncExpandedFromScreens(screens.value)
-    await refreshScreenQrs(screens.value)
   } catch {
     screens.value = []
-    screenQrById.value = {}
     toast.error(t('settings.displayScreens.toastLoadError'))
   } finally {
     loading.value = false
@@ -684,10 +652,7 @@ async function createScreen() {
     initDraftsFromScreens(screens.value)
     syncExpandedFromScreens(screens.value)
     newScreenName.value = ''
-    if (created.access_code && created.display_url) {
-      await showRevealedSetup(created.display_url, created.access_code)
-    }
-    await refreshScreenQrs(screens.value)
+    if (created.access_code) showRevealedSetup(created.public_id, created.access_code)
     toast.success(t('settings.displayScreens.toastCreated'))
   } catch (err: unknown) {
     const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
@@ -712,10 +677,7 @@ async function rotateCode(screen: DisplayScreenSettings) {
   try {
     const updated = await rotateDisplayScreenCode(selectedDepartmentId.value, screen.id)
     screens.value = screens.value.map((s) => (s.id === screen.id ? updated : s))
-    if (updated.access_code && updated.display_url) {
-      await showRevealedSetup(updated.display_url, updated.access_code)
-    }
-    await refreshScreenQrs(screens.value)
+    if (updated.access_code) showRevealedSetup(updated.public_id, updated.access_code)
     toast.success(t('settings.displayScreens.toastRotated'))
   } catch {
     toast.error(t('settings.displayScreens.toastRotateError'))
@@ -739,7 +701,6 @@ async function revokeScreen(screen: DisplayScreenSettings) {
   try {
     const updated = await revokeDisplayScreen(selectedDepartmentId.value, screen.id)
     screens.value = screens.value.map((s) => (s.id === screen.id ? updated : s))
-    await refreshScreenQrs(screens.value)
     toast.success(t('settings.displayScreens.toastRevoked'))
   } catch {
     toast.error(t('settings.displayScreens.toastRevokeError'))
@@ -765,22 +726,13 @@ async function reactivateScreen(screen: DisplayScreenSettings) {
     screens.value = screens.value.map((s) => (s.id === screen.id ? updated : s))
     initDraftsFromScreens(screens.value)
     syncExpandedFromScreens(screens.value)
-    if (updated.access_code && updated.display_url) {
-      await showRevealedSetup(updated.display_url, updated.access_code)
-    }
-    await refreshScreenQrs(screens.value)
+    if (updated.access_code) showRevealedSetup(updated.public_id, updated.access_code)
     toast.success(t('settings.displayScreens.toastReactivated'))
   } catch {
     toast.error(t('settings.displayScreens.toastReactivateError'))
   } finally {
     reactivatingId.value = null
   }
-}
-
-async function copyUrl(url: string) {
-  const ok = await copyTextToClipboard(url)
-  if (ok) toast.success(t('settings.displayScreens.toastCopiedUrl'))
-  else toast.error(t('settings.addressModal.clipboardDenied'))
 }
 
 async function copyCode() {
@@ -790,16 +742,14 @@ async function copyCode() {
   else toast.error(t('settings.addressModal.clipboardDenied'))
 }
 
-async function copySetupBundle() {
-  if (!revealedSetup.value) return
-  const text = `${t('settings.displayScreens.urlLabel')}: ${revealedSetup.value.url}\n${t('settings.displayScreens.accessCodeLabel')}: ${revealedSetup.value.code}`
-  const ok = await copyTextToClipboard(text)
-  if (ok) toast.success(t('settings.displayScreens.toastCopiedAll'))
-  else toast.error(t('settings.addressModal.clipboardDenied'))
-}
-
 onMounted(async () => {
   if (selectedDepartmentId.value) await loadScreens(selectedDepartmentId.value)
+  // Online-Status der Geräte laufend aktualisieren.
+  devicePoll = setInterval(() => void reloadDevices(), 30_000)
+})
+
+onBeforeUnmount(() => {
+  if (devicePoll) clearInterval(devicePoll)
 })
 
 watch(selectedDepartmentId, async (deptId) => {
@@ -808,6 +758,9 @@ watch(selectedDepartmentId, async (deptId) => {
 </script>
 
 <style scoped>
+.devices-title {
+  margin-top: 16px;
+}
 .create-card .muted {
   font-size: 14px;
   margin: 4px 0 10px;

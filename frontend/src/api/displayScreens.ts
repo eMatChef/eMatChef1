@@ -144,11 +144,11 @@ export async function authenticatePublicDisplay(
   return res.data
 }
 
-type PublicDisplayDataResponse = PublicDisplayData & {
+export type PublicDisplayDataResponse = PublicDisplayData & {
   workshop_tickets?: PublicDisplayData['workshopTickets']
 }
 
-function mapDisplayPayload(data: PublicDisplayDataResponse): PublicDisplayData {
+export function mapDisplayPayload(data: PublicDisplayDataResponse): PublicDisplayData {
   return {
     scope: data.scope,
     activities: data.activities || [],
@@ -164,14 +164,6 @@ function mapDisplayPayload(data: PublicDisplayDataResponse): PublicDisplayData {
     show_statistics: data.show_statistics === true,
     statistics: data.statistics ?? null,
   }
-}
-
-export async function getPublicDisplayData(publicId: string): Promise<PublicDisplayData> {
-  const res = await apiClient.get<PublicDisplayDataResponse>(
-    `/api/public/display/${encodeURIComponent(publicId)}/data`,
-    { withCredentials: true },
-  )
-  return mapDisplayPayload(res.data)
 }
 
 /** Vorschau für Verwalter: gleicher Payload wie der echte Infoscreen, über die normale User-Anmeldung. */
@@ -190,10 +182,11 @@ export async function createAndPairDisplayScreen(
   departmentId: string,
   token: string,
   name: string,
+  deviceName: string,
 ): Promise<DisplayScreenSettings> {
   const res = await apiClient.post<DisplayScreenSettings>(
     `/api/departments/${encodeURIComponent(departmentId)}/display-screens/pairing`,
-    { token, name },
+    { token, name, device_name: deviceName },
   )
   return res.data
 }

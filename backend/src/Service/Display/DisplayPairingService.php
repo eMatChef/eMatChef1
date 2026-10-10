@@ -2,6 +2,7 @@
 
 namespace App\Service\Display;
 
+use App\Entity\DepartmentDisplayDevice;
 use App\Entity\DepartmentDisplayScreen;
 use App\Entity\DisplayPairingRequest;
 use App\Entity\User;
@@ -38,6 +39,7 @@ class DisplayPairingService
     public function __construct(
         private EntityManagerInterface $entityManager,
         private DepartmentDisplayScreenService $screenService,
+        private DepartmentDisplayDeviceService $deviceService,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $appFrontendUrl,
     ) {
     }
@@ -92,7 +94,7 @@ class DisplayPairingService
      *
      * @return self::APPROVE_*
      */
-    public function approve(string $token, User $user, string $screenId): string
+    public function approve(string $token, User $user, string $screenId, string $deviceName = ''): string
     {
         $request = $this->findOpenByToken($token);
         if ($request === null) {
@@ -114,6 +116,7 @@ class DisplayPairingService
             ->set('r.screenId', ':screenId')
             ->set('r.approvedByUserId', ':userId')
             ->set('r.approvedAt', ':now')
+            ->set('r.deviceName', ':deviceName')
             ->where('r.id = :id')
             ->andWhere('r.status = :pending')
             ->andWhere('r.expiresAt > :now')
@@ -121,6 +124,7 @@ class DisplayPairingService
             ->setParameter('pending', DisplayPairingRequest::STATUS_PENDING)
             ->setParameter('screenId', $screen->getId())
             ->setParameter('userId', $user->getId())
+            ->setParameter('deviceName', trim($deviceName) !== '' ? mb_substr(trim($deviceName), 0, 120) : null)
             ->setParameter('now', $now)
             ->setParameter('id', $request->getId())
             ->getQuery()
@@ -135,7 +139,7 @@ class DisplayPairingService
      *
      * @return array{result: string, screen?: DepartmentDisplayScreen}
      */
-    public function createScreenAndApprove(string $token, User $user, string $departmentId, string $name): array
+    public function createScreenAndApprove(string $token, User $user, string $departmentId, string $name, string $deviceName = ''): array
     {
         if ($this->findOpenByToken($token) === null) {
             return ['result' => self::APPROVE_GONE];
@@ -148,7 +152,7 @@ class DisplayPairingService
         $connection->beginTransaction();
         try {
             $screen = $this->screenService->create($departmentId, $name, $user)['screen'];
-            $result = $this->approve($token, $user, $screen->getId());
+            $result = $this->approve($token, $user, $screen->getId(), $deviceName);
             if ($result !== self::APPROVE_OK) {
                 $screenId = $screen->getId();
                 $connection->rollBack();
@@ -173,7 +177,7 @@ class DisplayPairingService
     /**
      * Abfrage durch den Fernseher. Bei Freigabe wird die Anfrage atomar verbraucht und der Screen geliefert.
      *
-     * @return array{status: string, screen?: DepartmentDisplayScreen, expires_at?: \DateTimeInterface}|null null = unbekannt oder falsches Secret
+     * @return array{status: string, screen?: DepartmentDisplayScreen, device?: DepartmentDisplayDevice, secret?: string, expires_at?: \DateTimeInterface}|null null = unbekannt oder falsches Secret
      */
     public function poll(string $requestId, string $pollSecret): ?array
     {
@@ -216,8 +220,15 @@ class DisplayPairingService
         }
 
         $this->screenService->touchLastUsed($screen);
+        // Erst jetzt entsteht das Gerät (eigene Identität, 90 Tage Freigabe); das Credential geht nur an den TV.
+        $created = $this->deviceService->create(
+            $screen,
+            $request->getDeviceName() ?: $screen->getName(),
+            DepartmentDisplayDevice::VIA_PAIRING,
+            $request->getApprovedByUserId(),
+        );
 
-        return ['status' => self::POLL_APPROVED, 'screen' => $screen];
+        return ['status' => self::POLL_APPROVED, 'screen' => $screen, 'device' => $created['device'], 'secret' => $created['secret']];
     }
 
     private function purgeOld(): void

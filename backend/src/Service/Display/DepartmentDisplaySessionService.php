@@ -25,6 +25,7 @@ final class DepartmentDisplaySessionService
     public function __construct(
         #[Autowire('%env(APP_SECRET)%')] private string $appSecret,
         #[Autowire('%env(bool:AUTH_COOKIE_SECURE)%')] private bool $cookieSecure,
+        #[Autowire('%env(default::AUTH_COOKIE_DOMAIN)%')] private ?string $legacyCookieDomain = null,
     ) {
     }
 
@@ -57,6 +58,19 @@ final class DepartmentDisplaySessionService
             ->withSameSite(Cookie::SAMESITE_LAX);
     }
 
+    /** Räumt nach der Migration auf ein Gerät das domainweite Alt-Cookie ab (sonst könnte es ein widerrufenes Gerät neu erzeugen). */
+    public function createLegacyClearCookie(): Cookie
+    {
+        return Cookie::create(self::LEGACY_COOKIE_NAME)
+            ->withValue('')
+            ->withExpires(new \DateTimeImmutable('-1 day'))
+            ->withPath('/')
+            ->withSecure($this->cookieSecure)
+            ->withHttpOnly(true)
+            ->withSameSite(Cookie::SAMESITE_LAX)
+            ->withDomain($this->legacyCookieDomain !== null && $this->legacyCookieDomain !== '' ? $this->legacyCookieDomain : null);
+    }
+
     public static function cookieName(string $publicId): string
     {
         return self::COOKIE_PREFIX . strtolower($publicId);
@@ -68,7 +82,7 @@ final class DepartmentDisplaySessionService
     }
 
     /**
-     * @return array{screen: DepartmentDisplayScreen}|null
+     * @return array{screen: DepartmentDisplayScreen, exp: int}|null
      */
     public function resolveScreenFromRequest(
         Request $request,
@@ -105,7 +119,7 @@ final class DepartmentDisplaySessionService
             return null;
         }
 
-        return ['screen' => $screen];
+        return ['screen' => $screen, 'exp' => (int) $payload['exp']];
     }
 
     /**

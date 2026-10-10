@@ -144,16 +144,22 @@ final class DepartmentDisplayScreenService
 
         $accessCode = $this->accessCodeGenerator->generate(8);
         $screen = new DepartmentDisplayScreen();
-        $screen->setId($this->generateUnusedId('dsp', 'id'));
+        $screen->setId($this->generateUnusedId(DepartmentDisplayScreen::class, 'dsp', 'id'));
         $screen->setDepartmentId($departmentId);
         $screen->setName($name);
-        $screen->setPublicId($this->generateUnusedId('dsi', 'publicId'));
+        $screen->setPublicId($this->generateUnusedId(DepartmentDisplayScreen::class, 'dsi', 'publicId'));
         $screen->setAccessCodeHash($this->hashAccessCode($accessCode));
         $screen->setAccessCodeHint(substr($accessCode, -2));
         $screen->setCreatedByUserId($createdBy?->getId());
         $screen->setActivityTypes(self::DISPLAY_ACTIVITY_TYPES);
         $screen->setActivityStatuses(self::DEFAULT_DISPLAY_ACTIVITY_STATUSES);
         $screen->setWorkshopStatuses(self::DEFAULT_DISPLAY_WORKSHOP_STATUSES);
+        if ($department->isGrossanlass()) {
+            // Grossanlass: keine Department-Anzeigebereiche; Inhalte folgen später über GA-Vorlagen.
+            $screen->setShowActivities(false);
+            $screen->setShowWorkshop(false);
+            $screen->setShowStatistics(false);
+        }
         $screen->setUpdatedAt(new \DateTime());
 
         $this->entityManager->persist($screen);
@@ -177,6 +183,15 @@ final class DepartmentDisplayScreenService
     {
         if ($screen->isRevoked()) {
             throw new \InvalidArgumentException('Screen ist widerrufen.');
+        }
+
+        $department = $this->entityManager->getRepository(Department::class)->find($screen->getDepartmentId());
+        if ($department?->isGrossanlass()) {
+            foreach (['show_activities', 'show_workshop', 'show_statistics', 'activity_types', 'activity_statuses', 'workshop_statuses'] as $departmentOnly) {
+                if (\array_key_exists($departmentOnly, $data)) {
+                    throw new \InvalidArgumentException('Für Grossanlässe gibt es keine Department-Anzeigebereiche.');
+                }
+            }
         }
 
         if (\array_key_exists('name', $data)) {
@@ -220,7 +235,8 @@ final class DepartmentDisplayScreenService
             ? $this->normalizeWorkshopStatuses($data['workshop_statuses'])
             : $this->normalizeWorkshopStatuses($screen->getWorkshopStatuses());
 
-        if (!$showActivities && !$showWorkshop && !$showStatistics) {
+        $isGrossanlass = $department?->isGrossanlass() === true;
+        if (!$isGrossanlass && !$showActivities && !$showWorkshop && !$showStatistics) {
             throw new \InvalidArgumentException('Mindestens ein Bereich (Anlässe, Werkstatt oder Statistik) muss aktiv sein.');
         }
 
@@ -251,11 +267,11 @@ final class DepartmentDisplayScreenService
     /**
      * Neue ID, die weder vergeben ist noch je vergeben war (gelöschte Screens hinterlassen einen Eintrag in display_deleted_id).
      */
-    private function generateUnusedId(string $prefix, string $field): string
+    public function generateUnusedId(string $entityClass, string $prefix, string $field): string
     {
         $connection = $this->entityManager->getConnection();
         for ($attempt = 0; $attempt < 10; $attempt++) {
-            $id = IdGenerator::generate12UniqueWithPrefix($this->entityManager, DepartmentDisplayScreen::class, $prefix, $field);
+            $id = IdGenerator::generate12UniqueWithPrefix($this->entityManager, $entityClass, $prefix, $field);
             if ($connection->fetchOne('SELECT 1 FROM display_deleted_id WHERE id = ?', [$id]) === false) {
                 return $id;
             }
@@ -285,12 +301,36 @@ final class DepartmentDisplayScreenService
                 );
             }
             $connection->executeStatement('DELETE FROM display_pairing_request WHERE screen_id = ?', [$screen->getId()]);
+            // Alle Geräteberechtigungen des Screens erlöschen; auch die Geräte-IDs bleiben gesperrt.
+            $connection->executeStatement(
+                "INSERT INTO display_deleted_id (id, kind, deleted_at, deleted_by_user_id) SELECT id, 'device', ?, ? FROM department_display_device WHERE screen_id = ? ON CONFLICT (id) DO NOTHING",
+                [$now, $deletedBy?->getId(), $screen->getId()],
+            );
+            $connection->executeStatement('DELETE FROM department_display_device WHERE screen_id = ?', [$screen->getId()]);
             $this->entityManager->remove($screen);
             $this->entityManager->flush();
             $connection->commit();
         } catch (\Throwable $e) {
             $connection->rollBack();
             throw $e;
+        }
+    }
+
+    /**
+     * @param list<string>|null $onlyVia null = alle Geräte
+     */
+    private function revokeDevices(string $screenId, ?array $onlyVia): void
+    {
+        $now = (new \DateTime())->format('Y-m-d H:i:s');
+        $connection = $this->entityManager->getConnection();
+        if ($onlyVia === null) {
+            $connection->executeStatement('UPDATE department_display_device SET revoked_at = ?, updated_at = ? WHERE screen_id = ? AND revoked_at IS NULL', [$now, $now, $screenId]);
+        } else {
+            $connection->executeStatement(
+                'UPDATE department_display_device SET revoked_at = ?, updated_at = ? WHERE screen_id = ? AND revoked_at IS NULL AND created_via IN (?)',
+                [$now, $now, $screenId, $onlyVia],
+                [\Doctrine\DBAL\ParameterType::STRING, \Doctrine\DBAL\ParameterType::STRING, \Doctrine\DBAL\ParameterType::STRING, \Doctrine\DBAL\ArrayParameterType::STRING],
+            );
         }
     }
 
@@ -357,6 +397,8 @@ final class DepartmentDisplayScreenService
         $screen->setUpdatedAt(new \DateTime());
 
         $this->entityManager->flush();
+        // Geräte, die aus dem Zugangscode entstanden sind (manuell/migriert), verlieren ihre Freigabe; gekoppelte bleiben.
+        $this->revokeDevices($screen->getId(), ['manual', 'migrated']);
 
         return ['screen' => $screen, 'access_code' => $accessCode];
     }
@@ -370,6 +412,8 @@ final class DepartmentDisplayScreenService
         $screen->setRevokedAt(new \DateTime());
         $screen->setUpdatedAt(new \DateTime());
         $this->entityManager->flush();
+        // Alle Geräte effektiv sperren; nach Reaktivierung ist eine neue Kopplung nötig.
+        $this->revokeDevices($screen->getId(), null);
     }
 
     /**

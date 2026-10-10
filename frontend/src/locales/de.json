@@ -458,6 +458,48 @@
     "language": "Sprache"
   },
   "display": {
+    "devices": {
+      "title": "Verbundene Geräte",
+      "none": "Noch kein Gerät verbunden.",
+      "online": "Online",
+      "offline": "Offline",
+      "state": { "active": "Freigegeben", "expired": "Freigabe abgelaufen", "revoked": "Widerrufen" },
+      "validUntil": "Freigabe bis {date} (noch {days} Tage)",
+      "expiredAt": "Abgelaufen am {date}",
+      "revokedAt": "Widerrufen am {date}",
+      "lastContact": "Letzter Kontakt: {date}",
+      "neverContacted": "Noch kein Kontakt",
+      "via": { "manual": "Manuell angemeldet", "migrated": "Aus früherer Anmeldung übernommen", "pairing": "Per QR gekoppelt" },
+      "rename": "Umbenennen",
+      "extend": "Freigabe verlängern",
+      "reapprove": "Wieder freigeben",
+      "reassign": "Anderem Infoscreen zuweisen",
+      "reassignHint": "Das Gerät zeigt danach den gewählten Infoscreen dieses Departments, ohne neue Kopplung.",
+      "reassignTarget": "Infoscreen",
+      "revoke": "Widerrufen",
+      "delete": "Endgültig löschen",
+      "revokedHint": "Neue QR-Kopplung nötig.",
+      "confirmRevokeTitle": "Gerät widerrufen",
+      "confirmRevokeMessage": "«{name}» zeigt nichts mehr an, sobald es den Server erreicht. Zum erneuten Verbinden ist eine neue QR-Kopplung nötig.",
+      "confirmDeleteTitle": "Gerät endgültig löschen",
+      "confirmDeleteMessage": "«{name}» wird endgültig gelöscht. Die Geräte-ID wird nie wieder vergeben.",
+      "toastRenamed": "Gerät umbenannt.",
+      "toastExtended": "Freigabe um 90 Tage verlängert.",
+      "toastReassigned": "Gerät zugewiesen.",
+      "toastRevoked": "Gerät widerrufen.",
+      "toastDeleted": "Gerät gelöscht.",
+      "error": "Aktion fehlgeschlagen."
+    },
+    "offline": {
+      "banner": "Offline – Daten möglicherweise veraltet",
+      "lastUpdate": "Letzte Aktualisierung: {time}"
+    },
+    "expired": {
+      "title": "Freigabe abgelaufen",
+      "text": "Die Freigabe dieses Geräts «{name}» ist abgelaufen.",
+      "waiting": "Das Gerät wartet auf die Wiederfreigabe durch die Verantwortlichen und startet danach automatisch."
+    },
+    "gaTemplatePending": "Für diesen Grossanlass ist noch keine Anzeigevorlage veröffentlicht.",
     "pairDialog": {
       "titleNew": "Infoscreen hinzufügen",
       "titleExisting": "Bildschirm verbinden",
@@ -472,6 +514,8 @@
       "verify": "Prüfe, dass dieser Code auf dem Fernseher erscheint:",
       "connectExisting": "Der Fernseher wird mit «{name}» verbunden.",
       "rescan": "Erneut scannen",
+      "deviceName": "Gerätename",
+      "deviceNamePlaceholder": "z. B. Fernseher Eingang",
       "confirm": "Verbinden"
     },
     "home": {
@@ -5791,6 +5835,9 @@
       "pathHint": "Erreichbar über: Sidebar → Konfiguration → Infoscreens (diese Seite).",
       "kioskEntryHint": "Neuen Bildschirm verbinden: display-Adresse am Fernseher öffnen und den QR-Code mit dem Handy scannen. Manuelle Eingabe (ID und Code):",
       "previewOpen": "Vorschau öffnen",
+      "screenNameLabel": "Name des Infoscreens",
+      "gaContentHint": "Für Grossanlässe gibt es keine Department-Anzeigebereiche. Die Anzeigeinhalte folgen über Vorlagen; bis dahin lassen sich Name und Untertitel ändern.",
+      "idLabel": "Infoscreen-ID",
       "add": "Infoscreen hinzufügen",
       "addHint": "Auf dem Fernseher die Display-Adresse öffnen, dann hier den angezeigten QR-Code scannen. Name vergeben und bestätigen, der Bildschirm startet automatisch.",
       "createWithoutScanner": "Ohne Scanner anlegen (manueller Zugang)",

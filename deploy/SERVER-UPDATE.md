@@ -724,6 +724,16 @@ Log: `backend/var/log/media_retention.log` (im Container, persistent über Volum
 
 ---
 
+## Cron: Infoscreen-Freigabe-Erinnerungen
+
+`app:display:expiry-reminders` erinnert Verantwortliche 14 und 3 Tage vor Ablauf der 90-Tage-Freigabe eines Anzeigegeräts (Inbox und E-Mail, keine Duplikate). Täglich ausführen (es gibt keinen internen Scheduler):
+
+```cron
+20 6 * * * cd /opt/ematchef/prod && docker compose exec -T backend php bin/console app:display:expiry-reminders >> /var/log/ematchef-display-reminders.log 2>&1
+```
+
+Pfad und Compose-Aufruf wie beim Medien-Retention-Cron an die jeweilige Umgebung anpassen.
+
 ## Cron: Sicherheitsprotokoll (IP/User-Agent nach 90 Tagen entfernen)
 
 `audit_event` ist die zentrale Audit-Tabelle (Material, Departments, Grossanlass, Sicherheit). Ereignisse werden **nie** nach Zeit gelöscht. Der Command leert nur `ip_address` und `user_agent` der Sicherheitsereignisse (Allowlist in `SecurityActivityService`), die älter als 90 Tage sind (`SecurityActivityService::CONTEXT_RETENTION_DAYS`).

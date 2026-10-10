@@ -131,7 +131,7 @@ Lokal über Nginx und `*.ematchef.test` (`APP_FRONTEND_URL`, `APP_PUBLIC_QR_URL`
 
 ## Infoscreens
 
-Zentrales Modul für alle Departments und Grossanlässe auf `DepartmentDisplayScreen` (ein Grossanlass ist ein Department; keine GA-eigenen Entities oder Sitzungen). Eine Verwaltungskomponente für `/{departmentId}/dept/settings/my-department/display-screens` und `/{departmentId}/ga/displays`, eine Anzeige-Engine (`DepartmentDisplayView`) für Kiosk und Vorschau. Anzeige auf `display.ematchef.ch` per QR-Kopplung über das Smartphone, Display-Sitzung 90 Tage, hostgebundenes Cookie pro Screen. Details, Sicherheitsmodell und GA-Erweiterung: [devices/infoscreen.md](./devices/infoscreen.md).
+Zentrales Modul für alle Departments und Grossanlässe auf `DepartmentDisplayScreen` (ein Grossanlass ist ein Department; keine GA-eigenen Entities oder Sitzungen). Eine Verwaltungskomponente für `/{departmentId}/dept/settings/my-department/display-screens` und `/{departmentId}/ga/displays`, eine Anzeige-Engine (`DepartmentDisplayView`) für Kiosk und Vorschau. Anzeige auf `display.ematchef.ch` per QR-Kopplung (vorhandener Scanner in der Verwaltung oder Smartphone-Kamera). Jedes Anzeigegerät ist eine eigene Entität (`DepartmentDisplayDevice`) mit gehashtem Credential im hostgebundenen Cookie und individueller 90-Tage-Freigabe, die Verwalter fernverlängern; Autostart, Offline-Betrieb und Ablauf-Erinnerungen inklusive. Details, Sicherheitsmodell und GA-Erweiterung: [devices/infoscreen.md](./devices/infoscreen.md).
 
 ## Externe Dienste (im Code/Config belegt)
 

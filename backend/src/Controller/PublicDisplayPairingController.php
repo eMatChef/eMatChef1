@@ -2,7 +2,7 @@
 
 namespace App\Controller;
 
-use App\Service\Display\DepartmentDisplaySessionService;
+use App\Service\Display\DepartmentDisplayDeviceService;
 use App\Service\Display\DisplayPairingService;
 use App\Service\Display\DisplayRateLimiter;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -23,7 +23,7 @@ class PublicDisplayPairingController extends AbstractController
 
     public function __construct(
         private DisplayPairingService $pairingService,
-        private DepartmentDisplaySessionService $sessionService,
+        private DepartmentDisplayDeviceService $deviceService,
         private DisplayRateLimiter $rateLimiter,
     ) {
     }
@@ -74,13 +74,12 @@ class PublicDisplayPairingController extends AbstractController
             return new JsonResponse(['status' => $result['status']]);
         }
 
-        $screen = $result['screen'];
+        // Das Geräte-Credential geht nur als HttpOnly-Cookie an den TV, nie im JSON.
         $response = new JsonResponse([
             'status' => DisplayPairingService::POLL_APPROVED,
-            'public_id' => $screen->getPublicId(),
-            'screen_name' => $screen->getName(),
+            'device_name' => $result['device']->getName(),
         ]);
-        $response->headers->setCookie($this->sessionService->createCookie($screen));
+        $response->headers->setCookie($this->deviceService->buildCookie($result['device'], $result['secret']));
 
         return $response;
     }

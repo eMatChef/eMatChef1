@@ -172,6 +172,48 @@
     }
   },
   "display": {
+    "devices": {
+      "title": "Connected devices",
+      "none": "No device connected yet.",
+      "online": "Online",
+      "offline": "Offline",
+      "state": { "active": "Approved", "expired": "Approval expired", "revoked": "Revoked" },
+      "validUntil": "Approved until {date} ({days} days left)",
+      "expiredAt": "Expired on {date}",
+      "revokedAt": "Revoked on {date}",
+      "lastContact": "Last contact: {date}",
+      "neverContacted": "No contact yet",
+      "via": { "manual": "Signed in manually", "migrated": "Taken over from earlier sign-in", "pairing": "Paired by QR" },
+      "rename": "Rename",
+      "extend": "Extend approval",
+      "reapprove": "Approve again",
+      "reassign": "Assign to another info display",
+      "reassignHint": "The device will then show the chosen info display of this department, without pairing again.",
+      "reassignTarget": "Info display",
+      "revoke": "Revoke",
+      "delete": "Delete permanently",
+      "revokedHint": "New QR pairing required.",
+      "confirmRevokeTitle": "Revoke device",
+      "confirmRevokeMessage": "“{name}” stops showing content as soon as it reaches the server. Connecting it again requires a new QR pairing.",
+      "confirmDeleteTitle": "Delete device permanently",
+      "confirmDeleteMessage": "“{name}” will be deleted permanently. The device ID is never reused.",
+      "toastRenamed": "Device renamed.",
+      "toastExtended": "Approval extended by 90 days.",
+      "toastReassigned": "Device assigned.",
+      "toastRevoked": "Device revoked.",
+      "toastDeleted": "Device deleted.",
+      "error": "Action failed."
+    },
+    "offline": {
+      "banner": "Offline – data may be out of date",
+      "lastUpdate": "Last update: {time}"
+    },
+    "expired": {
+      "title": "Approval expired",
+      "text": "The approval of this device “{name}” has expired.",
+      "waiting": "The device is waiting for the responsible people to approve it again and will then start automatically."
+    },
+    "gaTemplatePending": "No display template has been published for this large event yet.",
     "pairDialog": {
       "titleNew": "Add info display",
       "titleExisting": "Connect screen",
@@ -186,6 +228,8 @@
       "verify": "Make sure this code is shown on the TV:",
       "connectExisting": "The TV will be connected to “{name}”.",
       "rescan": "Scan again",
+      "deviceName": "Device name",
+      "deviceNamePlaceholder": "e.g. Entrance TV",
       "confirm": "Connect"
     },
     "home": {
@@ -2263,6 +2307,9 @@
       "toastDeleteError": "The info display could not be deleted.",
       "kioskEntryHint": "Connect a new screen: open the display address on the TV and scan the QR code with your phone. Manual entry (ID and code):",
       "previewOpen": "Open preview",
+      "screenNameLabel": "Info display name",
+      "gaContentHint": "Large events have no department display areas. Display content will follow via templates; until then you can change name and subtitle.",
+      "idLabel": "Info display ID",
       "previewHint": "Shows the info display with the saved configuration in a new tab, without pairing or code.",
       "gaDemoLink": "Large-event display examples"
     },
