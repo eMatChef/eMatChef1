@@ -2,7 +2,10 @@
   <details class="profile-accordion" data-onboarding="profile-security" :open="expanded || undefined">
     <summary class="profile-accordion__summary">{{ t('layout.profileModal.securitySection') }}</summary>
     <div class="profile-accordion__body">
-      <h4 class="mb-1 mt-3 text-[0.82rem] font-bold text-slate-700">{{ t('layout.profileModal.emails.title') }}</h4>
+      <ProfileSecurityExternalIdentitiesSection :open="open" class="!mt-3 !border-t-0 !pt-0" />
+      <ProfileSecurityTotpSection :open="open" />
+
+      <h4 id="profile-email-management" class="mb-1 mt-5 border-t border-slate-200 pt-3 text-[0.82rem] font-bold text-slate-700">{{ t('layout.profileModal.emails.title') }}</h4>
       <p class="mb-3 text-[0.82rem] text-slate-500">{{ t('layout.profileModal.emails.hint') }}</p>
 
       <p v-if="loadError" class="text-[0.85rem] text-red-700">{{ loadError }}</p>
@@ -72,10 +75,14 @@
         </li>
       </ul>
 
-      <form class="flex flex-col gap-2 sm:flex-row sm:items-end" @submit.prevent="add">
+      <form
+        class="grid grid-cols-1 gap-x-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start"
+        data-testid="add-email-form"
+        @submit.prevent="add"
+      >
         <ETextField
           v-model="newEmail"
-          class="flex-1"
+          class="w-full min-w-0"
           type="email"
           autocomplete="email"
           :label="t('layout.profileModal.emails.addLabel')"
@@ -86,8 +93,6 @@
         </EButton>
       </form>
 
-      <ProfileSecurityExternalIdentitiesSection :open="open" />
-      <ProfileSecurityTotpSection :open="open" />
       <ProfileSecuritySessionsSection :open="open" />
       <ProfileSecurityActivitySection :open="open" />
     </div>
@@ -116,6 +121,13 @@ import {
 } from '@/api/profileEmails'
 
 const props = defineProps<{ open?: boolean; expanded?: boolean }>()
+const emit = defineEmits<{ (e: 'primary-changed'): void }>()
+
+/** Andere Anzeigen (z. B. Benachrichtigungsadresse je Department) laden bei Adressänderungen neu. */
+const EMAILS_CHANGED_EVENT = 'emc-profile-emails-changed'
+function notifyEmailsChanged() {
+  window.dispatchEvent(new CustomEvent(EMAILS_CHANGED_EVENT))
+}
 
 const { t, locale } = useI18n()
 const authStore = useAuthStore()
@@ -167,6 +179,7 @@ async function add() {
     data.value = await addProfileEmail(id, email)
     newEmail.value = ''
     toast.success(t('layout.profileModal.emails.added', { email }))
+    notifyEmailsChanged()
   } catch (e: unknown) {
     toast.error(errorMessage(e, t('layout.profileModal.emails.saveError')))
     await load()
@@ -202,6 +215,8 @@ async function makePrimary(entry: AdditionalEmail) {
   try {
     data.value = await makeProfileEmailPrimary(id, entry.id)
     await authStore.loadUserSessionFromCookie(true)
+    emit('primary-changed')
+    notifyEmailsChanged()
     toast.success(t('layout.profileModal.emails.primaryChanged', { email: entry.email }))
   } catch (e: unknown) {
     toast.error(errorMessage(e, t('layout.profileModal.emails.saveError')))
@@ -223,6 +238,7 @@ async function remove(entry: AdditionalEmail) {
   busyId.value = entry.id
   try {
     data.value = await removeProfileEmail(id, entry.id)
+    notifyEmailsChanged()
   } catch (e: unknown) {
     toast.error(errorMessage(e, t('layout.profileModal.emails.saveError')))
   } finally {

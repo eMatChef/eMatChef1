@@ -177,8 +177,21 @@ final class ProfileSecurityController extends AbstractController
             return $user;
         }
         $limit = $request->query->getInt('limit', SecurityActivityService::DEFAULT_LIMIT);
+        $cursor = $request->query->get('cursor');
+        try {
+            $page = $this->activity->page(
+                $user,
+                $limit,
+                \is_string($cursor) && $cursor !== '' ? $cursor : null,
+                $this->stringQuery($request, 'action'),
+                $this->dateQuery($request, 'from'),
+                $this->dateQuery($request, 'to'),
+            );
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        }
 
-        return $this->noStore(new JsonResponse(['events' => $this->activity->recent($user, $limit)]));
+        return $this->noStore(new JsonResponse($page + ['actions' => SecurityActivityService::actions()]));
     }
 
     /**
@@ -221,6 +234,28 @@ final class ProfileSecurityController extends AbstractController
             'valid_until' => $this->trustedDevices->effectiveExpiry($user, $device)->format(\DateTimeInterface::ATOM),
             'current' => $this->trustedDevices->isCurrent($user, $device, $request),
         ], $this->trustedDevices->listActive($user));
+    }
+
+    private function stringQuery(Request $request, string $key): ?string
+    {
+        $value = $request->query->get($key);
+
+        return \is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /** @throws \InvalidArgumentException bei ungültigem Datum (YYYY-MM-DD) */
+    private function dateQuery(Request $request, string $key): ?\DateTimeImmutable
+    {
+        $value = $this->stringQuery($request, $key);
+        if ($value === null) {
+            return null;
+        }
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+        if ($date === false || $date->format('Y-m-d') !== $value) {
+            throw new \InvalidArgumentException('Ungültiges Datum');
+        }
+
+        return $date;
     }
 
     private function sessionRequired(): JsonResponse

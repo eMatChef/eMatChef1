@@ -1,6 +1,10 @@
 framework:
     secret: '%env(APP_SECRET)%'
     http_method_override: false
+    # Client-IP (Sicherheitsprotokoll, Rate-Limits): X-Forwarded-For nur von diesen Proxies (Komma-Liste/CIDR/private_ranges).
+    # Leer = Header wird ignoriert und die direkte Verbindungs-IP gilt. Nur X-Forwarded-For; Proto/Host bleiben unverändert.
+    trusted_proxies: '%env(TRUSTED_PROXIES)%'
+    trusted_headers: ['x-forwarded-for']
     handle_all_throwables: true
     session:
         handler_id: null

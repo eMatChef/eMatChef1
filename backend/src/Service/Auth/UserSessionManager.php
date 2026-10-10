@@ -41,15 +41,18 @@ class UserSessionManager
     ) {
     }
 
-    public function startSession(User $user, AuthMethod $authMethod): UserSession
+    public function startSession(User $user, AuthMethod $authMethod, ?string $mfaSource = null): UserSession
     {
         $userAgent = $this->requestStack->getCurrentRequest()?->headers->get('User-Agent');
         $session = new UserSession($user, $authMethod, $userAgent);
         $this->entityManager->persist($session);
         if ($authMethod !== AuthMethod::LEGACY) {
-            $this->auditLogger->log('user', $user->getId(), 'login_success', $user, $user, null, [
-                'auth_method' => ['old' => null, 'new' => $authMethod->value],
-            ]);
+            $changes = ['auth_method' => ['old' => null, 'new' => $authMethod->value]];
+            if ($mfaSource !== null) {
+                // totp | recovery_code | trusted_device; ohne MFA-Schritt fehlt das Feld.
+                $changes['mfa_source'] = ['old' => null, 'new' => $mfaSource];
+            }
+            $this->auditLogger->log('user', $user->getId(), 'login_success', $user, $user, null, $changes);
         }
         $this->entityManager->flush();
 

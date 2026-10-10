@@ -13,7 +13,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ESelect } from '@/components/form/base'
 import { useToast } from '@/composables/useToast'
@@ -75,4 +75,9 @@ async function onChange(value: unknown) {
 }
 
 watch(() => props.departmentId, () => void load(), { immediate: true })
+
+// Profil → Sicherheit hat Adressen geändert (Hauptadresse/zusätzliche): Auswahl und Anzeige neu laden.
+const reload = () => void load()
+onMounted(() => window.addEventListener('emc-profile-emails-changed', reload))
+onUnmounted(() => window.removeEventListener('emc-profile-emails-changed', reload))
 </script>

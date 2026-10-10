@@ -2426,15 +2426,23 @@
     "profileModal": {
       "securitySection": "Sicherheit",
         "externalIdentities": {
-          "title": "Verbundene Anmeldungen",
-          "hint": "Externe Konten, über die du dich bei eMatChef anmelden kannst.",
+          "title": "Verknüpfte Anmeldungen",
+          "hint": "Mit diesen Konten kannst du dich bei eMatChef anmelden. Abteilungen, Rollen und Gruppen bleiben beim Trennen unverändert.",
           "linkedAt": "Verbunden seit {date}",
           "disconnect": "Verbindung trennen",
           "confirmTitle": "Verbindung zu MiData trennen?",
           "confirmMessage": "Du kannst dich danach nicht mehr mit MiData anmelden. Deine Abteilungen, Rollen und Gruppen in eMatChef bleiben unverändert.",
           "lastMethod": "MiData ist deine einzige Anmeldemöglichkeit. Bestätige zuerst deine E-Mail-Adresse oder verbinde einen anderen Anbieter.",
           "disconnected": "Verbindung getrennt.",
-          "error": "Verbindung konnte nicht getrennt werden."
+          "error": "Verbindung konnte nicht getrennt werden.",
+          "linked": "Verbunden",
+          "notLinked": "Nicht verbunden",
+          "connect": "Verbinden",
+          "googleNote": "Die Google-Anmeldung entsteht bei der ersten Anmeldung mit Google und kann hier nicht geändert werden.",
+          "providers": {
+            "google": "Google",
+            "midata": "MiData / db.scout.ch"
+          }
         },
       "sessions": {
         "title": "Geräte & Sitzungen",
@@ -2476,7 +2484,7 @@
       },
       "activity": {
         "title": "Sicherheitsaktivität",
-        "hint": "Die letzten Sicherheitsereignisse deines Kontos.",
+        "hint": "Dein persönliches Sicherheitsprotokoll. Nur du siehst es.",
         "empty": "Noch keine Ereignisse.",
         "loadError": "Aktivität konnte nicht geladen werden.",
         "events": {
@@ -2499,8 +2507,63 @@
           "profile_primary_email_changed": "Hauptadresse geändert",
           "profile_email_added": "E-Mail-Adresse hinzugefügt",
           "profile_email_verified": "E-Mail-Adresse bestätigt",
-          "profile_email_removed": "E-Mail-Adresse entfernt"
-        }
+          "profile_email_removed": "E-Mail-Adresse entfernt",
+          "profile_updated": "Profil geändert",
+          "profile_email_change_requested": "E-Mail-Änderung angefragt",
+          "profile_email_change_confirmed": "E-Mail-Änderung bestätigt",
+          "external_identity_linked": "Anmeldung verknüpft",
+          "external_identity_unlinked": "Anmeldung getrennt",
+          "membership_created": "Abteilungszuordnung hinzugefügt",
+          "membership_role_changed": "Rolle geändert",
+          "membership_removed": "Abteilungszuordnung entfernt"
+        },
+        "loadMore": "Mehr laden",
+        "loading": "Lädt …",
+        "retention": "IP-Adressen und Browserangaben werden nach {days} Tagen gelöscht.",
+        "meta": {
+          "method": "Anmeldung via {value}",
+          "mfa": "MFA: {value}",
+          "device": "{value}",
+          "ip": "IP {value}",
+          "actor": "Ausgelöst von {name}",
+          "actorUnknown": "Ausgelöst von einem Administrator",
+          "self": "Durch dich",
+          "fields": "Geändert: {fields}"
+        },
+        "authMethods": {
+          "password": "Passwort",
+          "google": "Google",
+          "midata": "MiData",
+          "legacy": "bestehende Sitzung"
+        },
+        "mfaSources": {
+          "totp": "Authenticator-Code",
+          "recovery_code": "Recovery Code",
+          "trusted_device": "Vertrauenswürdiges Gerät"
+        },
+        "providers": {
+          "google": "Google",
+          "midata": "MiData"
+        },
+        "fields": {
+          "first_name": "Vorname",
+          "last_name": "Nachname",
+          "nickname": "Pfadiname",
+          "avatar_initials": "Initialen",
+          "language": "Sprache",
+          "background_color": "Hintergrundfarbe",
+          "text_color": "Schriftfarbe",
+          "global_admin_role": "Globale Rolle",
+          "admin_capabilities": "Administrationsrechte"
+        },
+        "fullLog": "Gesamtes Protokoll",
+        "fullLogTitle": "Sicherheitsprotokoll",
+        "filterType": "Ereignistyp",
+        "filterFrom": "Von",
+        "filterTo": "Bis",
+        "filterAllTypes": "Alle Ereignisse",
+        "filterApply": "Filtern",
+        "filterReset": "Zurücksetzen"
       },
       "totp": {
         "title": "Zwei-Faktor-Authentifizierung",
@@ -2571,7 +2634,8 @@
       "title": "Profil bearbeiten",
       "firstName": "Vorname",
       "email": "E-Mail",
-      "editEmailTitle": "E-Mail bearbeiten",
+      "editEmailTitle": "E-Mail-Adressen verwalten",
+      "emailManagedInSecurity": "Die Hauptadresse verwaltest du unter «Sicherheit → E-Mail-Adressen».",
       "emailNewMustVerify": "Neue E-Mail muss bestätigt werden. Bis zur Bestätigung bleibt die alte E-Mail gültig.",
       "emailPendingSent": "Bestätigungslink für neue Adresse gesendet: {pending}. Bis zur Bestätigung bleibt {current} aktiv.",
       "nickname": "Spitzname",

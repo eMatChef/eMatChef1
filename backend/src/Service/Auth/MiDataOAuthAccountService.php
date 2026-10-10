@@ -56,7 +56,7 @@ final class MiDataOAuthAccountService
                 'user',
                 $linkToUser->getId(),
                 'external_identity_linked',
-                null,
+                $linkToUser,
                 $linkToUser,
                 null,
                 [
