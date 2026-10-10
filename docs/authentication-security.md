@@ -567,7 +567,7 @@ Der Admin-Endpoint `PATCH /api/users/{id}/admin` lehnt E-Mail-Änderungen für u
 
 ---
 
-## Offene Folgeaufgaben (Profil → Sicherheit)
+## Offene Folgeaufgaben (Profil)
 
 - **Server-Cron fehlt:** `app:security-activity:purge-context` (IP/User-Agent nach 90 Tagen leeren) ist dokumentiert (`deploy/SERVER-UPDATE.md`), aber auf Staging/Prod noch nicht eingerichtet.
 - **Google Link/Unlink:** umgesetzt (siehe `ARCHITECTURE.md`, «Verknüpfte Anmeldungen»); Praxistests gegen echtes Google/MiData stehen aus (mehrere Konten pro Anbieter, Abbruch, Konflikt, Rückkehr ins Profil).
