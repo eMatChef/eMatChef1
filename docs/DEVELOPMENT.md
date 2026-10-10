@@ -71,6 +71,14 @@ Playwright gegen die laufende Develop-App, nicht gegen localhost: [E2E.md](./E2E
 
 Git-Hooks (Pre-Push ohne Playwright, Prepare-Commit-Msg): `./scripts/install-git-hooks.sh`.
 
+**Pre-Push** (`.githooks/pre-push`, gleiche Checks wie `ci.yml`, ohne Playwright): Locales, danach Frontend (ESLint, Vitest, vue-tsc, Vite-Build) und Backend (`composer validate`, PHPUnit mit Integrationstests und `--fail-on-skipped`, PHPStan). Frontend und Backend laufen über `scripts/hooks/docker-checks.sh frontend|backend`, das in jedem Worktree funktioniert:
+
+- Sind die Werkzeuge im Worktree vorhanden (`frontend/node_modules/.bin`, bzw. `backend/vendor/bin` plus gesetztes `EMATCHEF_TEST_DB_URL`), laufen sie lokal.
+- Sonst (typisch in zusätzlichen Worktrees, wo `node_modules`/`vendor` nur leere Docker-Mountpunkte sind) läuft ein kurzlebiger Container (`docker run --rm`) aus den Images `ematchef-frontend` / `ematchef-backend`. Der Quellcode ist der **aktuelle Worktree**, schreibgeschützt eingehängt und in ein tmpfs kopiert (kein Schreiben in den Worktree, kein Bezug zum Haupt-Worktree). Die Abhängigkeiten kommen aus den Volumes `ematchef_frontend_node_modules` und `ematchef_backend_vendor` des Dev-Stacks (Dev-Stack einmal mit `docker compose up -d` gestartet haben).
+- Das Backend nutzt eine Wegwerf-PostgreSQL (`postgres:16`, Datenbank `val_hook`, eigenes Docker-Netz, nach dem Lauf entfernt), migriert sie und führt Unit- und Integrationstests aus; `mvdb` wird nie berührt.
+- Fehlt Docker, ein Image oder ein Volume, bricht der Hook mit Meldung ab; nichts wird still übersprungen. Namen sind per `EMATCHEF_HOOK_*`-Variablen überschreibbar (siehe Kopf von `docker-checks.sh`). Das Dev-Image läuft mit Node 18, daher gibt ESLint im Container JSON aus (Ergebnis und Exit-Code unverändert).
+- Dauer ca. 5 Minuten je Bereich.
+
 ## Lokalen Docker-Stack auf einen Worktree umstellen
 
 Der lokale Stack (`https://app.ematchef.test`) bindet `./backend` und `./frontend` per Bind-Mount ein; Datenbank (`ematchef_postgres_data`), `backend_vendor` und `frontend_node_modules` sind benannte Volumes und bleiben erhalten. Um einen anderen Worktree zu zeigen, im Worktree ausführen (Projektname kommt aus `COMPOSE_PROJECT_NAME` der `.env`):

@@ -18,7 +18,7 @@ classify_file() {
       run_locales=1
       run_frontend=1
       ;;
-    .github/workflows/ci.yml|.githooks/pre-push)
+    .github/workflows/ci.yml|.githooks/pre-push|scripts/hooks/*)
       run_frontend=1
       run_backend=1
       run_locales=1
@@ -102,31 +102,13 @@ if [[ "$run_locales" -eq 1 ]]; then
   bash scripts/check-locales.sh
 fi
 
+# Frontend und Backend: lokale Werkzeuge oder Container mit dem Code dieses Worktrees (scripts/hooks/docker-checks.sh).
 if [[ "$run_frontend" -eq 1 ]]; then
-  echo "pre-push: Frontend ESLint..."
-  (cd frontend && npm run lint:ci)
-
-  echo "pre-push: Frontend Unit tests..."
-  (cd frontend && npm test)
-
-  echo "pre-push: Frontend Build (vue-tsc + vite build)..."
-  (cd frontend && npm run build)
+  bash scripts/hooks/docker-checks.sh frontend
 fi
 
 if [[ "$run_backend" -eq 1 ]]; then
-  echo "pre-push: Backend Composer validate..."
-  (cd backend && composer validate --strict --no-interaction)
-
-  if [[ ! -x backend/vendor/bin/phpunit || ! -x backend/vendor/bin/phpstan ]]; then
-    echo "pre-push: backend/vendor fehlt — bitte einmal: (cd backend && composer install)" >&2
-    exit 1
-  fi
-
-  echo "pre-push: Backend Unit tests..."
-  (cd backend && ./vendor/bin/phpunit)
-
-  echo "pre-push: PHPStan..."
-  (cd backend && ./vendor/bin/phpstan analyse --memory-limit=1G --no-progress)
+  bash scripts/hooks/docker-checks.sh backend
 fi
 
 echo "pre-push: all checks passed."
