@@ -2423,7 +2423,16 @@
       "reset": "Reset",
       "modeDemo": "DEMO",
       "modeDev": "DEV",
-      "error": "Could not change the time"
+      "error": "Could not change the time",
+      "presets": {
+        "title": "Quick select",
+        "months_before_5": "5 months before",
+        "months_before_2": "2 months before",
+        "build": "Build-up",
+        "during_event": "During event",
+        "teardown": "Teardown",
+        "months_after_2": "2 months after"
+      }
     },
     "onboardingResume": "Continue onboarding",
     "userFallback": "User",
@@ -8437,6 +8446,9 @@
           "location": "The place is missing.",
           "type": "The type is not set.",
           "period": "The end is before the start.",
+          "periodStartTime": "Start time",
+          "periodEndTime": "End time",
+          "periodEndBeforeStart": "The end must be after the start.",
           "no_ressort": "There is no area yet.",
           "ressort_without_leader": "Area “{name}” has no lead yet.",
           "no_mw": "A material lead (MW) is missing.",
@@ -10458,6 +10470,9 @@
         "intro": "Event name, period and venue (contact). Also: camp or event for guests, and whether guest departments take part. Warehouse sites are the Locations tab.",
         "name": "Event name",
         "period": "Event period",
+        "periodStartTime": "Start time",
+        "periodEndTime": "End time",
+        "periodEndBeforeStart": "The end must be after the start.",
         "periodEmpty": "No period set yet",
         "location": "Event venue",
         "locationHint": "Venue and delivery point here. Important places (unloading, access) with a star — sub-projects on the Locations tab.",

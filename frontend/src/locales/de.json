@@ -2523,7 +2523,16 @@
       "reset": "Zurücksetzen",
       "modeDemo": "DEMO",
       "modeDev": "DEV",
-      "error": "Zeit konnte nicht geändert werden"
+      "error": "Zeit konnte nicht geändert werden",
+      "presets": {
+        "title": "Schnellwahl",
+        "months_before_5": "5 Monate vorher",
+        "months_before_2": "2 Monate vorher",
+        "build": "Aufbau",
+        "during_event": "Während Event",
+        "teardown": "Abbau",
+        "months_after_2": "2 Monate danach"
+      }
     },
     "onboardingResume": "Onboarding fortsetzen",
     "subnavCollapse": "Menü einklappen (mehr Platz für Inhalt)",
@@ -11085,6 +11094,9 @@
           "location": "Der Ort fehlt.",
           "type": "Der GA-Typ ist nicht gesetzt.",
           "period": "Das Ende liegt vor dem Beginn.",
+          "periodStartTime": "Beginn (Uhrzeit)",
+          "periodEndTime": "Ende (Uhrzeit)",
+          "periodEndBeforeStart": "Das Ende muss nach dem Beginn liegen.",
           "no_ressort": "Es gibt noch kein Ressort.",
           "ressort_without_leader": "Ressort «{name}» hat noch keine Leitung.",
           "no_mw": "Es fehlt ein Materialchef (MW).",
@@ -13229,6 +13241,9 @@
         "intro": "Anlassname, Zeitraum und Eventstandort (Kontakt). Hier auch: Lager oder Event für die Gäste, und ob Teilnehmer-Abteilungen dabei sind. Materiallagerplätze sind der Tab Standorte.",
         "name": "Anlassname",
         "period": "Anlass-Zeitraum",
+        "periodStartTime": "Beginn (Uhrzeit)",
+        "periodEndTime": "Ende (Uhrzeit)",
+        "periodEndBeforeStart": "Das Ende muss nach dem Beginn liegen.",
         "periodEmpty": "Noch kein Zeitraum gesetzt",
         "location": "Eventstandort",
         "locationHint": "Eventstandort und Zustellpunkt hier. Wichtige Orte (Abladezone, Anfahrt) mit Stern — Bauprojekte im Tab Standorte.",

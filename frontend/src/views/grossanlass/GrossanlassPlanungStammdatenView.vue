@@ -23,6 +23,21 @@
             :show-presets="false"
             :show-markers="true"
           />
+          <div class="period-times" data-testid="stammdaten-period-times">
+            <ETimeField
+              v-model="periodStartTime"
+              :label="t('grossanlass.planung.stammdaten.periodStartTime')"
+              :disabled="!canManage"
+              :error-messages="periodInvalid ? t('grossanlass.planung.stammdaten.periodEndBeforeStart') : undefined"
+            />
+            <ETimeField
+              v-model="periodEndTime"
+              :label="t('grossanlass.planung.stammdaten.periodEndTime')"
+              :disabled="!canManage"
+              :error-messages="periodInvalid ? t('grossanlass.planung.stammdaten.periodEndBeforeStart') : undefined"
+            />
+          </div>
+          <p v-if="periodInvalid" class="warn" role="alert">{{ t('grossanlass.planung.stammdaten.periodEndBeforeStart') }}</p>
           <GrossanlassKeyDatesPanel
             :department-id="departmentId"
             hide-event-period
@@ -173,7 +188,7 @@ import { useToast } from '@/composables/useToast'
 import GrossanlassKeyDatesPanel from '@/components/grossanlass/GrossanlassKeyDatesPanel.vue'
 import ActivityVenueOverviewBlock from '@/components/activities/ActivityVenueOverviewBlock.vue'
 import ContactDetailView from '@/components/contacts/ContactDetailView.vue'
-import { EDateRangeField, ETextField, ETextarea } from '@/components/form/base'
+import { EDateRangeField, ETextField, ETimeField, ETextarea } from '@/components/form/base'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { getAddresses, type Address } from '@/api/addresses'
 import { getGrossanlassPlanung, updateGrossanlassPlanung, type GrossanlassGuestActivityType, type GrossanlassPlanungOverview } from '@/api/grossanlassPlanung'
@@ -206,6 +221,9 @@ const isHydrating = ref(false)
 const error = ref('')
 const periodStart = ref('')
 const periodEnd = ref('')
+/** Uhrzeiten (HH:mm, Wandzeit) von Anlassbeginn und -ende; Datum und Uhrzeit werden gemeinsam gespeichert. */
+const periodStartTime = ref('00:00')
+const periodEndTime = ref('23:59')
 const venueAddressId = ref<string | null>(null)
 const rentalAddresses = ref<Address[]>([])
 const showVenueContactModal = ref(false)
@@ -235,11 +253,27 @@ function toDay(iso: string | null | undefined): string {
   return iso ? iso.slice(0, 10) : ''
 }
 
+/** Wandzeit HH:mm aus `YYYY-MM-DDTHH:mm:ss[+00:00]` (ohne Zeitzonen-Umrechnung), sonst der Ersatzwert. */
+function toTime(iso: string | null | undefined, fallback: string): string {
+  const match = iso ? /T(\d{2}:\d{2})/.exec(iso) : null
+  return match ? match[1] : fallback
+}
+
+function wallClock(day: string, time: string): string {
+  return `${day}T${time}:00`
+}
+
+const periodInvalid = computed(
+  () => !!periodStart.value && !!periodEnd.value && wallClock(periodEnd.value, periodEndTime.value) <= wallClock(periodStart.value, periodStartTime.value),
+)
+
 function apply(next: GrossanlassPlanungOverview) {
   isHydrating.value = true
   pack.value = next
   periodStart.value = toDay(next.config.planned_event_start)
   periodEnd.value = toDay(next.config.planned_event_end)
+  periodStartTime.value = toTime(next.config.planned_event_start, '00:00')
+  periodEndTime.value = toTime(next.config.planned_event_end, '23:59')
   venueAddressId.value = next.config.venue_address_id || null
   notes.value = next.config.notes || ''
   deptNameDraft.value = next.department_name || deptName.value
@@ -276,7 +310,7 @@ function clearAutoSaveTimer() {
 async function persistStammdaten(immediate = false) {
   if (!departmentId.value || !canManage.value || isHydrating.value || loading.value) return
   const name = deptNameDraft.value.trim()
-  if (!name) return
+  if (!name || periodInvalid.value) return
 
   const run = async () => {
     const token = ++autoSaveToken
@@ -287,8 +321,8 @@ async function persistStammdaten(immediate = false) {
           department_name: name,
           venue_address_id: venueAddressId.value,
           notes: notes.value,
-          planned_event_start: periodStart.value || undefined,
-          planned_event_end: periodEnd.value || null,
+          planned_event_start: periodStart.value ? wallClock(periodStart.value, periodStartTime.value) : undefined,
+          planned_event_end: periodEnd.value ? wallClock(periodEnd.value, periodEndTime.value) : null,
           guest_activity_type: guestType.value,
           has_guest_departments: hasGuestDepartments.value,
         }),
@@ -317,7 +351,7 @@ async function persistStammdaten(immediate = false) {
   }, DEFAULT_AUTO_SAVE_DELAY_MS)
 }
 
-watch([deptNameDraft, periodStart, periodEnd, notes], () => {
+watch([deptNameDraft, periodStart, periodEnd, periodStartTime, periodEndTime, notes], () => {
   void persistStammdaten()
 })
 
@@ -414,6 +448,13 @@ onBeforeUnmount(() => {
 .hint a { color: #166534; }
 .warn { color: #9a3412; }
 .form { max-width: 880px; }
+.period-times {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
 .period-block { display: block; }
 .venue-label { display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 4px; }
 .venue-set-cta {

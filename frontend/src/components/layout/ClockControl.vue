@@ -14,10 +14,26 @@
         <span class="clock-control__mode">{{ modeLabel }}</span>
       </button>
     </template>
-    <v-card min-width="280" class="clock-control__card">
+    <v-card min-width="320" max-width="360" class="clock-control__card">
       <v-card-text class="d-flex flex-column ga-3">
-        <v-text-field v-model="dateInput" type="date" :label="t('layout.clock.date')" density="compact" hide-details />
-        <v-text-field v-model="timeInput" type="time" :label="t('layout.clock.time')" density="compact" hide-details />
+        <div v-if="clockStore.presets.length" class="clock-control__presets" data-testid="clock-presets">
+          <span class="clock-control__presets-title">{{ t('layout.clock.presets.title') }}</span>
+          <v-btn
+            v-for="preset in clockStore.presets"
+            :key="preset.key"
+            size="small"
+            variant="tonal"
+            color="primary"
+            :disabled="busy"
+            :data-testid="`clock-preset-${preset.key}`"
+            :title="presetTitle(preset.at)"
+            @click="applyPreset(preset.at)"
+          >
+            {{ t(`layout.clock.presets.${preset.key}`) }}
+          </v-btn>
+        </div>
+        <EDateField v-model="dateInput" :label="t('layout.clock.date')" :show-markers="false" />
+        <ETimeField v-model="timeInput" :label="t('layout.clock.time')" />
         <v-btn color="primary" :loading="busy" :disabled="!inputValid" @click="applyInput">
           {{ t('layout.clock.apply') }}
         </v-btn>
@@ -41,6 +57,8 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useBusinessClockStore } from '@/stores/businessClock'
 import { useToast } from '@/composables/useToast'
+import { EDateField, ETimeField } from '@/components/form/base'
+import { parseWallClock } from '@/stores/businessClock'
 
 const HOUR_MS = 3_600_000
 const DAY_MS = 24 * HOUR_MS
@@ -99,10 +117,19 @@ async function run(action: () => Promise<void>) {
   }
 }
 
+function presetTitle(at: string): string {
+  const d = parseWallClock(at)
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function applyPreset(at: string) {
+  void run(() => clockStore.travelToWall(at))
+}
+
 function applyInput() {
-  const target = new Date(`${dateInput.value}T${timeInput.value}`)
-  if (Number.isNaN(target.getTime())) return
-  void run(() => clockStore.travelTo(target))
+  if (!inputValid.value) return
+  // Wandzeit direkt senden: eine Browser-Zeitzone darf Uhrzeiten rund um die Sommerzeitumstellung nicht verschieben.
+  void run(() => clockStore.travelToWall(`${dateInput.value}T${timeInput.value}`))
 }
 
 function shift(deltaMs: number) {
@@ -127,6 +154,21 @@ function reset() {
   font-size: 0.8125rem;
   cursor: pointer;
   white-space: nowrap;
+}
+
+.clock-control__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.clock-control__presets-title {
+  flex-basis: 100%;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(var(--v-theme-on-surface), 0.6);
 }
 
 .clock-control__mode {

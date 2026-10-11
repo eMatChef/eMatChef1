@@ -62,4 +62,46 @@ describe('business clock store', () => {
   it('round-trips wall-clock strings without timezone shifts', () => {
     expect(formatWallClock(parseWallClock('2026-10-09T09:00:00'))).toBe('2026-10-09T09:00:00')
   })
+
+  it('exposes the server-derived quick selection and travels to its wall time unchanged', async () => {
+    const store = useBusinessClockStore()
+    apiClient.defaults.adapter = (config) => {
+      calls.push({ method: config.method, url: config.url, data: config.data })
+      const body = config.method === 'get'
+        ? { mode: 'demo', now: '2027-04-04T16:00:00', real_now: new Date().toISOString(), offset_seconds: 0, can_travel: true, presets: [{ key: 'during_event', at: '2027-06-05T12:00:00' }] }
+        : { mode: 'demo', now: JSON.parse(String(config.data)).now, real_now: new Date().toISOString(), offset_seconds: 0, can_travel: true }
+      return Promise.resolve({ data: body, status: 200, statusText: '', headers: {}, config } as AxiosResponse)
+    }
+    await store.load('dep000000001')
+
+    expect(store.presets).toEqual([{ key: 'during_event', at: '2027-06-05T12:00:00' }])
+    await store.travelToWall(store.presets[0].at)
+    expect(JSON.parse(String(last().data)).now).toBe('2027-06-05T12:00:00')
+    expect(wall(store.displayNow)).toBe('2027-06-05T12:00:00')
+    store.stopTicking()
+  })
+
+  it('shifts on the wall clock across daylight saving changes (Europe/Zurich)', async () => {
+    const originalTz = process.env.TZ
+    process.env.TZ = 'Europe/Zurich'
+    try {
+      const store = useBusinessClockStore()
+      apiClient.defaults.adapter = (config) => {
+        calls.push({ method: config.method, url: config.url, data: config.data })
+        const now = config.method === 'get' ? '2027-03-27T16:00:00' : JSON.parse(String(config.data)).now
+        return Promise.resolve({ data: { mode: 'demo', now, real_now: new Date().toISOString(), offset_seconds: 0, can_travel: true }, status: 200, statusText: '', headers: {}, config } as AxiosResponse)
+      }
+      await store.load('dep000000001')
+
+      await store.shift(86_400_000) // +1 Tag über die Umstellung vom 28.03.2027: gleiche Uhrzeit
+      expect(JSON.parse(String(last().data)).now).toBe('2027-03-28T16:00:00')
+      await store.travelToWall('2027-03-28T01:30')
+      await store.shift(3_600_000) // 02:30 existiert als lokale Zeit nicht, ist als Wandzeit aber gültig
+      expect(JSON.parse(String(last().data)).now).toBe('2027-03-28T02:30:00')
+      store.stopTicking()
+    } finally {
+      if (originalTz === undefined) delete process.env.TZ
+      else process.env.TZ = originalTz
+    }
+  })
 })
