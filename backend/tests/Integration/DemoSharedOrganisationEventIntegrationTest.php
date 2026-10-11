@@ -37,10 +37,6 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
         (new Dotenv())->usePutenv(false)->loadEnv(dirname(__DIR__, 2) . '/.env', 'APP_ENV', 'test', ['test']);
         $_ENV['DATABASE_URL'] = $_SERVER['DATABASE_URL'] = $url;
 
-        // Dateien, die der Seed im Dateispeicher ablegt (Karte, Offerten-PDFs), nach dem Test wieder entfernen.
-        $uploads = dirname(__DIR__, 2) . '/var/uploads';
-        $before = is_dir($uploads) ? array_diff((array) scandir($uploads), ['.', '..']) : [];
-
         FreshKernel::run(function ($kernel) use ($test): void {
             $c = $kernel->getContainer();
             /** @var EntityManagerInterface $em */
@@ -53,12 +49,6 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
                 $conn->rollBack();
             }
         }, $url, [DemoScenarioRunner::class, DemoScenarioRegistry::class, DemoOrganisationCatalog::class, \App\Service\Demo\Legacy\LegacyDemoRename::class, \App\Service\Bootstrap\DemoGrossanlassSeedService::class]);
-
-        if (is_dir($uploads)) {
-            foreach (array_diff((array) scandir($uploads), ['.', '..'], $before) as $created) {
-                (new \Symfony\Component\Filesystem\Filesystem())->remove($uploads . '/' . $created);
-            }
-        }
     }
 
     /** @return array<string, SeedResult> */

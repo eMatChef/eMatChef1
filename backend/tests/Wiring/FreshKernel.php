@@ -73,12 +73,20 @@ final class FreshKernel
                 return $this->dir . '/log';
             }
         };
+        // Dateien, die ein Test im Dateispeicher ablegt (z. B. Demo-Karte, Offerten-PDFs), danach wieder entfernen.
+        $uploads = dirname(__DIR__, 2) . '/var/uploads';
+        $existing = is_dir($uploads) ? array_diff((array) scandir($uploads), ['.', '..']) : [];
         try {
             $kernel->boot();
             $assertions($kernel);
         } finally {
             $kernel->shutdown();
             (new Filesystem())->remove($dir);
+            if (is_dir($uploads)) {
+                foreach (array_diff((array) scandir($uploads), ['.', '..'], $existing) as $created) {
+                    (new Filesystem())->remove($uploads . '/' . $created);
+                }
+            }
         }
     }
 }
