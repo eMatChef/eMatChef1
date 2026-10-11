@@ -75,7 +75,7 @@ Eventplatz, Zustellpunkt und Lager haben drei verschiedene Koordinaten. Der Zust
 
 Legacy-Event und seine Dateien (`var/uploads/3dc94912d836/`) werden nicht angefasst.
 
-**Hinweis zum Probelauf:** Weil die Kopie dieselben Department-IDs trägt wie `mvdb` und der Dateispeicher gemeinsam ist, hat der Probelauf diese drei Dateien bereits unter `var/uploads/2d42e87c5197/` angelegt. Das Löschen war mir nicht erlaubt; bitte vor oder bei der Freigabe entfernen oder bestätigen (Pfade im Abschlussbericht). Datenbankzeilen von `mvdb` sind davon nicht betroffen.
+**Hinweis zum Probelauf:** Weil die Kopie dieselben Department-IDs trägt wie `mvdb` und der Dateispeicher gemeinsam ist, hat der Probelauf diese drei Dateien vorübergehend unter `var/uploads/2d42e87c5197/` angelegt. Sie sind inzwischen wieder entfernt (das Verzeichnis existiert nicht mehr; geprüft nach dem Aufräumen der Testläufe). `mvdb` selbst ist unverändert (letzte Migration `Version20261011150000`, Anlasszeitraum weiterhin 04.–06.06.2027).
 
 ## 7. Was erhalten bleibt und geschützt ist
 
@@ -91,6 +91,6 @@ Es gibt einen sicheren Reset ohne Löschung (`app:demo:reset --scenario=grossanl
 
 ## 9. Offene Punkte vor der Freigabe
 
-1. Die drei Dateien des Probelaufs (§6).
+1. (erledigt) Die drei Dateien des Probelaufs wurden entfernt (§6).
 2. Soll die Ortsangabe «Kaltbach» (aus den Koordinaten abgeleitet) bleiben oder soll der Eventplatz ganz ohne PLZ/Ort geführt werden, wie im Legacy-Event?
 3. Das Logistik-Limit (900 CHF) liegt absichtlich unter dem Teleskoplader (950 CHF), damit die Budgetüberschreitung prüfbar ist.
