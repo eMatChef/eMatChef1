@@ -18,7 +18,8 @@ namespace App\Enum;
  * 6. leader1             - Hierarchische Leiter-Funktion (Ebene 1)
  * 7. leader2             - Hierarchische Leiter-Funktion (Ebene 2)
  * 8. leader3             - Hierarchische Leiter-Funktion (Ebene 3)
- * 9. user                - Basis-User / Helfer
+ * 9. user                - Basis-User
+ * 10. helper             - Helfer (nur Basisrechte, Grossanlass)
  *
  * J+S-Coach ist kein Rollenwert, sondern Flag membership.is_js_coach.
  */
@@ -39,6 +40,7 @@ enum DepartmentRole: string
     case LEADER2 = 'l2';
     case LEADER3 = 'l3';
     case USER = 'u';
+    case HELPER = 'h';
 
     public static function all(): array
     {
@@ -68,6 +70,7 @@ enum DepartmentRole: string
             self::LEADER2 => 8,
             self::LEADER3 => 9,
             self::USER => 10,
+            self::HELPER => 11,
         };
     }
 
@@ -110,6 +113,7 @@ enum DepartmentRole: string
             self::LEADER2 => 'ROLE_LEADER2',
             self::LEADER3 => 'ROLE_LEADER3',
             self::USER => 'ROLE_USER',
+            self::HELPER => 'ROLE_USER',
         };
     }
 
@@ -131,6 +135,7 @@ enum DepartmentRole: string
             self::LEADER2 => 'leader2',
             self::LEADER3 => 'leader3',
             self::USER => 'user',
+            self::HELPER => 'helper',
         };
     }
 
@@ -150,6 +155,7 @@ enum DepartmentRole: string
             self::LEADER2 => 'Leader 2',
             self::LEADER3 => 'Leader 3',
             self::USER => 'User',
+            self::HELPER => 'Helfer',
         };
     }
 }

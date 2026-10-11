@@ -33,6 +33,22 @@
         <v-icon icon="mdi-cart-outline" size="9" />
       </span>
       <span
+        v-if="showHelper && variant === 'badge'"
+        class="user-avatar-badge__func user-avatar-badge__func--helper"
+        :title="t('common.userAvatar.helper')"
+        aria-hidden="true"
+      >
+        <v-icon icon="mdi-hand-back-right" size="9" />
+      </span>
+      <span
+        v-if="showDriver && variant === 'badge'"
+        class="user-avatar-badge__func user-avatar-badge__func--driver"
+        :title="t('common.userAvatar.driver')"
+        aria-hidden="true"
+      >
+        <v-icon icon="mdi-car" size="9" />
+      </span>
+      <span
         v-if="stageBadge && variant === 'badge'"
         class="user-avatar-badge__stage"
         :class="{ 'user-avatar-badge__stage--wide': stageBadge.short.length > 2 }"
@@ -85,6 +101,10 @@ const props = withDefaults(
     showPrimaryHome?: boolean
     /** Beschaffung freigegeben (can_procure) im Ressort. */
     showProcure?: boolean
+    /** Helfer: Rolle `h` oder Flag `is_helper`. */
+    showHelper?: boolean
+    /** Fahrer: Fahrerfunktion der Anlass-Karte (`may_drive`). */
+    showDriver?: boolean
     deptStageRole?: string | null
     showTooltip?: boolean
   }>(),
@@ -94,6 +114,8 @@ const props = withDefaults(
     showLeaderStar: false,
     showPrimaryHome: false,
     showProcure: false,
+    showHelper: false,
+    showDriver: false,
     deptStageRole: null,
     showTooltip: true,
   }

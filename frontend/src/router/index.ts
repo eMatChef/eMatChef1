@@ -1457,7 +1457,7 @@ const routes: RouteRecordRaw[] = [
               {
                 path: 'users',
                 name: 'GrossanlassEinstellungenBenutzer',
-                component: () => import('@/views/settings/UsersSettingsView.vue'),
+                component: () => import('@/views/grossanlass/GrossanlassEinstellungenBenutzerView.vue'),
                 meta: {
                   requiresGrossanlassDepartment: true,
                   requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
@@ -2345,6 +2345,7 @@ const routes: RouteRecordRaw[] = [
                     'l3',
                     'u',
                     'user',
+                    'h',
                   ],
                   denyRedirectTo: { name: 'HelpDokumentation' },
                   ...routeHead('helpTours'),
@@ -3013,7 +3014,7 @@ router.beforeEach(async (to, from, nextRaw) => {
       leader1: ['l1'],
       leader2: ['l2'],
       leader3: ['l3'],
-      user: ['u'],
+      user: ['u', 'h'],
       bl: ['bereichsleitung'],
     }
     

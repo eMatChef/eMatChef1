@@ -30,6 +30,7 @@ class DepartmentRoleLabelService
         'l2' => 'Leiter 2',
         'l3' => 'Leiter 3',
         'u' => 'Mitglied',
+        'h' => 'Helfer',
     ];
 
     public function __construct(
@@ -51,6 +52,7 @@ class DepartmentRoleLabelService
             'leader2' => 'l2',
             'leader3' => 'l3',
             'user' => 'u',
+            'helper' => 'h',
         ];
         $code = $aliases[$normalized] ?? $normalized;
 

@@ -689,6 +689,7 @@ class DepartmentController extends AbstractController
                     'role' => $m->getRole(),
                     'is_primary' => $m->getIsPrimary(),
                     'is_js_coach' => $m->getIsJsCoach(),
+                    'is_helper' => $m->getIsHelper(),
                     'state' => $user->getState(),
                 ];
             }
@@ -869,6 +870,7 @@ class DepartmentController extends AbstractController
             $membership->setRole($role);
             $membership->setIsPrimary($data['is_primary'] ?? false);
             $membership->setIsJsCoach(!empty($data['is_js_coach']));
+            $membership->setIsHelper(!empty($data['is_helper']));
 
             $this->auditLogger->log(
                 'membership',
@@ -881,6 +883,7 @@ class DepartmentController extends AbstractController
                     'role' => ['old' => null, 'new' => $membership->getRole()],
                     'is_primary' => ['old' => null, 'new' => $membership->getIsPrimary()],
                     'is_js_coach' => ['old' => null, 'new' => $membership->getIsJsCoach()],
+                    'is_helper' => ['old' => null, 'new' => $membership->getIsHelper()],
                 ]
             );
 
@@ -932,6 +935,7 @@ class DepartmentController extends AbstractController
             'role' => $membership->getRole(),
             'is_primary' => $membership->getIsPrimary(),
             'is_js_coach' => $membership->getIsJsCoach(),
+            'is_helper' => $membership->getIsHelper(),
             'notification_email_sent' => $notificationEmailSent,
         ], 201);
     }
@@ -969,6 +973,7 @@ class DepartmentController extends AbstractController
         $oldRole = $membership->getRole();
         $oldIsPrimary = $membership->getIsPrimary();
         $oldIsJsCoach = $membership->getIsJsCoach();
+        $oldIsHelper = $membership->getIsHelper();
 
         if (isset($data['role'])) {
             $department = $membership->getDepartment();
@@ -1012,6 +1017,10 @@ class DepartmentController extends AbstractController
             $membership->setIsJsCoach((bool) $data['is_js_coach']);
         }
 
+        if (array_key_exists('is_helper', $data)) {
+            $membership->setIsHelper((bool) $data['is_helper']);
+        }
+
         if ($oldRole !== $membership->getRole()) {
             $this->auditLogger->log(
                 'membership',
@@ -1036,6 +1045,20 @@ class DepartmentController extends AbstractController
                 $membership->getDepartment(),
                 [
                     'is_primary' => ['old' => $oldIsPrimary, 'new' => $membership->getIsPrimary()],
+                ]
+            );
+        }
+
+        if ($oldIsHelper !== $membership->getIsHelper()) {
+            $this->auditLogger->log(
+                'membership',
+                AuditLogger::buildMembershipEntityId($membership->getUserId(), $membership->getDepartmentId()),
+                'membership_helper_changed',
+                $currentUser,
+                $membership->getUser(),
+                $membership->getDepartment(),
+                [
+                    'is_helper' => ['old' => $oldIsHelper, 'new' => $membership->getIsHelper()],
                 ]
             );
         }
@@ -1070,6 +1093,7 @@ class DepartmentController extends AbstractController
             'role' => $membership->getRole(),
             'is_primary' => $membership->getIsPrimary(),
             'is_js_coach' => $membership->getIsJsCoach(),
+            'is_helper' => $membership->getIsHelper(),
         ]);
     }
 
@@ -1272,6 +1296,7 @@ class DepartmentController extends AbstractController
             'role' => $membership->getRole(),
             'is_primary' => $membership->getIsPrimary(),
             'is_js_coach' => $membership->getIsJsCoach(),
+            'is_helper' => $membership->getIsHelper(),
         ]);
     }
 

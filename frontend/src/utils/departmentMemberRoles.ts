@@ -13,6 +13,7 @@ export const DEPT_ROLES = {
   l2: { short: 'L2', color: '#f59e0b' },
   l3: { short: 'L3', color: '#ef4444' },
   u: { short: 'U', color: '#6b7280' },
+  h: { short: 'H', color: '#0ea5e9' },
 } as const
 
 export type DeptRoleKey = keyof typeof DEPT_ROLES
@@ -21,7 +22,7 @@ export type DeptRoleKey = keyof typeof DEPT_ROLES
 export const ROLE_HIERARCHY_PFADI: DeptRoleKey[] = ['mw', 'dc', 'l1', 'l2', 'l3', 'u']
 
 /** Grossanlass: kein L1–L3; komm ≈ spon. */
-export const ROLE_HIERARCHY_GROSSANLASS: DeptRoleKey[] = ['mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'u']
+export const ROLE_HIERARCHY_GROSSANLASS: DeptRoleKey[] = ['mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'u', 'h']
 
 /** @deprecated Nutze hierarchyForDepartment — bleibt Pfadi für Aufrufer ohne Flag. */
 export const ROLE_HIERARCHY: DeptRoleKey[] = ROLE_HIERARCHY_PFADI
@@ -45,6 +46,7 @@ const GROSSANLASS_RANK: Record<string, number> = {
   lw: 4,
   clw: 4,
   u: 5,
+  h: 6,
 }
 
 export function hierarchyForDepartment(isGrossanlass: boolean): DeptRoleKey[] {
@@ -91,13 +93,12 @@ export function getDeptRoleShort(role: string, isGrossanlass = false): string {
   const key = normalizeDeptRole(role)
   if (key === 'dc' && isGrossanlass) return 'OK'
   if (key === 'bl') return 'BL'
-  if (key === 'u' && isGrossanlass) return 'H'
   return DEPT_ROLES[key as DeptRoleKey]?.short || key.toUpperCase()
 }
 
-const GROSSANLASS_ASSIGNABLE_BY_STRUKTUR: DeptRoleKey[] = ['cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'u']
+const GROSSANLASS_ASSIGNABLE_BY_STRUKTUR: DeptRoleKey[] = ['cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'u', 'h']
 
-/** GA: MW, CMW und OK-Leitung vergeben CMW, OK, BL, Komm, Spon, LW, CLW, Helfer — auch mehrfach. */
+/** GA: MW, CMW und OK-Leitung vergeben CMW, OK, BL, Komm, Spon, LW, CLW, Mitglied, Helfer — auch mehrfach. */
 export function canAssignGrossanlassDeptRoles(actorDeptRole: string): boolean {
   return ['mw', 'cmw', 'dc'].includes(normalizeDeptRole(actorDeptRole))
 }

@@ -14,10 +14,10 @@ final class MembershipRoleCatalog
     public const PFADI = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'];
 
     /** @var list<string> */
-    public const GROSSANLASS = ['mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'u'];
+    public const GROSSANLASS = ['mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'u', 'h'];
 
     /** @var list<string> */
-    public const ALL = ['mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'l1', 'l2', 'l3', 'u'];
+    public const ALL = ['mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'l1', 'l2', 'l3', 'u', 'h'];
 
     /** @var array<string, int> */
     private const PFADI_RANK = [
@@ -40,6 +40,7 @@ final class MembershipRoleCatalog
         'lw' => 4,
         'clw' => 4,
         'u' => 5,
+        'h' => 6,
     ];
 
     /**
@@ -71,7 +72,7 @@ final class MembershipRoleCatalog
                 return false;
             }
 
-            return in_array($targetRole, ['cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'u'], true);
+            return in_array($targetRole, ['cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'u', 'h'], true);
         }
 
         if ($grossanlass && $actorRole === 'bl') {

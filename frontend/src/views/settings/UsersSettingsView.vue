@@ -1,7 +1,7 @@
 <template>
   <div class="users-settings" :class="{ 'users-settings--embedded': embedded }">
     <!-- Header (auf eigener Settings-Seite) -->
-    <div v-if="!embedded" class="page-header">
+    <div v-if="!embedded && !hideHeader" class="page-header">
       <div>
         <h2 class="settings-title">{{ t('settings.departmentUsers.title') }}</h2>
         <p class="settings-description">{{ t('settings.departmentUsers.subtitle') }}</p>
@@ -247,7 +247,6 @@
             <ESelect
               v-model="roleFilter"
               class="members-filter"
-              style="width: 220px; min-width: 220px; flex: 0 0 220px"
               :items="roleFilterItems"
               :label="t('settings.departmentUsers.filterRole')"
               clearable
@@ -256,7 +255,6 @@
             <ESelect
               v-model="ressortFilter"
               class="members-filter"
-              style="width: 220px; min-width: 220px; flex: 0 0 220px"
               :items="ressortFilterItems"
               :label="t('settings.departmentUsers.filterRessort')"
               clearable
@@ -329,7 +327,14 @@
                 <!-- Name -->
                 <td class="col-name">
                   <div class="name-cell">
-                    <UserAvatarBadge :user="member" size="md" :show-tooltip="false" />
+                    <UserAvatarBadge
+                      :user="member"
+                      size="md"
+                      :show-tooltip="false"
+                      :show-leader-star="gaTable && leaderUserIds.has(member.user_id)"
+                      :show-helper="gaTable && isHelperMember(member)"
+                      :show-driver="gaTable && driverUserIds.has(member.user_id)"
+                    />
                     <div class="name-info">
                       <span class="user-name">{{ member.name }}</span>
                       <span v-if="member.state !== 'active'" class="state-badge inactive">{{ member.state }}</span>
@@ -350,6 +355,13 @@
                   >
                     <span class="role-short">{{ getRoleShort(member.role) }}</span>
                     {{ getRoleLabel(member.role) }}
+                  </span>
+                  <span
+                    v-if="gaTable && member.is_helper"
+                    class="coach-flag-badge"
+                    :title="t('settings.departmentUsers.helperFlagTitle')"
+                  >
+                    {{ t('settings.departmentUsers.helperFlagShort') }}
                   </span>
                   <span
                     v-if="member.is_js_coach"
@@ -580,6 +592,7 @@
       :member="editingMember"
       :department-id="departmentId"
       :hide-js-coach="isGrossanlassDept"
+      :is-grossanlass="isGrossanlassDept"
       :membership-accordion-open="editMembershipAccordionOpen"
       :address-accordion-open="editAddressAccordionOpen"
       @saved="onMemberDetailSaved"
@@ -635,6 +648,7 @@ import {
 } from '@/api/departmentSettings'
 import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
 import { getGroups, type Group } from '@/api/groups'
+import { getGrossanlassUserCards } from '@/api/grossanlassUserCards'
 import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
 import { resolveIsGrossanlassDepartmentId } from '@/utils/departmentSwitch'
 import {
@@ -658,12 +672,18 @@ const props = withDefaults(
     isGrossanlass?: boolean | null
     /** Beim Öffnen diesen Accordion-Bereich aufklappen. */
     initialOpenSection?: UsersSettingsOpenSection | null
+    /** Grossanlass: «ga-persons» = feste GA-Funktionen, «helpers» = Helfer (Basisrolle). Standard: alle. */
+    memberScope?: 'all' | 'ga-persons' | 'helpers'
+    /** Seitentitel und Untertitel ausblenden (z. B. wenn eine übergeordnete Ansicht Tabs liefert). */
+    hideHeader?: boolean
   }>(),
   {
     departmentId: undefined,
     embedded: false,
     isGrossanlass: null,
     initialOpenSection: null,
+    memberScope: 'all',
+    hideHeader: false,
   },
 )
 
@@ -995,8 +1015,41 @@ const ressortFilterItems = computed(() =>
     .map((g) => ({ title: g.name, value: g.id })),
 )
 
+const driverUserIds = ref<Set<string>>(new Set())
+
+async function loadDrivers() {
+  if (!departmentId.value || !isGrossanlassDept.value) return
+  try {
+    const cards = await getGrossanlassUserCards(departmentId.value)
+    driverUserIds.value = new Set(cards.filter((c) => c.may_drive).map((c) => c.user_id))
+  } catch {
+    driverUserIds.value = new Set()
+  }
+}
+
+/** Leitung eines Ressorts/Bereichs/Projekts (Stern). */
+const leaderUserIds = computed(() => {
+  const ids = new Set<string>()
+  for (const g of departmentGroups.value as GrossanlassGroup[]) {
+    for (const m of g.members ?? []) if (m.is_leader) ids.add(m.user_id)
+  }
+  return ids
+})
+
+/** Helfer = Rolle `h` oder Flag `is_helper` (interne Person); GA-Personen = alle ausser reinen Helfern (Rolle `h`). */
+function isHelperMember(m: DepartmentMember): boolean {
+  return normalizeDeptRole(m.role) === 'h' || !!m.is_helper
+}
+
+function isGaPersonMember(m: DepartmentMember): boolean {
+  return normalizeDeptRole(m.role) !== 'h'
+}
+
 const filteredMembers = computed(() => {
   let result = [...members.value]
+
+  if (gaTable.value && props.memberScope === 'ga-persons') result = result.filter(isGaPersonMember)
+  if (gaTable.value && props.memberScope === 'helpers') result = result.filter(isHelperMember)
 
   if (gaTable.value && roleFilter.value) {
     result = result.filter((m) => normalizeDeptRole(m.role) === roleFilter.value)
@@ -1286,6 +1339,7 @@ function setGroupSelected(groupId: string, checked: boolean) {
 async function loadDepartmentGroups() {
   if (!departmentId.value) return
   isLoadingGroups.value = true
+  void loadDrivers()
   try {
     departmentGroups.value = isGrossanlassDept.value
       ? await getGrossanlassGroups(departmentId.value)
@@ -1907,17 +1961,73 @@ onUnmounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  align-items: flex-start;
+  align-items: flex-end; /* gleiche Unterkante; Rahmen sind alle 48 px hoch → gleiche Oberkante */
 }
 
+/* Suchfeld: nutzt den Restplatz. Die 10 px padding-top gehören dem schwebenden Label und liegen oberhalb des 48-px-Rahmens. */
 .members-flat .search-box {
   flex: 1 1 260px;
+  min-width: 220px;
+  max-width: none;
+  margin: 0;
 }
 
-.members-filter {
-  flex: 0 0 220px;
-  width: 220px;
-  min-width: 220px;
+.members-flat .search-box :deep(.search-field__frame) {
+  height: 48px;
+  min-height: 48px;
+  box-sizing: border-box;
+}
+
+/* Rollen-/Ressortfilter: ESelect reicht die Klasse an das v-select weiter, daher wird der Wrapper (.e-form-field) als Flex-Element angesprochen. */
+.members-flat .search-bar--in-accordion > .e-form-field {
+  flex: 0 0 260px;
+  width: 260px;
+  min-width: 260px;
+  max-width: 260px;
+  margin: 0;
+  padding: 0;
+}
+
+.members-flat .search-bar--in-accordion > .e-form-field :deep(.autosave-control),
+.members-flat .search-bar--in-accordion > .e-form-field :deep(.autosave-field-frame) {
+  margin: 0;
+  padding: 0;
+}
+
+.members-flat .search-bar--in-accordion > .e-form-field :deep(.v-input) {
+  --v-input-control-height: 48px;
+  margin: 0;
+  width: 100%;
+}
+
+.members-flat .search-bar--in-accordion > .e-form-field :deep(.v-input__details) {
+  display: none;
+}
+
+.members-flat .search-bar--in-accordion > .e-form-field :deep(.v-field) {
+  height: 48px;
+  min-height: 48px;
+  box-sizing: border-box;
+}
+
+.members-flat .search-bar--in-accordion > .e-form-field :deep(.v-field__field),
+.members-flat .search-bar--in-accordion > .e-form-field :deep(.v-field__input) {
+  min-height: 48px;
+  height: 48px;
+  padding-top: 0;
+  padding-bottom: 0;
+  align-items: center;
+}
+
+/* Zu wenig Platz: Felder brechen um; unter 640 px je volle Breite. */
+@media (max-width: 640px) {
+  .members-flat .search-box,
+  .members-flat .search-bar--in-accordion > .e-form-field {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
 }
 
 .col-sortable {

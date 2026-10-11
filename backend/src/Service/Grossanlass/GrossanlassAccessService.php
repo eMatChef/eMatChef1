@@ -160,7 +160,7 @@ class GrossanlassAccessService
 
     public function isGrossanlassHelper(User $user, Department $department): bool
     {
-        return ($this->membershipRole($user, $department) ?? '') === 'u';
+        return \in_array($this->membershipRole($user, $department) ?? '', ['u', 'h'], true);
     }
 
     public function canSeeOwnEinsaetze(User $user, Department $department): bool

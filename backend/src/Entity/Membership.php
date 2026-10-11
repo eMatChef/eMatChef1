@@ -27,7 +27,7 @@ class Membership
 
     #[ORM\Column(type: 'string', length: 20)]
     #[Assert\Choice(choices: [
-        'mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'l1', 'l2', 'l3', 'u'
+        'mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'l1', 'l2', 'l3', 'u', 'h'
     ], message: 'Ungültige Rolle')]
     private string $role = 'u';
 
@@ -37,6 +37,10 @@ class Membership
     /** J+S-Coach-Flag (Zusatz zur Rolle, wie Gruppenchef ★). */
     #[ORM\Column(name: 'is_js_coach', type: 'boolean', options: ['default' => false])]
     private bool $isJsCoach = false;
+
+    /** Helfer-Flag (Zusatz zur Rolle, verleiht keine Rechte). */
+    #[ORM\Column(name: 'is_helper', type: 'boolean', options: ['default' => false])]
+    private bool $isHelper = false;
 
     /** Empfänger für Mails dieses Departments. Leer = Hauptadresse (Profil). */
     #[ORM\Column(name: 'notification_email', type: 'string', length: 180, nullable: true)]
@@ -118,6 +122,17 @@ class Membership
     public function setIsJsCoach(bool $isJsCoach): self
     {
         $this->isJsCoach = $isJsCoach;
+        return $this;
+    }
+
+    public function getIsHelper(): bool
+    {
+        return $this->isHelper;
+    }
+
+    public function setIsHelper(bool $isHelper): self
+    {
+        $this->isHelper = $isHelper;
         return $this;
     }
 

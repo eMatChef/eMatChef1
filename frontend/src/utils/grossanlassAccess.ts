@@ -81,9 +81,9 @@ export function gaIsBereichsleitung(role: string | null | undefined): boolean {
   return gaRole(role) === 'bl'
 }
 
-/** Helfer (`u`): Mein Ressort, eigene Einsätze, gefilterte Aufgaben — kein Planung/Postfach. */
+/** Mitglied/Helfer (`u`, `h`): Mein Ressort, eigene Einsätze, gefilterte Aufgaben — kein Planung/Postfach. */
 export function gaIsGrossanlassHelper(role: string | null | undefined): boolean {
-  return gaRole(role) === 'u'
+  return ['u', 'h'].includes(gaRole(role))
 }
 
 /** Komm/Spon: Postfach + Vorlagen, ohne Beschaffungs-Kommando. */
@@ -128,6 +128,8 @@ export function gaDeptStageBadge(role: string | null | undefined): GaDeptStageBa
     case 'clw':
       return { short: 'CLW', role: r }
     case 'u':
+      return { short: 'U', role: r }
+    case 'h':
       return { short: 'H', role: r }
     default:
       return null
@@ -168,7 +170,7 @@ export const GA_MATERIALS_ROUTE_ROLES = [...GA_MATERIAL_ROUTE_ROLES] as const
 export const GA_PLANUNG_ROUTE_ROLES = [...GA_UEBERSICHT_ROUTE_ROLES] as const
 
 /** Router: Meine Einsätze (Helfer). */
-export const GA_HELPER_ROUTE_ROLES = ['user', 'u'] as const
+export const GA_HELPER_ROUTE_ROLES = ['user', 'u', 'h'] as const
 
 /** Stern = Chef in diesem Ressort, nicht die Systemrolle BL. */
 export function gaIsChefFromGroups(
