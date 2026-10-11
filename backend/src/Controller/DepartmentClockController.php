@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Department;
 use App\Entity\DepartmentCalendarPeriod;
+use App\Entity\DepartmentSetting;
 use App\Entity\User;
 use App\Service\Clock\BusinessClock;
 use App\Service\GroupAccessService;
@@ -135,6 +136,32 @@ class DepartmentClockController extends AbstractController
     }
 
     /**
+     * Fest konfigurierte Schnellwahl (Department-Einstellung `demo_clock_presets`, vom Demo-Seed gesetzt). Ungültige Einträge
+     * werden verworfen; ohne gültige Einstellung gilt die abgeleitete Schnellwahl.
+     *
+     * @return list<array{key: string, at: string}>|null
+     */
+    private function configuredPresets(Department $department): ?array
+    {
+        $row = $this->entityManager->getRepository(DepartmentSetting::class)->findOneBy(['departmentId' => $department->getId(), 'settingKey' => DepartmentSetting::KEY_DEMO_CLOCK_PRESETS]);
+        $raw = $row instanceof DepartmentSetting ? json_decode($row->getSettingValue(), true) : null;
+        if (!\is_array($raw)) {
+            return null;
+        }
+        $allowed = ['months_before_5', 'months_before_2', 'build', 'during_event', 'teardown', 'months_after_2'];
+        $out = [];
+        foreach ($raw as $item) {
+            $key = \is_array($item) ? ($item['key'] ?? null) : null;
+            $at = \is_array($item) ? ($item['at'] ?? null) : null;
+            if (\is_string($key) && \in_array($key, $allowed, true) && \is_string($at) && preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/', $at)) {
+                $out[] = ['key' => $key, 'at' => $at];
+            }
+        }
+
+        return $out === [] ? null : $out;
+    }
+
+    /**
      * Schnellwahl der Demo-Uhr, abgeleitet aus dem Anlasszeitraum und den fixen Daten (Aufbau, Abbau) der
      * Grossanlass-Konfiguration; nichts davon ist im Frontend hinterlegt. Alle Zeiten sind Wandzeit (lokale Veranstaltungszeit).
      * Departments ohne Grossanlass-Konfiguration haben keine Schnellwahl.
@@ -146,6 +173,10 @@ class DepartmentClockController extends AbstractController
         $config = $department->getGrossanlassConfig();
         if ($config === null) {
             return [];
+        }
+        $configured = $this->configuredPresets($department);
+        if ($configured !== null) {
+            return $configured;
         }
         $start = \DateTimeImmutable::createFromInterface($config->getPlannedEventStart());
         $end = $config->getPlannedEventEnd() !== null ? \DateTimeImmutable::createFromInterface($config->getPlannedEventEnd()) : $start;

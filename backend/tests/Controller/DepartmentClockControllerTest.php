@@ -7,6 +7,7 @@ namespace App\Tests\Controller;
 use App\Controller\DepartmentClockController;
 use App\Entity\Department;
 use App\Entity\DepartmentCalendarPeriod;
+use App\Entity\DepartmentSetting;
 use App\Entity\DepartmentGrossanlassConfig;
 use App\Service\Grossanlass\GrossanlassClockOriginResolver;
 use App\Entity\User;
@@ -140,6 +141,40 @@ final class DepartmentClockControllerTest extends TestCase
         }
     }
 
+    public function testConfiguredQuickSelectionJumpsIntoThePhasesAndInvalidEntriesAreIgnored(): void
+    {
+        $department = $this->department(true, true);
+        $department->getGrossanlassConfig()->setPlannedEventStart(new \DateTime('2027-06-04 16:00:00'));
+        $department->getGrossanlassConfig()->setPlannedEventEnd(new \DateTime('2027-06-06 16:00:00'));
+        $setting = (new DepartmentSetting())->setSettingKey(DepartmentSetting::KEY_DEMO_CLOCK_PRESETS)->setSettingValue((string) json_encode([
+            ['key' => 'months_before_5', 'at' => '2027-01-04T16:00:00'],
+            ['key' => 'months_before_2', 'at' => '2027-04-04T16:00:00'],
+            ['key' => 'build', 'at' => '2027-05-31T14:00:00'],
+            ['key' => 'during_event', 'at' => '2027-06-05T17:00:00'],
+            ['key' => 'teardown', 'at' => '2027-06-08T08:00:00'],
+            ['key' => 'months_after_2', 'at' => '2027-08-06T16:00:00'],
+            ['key' => 'unknown', 'at' => '2027-01-01T00:00:00'],
+            ['key' => 'build', 'at' => 'not-a-time'],
+        ]));
+        $controller = $this->controller($department, 'prod', true, [DepartmentSetting::class => $setting]);
+
+        $presets = json_decode((string) $controller->get('dep000000001')->getContent(), true)['presets'];
+
+        $byKey = array_column($presets, 'at', 'key');
+        self::assertSame(['2027-01-04T16:00:00', '2027-04-04T16:00:00', '2027-05-31T14:00:00', '2027-06-05T17:00:00', '2027-06-08T08:00:00', '2027-08-06T16:00:00'], array_values($byKey));
+        self::assertCount(6, $presets);
+        // Aufbau, Event und Abbau liegen mitten in der jeweiligen Phase (Aufbau 19.05.–04.06., Event 04.–06.06., Abbau 06.–23.06.)
+        self::assertGreaterThan('2027-05-19T13:00:00', $byKey['build']);
+        self::assertLessThan('2027-06-04T16:00:00', $byKey['build']);
+        self::assertGreaterThan('2027-06-04T16:00:00', $byKey['during_event']);
+        self::assertLessThan('2027-06-06T16:00:00', $byKey['during_event']);
+        self::assertGreaterThan('2027-06-06T17:00:00', $byKey['teardown']);
+        self::assertLessThan('2027-06-23T12:00:00', $byKey['teardown']);
+        // Die Schnellwahl liest nur: das Lesen verändert weder Uhr noch Anlassdaten
+        self::assertNull($department->getDemoClockOffsetSeconds());
+        self::assertSame('2027-06-04 16:00:00', $department->getGrossanlassConfig()->getPlannedEventStart()->format('Y-m-d H:i:s'));
+    }
+
     public function testDepartmentWithoutGrossanlassHasNoQuickSelection(): void
     {
         $controller = $this->controller($this->department(true), 'prod', true);
@@ -190,12 +225,12 @@ final class DepartmentClockControllerTest extends TestCase
         return $department;
     }
 
-    /** @param array<string, DepartmentCalendarPeriod> $periods Kalenderperioden nach Label */
+    /** @param array<string, object> $periods Kalenderperioden nach Label, optional `DepartmentSetting::class` für die Schnellwahl-Einstellung */
     private function controller(Department $department, string $env, bool $member, array $periods = []): DepartmentClockController
     {
         $repository = $this->createMock(EntityRepository::class);
         $repository->method('find')->willReturn($department);
-        $repository->method('findOneBy')->willReturnCallback(static fn (array $criteria): ?DepartmentCalendarPeriod => $periods[$criteria['label'] ?? ''] ?? null);
+        $repository->method('findOneBy')->willReturnCallback(static fn (array $criteria): ?object => isset($criteria['settingKey']) ? ($periods[DepartmentSetting::class] ?? null) : ($periods[$criteria['label'] ?? ''] ?? null));
         $em = $this->createMock(EntityManagerInterface::class);
         $em->method('getRepository')->willReturn($repository);
         $kernel = $this->createMock(KernelInterface::class);

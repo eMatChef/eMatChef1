@@ -7,6 +7,7 @@ namespace App\Service\Demo\Organisation;
 use App\Entity\Address;
 use App\Entity\DemoSeedRecord;
 use App\Entity\DepartmentCalendarPeriod;
+use App\Entity\DepartmentSetting;
 use App\Entity\DepartmentGrossanlassConfig;
 use App\Entity\DepartmentGrossanlassParticipant;
 use App\Entity\Department;
@@ -132,6 +133,10 @@ class DemoOrganisationSeeder
                 foreach ($cat['grossanlass']['phases'] ?? [] as $phase) {
                     $expected[] = $key . ':phase:' . $phase['key'];
                     $this->ensureGrossanlassPhase($context, $report, $key, $department, $phase, $version);
+                }
+                if (isset($cat['grossanlass']['clockPresets'])) {
+                    $expected[] = $key . ':clock-presets';
+                    $this->ensureClockPresets($context, $report, $key, $department, $cat['grossanlass']['clockPresets'], $version);
                 }
             }
         }
@@ -266,6 +271,9 @@ class DemoOrganisationSeeder
         }
         foreach ($cat['grossanlass']['phases'] ?? [] as $phase) {
             $required[] = $key . ':phase:' . $phase['key'];
+        }
+        if (isset($cat['grossanlass']['clockPresets'])) {
+            $required[] = $key . ':clock-presets';
         }
         foreach ($cat['adminScopes'] ?? [] as $scope) {
             $required[] = $key . ':adminscope:' . $scope['account'];
@@ -592,6 +600,37 @@ class DemoOrganisationSeeder
             },
             desired: $desired,
             adopt: fn (): ?object => $this->adoptPeriod($department, $label),
+        ), $version);
+    }
+
+    /**
+     * Schnellwahl der Demo-Uhr (feste Wandzeiten aus dem Katalog) als Department-Einstellung `demo_clock_presets`; die Uhr-Steuerung
+     * liest sie dort. Die Einstellung verändert nie die Veranstaltungsdaten und nie die Uhr selbst. Dreiwege-Vergleich: eine von Hand
+     * geänderte Schnellwahl bleibt.
+     *
+     * @param list<array{key: string, at: string}> $presets
+     */
+    private function ensureClockPresets(SeedContext $context, SyncReport $report, string $key, Department $department, array $presets, string $version): void
+    {
+        $desired = ['presets' => json_encode(array_values(array_map(static fn (array $p): array => ['key' => (string) $p['key'], 'at' => (string) $p['at']], $presets)), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)];
+        $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $key . ':clock-presets',
+            create: function () use ($department): DepartmentSetting {
+                $row = new DepartmentSetting();
+                $row->setId(IdGenerator::generateUnique($this->entityManager, DepartmentSetting::class));
+                $row->setDepartment($department);
+                $row->setSettingKey(DepartmentSetting::KEY_DEMO_CLOCK_PRESETS);
+
+                return $row;
+            },
+            find: fn (string $id): ?object => $this->entityManager->find(DepartmentSetting::class, $id),
+            idOf: static fn (object $r): string => (string) $r->getId(),
+            read: static fn (object $r): array => ['presets' => $r->getSettingValue()],
+            write: static function (object $r, array $d): void {
+                $r->setSettingValue($d['presets']);
+            },
+            desired: $desired,
+            adopt: fn (): ?object => $this->entityManager->getRepository(DepartmentSetting::class)->findOneBy(['departmentId' => $department->getId(), 'settingKey' => DepartmentSetting::KEY_DEMO_CLOCK_PRESETS]),
         ), $version);
     }
 

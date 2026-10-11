@@ -231,6 +231,15 @@ class DemoOrganisationCatalog
         if (isset($ga['eventStart'], $ga['eventEnd']) && $time($ga['eventEnd']) <= $time($ga['eventStart'])) {
             $fail(sprintf('%s: grossanlass.eventEnd muss nach eventStart liegen.', $key));
         }
+        $allowed = ['months_before_5', 'months_before_2', 'build', 'during_event', 'teardown', 'months_after_2'];
+        $presetKeys = [];
+        foreach ($ga['clockPresets'] ?? [] as $preset) {
+            $presetKey = (string) ($preset['key'] ?? '');
+            if (!\in_array($presetKey, $allowed, true) || isset($presetKeys[$presetKey]) || $time($preset['at'] ?? null) === null) {
+                $fail(sprintf('%s: grossanlass.clockPresets «%s»: Schlüssel (%s, je einmal) und Wandzeit «JJJJ-MM-TTTHH:MM:SS» erforderlich.', $key, $presetKey, implode('|', $allowed)));
+            }
+            $presetKeys[$presetKey] = true;
+        }
         $seen = [];
         foreach ($ga['phases'] ?? [] as $phase) {
             $phaseKey = (string) ($phase['key'] ?? '');

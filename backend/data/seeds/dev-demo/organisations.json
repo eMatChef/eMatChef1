@@ -1,5 +1,5 @@
 {
-  "catalogVersion": "2026.10.9",
+  "catalogVersion": "2026.10.10",
   "_comment": "Versionierter Seed-Katalog der Demo-Organisationen. Schlüssel (key) sind stabile Seed-Identitäten und werden nie umbenannt; Anzeigenamen dürfen sich ändern. Konten stammen aus demo-accounts.json. Demo-Benutzer sind reine Testdaten, gehören keinem Szenario und dürfen in mehreren Demo-Departments Mitglied sein. Globale Rollen (sa/org/sub) stehen in profile.roles und sind keine Mitgliedschaftsrolle: Superadmin, Orgchef und Suborgchef erhalten nie automatisch eine MW-Rolle; ihre Verwaltungszuständigkeit steht in adminScopes (roots = Department-Wurzeln samt Unterbaum, organisation = die Organisation des Szenarios; kombinierbar, auch über mehrere Szenarien; ohne Eintrag keine Verwaltungsrechte), operative Rollen nur ausdrücklich unter members. Alle Szenarien teilen die eine Demo-Organisation (oberste Ebene organisation); Organisations-Scopes sind nicht erlaubt, Verwaltungsbereiche nur über roots. department.parentRef (optional) kann das Szenario-Department unter ein zusätzliches Department eines anderen Szenarios hängen; die Einrichtung nutzt es bewusst nicht, weil sie sonst im Verwaltungsbereich des Orgchefs läge (Rechteausweitung). Zusätzliche Departments (departments) bilden nur die Hierarchie ab, ohne Prozessdaten. members[].department verweist auf einen Schlüssel aus departments (ohne Angabe: das Szenario-Department). retiredMembers nennt früher fälschlich gesäte Mitgliedschaften, die nur entfernt werden, wenn sie unverändert vom Seed stammen. Doku: docs/demo/SEED-KONZEPT.md §7.11. Grossanlass-Zeiten (eventStart/eventEnd, phases, clockOrigin) sind feste Wandzeiten (lokale Veranstaltungszeit Europe/Zurich, ohne Zeitzonenumrechnung wie alle Grossanlass-Zeiten) und werden nie aus dem heutigen Datum berechnet; clockOrigin setzt die Demo-Uhr einmalig bei der Erstinitialisierung.",
   "organisation": {
     "name": "Demo Organisation"
@@ -560,7 +560,33 @@
               0.62
             ]
           }
-        }
+        },
+        "clockPresets": [
+          {
+            "key": "months_before_5",
+            "at": "2027-01-04T16:00:00"
+          },
+          {
+            "key": "months_before_2",
+            "at": "2027-04-04T16:00:00"
+          },
+          {
+            "key": "build",
+            "at": "2027-05-31T14:00:00"
+          },
+          {
+            "key": "during_event",
+            "at": "2027-06-05T17:00:00"
+          },
+          {
+            "key": "teardown",
+            "at": "2027-06-08T08:00:00"
+          },
+          {
+            "key": "months_after_2",
+            "at": "2027-08-06T16:00:00"
+          }
+        ]
       }
     },
     "grossanlass-camp": {

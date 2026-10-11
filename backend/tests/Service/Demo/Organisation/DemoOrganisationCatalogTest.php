@@ -237,6 +237,16 @@ final class DemoOrganisationCatalogTest extends TestCase
 
             return $d;
         }, 'Wurzel «nirgendwo»'];
+        yield 'unknown quick selection key' => [static function (array $d): array {
+            $d['scenarios']['grossanlass-event']['grossanlass']['clockPresets'][2]['key'] = 'mitte';
+
+            return $d;
+        }, 'clockPresets'];
+        yield 'quick selection without wall clock' => [static function (array $d): array {
+            $d['scenarios']['grossanlass-event']['grossanlass']['clockPresets'][0]['at'] = '2027-01-04 16:00';
+
+            return $d;
+        }, 'clockPresets'];
         yield 'event end before start' => [static function (array $d): array {
             $d['scenarios']['grossanlass-event']['grossanlass']['eventEnd'] = '2027-06-04T15:00:00';
 
@@ -282,6 +292,15 @@ final class DemoOrganisationCatalogTest extends TestCase
         self::assertSame(['event', true], [$event['guestActivityType'], $event['setupReleased']]);
         // Event-Stammdaten (fiktiver Veranstaltungsplatz) und feste Zeiten 2027 (lokale Wandzeit, nie aus dem heutigen Datum)
         self::assertSame(['2027-06-04T16:00:00', '2027-06-06T16:00:00', '2027-04-04T16:00:00'], [$event['eventStart'], $event['eventEnd'], $event['clockOrigin']]);
+        // Schnellwahl der Demo-Uhr (Europe/Zurich-Wandzeit): Aufbau, Event und Abbau springen bewusst mitten in die Phase
+        self::assertSame([
+            'months_before_5' => '2027-01-04T16:00:00',
+            'months_before_2' => '2027-04-04T16:00:00',
+            'build' => '2027-05-31T14:00:00',
+            'during_event' => '2027-06-05T17:00:00',
+            'teardown' => '2027-06-08T08:00:00',
+            'months_after_2' => '2027-08-06T16:00:00',
+        ], array_column($event['clockPresets'], 'at', 'key'));
         self::assertSame(
             ['aufbau' => ['2027-05-19T13:00:00', '2027-06-04T16:00:00'], 'abbau' => ['2027-06-06T17:00:00', '2027-06-23T12:00:00']],
             array_column(array_map(static fn (array $p): array => ['key' => $p['key'], 'range' => [$p['start'], $p['end']]], $event['phases']), 'range', 'key'),

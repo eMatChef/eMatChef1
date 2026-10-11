@@ -164,6 +164,12 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
                 'aufbau' => ['2027-05-19 13:00:00', '2027-06-04 16:00:00'],
                 'grossanlass' => ['2027-06-04 16:00:00', '2027-06-06 16:00:00'],
             ], $periods);
+            // Schnellwahl der Demo-Uhr als Einstellung (feste Wandzeiten, mitten in den Phasen)
+            $presets = json_decode((string) $conn->fetchOne("SELECT setting_value FROM department_setting WHERE department_id=? AND setting_key='demo_clock_presets'", [$event]), true);
+            self::assertSame(
+                ['2027-01-04T16:00:00', '2027-04-04T16:00:00', '2027-05-31T14:00:00', '2027-06-05T17:00:00', '2027-06-08T08:00:00', '2027-08-06T16:00:00'],
+                array_column($presets, 'at'),
+            );
             // Demo-Uhr: einmalige Erstinitialisierung auf 04.04.2027 16:00 (Wandzeit)
             $offset = (int) $conn->fetchOne('SELECT demo_clock_offset_seconds FROM department WHERE id=?', [$event]);
             self::assertEqualsWithDelta((new \DateTimeImmutable('2027-04-04 16:00:00', new \DateTimeZone('UTC')))->getTimestamp(), time() + $offset, 180);
@@ -237,6 +243,12 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             $conn->executeStatement('UPDATE department SET demo_clock_offset_seconds=? WHERE id=?', [$manual, $event]);
             $this->syncAll($runner, $registry, $em);
             self::assertSame($manual, (int) $conn->fetchOne('SELECT demo_clock_offset_seconds FROM department WHERE id=?', [$event]));
+            // Auch eine von Hand geänderte Schnellwahl und die Anlassdaten bleiben nach dem Sync erhalten; die Uhr ändert nur die Zeit
+            $conn->executeStatement("UPDATE department_setting SET setting_value=? WHERE department_id=? AND setting_key='demo_clock_presets'", [json_encode([['key' => 'build', 'at' => '2027-05-25T10:00:00']]), $event]);
+            $periodBefore = $conn->fetchAssociative('SELECT planned_event_start, planned_event_end FROM department_grossanlass_config WHERE department_id=?', [$event]);
+            $this->syncAll($runner, $registry, $em);
+            self::assertSame([['key' => 'build', 'at' => '2027-05-25T10:00:00']], json_decode((string) $conn->fetchOne("SELECT setting_value FROM department_setting WHERE department_id=? AND setting_key='demo_clock_presets'", [$event]), true));
+            self::assertSame($periodBefore, $conn->fetchAssociative('SELECT planned_event_start, planned_event_end FROM department_grossanlass_config WHERE department_id=?', [$event]));
             self::assertSame($othersBefore, $conn->fetchAllAssociative("SELECT * FROM demo_seed_record WHERE scenario_key IN ('grossanlass-camp','grossanlass-setup','materialverwaltung') ORDER BY seed_key"));
         });
     }

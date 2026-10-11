@@ -24,6 +24,9 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\UniqueConstraint(name: 'uq_department_setting_key', columns: ['department_id', 'setting_key'])]
 class DepartmentSetting
 {
+    /** Schnellwahl der Demo-Uhr (JSON-Liste {key, at}); vom Seed des Grossanlass-Szenarios geschrieben. */
+    public const KEY_DEMO_CLOCK_PRESETS = 'demo_clock_presets';
+
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
     #[ORM\GeneratedValue(strategy: 'NONE')]
