@@ -25,7 +25,7 @@ class DemoOrganisationCatalog
     private const GLOBAL_ROLES = ['sa', 'org', 'sub'];
     private const FORBIDDEN_FOR_GLOBAL = ['mw', 'cmw'];
 
-    /** @var array{catalogVersion: string, sharedAccounts?: list<string>, scenarios: array<string, array<string, mixed>>}|null */
+    /** @var array{catalogVersion: string, organisation: array{name: string}, sharedAccounts?: list<string>, scenarios: array<string, array<string, mixed>>}|null */
     private ?array $data = null;
 
     public function __construct(private string $file = self::FILE)
@@ -35,6 +35,12 @@ class DemoOrganisationCatalog
     public function version(): string
     {
         return $this->data()['catalogVersion'];
+    }
+
+    /** @return array{name: string} die gemeinsame Demo-Organisation aller Szenarien */
+    public function organisation(): array
+    {
+        return $this->data()['organisation'];
     }
 
     /** @return list<string> Konten ohne Department-Mitgliedschaft, die jeder Sync mit anlegt (z. B. Lieferant) */
@@ -52,7 +58,7 @@ class DemoOrganisationCatalog
         return $this->data()['scenarios'][$key] ?? throw new DemoScenarioException(sprintf('Katalog kennt das Szenario «%s» nicht.', $key));
     }
 
-    /** @return array{catalogVersion: string, scenarios: array<string, array<string, mixed>>} */
+    /** @return array{catalogVersion: string, organisation: array{name: string}, scenarios: array<string, array<string, mixed>>} */
     private function data(): array
     {
         if ($this->data === null) {
@@ -72,6 +78,9 @@ class DemoOrganisationCatalog
         if (!preg_match('/^\d{4}\.\d{1,2}\.\d{1,3}$/', (string) ($d['catalogVersion'] ?? ''))) {
             $fail('catalogVersion fehlt oder hat falsches Format (JJJJ.M.N).');
         }
+        if (trim((string) ($d['organisation']['name'] ?? '')) === '') {
+            $fail('organisation.name fehlt (gemeinsame Demo-Organisation).');
+        }
         $scenarios = $d['scenarios'] ?? [];
         if (array_keys($scenarios) !== array_values(array_intersect(array_keys($scenarios), DemoScenarioKey::all())) || \count($scenarios) !== \count(DemoScenarioKey::all())) {
             $fail('genau die Szenarien ' . implode(', ', DemoScenarioKey::all()) . ' erwartet.');
@@ -87,11 +96,13 @@ class DemoOrganisationCatalog
 
         foreach ($scenarios as $key => $scenario) {
             $accountsInScenario = [];
-            foreach (['organisation', 'department'] as $part) {
-                if (trim((string) ($scenario[$part]['name'] ?? '')) === '') {
-                    $fail(sprintf('%s: %s.name fehlt.', $key, $part));
-                }
+            if (isset($scenario['organisation'])) {
+                $fail(sprintf('%s: eine eigene Organisation je Szenario ist nicht vorgesehen (gemeinsame Organisation auf oberster Ebene).', $key));
             }
+            if (trim((string) ($scenario['department']['name'] ?? '')) === '') {
+                $fail(sprintf('%s: department.name fehlt.', $key));
+            }
+            $this->validateParentRef($key, $scenario, $scenarios, $fail);
             $departmentKeys = $this->validateDepartments($key, $scenario, $fail);
             $groupKeys = [];
             foreach ($scenario['groups'] ?? [] as $group) {
@@ -178,8 +189,11 @@ class DemoOrganisationCatalog
                 if (!\in_array($role, ['org', 'sub'], true)) {
                     $fail(sprintf('%s: adminScopes: «%s» ist weder Orgchef noch Suborgchef.', $key, $account));
                 }
-                if (($scope['roots'] ?? []) === [] && ($scope['organisation'] ?? false) !== true) {
-                    $fail(sprintf('%s: adminScopes: «%s» ohne roots oder organisation.', $key, $account));
+                if (($scope['organisation'] ?? false) === true) {
+                    $fail(sprintf('%s: adminScopes: «%s» darf keinen Organisations-Scope erhalten (gemeinsame Organisation würde alle Szenarien umfassen); roots verwenden.', $key, $account));
+                }
+                if (($scope['roots'] ?? []) === []) {
+                    $fail(sprintf('%s: adminScopes: «%s» ohne roots.', $key, $account));
                 }
                 foreach ($scope['roots'] ?? [] as $root) {
                     if (!isset($departmentKeys[$root])) {
@@ -187,6 +201,33 @@ class DemoOrganisationCatalog
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Eltern-Department in einem anderen Szenario (department.parentRef {scenario, department}); das Szenario-Department
+     * selbst hängt dann unter einem zusätzlichen Department des anderen Szenarios (z. B. Einrichtung unter dem Demo-Department).
+     *
+     * @param array<string, mixed>                $scenario
+     * @param array<string, array<string, mixed>> $scenarios
+     */
+    private function validateParentRef(string $key, array $scenario, array $scenarios, callable $fail): void
+    {
+        $ref = $scenario['department']['parentRef'] ?? null;
+        if ($ref === null) {
+            return;
+        }
+        if (isset($scenario['department']['parent'])) {
+            $fail(sprintf('%s: department.parent und department.parentRef schliessen sich aus.', $key));
+        }
+        $target = (string) ($ref['scenario'] ?? '');
+        if ($target === $key || !isset($scenarios[$target])) {
+            $fail(sprintf('%s: parentRef.scenario «%s» unbekannt oder identisch.', $key, $target));
+        }
+        $department = (string) ($ref['department'] ?? '');
+        $known = array_map(static fn (array $d): string => (string) ($d['key'] ?? ''), (array) ($scenarios[$target]['departments'] ?? []));
+        if (!\in_array($department, $known, true)) {
+            $fail(sprintf('%s: parentRef.department «%s» ist kein zusätzliches Department von «%s».', $key, $department, $target));
         }
     }
 

@@ -16,7 +16,8 @@ final class RegistryAndIdentityTest extends ScenarioTestCase
     public function testRegistryIndexesByKeyAndRejectsDuplicatesAndUnknownKeys(): void
     {
         $registry = $this->registry($this->scenario(DemoScenarioKey::GROSSANLASS_CAMP), $this->scenario(DemoScenarioKey::MATERIALVERWALTUNG));
-        self::assertSame([DemoScenarioKey::GROSSANLASS_CAMP, DemoScenarioKey::MATERIALVERWALTUNG], array_keys($registry->all()));
+        // Abhängigkeitsreihenfolge statt alphabetisch: Materialverwaltung vor den Grossanlässen (Eltern-Department der Einrichtung)
+        self::assertSame([DemoScenarioKey::MATERIALVERWALTUNG, DemoScenarioKey::GROSSANLASS_CAMP], array_keys($registry->all()));
         self::assertTrue($registry->has(DemoScenarioKey::MATERIALVERWALTUNG));
         self::assertFalse($registry->has(DemoScenarioKey::GROSSANLASS_EVENT));
 

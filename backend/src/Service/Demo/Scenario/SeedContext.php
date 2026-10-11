@@ -46,6 +46,21 @@ final class SeedContext
     }
 
     /**
+     * Kontext für die gemeinsame Demo-Organisation. Mehrere Szenarien verwenden dieselbe Organisation; ihr Ledger-Eintrag
+     * gehört deshalb keinem Szenario (und keinem Department) und überlebt jeden Szenario-Reset.
+     */
+    public function sharedOrganisation(): self
+    {
+        return new self(DemoSeedLedger::SHARED_ORGANISATION, null, $this->ledger, $this->dryRun);
+    }
+
+    /** Lesender Zugriff auf einen Ledger-Eintrag eines anderen Szenarios (z. B. Eltern-Department über Szenarien hinweg). */
+    public function findRecordOfScenario(string $scenarioKey, string $seedKey): ?DemoSeedRecord
+    {
+        return $this->ledger->find($scenarioKey, $seedKey);
+    }
+
+    /**
      * Reset-Modus: department-eigene, ausdrücklich rücksetzbare Seed-Datensätze (Department-Name, GA-Konfiguration,
      * Mitgliedschaften des Szenarios) werden auch dann auf den Katalog zurückgesetzt, wenn sie manuell geändert wurden.
      * Gemeinsame Benutzer-Kontexte erben das Flag nie.

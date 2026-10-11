@@ -34,7 +34,9 @@ final class DemoScenarioRegistry
                 }
                 $byKey[$key] = $scenario;
             }
-            ksort($byKey);
+            // Abhängigkeitsreihenfolge (Materialverwaltung vor den Grossanlässen, Einrichtung zuletzt), nicht alphabetisch.
+            $order = array_flip(DemoScenarioKey::all());
+            uksort($byKey, static fn (string $a, string $b): int => $order[$a] <=> $order[$b]);
             $this->byKey = $byKey;
         }
 

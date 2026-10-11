@@ -17,6 +17,9 @@ class DemoSeedLedger
     /** Pseudo-Szenario für gemeinsam genutzte Demo-Benutzer; kein registriertes Szenario, nie von einem Reset betroffen. */
     public const SHARED_USERS = 'demo-users';
 
+    /** Pseudo-Szenario für die gemeinsame Demo-Organisation; gehört keinem Szenario und überlebt jeden Reset. */
+    public const SHARED_ORGANISATION = 'demo-organisation';
+
     public function __construct(private EntityManagerInterface $entityManager)
     {
     }

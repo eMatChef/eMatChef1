@@ -21,7 +21,8 @@ final class DemoOrganisationCatalogTest extends TestCase
         $orgNames = [];
         foreach (DemoScenarioKey::all() as $key) {
             $s = $catalog->scenario($key);
-            $orgNames[] = $s['organisation']['name'];
+            // Alle Szenarien teilen die eine Demo-Organisation; eine eigene Organisation je Szenario gibt es nicht mehr
+            self::assertArrayNotHasKey('organisation', $s, $key);
             $orgNames[] = $s['department']['name'];
             // Die Einrichtungs-Szenerie hat bewusst keine Ressorts: sie ist der noch nicht eingerichtete Grossanlass.
             if ($key !== DemoScenarioKey::GROSSANLASS_SETUP) {
@@ -33,7 +34,8 @@ final class DemoOrganisationCatalogTest extends TestCase
             self::assertSame(array_values(array_unique($perScenario[$key])), $perScenario[$key], $key);
             $perScenario[$key] = array_column($s['members'], 'account');
         }
-        // Organisationen und Departments sind je Szenario eigen
+        self::assertSame('Demo Organisation', $catalog->organisation()['name']);
+        // Die Szenario-Departments sind je Szenario eigen
         self::assertSame(array_values(array_unique($orgNames)), $orgNames);
         // Demo-Benutzer dürfen mehreren Demo-Departments angehören (matwart: eigenes Department und Gast-Abteilung)
         self::assertContains('matwart', $perScenario['materialverwaltung']);
@@ -83,18 +85,18 @@ final class DemoOrganisationCatalogTest extends TestCase
         self::assertSame(['kantonalverband'], $scopes['orgchef']);
         self::assertSame(['abteilung-sued'], $scopes['suborgchef']);
 
-        // Organisations-Scopes in anderen Szenarien: Orgchef im Camp (zugleich dort normales Mitglied «u»), Suborgchef im Event;
-        // beide kombinieren damit Department- und Organisations-Zuständigkeit
-        $organisationScopes = [];
+        // Keine Organisations-Scopes: die eine Demo-Organisation würde sonst alle Szenarien umfassen (Rechteausweitung).
+        // Orgchef verwaltet zusätzlich das Camp-, Suborgchef das Event-Department samt Gast-Abteilung, jeweils über roots.
+        $rootsByScenario = [];
         foreach (DemoScenarioKey::all() as $key) {
             foreach ($catalog->scenario($key)['adminScopes'] ?? [] as $scope) {
-                if (($scope['organisation'] ?? false) === true) {
-                    $organisationScopes[$scope['account']][] = $key;
-                }
+                self::assertArrayNotHasKey('organisation', $scope, $key);
+                $rootsByScenario[$scope['account']][$key] = $scope['roots'];
             }
         }
-        ksort($organisationScopes);
-        self::assertSame(['orgchef' => ['grossanlass-camp'], 'suborgchef' => ['grossanlass-event']], $organisationScopes);
+        ksort($rootsByScenario['orgchef']);
+        self::assertSame(['grossanlass-camp' => ['main'], 'materialverwaltung' => ['kantonalverband']], $rootsByScenario['orgchef']);
+        self::assertSame(['main', 'gast-abteilung'], $rootsByScenario['suborgchef']['grossanlass-event']);
         // Superadmin braucht keinen Scope; kein anderes Konto erhält Verwaltungsbereiche
         $accountsWithScope = [];
         foreach (DemoScenarioKey::all() as $key) {
@@ -205,11 +207,31 @@ final class DemoOrganisationCatalogTest extends TestCase
 
             return $d;
         }, 'weder Orgchef noch Suborgchef'];
-        yield 'admin scope without roots or organisation' => [static function (array $d): array {
+        yield 'admin scope without roots' => [static function (array $d): array {
             $d['scenarios']['materialverwaltung']['adminScopes'][0] = ['account' => 'orgchef'];
 
             return $d;
-        }, 'ohne roots oder organisation'];
+        }, 'ohne roots'];
+        yield 'organisation scope is not allowed' => [static function (array $d): array {
+            $d['scenarios']['materialverwaltung']['adminScopes'][0]['organisation'] = true;
+
+            return $d;
+        }, 'Organisations-Scope'];
+        yield 'own organisation per scenario' => [static function (array $d): array {
+            $d['scenarios']['grossanlass-camp']['organisation'] = ['name' => 'Eigene'];
+
+            return $d;
+        }, 'eigene Organisation je Szenario'];
+        yield 'missing shared organisation' => [static function (array $d): array {
+            unset($d['organisation']);
+
+            return $d;
+        }, 'organisation.name fehlt'];
+        yield 'parentRef to unknown department' => [static function (array $d): array {
+            $d['scenarios']['grossanlass-setup']['department']['parentRef'] = ['scenario' => 'materialverwaltung', 'department' => 'nirgendwo'];
+
+            return $d;
+        }, 'parentRef.department'];
         yield 'admin scope with unknown root' => [static function (array $d): array {
             $d['scenarios']['materialverwaltung']['adminScopes'][0]['roots'] = ['nirgendwo'];
 
@@ -241,7 +263,13 @@ final class DemoOrganisationCatalogTest extends TestCase
     public function testGrossanlassScenariosDeclareTheirTypeAndSetupState(): void
     {
         $catalog = new DemoOrganisationCatalog();
-        self::assertSame(['guestActivityType' => 'event', 'setupReleased' => true], $catalog->scenario('grossanlass-event')['grossanlass']);
+        $event = $catalog->scenario('grossanlass-event')['grossanlass'];
+        self::assertSame(['event', true], [$event['guestActivityType'], $event['setupReleased']]);
+        // Event-Stammdaten (fiktiver Veranstaltungsplatz) und dreitägiger Anlass
+        self::assertSame(3, $event['eventDays']);
+        self::assertSame('Demo-Festplatz Seewiese', $event['venue']['name']);
+        self::assertNotSame('', $event['locationText']);
+        self::assertNotSame('', $event['notes']);
         self::assertSame(['guestActivityType' => 'camp', 'setupReleased' => true], $catalog->scenario('grossanlass-camp')['grossanlass']);
         // Der noch nicht freigegebene Grossanlass für die Ersteinrichtung: ohne Ressorts, mit allen Rollen zum Testen der Sperre
         $setup = $catalog->scenario('grossanlass-setup');

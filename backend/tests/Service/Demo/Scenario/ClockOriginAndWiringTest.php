@@ -28,10 +28,21 @@ final class ClockOriginAndWiringTest extends ScenarioTestCase
         return $d;
     }
 
+    private function eventScenario(GrossanlassClockOriginResolver $origin): GrossanlassEventScenario
+    {
+        return new GrossanlassEventScenario(
+            $this->createMock(DemoOrganisationSeeder::class),
+            $origin,
+            (new \ReflectionClass(\App\Service\Bootstrap\DemoGrossanlassEventJobsSeedService::class))->newInstanceWithoutConstructor(),
+            (new \ReflectionClass(\App\Service\Demo\Scenario\DemoScenarioIdentity::class))->newInstanceWithoutConstructor(),
+            new \App\Service\Demo\Organisation\DemoOrganisationCatalog(),
+        );
+    }
+
     public function testKeyedDepartmentsUseTheScenarioResolverUnkeyedKeepTheGrossanlassOne(): void
     {
         $legacy = new GrossanlassClockOriginResolver();
-        $scenarioResolver = new ScenarioClockOriginResolver($this->registry(new GrossanlassEventScenario($this->createMock(DemoOrganisationSeeder::class), $legacy)));
+        $scenarioResolver = new ScenarioClockOriginResolver($this->registry($this->eventScenario($legacy)));
 
         $unkeyed = $this->gaDepartment(null);
         self::assertTrue($legacy->supports($unkeyed));
@@ -56,7 +67,7 @@ final class ClockOriginAndWiringTest extends ScenarioTestCase
     {
         $legacy = new GrossanlassClockOriginResolver();
         $scenarioResolver = new ScenarioClockOriginResolver($this->registry(
-            new GrossanlassEventScenario($this->createMock(DemoOrganisationSeeder::class), $legacy),
+            $this->eventScenario($legacy),
             new MaterialverwaltungScenario($this->createMock(DemoOrganisationSeeder::class)),
         ));
         $kernel = $this->createMock(\Symfony\Component\HttpKernel\KernelInterface::class);

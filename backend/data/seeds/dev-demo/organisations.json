@@ -1,14 +1,14 @@
 {
-  "_comment": "Versionierter Seed-Katalog der Demo-Organisationen. Schlüssel (key) sind stabile Seed-Identitäten und werden nie umbenannt; Anzeigenamen dürfen sich ändern. Konten stammen aus demo-accounts.json. Demo-Benutzer sind reine Testdaten, gehören keinem Szenario und dürfen in mehreren Demo-Departments Mitglied sein. Globale Rollen (sa/org/sub) stehen in profile.roles und sind keine Mitgliedschaftsrolle: Superadmin, Orgchef und Suborgchef erhalten nie automatisch eine MW-Rolle; ihre Verwaltungszuständigkeit steht in adminScopes (roots = Department-Wurzeln samt Unterbaum, organisation = die Organisation des Szenarios; kombinierbar, auch über mehrere Szenarien; ohne Eintrag keine Verwaltungsrechte), operative Rollen nur ausdrücklich unter members. Zusätzliche Departments (departments) bilden nur die Hierarchie ab, ohne Prozessdaten. members[].department verweist auf einen Schlüssel aus departments (ohne Angabe: das Szenario-Department). retiredMembers nennt früher fälschlich gesäte Mitgliedschaften, die nur entfernt werden, wenn sie unverändert vom Seed stammen. Doku: docs/demo/SEED-KONZEPT.md §7.11.",
-  "catalogVersion": "2026.10.6",
+  "catalogVersion": "2026.10.7",
+  "_comment": "Versionierter Seed-Katalog der Demo-Organisationen. Schlüssel (key) sind stabile Seed-Identitäten und werden nie umbenannt; Anzeigenamen dürfen sich ändern. Konten stammen aus demo-accounts.json. Demo-Benutzer sind reine Testdaten, gehören keinem Szenario und dürfen in mehreren Demo-Departments Mitglied sein. Globale Rollen (sa/org/sub) stehen in profile.roles und sind keine Mitgliedschaftsrolle: Superadmin, Orgchef und Suborgchef erhalten nie automatisch eine MW-Rolle; ihre Verwaltungszuständigkeit steht in adminScopes (roots = Department-Wurzeln samt Unterbaum, organisation = die Organisation des Szenarios; kombinierbar, auch über mehrere Szenarien; ohne Eintrag keine Verwaltungsrechte), operative Rollen nur ausdrücklich unter members. Alle Szenarien teilen die eine Demo-Organisation (oberste Ebene organisation); Organisations-Scopes sind nicht erlaubt, Verwaltungsbereiche nur über roots. department.parentRef (optional) kann das Szenario-Department unter ein zusätzliches Department eines anderen Szenarios hängen; die Einrichtung nutzt es bewusst nicht, weil sie sonst im Verwaltungsbereich des Orgchefs läge (Rechteausweitung). Zusätzliche Departments (departments) bilden nur die Hierarchie ab, ohne Prozessdaten. members[].department verweist auf einen Schlüssel aus departments (ohne Angabe: das Szenario-Department). retiredMembers nennt früher fälschlich gesäte Mitgliedschaften, die nur entfernt werden, wenn sie unverändert vom Seed stammen. Doku: docs/demo/SEED-KONZEPT.md §7.11.",
+  "organisation": {
+    "name": "Demo Organisation"
+  },
   "sharedAccounts": [
     "supplier"
   ],
   "scenarios": {
     "materialverwaltung": {
-      "organisation": {
-        "name": "Demo Organisation Materialverwaltung"
-      },
       "department": {
         "name": "Demo Materialverwaltung",
         "parent": "kantonalverband"
@@ -172,9 +172,6 @@
       ]
     },
     "grossanlass-event": {
-      "organisation": {
-        "name": "Demo Organisation Grossanlass Event"
-      },
       "department": {
         "name": "Demo Grossanlass Event"
       },
@@ -186,32 +183,88 @@
       ],
       "groups": [
         {
+          "key": "ok",
+          "name": "OK / Gesamtleitung",
+          "sort": 5,
+          "kind": "ressort"
+        },
+        {
           "key": "infrastruktur",
           "name": "Infrastruktur",
           "sort": 10,
           "kind": "ressort"
         },
         {
-          "key": "material-logistik",
-          "name": "Material & Logistik",
-          "sort": 20,
+          "key": "bauten",
+          "name": "Aufbau",
+          "sort": 10,
           "parent": "infrastruktur",
-          "kind": "ressort",
-          "logistics": true
+          "kind": "bereich"
         },
         {
-          "key": "bauten",
-          "name": "Bauten",
-          "sort": 30,
+          "key": "technik",
+          "name": "Technik",
+          "sort": 20,
           "parent": "infrastruktur",
-          "kind": "teilbereich"
+          "kind": "bereich"
         },
         {
           "key": "wasser-sanitaer",
           "name": "Wasser & Sanitär",
+          "sort": 10,
+          "parent": "technik",
+          "kind": "bereich"
+        },
+        {
+          "key": "material-logistik",
+          "name": "Logistik",
+          "sort": 20,
+          "kind": "ressort",
+          "logistics": true
+        },
+        {
+          "key": "material",
+          "name": "Material",
+          "sort": 10,
+          "parent": "material-logistik",
+          "kind": "bereich"
+        },
+        {
+          "key": "transporte",
+          "name": "Transporte",
+          "sort": 20,
+          "parent": "material-logistik",
+          "kind": "bereich"
+        },
+        {
+          "key": "programm",
+          "name": "Programm",
+          "sort": 30,
+          "kind": "ressort"
+        },
+        {
+          "key": "verpflegung",
+          "name": "Verpflegung",
           "sort": 40,
-          "parent": "infrastruktur",
-          "kind": "teilbereich"
+          "kind": "ressort"
+        },
+        {
+          "key": "sicherheit",
+          "name": "Sicherheit",
+          "sort": 50,
+          "kind": "ressort"
+        },
+        {
+          "key": "kommunikation",
+          "name": "Kommunikation",
+          "sort": 60,
+          "kind": "ressort"
+        },
+        {
+          "key": "sponsoring",
+          "name": "Sponsoring",
+          "sort": 70,
+          "kind": "ressort"
         }
       ],
       "members": [
@@ -224,6 +277,11 @@
               "group": "material-logistik",
               "role": "leader",
               "primary": true
+            },
+            {
+              "group": "material",
+              "role": "leader",
+              "primary": false
             }
           ]
         },
@@ -236,6 +294,11 @@
               "group": "material-logistik",
               "role": "member",
               "primary": true
+            },
+            {
+              "group": "material",
+              "role": "member",
+              "primary": false
             }
           ]
         },
@@ -248,6 +311,11 @@
               "group": "infrastruktur",
               "role": "member",
               "primary": true
+            },
+            {
+              "group": "ok",
+              "role": "leader",
+              "primary": false
             }
           ]
         },
@@ -255,13 +323,25 @@
           "account": "ga-komm",
           "role": "komm",
           "primary": true,
-          "groups": []
+          "groups": [
+            {
+              "group": "kommunikation",
+              "role": "leader",
+              "primary": true
+            }
+          ]
         },
         {
           "account": "ga-spon",
           "role": "spon",
           "primary": true,
-          "groups": []
+          "groups": [
+            {
+              "group": "sponsoring",
+              "role": "leader",
+              "primary": true
+            }
+          ]
         },
         {
           "account": "ga-lw",
@@ -272,6 +352,11 @@
               "group": "material-logistik",
               "role": "member",
               "primary": true
+            },
+            {
+              "group": "transporte",
+              "role": "leader",
+              "primary": false
             }
           ]
         },
@@ -284,6 +369,11 @@
               "group": "material-logistik",
               "role": "member",
               "primary": true
+            },
+            {
+              "group": "transporte",
+              "role": "member",
+              "primary": false
             }
           ]
         },
@@ -339,18 +429,31 @@
       "adminScopes": [
         {
           "account": "suborgchef",
-          "organisation": true
+          "roots": [
+            "main",
+            "gast-abteilung"
+          ]
         }
       ],
       "grossanlass": {
         "guestActivityType": "event",
-        "setupReleased": true
+        "setupReleased": true,
+        "eventDays": 3,
+        "locationText": "Demo-Festplatz Seewiese",
+        "notes": "Mehrtägige Pfadi-Grossveranstaltung mit Aufbau, Veranstaltungsbetrieb und Rückbau.",
+        "venue": {
+          "name": "Demo-Festplatz Seewiese",
+          "street": "Seewiesenweg",
+          "streetNumber": "1",
+          "postalCode": "6000",
+          "city": "Luzern",
+          "canton": "LU",
+          "latitude": 47.0502,
+          "longitude": 8.3093
+        }
       }
     },
     "grossanlass-camp": {
-      "organisation": {
-        "name": "Demo Organisation Grossanlass Camp"
-      },
       "department": {
         "name": "Demo Grossanlass Camp"
       },
@@ -560,7 +663,9 @@
       "adminScopes": [
         {
           "account": "orgchef",
-          "organisation": true
+          "roots": [
+            "main"
+          ]
         }
       ],
       "grossanlass": {
@@ -569,9 +674,6 @@
       }
     },
     "grossanlass-setup": {
-      "organisation": {
-        "name": "Demo Organisation Grossanlass Einrichtung"
-      },
       "department": {
         "name": "Demo Grossanlass Einrichtung"
       },

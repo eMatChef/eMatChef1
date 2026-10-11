@@ -22,7 +22,7 @@ Das bestehende Grossanlass-UI ist das fachliche und visuelle Zielbild. Es wird b
 | Fahrkarte/Helfer-Verifikation | **IST** | `ensureHelperDriveCard` |
 | Zusagen (Festtische, Transporter), Orte, Einsätze (Selbstabholung, Fahrauftrag, pending) | **IST** | `ensureCommitment`, `ensurePlace`, `ensureEinsatz` |
 | Zeitstrahl relativ zum Anker E (klein) | **IST** | `ensureTimeline`, `eventWindow` |
-| Event-Jobs: 20 Bauaufträge mit Material, nach Gewerken gruppiert, für Firmen-Anfragen (Department `Demo-Grossanlass-Event`) | **IST** | `DemoGrossanlassEventJobsSeedService`, `DemoGrossanlassEventJobsCommand` |
+| Event-Inhalt im Szenario `grossanlass-event`: Stammdaten, 8 Ressorts, 6 Gewerke, 20 Bauprojekte mit Zeitfenster, 57 Materialwünsche, Orte, Aufgaben, Fahrzeugbedarfe, Beschaffungszeilen und Kosten | **IST** (ledger-geführt, `app:demo:sync`) | `DemoGrossanlassEventJobsSeedService::syncScenario`, [../SEED-KONZEPT.md §7.13](../SEED-KONZEPT.md#713-gemeinsame-demo-organisation-und-event-inhalt-ist-katalog-2026107) |
 | Demo-Lieferant (Testfirma) | **IST** | `DemoSupplierSeedService` |
 | Wipe | **IST** | `DemoGrossanlassWipeService`, `app:demo-grossanlass:wipe` |
 | Offerten, Bestellungen, Wareneingänge/Teillieferungen, Zuweisungen | **SOLL** (Seed) | Entities teilweise vorhanden |

@@ -47,7 +47,13 @@ final class RunnerAndCommandsTest extends ScenarioTestCase
         $resetter = (new \ReflectionClass(\App\Service\Demo\Reset\DemoSetupResetter::class))->newInstanceWithoutConstructor();
         foreach ([
             new \App\Service\Demo\Scenario\MaterialverwaltungScenario($seeder),
-            new \App\Service\Demo\Scenario\GrossanlassEventScenario($seeder, $origin),
+            new \App\Service\Demo\Scenario\GrossanlassEventScenario(
+                $seeder,
+                $origin,
+                (new \ReflectionClass(\App\Service\Bootstrap\DemoGrossanlassEventJobsSeedService::class))->newInstanceWithoutConstructor(),
+                (new \ReflectionClass(\App\Service\Demo\Scenario\DemoScenarioIdentity::class))->newInstanceWithoutConstructor(),
+                new \App\Service\Demo\Organisation\DemoOrganisationCatalog(),
+            ),
             new \App\Service\Demo\Scenario\GrossanlassCampScenario($seeder, $origin),
         ] as $scenario) {
             self::assertFalse($scenario->supportsReset(), $scenario->key());
