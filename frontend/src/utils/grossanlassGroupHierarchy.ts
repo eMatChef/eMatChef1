@@ -81,6 +81,11 @@ export function isBauprojektGroup(group: GrossanlassGroup): boolean {
   return group.node_type === 'bauprojekt' || group.kind === 'teilbereich'
 }
 
+/** Bauprojekt oder Auftrag. */
+export function isLeafGroup(group: Pick<GrossanlassGroup, 'node_type' | 'kind'>): boolean {
+  return isBauprojektGroup(group as GrossanlassGroup) || group.node_type === 'auftrag' || group.kind === 'auftrag'
+}
+
 export function isRessortNodeGroup(group: GrossanlassGroup): boolean {
   return !isBauprojektGroup(group)
 }
@@ -135,12 +140,12 @@ export function grossanlassGroupSelectTitle(
 export function parentForcesBauprojekt(
   parent: { node_type?: string | null } | null | undefined,
 ): boolean {
-  return parent?.node_type === 'bauprojekt'
+  return parent?.node_type === 'bauprojekt' || parent?.node_type === 'auftrag'
 }
 
 export function defaultKindForParent(
   parent: { node_type?: string | null } | null | undefined,
-): 'ressort' | 'bereich' | 'teilbereich' {
+): 'ressort' | 'bereich' | 'teilbereich' | 'auftrag' {
   if (parentForcesBauprojekt(parent)) return 'teilbereich'
   if (!parent) return 'ressort'
   return 'bereich'
@@ -148,8 +153,9 @@ export function defaultKindForParent(
 
 export function nodeTypeForKind(
   kind: string | null | undefined,
-): 'ressort' | 'unterressort' | 'bauprojekt' {
+): 'ressort' | 'unterressort' | 'bauprojekt' | 'auftrag' {
   if (kind === 'teilbereich') return 'bauprojekt'
+  if (kind === 'auftrag') return 'auftrag'
   if (kind === 'bereich') return 'unterressort'
   return 'ressort'
 }

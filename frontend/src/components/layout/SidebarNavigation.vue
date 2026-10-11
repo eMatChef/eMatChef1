@@ -204,26 +204,12 @@
         v-if="showGrossanlassBeschaffungMenu"
         :to="grossanlassBeschaffungLink"
         class="nav-item"
-        :class="{ active: isDeptSectionNavActive('beschaffung') }"
+        :class="{ active: isGrossanlassBeschaffungNavActive }"
         :title="t('sidebar.beschaffungHint')"
       >
         <v-icon icon="mdi-cart-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.beschaffung') }}</span>
       </router-link>
-      <template v-if="showGrossanlassBeschaffungSubLinks">
-        <router-link
-          v-for="item in grossanlassBeschaffungSubItems"
-          :key="item.id"
-          :to="item.to"
-          class="nav-item nav-item--sub"
-          :class="{ active: item.active }"
-          :title="item.label"
-          :data-testid="`nav-beschaffung-${item.id}`"
-        >
-          <v-icon :icon="item.icon" class="nav-icon nav-icon--mdi" size="18" />
-          <span class="nav-label nav-label--sub" :class="{ visible: showNavLabels }">{{ item.label }}</span>
-        </router-link>
-      </template>
       <router-link
         v-if="showGrossanlassUebersichtMenu"
         :to="getLink('/ga/material')"
@@ -241,21 +227,11 @@
         v-if="showGrossanlassLogistikMenu"
         :to="getLink('/ga/logistics')"
         class="nav-item"
-        :class="{ active: isDeptSectionNavActive('logistik') }"
+        :class="{ active: isGrossanlassLogistikNavActive }"
         :title="t('sidebar.logistikHint')"
       >
         <v-icon icon="mdi-truck-fast-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.logistik') }}</span>
-      </router-link>
-      <router-link
-        v-if="showGrossanlassMaterialsMenu"
-        :to="getLink('/ga/vehicles')"
-        class="nav-item"
-        :class="{ active: isGrossanlassFahrzeugeNavActive }"
-        :title="t('sidebar.fahrzeugeHint')"
-      >
-        <v-icon icon="mdi-truck-outline" class="nav-icon nav-icon--mdi" size="20" />
-        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.fahrzeuge') }}</span>
       </router-link>
       <div class="nav-group-label" :class="{ 'nav-group-label--rail': !showNavLabels }">
         <span v-if="showNavLabels">{{ t('sidebar.group.betrieb') }}</span>
@@ -361,33 +337,19 @@
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassBeschaffungMenu"
         :to="grossanlassBeschaffungLink"
         class="nav-item"
-        :class="{ active: isDeptSectionNavActive('beschaffung') }"
+        :class="{ active: isGrossanlassBeschaffungNavActive }"
         :title="t('sidebar.beschaffungHint')"
       >
         <v-icon icon="mdi-cart-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.beschaffung') }}</span>
       </router-link>
-      <template v-if="showGrossanlassBeschaffungSubLinks">
-        <router-link
-          v-for="item in grossanlassBeschaffungSubItems"
-          :key="item.id"
-          :to="item.to"
-          class="nav-item nav-item--sub"
-          :class="{ active: item.active }"
-          :title="item.label"
-          :data-testid="`nav-beschaffung-${item.id}`"
-        >
-          <v-icon :icon="item.icon" class="nav-icon nav-icon--mdi" size="18" />
-          <span class="nav-label nav-label--sub" :class="{ visible: showNavLabels }">{{ item.label }}</span>
-        </router-link>
-      </template>
 
       <!-- Anfragen (Komm/Spon; MW/CMW über Beschaffung) -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassAnfragenSidebarLink"
         :to="getLink('/ga/procurement/inquiries')"
         class="nav-item"
-        :class="{ active: isDeptSectionNavActive('beschaffung') }"
+        :class="{ active: isGrossanlassBeschaffungNavActive }"
         :title="t('sidebar.anfragenHint')"
       >
         <v-icon icon="mdi-email-outline" class="nav-icon nav-icon--mdi" size="20" />
@@ -1091,6 +1053,12 @@ const showGrossanlassLogistikMenu = computed(() => showGrossanlassUebersichtMenu
 
 const isGrossanlassFahrzeugeNavActive = computed(() => route.path.includes('/vehicles'))
 
+/** Hauptnavigation ist kompakt: Beschaffung (inkl. Anfragen, Zusagen, Bestellungen, Budget) und Logistik (inkl. Fahrzeuge) sind je ein Eintrag. */
+const isGrossanlassBeschaffungNavActive = computed(() => route.path.includes('/ga/procurement'))
+const isGrossanlassLogistikNavActive = computed(
+  () => /\/ga\/logistics(\/|$)/.test(route.path) || isGrossanlassFahrzeugeNavActive.value,
+)
+
 const isGrossanlassMaterialNavActive = computed(() =>
   /\/material(\/|$)/.test(route.path),
 )
@@ -1162,29 +1130,6 @@ const showGrossanlassMailboxOnlyMenu = computed(() => {
 const showGrossanlassKostenMenu = computed(() => {
   if (isSuperAdmin.value || !isGrossanlassDept.value) return false
   return gaCanSeeAnlassOverview(authStore.currentDepartmentRole)
-})
-
-/** Unterpunkte der Beschaffung für MW/CMW; die Zielseiten sind die bestehenden Beschaffungs-Tabs. */
-const showGrossanlassBeschaffungSubLinks = computed(
-  () => showGrossanlassBeschaffungMenu.value && gaCanManageProcurement(authStore.currentDepartmentRole),
-)
-
-const grossanlassBeschaffungSubItems = computed(() => {
-  const here = route.path
-  const item = (id: string, labelKey: string, icon: string, tab: string, also: string[] = []) => ({
-    id,
-    label: t(labelKey),
-    icon,
-    to: getLink(`/ga/procurement/${tab}`),
-    active: [tab, ...also].some((x) => here.includes(`/ga/procurement/${x}`)),
-  })
-
-  return [
-    item('inquiries', 'sidebar.beschaffungInquiriesOffers', 'mdi-email-multiple-outline', 'inquiries', ['offers']),
-    item('commitments', 'sidebar.beschaffungCommitments', 'mdi-handshake-outline', 'commitments'),
-    item('orders', 'sidebar.beschaffungOrders', 'mdi-cart-outline', 'orders'),
-    item('budget', 'sidebar.beschaffungBudget', 'mdi-cash-multiple', 'budget'),
-  ]
 })
 
 const grossanlassBeschaffungLink = computed(() => {

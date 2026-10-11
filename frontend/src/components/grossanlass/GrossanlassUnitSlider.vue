@@ -24,16 +24,18 @@ import { useI18n } from 'vue-i18n'
 import type { GrossanlassGroupKind } from '@/api/grossanlassGroups'
 
 const model = defineModel<GrossanlassGroupKind>({ required: true })
-const props = defineProps<{ hideBauprojekt?: boolean }>()
+const props = defineProps<{ hideBauprojekt?: boolean, leafOnly?: boolean }>()
 const { t } = useI18n()
 
-const options = computed<GrossanlassGroupKind[]>(() =>
-  props.hideBauprojekt ? ['ressort', 'bereich'] : ['ressort', 'bereich', 'teilbereich'],
-)
+const options = computed<GrossanlassGroupKind[]>(() => {
+  if (props.leafOnly) return ['teilbereich', 'auftrag']
+  return props.hideBauprojekt ? ['ressort', 'bereich'] : ['ressort', 'bereich', 'teilbereich', 'auftrag']
+})
 
 function labelFor(kind: GrossanlassGroupKind): string {
   if (kind === 'bereich') return t('grossanlass.planung.ressorts.kindUnterressort')
   if (kind === 'teilbereich') return t('grossanlass.planung.ressorts.kindBauprojekt')
+  if (kind === 'auftrag') return t('grossanlass.planung.ressorts.kindAuftrag')
   return t('grossanlass.planung.ressorts.kindRessort')
 }
 </script>

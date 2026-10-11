@@ -1288,7 +1288,7 @@ const routes: RouteRecordRaw[] = [
               {
                 path: '',
                 name: 'GrossanlassPlanung',
-                redirect: (to) => ({ path: `/${to.params.departmentId}/ga/planning/requests` }),
+                redirect: (to) => ({ path: `/${to.params.departmentId}/ga/planning/jobs` }),
               },
               {
                 path: 'requests',
@@ -1310,17 +1310,6 @@ const routes: RouteRecordRaw[] = [
                   requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
                   planungTab: 'jobs',
                   ...routeHead('grossanlassPlanungAuftraege'),
-                },
-              },
-              {
-                path: 'build-jobs',
-                name: 'GrossanlassPlanungBauauftraege',
-                component: () => import('@/views/grossanlass/GrossanlassBauauftraegeView.vue'),
-                meta: {
-                  requiresGrossanlassDepartment: true,
-                  requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-                  planungTab: 'build-jobs',
-                  ...routeHead('grossanlassPlanungBauauftraege'),
                 },
               },
               {

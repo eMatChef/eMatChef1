@@ -8,6 +8,8 @@ use App\Entity\ActivityGrossanlassProcurementLine;
 use App\Entity\ActivityGrossanlassWishLine;
 use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassEinsatz;
+use App\Entity\DepartmentGrossanlassGroupHelperNeed;
+use App\Entity\DepartmentGrossanlassTaskHelperNeed;
 use App\Entity\DepartmentGrossanlassMap;
 use App\Entity\DepartmentGrossanlassPlace;
 use App\Entity\DepartmentGrossanlassTask;
@@ -56,8 +58,10 @@ final class GrossanlassBauprojektService
         $this->places->assertCanSeePlaces($user, $department);
         $place = $this->places->getPlace($department, $placeId);
         $group = null;
-        if ($place->getGroupId()) {
-            $found = $this->entityManager->getRepository(Group::class)->find($place->getGroupId());
+        $placeGroupIds = $this->places->groupIdsForPlace($place);
+        // Bei gemeinsam genutzten Standorten gibt es kein eindeutiges Briefing-Projekt.
+        if (count($placeGroupIds) === 1) {
+            $found = $this->entityManager->getRepository(Group::class)->find($placeGroupIds[0]);
             $group = $found instanceof Group && $found->getDepartmentId() === $department->getId()
                 ? $found
                 : null;
@@ -169,6 +173,10 @@ final class GrossanlassBauprojektService
         $this->applyTaskSchedule($task, $data);
         $this->entityManager->persist($task);
         $this->entityManager->flush();
+        if (is_array($data['helper_need'] ?? null)) {
+            $this->saveTaskHelperNeed($task, $data['helper_need']);
+            $this->entityManager->flush();
+        }
 
         return $this->serializeTask($task);
     }
@@ -197,6 +205,9 @@ final class GrossanlassBauprojektService
             $task->setSortOrder((int) $data['sort_order']);
         }
         $this->applyTaskSchedule($task, $data);
+        if (is_array($data['helper_need'] ?? null)) {
+            $this->saveTaskHelperNeed($task, $data['helper_need']);
+        }
         $this->entityManager->flush();
 
         return $this->serializeTask($task);
@@ -494,6 +505,7 @@ final class GrossanlassBauprojektService
             'build_status' => $group->getBuildStatus(),
             'description' => $group->getDescription(),
             'place' => $place instanceof DepartmentGrossanlassPlace ? $this->places->serialize($place) : null,
+            'helper_need' => $this->serializeHelperNeed($group),
             'tasks' => $this->serializeTasks($group),
             'vehicles' => $this->serializeVehicleNeeds($group),
             'material' => $material,
@@ -641,6 +653,7 @@ final class GrossanlassBauprojektService
             'starts_at' => $task->getStartsAt()?->format('Y-m-d\TH:i:s'),
             'duration_minutes' => $task->getDurationMinutes(),
             'assignee_user_id' => $task->getAssigneeUserId(),
+            'helper_need' => $this->serializeTaskHelperNeed($task),
             'created_at' => $task->getCreatedAt()->format(\DateTimeInterface::ATOM),
         ];
     }
@@ -758,6 +771,243 @@ final class GrossanlassBauprojektService
         return $task;
     }
 
+    /**
+     * Helferbedarf: Gesamtzahl, optional aufgeteilt in Funktionen. Die Funktionen sind eine Aufteilung
+     * des Gesamtbedarfs und werden nicht zusätzlich gezählt; der Gesamtbedarf ist mindestens ihre Summe.
+     *
+     * @return array{total: int, functions: list<array{label: string, count: int}>, unspecified: int}
+     */
+    public function getHelperNeed(Department $department, User $user, Group $group): array
+    {
+        $this->assertGroup($department, $group);
+        $this->assertCanSee($department, $user, $group);
+
+        return $this->serializeHelperNeed($group);
+    }
+
+    /**
+     * @param array<string, mixed> $data total (int), functions (Liste aus label + count)
+     * @return array{total: int, functions: list<array{label: string, count: int}>, unspecified: int}
+     */
+    public function saveHelperNeed(Department $department, User $user, Group $group, array $data): array
+    {
+        $this->assertGroup($department, $group);
+        $this->assertCanEdit($department, $user, $group);
+
+        ['total' => $total, 'functions' => $functions] = self::normalizeHelperNeedInput($data);
+
+        $wanted = [DepartmentGrossanlassGroupHelperNeed::TOTAL_LABEL => $total];
+        foreach ($functions as $f) {
+            $wanted[$f['label']] = $f['count'];
+        }
+        $repo = $this->entityManager->getRepository(DepartmentGrossanlassGroupHelperNeed::class);
+        $order = 0;
+        foreach ($repo->findBy(['groupId' => $group->getId()]) as $row) {
+            if (!isset($wanted[$row->getLabel()])) {
+                $this->entityManager->remove($row);
+            }
+        }
+        foreach ($wanted as $label => $count) {
+            $row = $repo->findOneBy(['groupId' => $group->getId(), 'label' => (string) $label]);
+            if ($row instanceof DepartmentGrossanlassGroupHelperNeed) {
+                $row->setRequiredCount($count);
+                $row->setSortOrder($order);
+            } else {
+                $this->entityManager->persist(new DepartmentGrossanlassGroupHelperNeed($group->getId(), (string) $label, $count, $order));
+            }
+            ++$order;
+        }
+        $this->entityManager->flush();
+
+        return $this->serializeHelperNeed($group);
+    }
+
+    /**
+     * Prüft Gesamtzahl und Funktionen aus der Anfrage; der Gesamtbedarf ist mindestens die Summe der Funktionen.
+     *
+     * @param array<string, mixed> $data
+     * @return array{total: int, functions: list<array{label: string, count: int}>}
+     */
+    private static function normalizeHelperNeedInput(array $data): array
+    {
+        $functions = [];
+        foreach (is_array($data['functions'] ?? null) ? $data['functions'] : [] as $row) {
+            $label = is_array($row) ? trim((string) ($row['label'] ?? '')) : '';
+            $count = is_array($row) ? (int) ($row['count'] ?? 0) : 0;
+            if ($label === '' || $count < 1) {
+                continue;
+            }
+            if (mb_strlen($label) > 120 || $count > 1000) {
+                throw new \InvalidArgumentException('Ungültige Funktion oder Anzahl');
+            }
+            $key = mb_strtolower($label);
+            if (isset($functions[$key])) {
+                throw new \InvalidArgumentException('Funktion doppelt: ' . $label);
+            }
+            $functions[$key] = ['label' => $label, 'count' => $count];
+        }
+        $total = (int) ($data['total'] ?? 0);
+        if ($total < 0 || $total > 5000) {
+            throw new \InvalidArgumentException('Ungültige Anzahl Helfer');
+        }
+        $functions = array_values($functions);
+
+        return ['total' => max($total, (int) array_sum(array_column($functions, 'count'))), 'functions' => $functions];
+    }
+
+    /**
+     * Speichert den Helferbedarf einer Aufgabe (ersetzt die bisherigen Zeilen).
+     *
+     * @param array<string, mixed> $data
+     */
+    private function saveTaskHelperNeed(DepartmentGrossanlassTask $task, array $data): void
+    {
+        ['total' => $total, 'functions' => $functions] = self::normalizeHelperNeedInput($data);
+        $wanted = [DepartmentGrossanlassTaskHelperNeed::TOTAL_LABEL => $total];
+        foreach ($functions as $f) {
+            $wanted[$f['label']] = $f['count'];
+        }
+        $repo = $this->entityManager->getRepository(DepartmentGrossanlassTaskHelperNeed::class);
+        foreach ($repo->findBy(['taskId' => $task->getId()]) as $row) {
+            if (!isset($wanted[$row->getLabel()])) {
+                $this->entityManager->remove($row);
+            }
+        }
+        $order = 0;
+        foreach ($wanted as $label => $count) {
+            $row = $repo->findOneBy(['taskId' => $task->getId(), 'label' => (string) $label]);
+            if ($row instanceof DepartmentGrossanlassTaskHelperNeed) {
+                $row->setRequiredCount($count);
+                $row->setSortOrder($order);
+            } elseif ($count > 0 || $label !== DepartmentGrossanlassTaskHelperNeed::TOTAL_LABEL) {
+                $this->entityManager->persist(new DepartmentGrossanlassTaskHelperNeed($task->getId(), (string) $label, $count, $order));
+            }
+            ++$order;
+        }
+    }
+
+    /**
+     * @return array{total: int, functions: list<array{label: string, count: int}>, unspecified: int}
+     */
+    private function serializeTaskHelperNeed(DepartmentGrossanlassTask $task): array
+    {
+        $rows = $this->entityManager->getRepository(DepartmentGrossanlassTaskHelperNeed::class)
+            ->findBy(['taskId' => $task->getId()], ['sortOrder' => 'ASC']);
+
+        return self::helperNeedFromRows(array_map(
+            static fn (DepartmentGrossanlassTaskHelperNeed $r) => ['label' => $r->getLabel(), 'count' => $r->getRequiredCount()],
+            $rows,
+        ));
+    }
+
+    /**
+     * Zeitliche Auswertung des Aufgaben-Helferbedarfs. Aufgaben addieren sich nur, soweit sie sich zeitlich
+     * überlappen: `peak` ist der höchste gleichzeitige Bedarf, `timeline` die Abschnitte mit gleichem Bedarf.
+     * Aufgaben ohne Zeitblock gelten als ganztägig (überlappen alles), `undated` nennt ihren Anteil.
+     *
+     * @param list<array{starts_at: ?\DateTimeInterface, duration: ?int, total: int}> $tasks
+     * @return array{peak: int, undated: int, timeline: list<array{from: string, to: string, count: int}>}
+     */
+    public static function helperDemandOverTime(array $tasks): array
+    {
+        $undated = 0;
+        $events = [];
+        foreach ($tasks as $task) {
+            if ($task['total'] < 1) {
+                continue;
+            }
+            if ($task['starts_at'] === null || $task['duration'] === null || $task['duration'] < 1) {
+                $undated += $task['total'];
+                continue;
+            }
+            $from = $task['starts_at']->getTimestamp();
+            $events[] = [$from, $task['total']];
+            $events[] = [$from + $task['duration'] * 60, -$task['total']];
+        }
+        usort($events, static fn (array $a, array $b) => $a[0] <=> $b[0] ?: $a[1] <=> $b[1]);
+
+        $timeline = [];
+        $current = 0;
+        $peak = 0;
+        $count = count($events);
+        for ($i = 0; $i < $count; ++$i) {
+            $current += $events[$i][1];
+            $next = $events[$i + 1][0] ?? null;
+            if ($next === null || $next === $events[$i][0]) {
+                continue;
+            }
+            $peak = max($peak, $current);
+            if ($current > 0) {
+                $timeline[] = [
+                    'from' => date('Y-m-d\TH:i:s', $events[$i][0]),
+                    'to' => date('Y-m-d\TH:i:s', $next),
+                    'count' => $current + $undated,
+                ];
+            }
+        }
+
+        return ['peak' => $peak + $undated, 'undated' => $undated, 'timeline' => $timeline];
+    }
+
+    /**
+     * @return list<array{starts_at: ?\DateTimeInterface, duration: ?int, total: int}>
+     */
+    private function taskNeedRows(Group $group): array
+    {
+        $out = [];
+        $tasks = $this->entityManager->getRepository(DepartmentGrossanlassTask::class)->findBy(['groupId' => $group->getId()]);
+        foreach ($tasks as $task) {
+            if ($task instanceof DepartmentGrossanlassTask) {
+                $out[] = [
+                    'starts_at' => $task->getStartsAt(),
+                    'duration' => $task->getDurationMinutes(),
+                    'total' => $this->serializeTaskHelperNeed($task)['total'],
+                ];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeHelperNeed(Group $group): array
+    {
+        $rows = $this->entityManager->getRepository(DepartmentGrossanlassGroupHelperNeed::class)
+            ->findBy(['groupId' => $group->getId()], ['sortOrder' => 'ASC']);
+
+        $need = self::helperNeedFromRows(array_map(
+            static fn (DepartmentGrossanlassGroupHelperNeed $r) => ['label' => $r->getLabel(), 'count' => $r->getRequiredCount()],
+            $rows,
+        ));
+        // Der Bedarf der Aufgaben ersetzt die gruppenweite Zahl nicht, sondern wird zeitlich daneben ausgewertet.
+        $need['from_tasks'] = self::helperDemandOverTime($this->taskNeedRows($group));
+
+        return $need;
+    }
+
+    /**
+     * @param list<array{label: string, count: int}> $rows Zeile mit leerem Label = Gesamtbedarf
+     * @return array{total: int, functions: list<array{label: string, count: int}>, unspecified: int}
+     */
+    public static function helperNeedFromRows(array $rows): array
+    {
+        $total = 0;
+        $functions = [];
+        foreach ($rows as $row) {
+            if ($row['label'] === DepartmentGrossanlassGroupHelperNeed::TOTAL_LABEL) {
+                $total = $row['count'];
+            } else {
+                $functions[] = $row;
+            }
+        }
+        $sum = (int) array_sum(array_column($functions, 'count'));
+        $total = max($total, $sum);
+
+        return ['total' => $total, 'functions' => $functions, 'unspecified' => $total - $sum];
+    }
+
     private function assertGroup(Department $department, Group $group): void
     {
         $this->access->assertGrossanlassDepartment($department);
@@ -770,6 +1020,7 @@ final class GrossanlassBauprojektService
     {
         return match (strtolower(trim((string) ($group->getGrossanlassKind() ?? '')))) {
             Group::GROSSANLASS_KIND_TEILBEREICH => 'bauprojekt',
+            Group::GROSSANLASS_KIND_AUFTRAG => 'auftrag',
             Group::GROSSANLASS_KIND_BEREICH => 'unterressort',
             default => 'ressort',
         };

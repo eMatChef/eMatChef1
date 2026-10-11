@@ -17,7 +17,7 @@ describe('grossanlass routes under /:departmentId/ga', () => {
   })
 
   it.each([
-    'ga/my-unit', 'ga/my-assignments', 'ga/planning/requests', 'ga/planning/jobs', 'ga/planning/build-jobs',
+    'ga/my-unit', 'ga/my-assignments', 'ga/planning/requests', 'ga/planning/jobs',
     'ga/planning/transports', 'ga/planning/occupancy', 'ga/planning/conflicts', 'ga/helper-pool', 'dept/tasks',
     'ga/procurement/demand', 'ga/procurement/inquiries', 'ga/procurement/offers', 'ga/procurement/commitments',
     'ga/procurement/orders', 'ga/procurement/budget', 'ga/material/stock', 'ga/material/goods-receipt',

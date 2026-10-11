@@ -77,7 +77,7 @@ export const GA_HELP_TOPICS: readonly GaHelpTopic[] = [
     routeNames: ['GrossanlassPlanungWuensche'],
     faq: ['enoughOnHand', 'selfOrganized'],
   },
-  { id: 'bauauftraege', group: 'planning', routeNames: ['GrossanlassPlanungBauauftraege'], faq: ['status'] },
+  { id: 'bauauftraege', group: 'planning', routeNames: ['GrossanlassPlanungAuftraege'], faq: ['status'] },
   { id: 'meinRessort', group: 'planning', routeNames: ['GrossanlassMeinRessort'], faq: ['noRessort', 'scan'] },
   {
     id: 'bedarf',

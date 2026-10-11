@@ -101,6 +101,18 @@
       @place-created="uebersicht.addPlace"
     />
 
+    <GrossanlassOrderDialog
+      v-model="orderDialogOpen"
+      :department-id="String(route.params.departmentId || '')"
+      :groups="groups"
+      :initial-group="orderDialogGroup"
+      :initial-tab="orderDialogTab"
+      @saved="softReloadBelegung"
+      @changed="softReloadBelegung"
+      @deleted="softReloadBelegung"
+    />
+
+    <!-- Nur für strukturelle Bereiche (Unterressort); Aufträge/Bauprojekte laufen über den zentralen Dialog. -->
     <EDialog
       v-model="showProject"
       :max-width="1400"
@@ -162,6 +174,8 @@ import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import GrossanlassEinsatzPreviewPanel from '@/views/grossanlass/GrossanlassEinsatzPreviewPanel.vue'
 import GrossanlassEinsatzProgrammCalendar from '@/views/grossanlass/GrossanlassEinsatzProgrammCalendar.vue'
+import GrossanlassOrderDialog from '@/components/grossanlass/GrossanlassOrderDialog.vue'
+import { isGrossanlassLeafNodeType } from '@/utils/grossanlassGroupNode'
 import GrossanlassBauprojektPanel from '@/components/grossanlass/GrossanlassBauprojektPanel.vue'
 import { useBauprojektPanelClose } from '@/composables/useBauprojektPanelClose'
 import GrossanlassHelperAssignmentDetailDialog from '@/views/grossanlass/GrossanlassHelperAssignmentDetailDialog.vue'
@@ -289,17 +303,21 @@ const projectTitle = computed(() => {
   return t('grossanlass.planung.ressorts.projectTitle', { name: group.name })
 })
 
+const orderDialogOpen = ref(false)
+const orderDialogGroup = ref<GrossanlassGroup | null>(null)
+const orderDialogTab = ref<'basics' | 'tasks'>('tasks')
+
 function openProjectFromBelegung(id: string) {
   projectSections.value = ['material', 'tasks']
-  openCalendarBlock({ kind: 'bau', id })
+  openCalendarBlock({ kind: 'bau', id }, 'tasks')
 }
 
 function openWindowFromBelegung(id: string) {
   projectSections.value = ['window']
-  openCalendarBlock({ kind: 'bau', id })
+  openCalendarBlock({ kind: 'bau', id }, 'basics')
 }
 
-function openCalendarBlock(payload: { kind: 'bau' | 'fahrt'; id: string }) {
+function openCalendarBlock(payload: { kind: 'bau' | 'fahrt'; id: string }, tab: 'basics' | 'tasks' = 'tasks') {
   if (payload.kind === 'fahrt') {
     const row = (uebersicht.data.value?.einsaetze ?? []).find((item) => item.id === payload.id)
     if (!row) return
@@ -309,6 +327,12 @@ function openCalendarBlock(payload: { kind: 'bau' | 'fahrt'; id: string }) {
   }
   const group = groups.value.find((item) => item.id === payload.id)
   if (!group) return
+  if (isGrossanlassLeafNodeType(group.node_type)) {
+    orderDialogGroup.value = group
+    orderDialogTab.value = tab
+    orderDialogOpen.value = true
+    return
+  }
   projectGroup.value = group
   showProject.value = true
 }
@@ -323,7 +347,7 @@ function onProjectMetaSaved(group: { id: string; window_start?: string | null; w
 function openAuftrag(job: GrossanlassGroup) {
   const id = String(route.params.departmentId || '')
   if (!id) return
-  void router.push(`/${id}/ga/planning/build-jobs?project=${job.id}`)
+  void router.push(`/${id}/ga/planning/jobs?project=${job.id}`)
 }
 const mode = ref<GaBookPreviewMode>('einsatz')
 const dialogOpen = ref(false)

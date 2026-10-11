@@ -2,6 +2,7 @@
   <v-dialog
     :model-value="model"
     :max-width="maxWidth"
+    :width="width"
     :persistent="persistent || highlightOutside"
     :no-click-animation="highlightOutside"
     :scrollable="scrollable"
@@ -39,6 +40,8 @@ const props = withDefaults(
   defineProps<{
     title?: string
     maxWidth?: number | string
+    /** Feste Breite (z. B. Karteneditor); wird durch maxWidth und den Viewport begrenzt. */
+    width?: number | string
     persistent?: boolean
     /** Klick ausserhalb schliesst nicht, der Dialog leuchtet in der Systemfarbe auf. */
     highlightOutside?: boolean

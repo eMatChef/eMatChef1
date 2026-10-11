@@ -58,6 +58,8 @@ class Group
     public const GROSSANLASS_KIND_RESSORT = 'ressort';
     public const GROSSANLASS_KIND_BEREICH = 'bereich';
     public const GROSSANLASS_KIND_TEILBEREICH = 'teilbereich';
+    /** Schlanke Variante eines Bauprojekts: Name, Beschreibung, Status, Zuständigkeit, optionales Zeitfenster. */
+    public const GROSSANLASS_KIND_AUFTRAG = 'auftrag';
 
     public const BUILD_STATUS_PLANNED = 'planned';
     public const BUILD_STATUS_QUOTED = 'quoted';

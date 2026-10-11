@@ -7,7 +7,10 @@ export type GaPolygonPoint = { lat: number; lng: number }
 export type GaPlace = {
   id: string
   name: string
+  /** Übergang: nur gesetzt, wenn der Standort genau einer Gruppe gehört; sonst null. Führend ist group_ids. */
   group_id: string | null
+  /** Alle zugeordneten Gruppen (Ressort/Bereich/Bauprojekt); mehrere = gemeinsam genutzter Standort. */
+  group_ids?: string[]
   unterlager_id: string | null
   kind?: GaPlaceKind
   map_id?: string | null

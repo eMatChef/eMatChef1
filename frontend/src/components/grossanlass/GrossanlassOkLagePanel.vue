@@ -179,6 +179,7 @@ import {
 } from '@/api/grossanlassUebersicht'
 import { useGrossanlassGuestDepartments } from '@/composables/useGrossanlassGuestDepartments'
 import { formatHelperWhenLabel } from '@/views/grossanlass/grossanlassHelperAssignment'
+import { gaPlaceGroupIds } from '@/utils/grossanlassGaMap'
 import { gaLageIsOpen, gaLageTaskKind, sortGaLageByStart } from '@/utils/grossanlassLage'
 
 const LIST_LIMIT = 8
@@ -209,7 +210,7 @@ const intro = computed(() =>
 )
 
 const einsaetzeLink = computed(() => `/${props.departmentId}/ga/planning/occupancy`)
-const bauLink = computed(() => `/${props.departmentId}/ga/planning/build-jobs`)
+const bauLink = computed(() => `/${props.departmentId}/ga/planning/jobs`)
 const createEinsatzLink = computed(() => ({
   path: einsaetzeLink.value,
   query: { book: '1' },
@@ -233,7 +234,7 @@ const openRows = computed(() => {
   return rows.filter((row) => {
     if (row.group_id && branch.has(row.group_id)) return true
     const place = places.value.find((item) => item.id === row.destination_place_id)
-    return !!(place?.group_id && branch.has(place.group_id))
+    return gaPlaceGroupIds(place).some((gid) => branch.has(gid))
   })
 })
 

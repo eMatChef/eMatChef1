@@ -6,6 +6,7 @@ use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassCost;
 use App\Entity\DepartmentGrossanlassGroupShare;
 use App\Entity\DepartmentGrossanlassPlace;
+use App\Entity\DepartmentGrossanlassPlaceGroup;
 use App\Entity\Group;
 use App\Entity\GroupMembership;
 use App\Entity\User;
@@ -45,7 +46,8 @@ class GrossanlassGroupService
 
         $groupIds = array_map(static fn (Group $g) => $g->getId(), $groups);
         $membershipsByGroup = $this->loadMembershipsByGroup($groupIds);
-        $placesByGroup = $this->loadPlacesByGroup($department);
+        $allPlacesByGroup = $this->loadAllPlacesByGroup($department);
+        $placesByGroup = array_map(static fn (array $list) => $list[0], $allPlacesByGroup);
         $shares = $this->loadShares($department);
         $procurementProgress = $this->procurementProgress->buildProgressByGroup($department->getId());
         $namesById = [];
@@ -63,6 +65,7 @@ class GrossanlassGroupService
                 $shares,
                 $namesById,
                 $procurementProgress[$group->getId()] ?? null,
+                $allPlacesByGroup[$group->getId()] ?? null,
             );
         }
 
@@ -106,6 +109,7 @@ class GrossanlassGroupService
             $group->setParent($parent);
         }
         $group->setGrossanlassKind($this->kindFromChoice($parent, $data['kind'] ?? null));
+        $this->assertParentAllowed($group->getGrossanlassKind(), $parent);
         if (isset($data['sort_order'])) {
             $group->setSortOrder((int) $data['sort_order']);
         }
@@ -115,7 +119,7 @@ class GrossanlassGroupService
 
         $this->entityManager->persist($group);
         $this->entityManager->flush();
-        $place = $this->syncPlaceForGroup($department, $group, $data);
+        $place = $this->syncPlaceForGroup($department, $user, $group, $data);
 
         return $this->serializeGroup($department, $group, [], $place);
     }
@@ -142,44 +146,32 @@ class GrossanlassGroupService
             $group->setName($name);
         }
 
-        if (array_key_exists('parent_id', $data) && $this->access->canManageStruktur($user, $department)) {
-            if (empty($data['parent_id'])) {
-                $group->setParent(null);
-            } else {
-                if ($data['parent_id'] === $group->getId()) {
-                    throw new \InvalidArgumentException('Gruppe kann nicht sich selbst übergeordnet werden');
-                }
-                $parent = $this->findGroupInDepartment($department, (string) $data['parent_id']);
-                $subtreeIds = $this->hierarchy->expandWithDescendants($department->getId(), [$group->getId()]);
-                if (in_array($parent->getId(), $subtreeIds, true)) {
-                    throw new \InvalidArgumentException('Übergeordnete Gruppe darf nicht im eigenen Subtree liegen');
-                }
-                $newDepth = $this->hierarchy->computeDepth($department->getId(), $parent->getId()) + 1;
-                $currentDepth = $this->hierarchy->computeDepth($department->getId(), $group->getId());
-                $subtreeSpan = $this->hierarchy->computeMaxSubtreeDepth($department->getId(), $group->getId()) - $currentDepth;
-                if ($newDepth + $subtreeSpan > self::MAX_DEPTH) {
-                    throw new \InvalidArgumentException('Verschieben würde maximale Hierarchietiefe von ' . self::MAX_DEPTH . ' überschreiten');
-                }
-                $group->setParent($parent);
-            }
+        if (array_key_exists('parent_id', $data)) {
+            $this->applyParentChange($department, $user, $group, $data);
         }
 
         if (isset($data['sort_order'])) {
             $group->setSortOrder((int) $data['sort_order']);
         }
 
-        $this->applyStructuralKind($group, $data['kind'] ?? $group->getGrossanlassKind());
+        $requestedKind = $data['kind'] ?? $group->getGrossanlassKind();
+        if (!$this->access->canManageStruktur($user, $department)
+            && $this->isLeafKind($this->resolveStoredKind($group)) !== $this->isLeafKind($this->kindFromChoice($group->getParent(), $requestedKind))) {
+            // Leitungen dürfen Bauprojekt ↔ Auftrag wechseln, aber kein Element zur Struktur machen (oder umgekehrt).
+            $requestedKind = $group->getGrossanlassKind();
+        }
+        $this->applyStructuralKind($group, $requestedKind);
         $this->applyWindow($group, $data);
         $this->applyBuildStatus($department, $user, $group, $data);
         $this->applyDescription($group, $data);
 
         $group->updateTimestamps();
         $this->entityManager->flush();
-        $place = $this->syncPlaceForGroup($department, $group, $data);
+        $place = $this->syncPlaceForGroup($department, $user, $group, $data);
 
         $members = $this->loadMembershipsByGroup([$group->getId()])[$group->getId()] ?? [];
 
-        return $this->serializeGroup($department, $group, $members, $place);
+        return $this->serializeGroup($department, $group, $members, $place, places: $this->serializedPlacesOf($department, $group));
     }
 
     public function deleteGroup(Department $department, User $user, Group $group): void
@@ -196,7 +188,7 @@ class GrossanlassGroupService
             throw new \RuntimeException('Löschen nicht möglich: Im Subtree sind noch Mitglieder zugewiesen');
         }
 
-        $isBauprojekt = $this->resolveStoredKind($group) === Group::GROSSANLASS_KIND_TEILBEREICH;
+        $isBauprojekt = $this->isLeafKind($this->resolveStoredKind($group));
         if (!$isBauprojekt && $this->hasWishReferences($subtreeIds)) {
             throw new \RuntimeException('Löschen nicht möglich: Es bestehen noch Wunsch-Referenzen auf Knoten im Subtree');
         }
@@ -478,6 +470,7 @@ class GrossanlassGroupService
         array $shares = [],
         array $namesById = [],
         ?string $procurementProgress = null,
+        ?array $places = null,
     ): array {
         $level = $this->hierarchy->computeDepth($department->getId(), $group->getId());
         $leaders = array_values(array_filter($members, static fn (array $m) => $m['is_leader']));
@@ -522,7 +515,8 @@ class GrossanlassGroupService
             'procurement_progress' => $procurementProgress,
             'description' => $group->getDescription(),
             'place' => $place,
-            'include_on_map' => is_array($place) && ($place['kind'] ?? '') === GrossanlassPlaceCodes::KIND_AREA,
+            'places' => $places ?? ($place !== null ? [$place] : []),
+            'include_on_map' => is_array($place) && ($nodeType === 'auftrag' || ($place['kind'] ?? '') === GrossanlassPlaceCodes::KIND_AREA),
             'member_count' => count($members),
             'leader_count' => count($leaders),
             'members' => array_values($members),
@@ -652,25 +646,60 @@ class GrossanlassGroupService
      * @param array<string, mixed> $data
      * @return array<string, mixed>|null
      */
-    private function syncPlaceForGroup(Department $department, Group $group, array $data): ?array
+    private function syncPlaceForGroup(Department $department, User $user, Group $group, array $data): ?array
     {
-        if ($this->resolveStoredKind($group) === Group::GROSSANLASS_KIND_TEILBEREICH) {
-            return $this->places->serialize($this->places->ensureForBauprojekt($department, $group));
-        }
-
+        // Bauprojekte haben immer einen Standort; Bereiche und Aufträge nur auf Wunsch (include_on_map).
+        $isProject = $this->resolveStoredKind($group) === Group::GROSSANLASS_KIND_TEILBEREICH;
         $existing = $this->places->findForGroup($department, $group->getId());
-        $include = array_key_exists('include_on_map', $data)
-            ? filter_var($data['include_on_map'], FILTER_VALIDATE_BOOLEAN)
-            : ($existing instanceof DepartmentGrossanlassPlace
-                && $existing->getKind() === GrossanlassPlaceCodes::KIND_AREA);
-        if (!$include) {
-            $this->places->detachOrgPlaceForGroup($department, $group);
+        if (!$isProject) {
+            $include = array_key_exists('include_on_map', $data)
+                ? filter_var($data['include_on_map'], FILTER_VALIDATE_BOOLEAN)
+                : $existing instanceof DepartmentGrossanlassPlace;
+            if (!$include) {
+                // Nur die Zuordnung dieser Gruppe entfällt; der Standort bleibt für alle anderen bestehen.
+                $this->places->detachOrgPlaceForGroup($department, $group);
 
-            return null;
+                return null;
+            }
         }
 
-        $row = $this->places->ensureForArea($department, $group);
-        if (array_key_exists('polygon', $data)) {
+        $requested = isset($data['place_kind']) ? (string) $data['place_kind'] : '';
+        $kind = match ($requested) {
+            'area' => GrossanlassPlaceCodes::KIND_AREA,
+            'point' => GrossanlassPlaceCodes::KIND_BAUPROJEKT,
+            default => $existing instanceof DepartmentGrossanlassPlace && in_array($existing->getKind(), [GrossanlassPlaceCodes::KIND_AREA, GrossanlassPlaceCodes::KIND_BAUPROJEKT], true)
+                ? $existing->getKind()
+                : ($isProject || $this->resolveStoredKind($group) === Group::GROSSANLASS_KIND_AUFTRAG
+                    ? GrossanlassPlaceCodes::KIND_BAUPROJEKT
+                    : GrossanlassPlaceCodes::KIND_AREA),
+        };
+        $placeName = isset($data['place_name']) ? trim((string) $data['place_name']) : '';
+
+        $linkPlaceId = isset($data['place_id']) ? trim((string) $data['place_id']) : '';
+        if ($linkPlaceId !== '') {
+            // Verknüpfen ändert nur die Zuordnung dieser Gruppe; der Standort bleibt unverändert.
+            $row = $this->places->linkExistingForGroup($department, $group, $linkPlaceId);
+            if ($placeName !== '' && $placeName !== $row->getName()) {
+                $this->assertMayChangeSharedPlace($department, $user, $row);
+                $row->setName($placeName);
+                $this->entityManager->flush();
+            }
+
+            return $this->places->serialize($row);
+        }
+
+        if ($existing instanceof DepartmentGrossanlassPlace && $this->places->isShared($existing)) {
+            // Gemeinsam genutzter Standort: Änderungen wirken auf alle verknüpften Gruppen.
+            $changesPlace = ($placeName !== '' && $placeName !== $existing->getName())
+                || $kind !== $existing->getKind()
+                || (array_key_exists('polygon', $data) && $this->polygonDiffers($existing, $data['polygon']));
+            if ($changesPlace) {
+                $this->assertMayChangeSharedPlace($department, $user, $existing);
+            }
+        }
+
+        $row = $this->places->ensureForGroup($department, $group, $kind, $placeName !== '' ? $placeName : null);
+        if ($kind === GrossanlassPlaceCodes::KIND_AREA && array_key_exists('polygon', $data) && $this->polygonDiffers($row, $data['polygon'])) {
             $this->places->applyPolygonData($row, $data['polygon']);
             $this->entityManager->flush();
         }
@@ -679,23 +708,111 @@ class GrossanlassGroupService
     }
 
     /**
-     * @return array<string, array<string, mixed>>
+     * Eine Gruppenberechtigung genügt nicht, um einen Standort zu ändern, den auch andere Gruppen nutzen.
      */
-    private function loadPlacesByGroup(Department $department): array
+    private function assertMayChangeSharedPlace(Department $department, User $user, DepartmentGrossanlassPlace $place): void
     {
+        if (!$this->places->isShared($place)) {
+            return;
+        }
+        if (!$this->places->canManagePlaces($user, $department)) {
+            throw new \RuntimeException('Dieser Standort wird von mehreren Gruppen genutzt — Änderungen nur in der Standortverwaltung.');
+        }
+    }
+
+    private function polygonDiffers(DepartmentGrossanlassPlace $place, mixed $polygon): bool
+    {
+        return GrossanlassPlaceCodes::normalizePolygon($polygon) !== GrossanlassPlaceCodes::normalizePolygon($place->getPolygon());
+    }
+
+    /**
+     * @return array<string, list<array<string, mixed>>> Gruppen-ID => Standorte, Hauptstandort zuerst
+     */
+    private function loadAllPlacesByGroup(Department $department): array
+    {
+        $rows = $this->places->rows($department);
+        $groupIdsByPlace = $this->places->groupIdsByPlace($rows);
         $out = [];
-        foreach ($this->places->rows($department) as $row) {
-            $groupId = $row->getGroupId();
-            if ($groupId === null || $groupId === '') {
-                continue;
+        foreach ($this->places->placesByGroup($department, $rows) as $groupId => $list) {
+            foreach ($list as $place) {
+                $out[$groupId][] = $this->places->serialize($place, $groupIdsByPlace[$place->getId()] ?? []);
             }
-            if (isset($out[$groupId]) && $row->getKind() !== GrossanlassPlaceCodes::KIND_BAUPROJEKT) {
-                continue;
-            }
-            $out[$groupId] = $this->places->serialize($row);
         }
 
         return $out;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function serializedPlacesOf(Department $department, Group $group): array
+    {
+        return array_map(
+            fn (DepartmentGrossanlassPlace $p) => $this->places->serialize($p),
+            $this->places->placesForGroup($department, $group->getId()),
+        );
+    }
+
+    /**
+     * Zusätzlichen Standortpunkt verknüpfen (place_id) oder neu anlegen (name, latitude, longitude).
+     * Das Polygon der Gruppe bleibt unverändert.
+     *
+     * @param array<string, mixed> $data
+     * @return list<array<string, mixed>> alle Standorte der Gruppe
+     */
+    public function addGroupPlace(Department $department, User $user, Group $group, array $data): array
+    {
+        $this->assertMayEditGroupPlaces($department, $user, $group);
+        $placeId = trim((string) ($data['place_id'] ?? ''));
+        if ($placeId !== '') {
+            $row = $this->places->getPlace($department, $placeId);
+            if ($row->getKind() === GrossanlassPlaceCodes::KIND_AREA) {
+                $this->places->linkExistingForGroup($department, $group, $placeId);
+            } else {
+                $this->places->linkExistingForGroup($department, $group, $placeId, true);
+            }
+        } else {
+            $this->places->createPointForGroup($department, $group, $data);
+        }
+
+        return $this->serializedPlacesOf($department, $group);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return list<array<string, mixed>>
+     */
+    public function updateGroupPlace(Department $department, User $user, Group $group, string $placeId, array $data): array
+    {
+        $this->assertMayEditGroupPlaces($department, $user, $group);
+        $row = $this->places->getPlace($department, $placeId);
+        $this->assertMayChangeSharedPlace($department, $user, $row);
+        $this->places->updatePointForGroup($department, $group, $placeId, $data);
+
+        return $this->serializedPlacesOf($department, $group);
+    }
+
+    /**
+     * Entkoppelt den Standort von der Gruppe. Der Standort selbst (Name, Position, QR-Code) bleibt bestehen.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function removeGroupPlace(Department $department, User $user, Group $group, string $placeId): array
+    {
+        $this->assertMayEditGroupPlaces($department, $user, $group);
+        $row = $this->places->getPlace($department, $placeId);
+        $this->places->unlinkGroup($row, $group->getId());
+
+        return $this->serializedPlacesOf($department, $group);
+    }
+
+    private function assertMayEditGroupPlaces(Department $department, User $user, Group $group): void
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        $this->assertGroupBelongsToDepartment($group, $department);
+        if (!$this->access->canEditGroup($user, $department, $group)) {
+            throw new \RuntimeException('Keine Berechtigung, Ressort zu bearbeiten');
+        }
     }
 
     /**
@@ -772,23 +889,17 @@ class GrossanlassGroupService
             return;
         }
 
-        $places = $this->entityManager->getRepository(DepartmentGrossanlassPlace::class)
-            ->createQueryBuilder('p')
-            ->where('p.departmentId = :departmentId')
-            ->andWhere('p.groupId IN (:groupIds)')
-            ->setParameter('departmentId', $departmentId)
+        // Orte werden nur entkoppelt (Zuordnung entfernt), nie mit der Gruppe gelöscht.
+        $links = $this->entityManager->getRepository(DepartmentGrossanlassPlaceGroup::class)
+            ->createQueryBuilder('l')
+            ->where('IDENTITY(l.group) IN (:groupIds)')
             ->setParameter('groupIds', $subtreeIds)
             ->getQuery()
             ->getResult();
-        foreach ($places as $place) {
-            if (!$place instanceof DepartmentGrossanlassPlace) {
-                continue;
+        foreach ($links as $link) {
+            if ($link instanceof DepartmentGrossanlassPlaceGroup && $link->getPlace()->getDepartmentId() === $departmentId) {
+                $this->places->unlinkGroup($link->getPlace(), $link->getGroup()->getId());
             }
-            if ($place->getKind() === GrossanlassPlaceCodes::KIND_AREA) {
-                $this->entityManager->remove($place);
-                continue;
-            }
-            $place->setGroupId(null);
         }
 
         $costs = $this->entityManager->getRepository(DepartmentGrossanlassCost::class)
@@ -812,6 +923,85 @@ class GrossanlassGroupService
         $this->entityManager->flush();
     }
 
+    private function isLeafKind(?string $kind): bool
+    {
+        return $kind === Group::GROSSANLASS_KIND_TEILBEREICH || $kind === Group::GROSSANLASS_KIND_AUFTRAG;
+    }
+
+    /**
+     * Bauprojekte und Aufträge hängen nur an Ressort/Bereich und tragen selbst keine Kinder.
+     * Nur Ressorts dürfen ohne Parent stehen.
+     */
+    private function assertParentAllowed(?string $kind, ?Group $parent): void
+    {
+        if ($parent === null) {
+            if ($kind !== Group::GROSSANLASS_KIND_RESSORT) {
+                throw new \InvalidArgumentException('Bereich, Bauprojekt und Auftrag benötigen ein übergeordnetes Element');
+            }
+
+            return;
+        }
+        if ($this->isLeafKind($this->resolveStoredKind($parent))) {
+            throw new \InvalidArgumentException('Unter einem Bauprojekt oder Auftrag können keine Elemente liegen');
+        }
+    }
+
+    /**
+     * Verschieben ändert nur parent_id: Wünsche, Aufgaben und Standortverknüpfungen hängen an der Gruppen-ID.
+     * Ressorts/Bereiche verschiebt nur die Strukturverwaltung; Bauprojekte und Aufträge auch Leitungen,
+     * sofern sie am Ziel Kinder anlegen dürfen.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function applyParentChange(Department $department, User $user, Group $group, array $data): void
+    {
+        $newParentId = empty($data['parent_id']) ? null : (string) $data['parent_id'];
+        if ($newParentId === $group->getParentId()) {
+            return;
+        }
+        $kind = $this->kindFromChoice($group->getParent(), $data['kind'] ?? $group->getGrossanlassKind());
+        $isLeaf = $this->isLeafKind($this->resolveStoredKind($group));
+
+        $parent = null;
+        if ($newParentId !== null) {
+            if ($newParentId === $group->getId()) {
+                throw new \InvalidArgumentException('Gruppe kann nicht sich selbst übergeordnet werden');
+            }
+            $parent = $this->findGroupInDepartment($department, $newParentId);
+        }
+
+        if (!$this->access->canManageStruktur($user, $department)) {
+            if (!$isLeaf) {
+                return;
+            }
+            if ($parent === null || !$this->access->canCreateChildGroup($user, $department, $parent)) {
+                throw new \RuntimeException('Keine Berechtigung, in dieses Element zu verschieben');
+            }
+        }
+
+        if ($parent === null) {
+            if ($this->isLeafKind($kind)) {
+                $this->assertParentAllowed($kind, null);
+            }
+            $group->setParent(null);
+
+            return;
+        }
+
+        $subtreeIds = $this->hierarchy->expandWithDescendants($department->getId(), [$group->getId()]);
+        if (in_array($parent->getId(), $subtreeIds, true)) {
+            throw new \InvalidArgumentException('Übergeordnete Gruppe darf nicht im eigenen Subtree liegen');
+        }
+        $this->assertParentAllowed($kind, $parent);
+        $newDepth = $this->hierarchy->computeDepth($department->getId(), $parent->getId()) + 1;
+        $currentDepth = $this->hierarchy->computeDepth($department->getId(), $group->getId());
+        $subtreeSpan = $this->hierarchy->computeMaxSubtreeDepth($department->getId(), $group->getId()) - $currentDepth;
+        if ($newDepth + $subtreeSpan > self::MAX_DEPTH) {
+            throw new \InvalidArgumentException('Verschieben würde maximale Hierarchietiefe von ' . self::MAX_DEPTH . ' überschreiten');
+        }
+        $group->setParent($parent);
+    }
+
     private function applyStructuralKind(Group $group, mixed $requested): void
     {
         $group->setGrossanlassKind($this->kindFromChoice($group->getParent(), $requested));
@@ -828,6 +1018,9 @@ class GrossanlassGroupService
         }
         if ($kind === Group::GROSSANLASS_KIND_TEILBEREICH) {
             return Group::GROSSANLASS_KIND_TEILBEREICH;
+        }
+        if ($kind === Group::GROSSANLASS_KIND_AUFTRAG) {
+            return Group::GROSSANLASS_KIND_AUFTRAG;
         }
 
         return $parent instanceof Group
@@ -853,6 +1046,7 @@ class GrossanlassGroupService
 
         return match (strtolower($kind)) {
             Group::GROSSANLASS_KIND_TEILBEREICH => 'bauprojekt',
+            Group::GROSSANLASS_KIND_AUFTRAG => 'auftrag',
             Group::GROSSANLASS_KIND_BEREICH => 'unterressort',
             default => 'ressort',
         };

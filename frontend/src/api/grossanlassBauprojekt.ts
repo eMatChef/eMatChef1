@@ -13,7 +13,15 @@ export type GaBauprojektTask = {
   starts_at?: string | null
   duration_minutes?: number | null
   assignee_user_id?: string | null
+  /** Benötigte Helfer dieser Aufgabe; Personen werden erst später zugewiesen. */
+  helper_need?: GaTaskHelperNeed
   created_at: string
+}
+
+export type GaTaskHelperNeed = {
+  total: number
+  functions: { label: string; count: number }[]
+  unspecified?: number
 }
 
 export type GaBauprojektEinsatz = {
@@ -45,6 +53,8 @@ export type GaBauprojektBriefing = {
   description?: string | null
   place: GaPlace | null
   tasks: GaBauprojektTask[]
+  /** Bisheriger gruppenweiter Helferbedarf (Altbestand), bleibt lesbar. */
+  helper_need?: { total: number; functions: { label: string; count: number }[]; unspecified: number }
   vehicles?: GaBauprojektVehicleNeed[]
   material: GrossanlassWishLine[]
   /** Mengenfortschritt je Materialposition (Wunsch-ID bzw. Direkt-Bedarf-ID). */
@@ -114,7 +124,7 @@ export async function patchGrossanlassBauprojektWindow(
 export async function createGrossanlassBauprojektTask(
   departmentId: string,
   groupId: string,
-  payload: { title: string; description?: string | null; starts_at?: string | null; duration_minutes?: number | null; assignee_user_id?: string | null },
+  payload: { title: string; description?: string | null; starts_at?: string | null; duration_minutes?: number | null; assignee_user_id?: string | null; helper_need?: GaTaskHelperNeed },
 ): Promise<GaBauprojektTask> {
   const { data } = await apiClient.post<GaBauprojektTask>(
     `/api/departments/${departmentId}/grossanlass/groups/${groupId}/tasks`,
@@ -127,7 +137,7 @@ export async function updateGrossanlassBauprojektTask(
   departmentId: string,
   groupId: string,
   taskId: string,
-  payload: { title?: string; description?: string | null; starts_at?: string | null; duration_minutes?: number | null; assignee_user_id?: string | null; sort_order?: number },
+  payload: { title?: string; description?: string | null; starts_at?: string | null; duration_minutes?: number | null; assignee_user_id?: string | null; sort_order?: number; helper_need?: GaTaskHelperNeed },
 ): Promise<GaBauprojektTask> {
   const { data } = await apiClient.patch<GaBauprojektTask>(
     `/api/departments/${departmentId}/grossanlass/groups/${groupId}/tasks/${taskId}`,

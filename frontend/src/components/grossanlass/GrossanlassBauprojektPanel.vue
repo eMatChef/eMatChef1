@@ -4,7 +4,7 @@
     <p v-else-if="loading" class="muted">{{ t('common.loading') }}</p>
     <template v-else-if="briefing">
       <v-expansion-panels v-model="openSections" multiple class="e-accordions ga-bauprojekt-panel__accordions">
-        <v-expansion-panel value="window">
+        <v-expansion-panel v-if="showBasics" value="window">
           <v-expansion-panel-title>
             {{ windowHeading }}
           </v-expansion-panel-title>
@@ -34,7 +34,7 @@
           </v-expansion-panel-text>
         </v-expansion-panel>
 
-        <v-expansion-panel value="description">
+        <v-expansion-panel v-if="showBasics" value="description">
           <v-expansion-panel-title>
             {{ t('grossanlass.planung.ressorts.descriptionHeading') }}
           </v-expansion-panel-title>
@@ -62,9 +62,9 @@
           </v-expansion-panel-text>
         </v-expansion-panel>
 
-        <v-expansion-panel value="place">
+        <v-expansion-panel v-if="showBasics" value="place">
           <v-expansion-panel-title>
-            {{ t('grossanlass.planung.ressorts.placeHeading') }}
+            {{ briefing.group?.node_type === 'auftrag' ? t('grossanlass.planung.auftraege.placeHeading') : t('grossanlass.planung.ressorts.placeHeading') }}
           </v-expansion-panel-title>
           <v-expansion-panel-text eager>
             <div class="ga-place-head">
@@ -124,6 +124,13 @@
           </v-expansion-panel-title>
           <v-expansion-panel-text>
             <p v-if="!briefing.can_edit && !taskBlocks.length" class="muted">{{ t('grossanlass.planung.ressorts.tasksEmpty') }}</p>
+            <p v-if="helperDemand.peak > 0" class="ga-bauprojekt-panel__demand" data-testid="task-helper-demand">
+              {{ t('grossanlass.helperNeed.peak', { n: helperDemand.peak }) }}
+              <span class="muted">{{ t('grossanlass.helperNeed.peakHint') }}</span>
+            </p>
+            <p v-if="legacyHelperTotal > 0" class="muted" data-testid="legacy-helper-need">
+              {{ t('grossanlass.helperNeed.legacy', { n: legacyHelperTotal }) }}
+            </p>
             <draggable
               v-model="taskBlocks"
               item-key="key"
@@ -240,6 +247,53 @@
                       </span>
                     </template>
                   </EAutocomplete>
+                  <div class="ga-block__helpers">
+                    <ETextField
+                      :model-value="block.helperTotal ? String(block.helperTotal) : ''"
+                      type="number"
+                      min="0"
+                      class="ga-block__helper-total"
+                      :label="t('grossanlass.helperNeed.taskTotal')"
+                      :disabled="!briefing.can_edit"
+                      hide-details
+                      data-testid="task-helper-total"
+                      @update:model-value="(v: string | number | null) => block.helperTotal = Math.max(0, Math.floor(Number(v) || 0))"
+                    />
+                    <div v-for="(fn, fnIndex) in block.helperFunctions" :key="fnIndex" class="ga-block__helper-fn">
+                      <ETextField
+                        v-model="fn.label"
+                        :label="t('grossanlass.helperNeed.function')"
+                        :disabled="!briefing.can_edit"
+                        hide-details
+                      />
+                      <ETextField
+                        :model-value="String(fn.count)"
+                        type="number"
+                        min="1"
+                        :label="t('grossanlass.helperNeed.count')"
+                        :disabled="!briefing.can_edit"
+                        hide-details
+                        @update:model-value="(v: string | number | null) => fn.count = Math.max(1, Math.floor(Number(v) || 1))"
+                      />
+                      <button
+                        v-if="briefing.can_edit"
+                        type="button"
+                        class="action-btn"
+                        :title="t('grossanlass.helperNeed.remove')"
+                        @click="block.helperFunctions.splice(fnIndex, 1)"
+                      >
+                        <v-icon icon="mdi-close" size="18" />
+                      </button>
+                    </div>
+                    <button
+                      v-if="briefing.can_edit"
+                      type="button"
+                      class="ga-block__helper-add"
+                      @click="block.helperFunctions.push({ label: '', count: 1 })"
+                    >
+                      {{ t('grossanlass.helperNeed.addFunction') }}
+                    </button>
+                  </div>
                   <div class="ga-block__tools">
                     <span
                       v-if="taskSaveHint[block.key]"
@@ -596,6 +650,7 @@ import GaBuildMetaFields from '@/components/grossanlass/GaBuildMetaFields.vue'
 import GrossanlassVehicleCategoryField from '@/components/grossanlass/GrossanlassVehicleCategoryField.vue'
 import GrossanlassPlacePreviewMap from '@/components/grossanlass/GrossanlassPlacePreviewMap.vue'
 import GrossanlassMaterialProgressLine from '@/components/grossanlass/GrossanlassMaterialProgressLine.vue'
+import { helperDemandPeak } from '@/utils/grossanlassHelperDemand'
 import { findMaterialProgress } from '@/utils/grossanlassMaterialProgress'
 import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
 import { useToast } from '@/composables/useToast'
@@ -645,7 +700,10 @@ const props = defineProps<{
   departmentId: string
   groupId: string
   initialOpen?: string[]
+  /** `tasks-material`: Zeitfenster, Beschrieb und Standort stehen im Reiter Grunddaten des gemeinsamen Dialogs. */
+  scope?: 'full' | 'tasks-material'
 }>()
+const showBasics = computed(() => props.scope !== 'tasks-material')
 watchGrossanlassBuildPeriods(toRef(props, 'departmentId'))
 const emit = defineEmits<{
   'meta-saved': [group: NonNullable<GaBauprojektBriefing['group']>]
@@ -1129,6 +1187,8 @@ type TaskBlock = {
   assigneeId: string
   assigneeMenu: boolean
   assigneeSearch: string
+  helperTotal: number
+  helperFunctions: { label: string; count: number }[]
   saving: boolean
 }
 
@@ -1254,6 +1314,8 @@ function syncEditors() {
       assigneeId: task.assignee_user_id || '',
       assigneeMenu: false,
       assigneeSearch: '',
+      helperTotal: task.helper_need?.total ?? 0,
+      helperFunctions: (task.helper_need?.functions ?? []).map((f) => ({ ...f })),
       saving: false,
     }
   })
@@ -1352,6 +1414,8 @@ function blankTaskBlock(): TaskBlock {
     assigneeId: '',
     assigneeMenu: false,
     assigneeSearch: '',
+    helperTotal: 0,
+    helperFunctions: [],
     saving: false,
   }
 }
@@ -1375,7 +1439,10 @@ async function addTaskBlock() {
 }
 
 function taskFingerprint(block: TaskBlock): string {
-  return [block.title, block.description, block.date, block.time, block.end, block.assigneeId].join('\u0000')
+  return [
+    block.title, block.description, block.date, block.time, block.end, block.assigneeId,
+    block.helperTotal, JSON.stringify(block.helperFunctions),
+  ].join('\u0000')
 }
 
 function scheduleTaskAutosave(block: TaskBlock) {
@@ -1436,8 +1503,30 @@ function taskPayload(block: TaskBlock) {
     starts_at: block.date ? `${block.date}T${block.time || '00:00'}:00` : null,
     duration_minutes: durationMinutes(block.time, block.end),
     assignee_user_id: block.assigneeId || null,
+    helper_need: taskHelperNeedPayload(block),
   }
 }
+
+/** Funktionen ohne Namen entfallen; die Gesamtzahl umfasst mindestens ihre Summe. */
+function taskHelperNeedPayload(block: TaskBlock) {
+  const functions = block.helperFunctions
+    .map((f) => ({ label: f.label.trim(), count: f.count }))
+    .filter((f) => f.label && f.count > 0)
+  return { total: Math.max(block.helperTotal, functions.reduce((sum, f) => sum + f.count, 0)), functions }
+}
+
+const helperDemand = computed(() => helperDemandPeak(taskBlocks.value.map((block) => {
+  const start = block.date && block.time ? Date.parse(`${block.date}T${block.time}:00`) : NaN
+  const minutes = durationMinutes(block.time, block.end)
+  return {
+    startMs: Number.isNaN(start) || !minutes ? null : start,
+    endMs: Number.isNaN(start) || !minutes ? null : start + minutes * 60_000,
+    total: taskHelperNeedPayload(block).total,
+  }
+})))
+
+/** Altbestand: gruppenweiter Bedarf, solange keine Aufgabe einen eigenen Bedarf hat. */
+const legacyHelperTotal = computed(() => helperDemand.value.peak > 0 ? 0 : briefing.value?.helper_need?.total ?? 0)
 
 async function saveTaskBlock(block: TaskBlock, silent = false) {
   if (!block.title.trim() && !block.description.trim()) return
@@ -1942,7 +2031,7 @@ async function confirmClose(): Promise<boolean> {
   })
 }
 
-defineExpose({ confirmClose })
+defineExpose({ confirmClose, hasUnsavedChanges })
 
 watch(placeSectionOpen, (open) => {
   if (!open) return
@@ -2121,6 +2210,29 @@ onMounted(() => {
   font-size: 0.82rem;
   color: #64748b;
 }
+.ga-block__helpers {
+  grid-column: 2 / -1;
+  grid-row: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+}
+.ga-block__helper-total { max-width: 140px; }
+.ga-block__helper-fn {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.ga-block__helper-add {
+  border: 0;
+  background: none;
+  color: var(--e-color-primary, #0f766e);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 8px 4px;
+}
+.ga-bauprojekt-panel__demand { margin: 0 0 8px; font-weight: 600; }
 .ga-block__body {
   grid-column: 3;
   grid-row: 1 / span 2;

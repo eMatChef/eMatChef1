@@ -1011,7 +1011,7 @@ const roleFilterItems = computed(() =>
 
 const ressortFilterItems = computed(() =>
   (departmentGroups.value as GrossanlassGroup[])
-    .filter((g) => g.node_type !== 'bauprojekt')
+    .filter((g) => g.node_type !== 'bauprojekt' && g.node_type !== 'auftrag')
     .map((g) => ({ title: g.name, value: g.id })),
 )
 

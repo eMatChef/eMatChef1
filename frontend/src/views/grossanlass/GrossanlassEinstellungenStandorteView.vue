@@ -30,6 +30,7 @@
         :department-id="departmentId"
         :ga-department-id="departmentId"
         ga-map-mode="all"
+        hover-pin-labels
         @updated="onMapUpdated"
         @venue-cleared="loadVenue"
         @core-ready="onCoreReady"
@@ -116,7 +117,7 @@
           <div class="ga-places__refs">
             <a :href="place.qr_url" target="_blank" rel="noopener">{{ place.public_code }}</a>
             <button
-              v-if="place.group_id"
+              v-if="gaPlaceGroupIds(place).length === 1"
               type="button"
               class="ga-places__link"
               @click="openLinkedGroup(place)"
@@ -205,7 +206,7 @@ import {
   type GaPlace,
   type GaPlaceKind,
 } from '@/api/grossanlassLogistics'
-import { GA_PLACE_CREATE_KINDS, gaPlaceKind, gaPlaceKindLabelKey } from '@/utils/grossanlassGaMap'
+import { GA_PLACE_CREATE_KINDS, gaPlaceGroupIds, gaPlaceKind, gaPlaceKindLabelKey } from '@/utils/grossanlassGaMap'
 import { formatAddressOption } from '@/utils/departmentAddressSearch'
 import '@/styles/contacts-view.css'
 

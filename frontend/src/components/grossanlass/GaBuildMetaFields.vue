@@ -39,7 +39,7 @@
       :model-value="status"
       :baseline="statusBaseline"
       type="select"
-      :label="t('grossanlass.planung.ressorts.buildStatusLabel')"
+      :label="statusLabel"
       :options="statusOptions"
       :disabled="disabled"
       span-class="ga-build-meta-fields__status"
@@ -50,11 +50,11 @@
       v-else-if="allowManual"
       v-model="status"
       :items="statusSelectItems"
-      :label="t('grossanlass.planung.ressorts.buildStatusLabel')"
+      :label="statusLabel"
       hide-details
     />
     <p v-if="!allowManual || !status" :class="hintClass">
-      <span class="ga-build-meta-fields__status-label">{{ t('grossanlass.planung.ressorts.buildStatusLabel') }}:</span>
+      <span class="ga-build-meta-fields__status-label">{{ statusLabel }}:</span>
       {{ derivedStatusLabel }}
     </p>
   </div>
@@ -118,6 +118,10 @@ const props = withDefaults(defineProps<{
 const { t } = useI18n()
 watchGrossanlassBuildPeriods(toRef(props, 'departmentId'))
 const packedWindow = computed(() => packBauprojektWindow(start.value, end.value))
+/** Normaler Auftrag: «Status des Auftrags», Bauauftrag/Bauvorhaben: «Status des Bauvorhabens». */
+const statusLabel = computed(() => t(props.nodeType === 'auftrag'
+  ? 'grossanlass.planung.ressorts.orderStatusLabel'
+  : 'grossanlass.planung.ressorts.buildStatusLabel'))
 const statusOptions = computed(() => gaBuildStatusAutoSaveOptions(t))
 const statusSelectItems = computed(() => gaBuildStatusSelectItems(t))
 const derivedStatusLabel = computed(() => t(gaBuildStatusI18nKey(resolveBuildStatus({

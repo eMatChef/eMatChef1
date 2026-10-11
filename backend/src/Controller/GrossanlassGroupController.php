@@ -9,6 +9,7 @@ use App\Service\Grossanlass\GrossanlassAccessService;
 use App\Service\Grossanlass\GrossanlassBauprojektService;
 use App\Service\Grossanlass\GrossanlassGroupService;
 use App\Service\Grossanlass\GrossanlassHelperService;
+use App\Service\Grossanlass\GrossanlassOrderCardService;
 use App\Service\GroupAccessService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -25,6 +26,7 @@ class GrossanlassGroupController extends AbstractController
         private GrossanlassGroupService $groupService,
         private GrossanlassBauprojektService $bauprojekt,
         private GrossanlassHelperService $helperService,
+        private GrossanlassOrderCardService $orderCards,
         private GrossanlassAccessService $access,
         private GroupAccessService $groupAccess,
     ) {}
@@ -47,6 +49,25 @@ class GrossanlassGroupController extends AbstractController
         }
 
         return new JsonResponse($this->groupService->listGroups($department));
+    }
+
+    #[Route('/order-cards', name: 'order_cards', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function orderCards(string $departmentId): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->groupAccess->userHasDepartmentMembership($currentUser->getId(), $departmentId)) {
+            return new JsonResponse(['error' => 'Kein Zugriff auf diese Abteilung'], 403);
+        }
+
+        return new JsonResponse($this->orderCards->cards($department, $currentUser));
     }
 
     #[Route('', name: 'create', methods: ['POST'])]
@@ -358,6 +379,68 @@ class GrossanlassGroupController extends AbstractController
             $departmentId,
             $groupId,
             fn (Department $d, User $u, Group $g) => $this->bauprojekt->updateWindow($d, $u, $g, is_array($data) ? $data : []),
+        );
+    }
+
+    #[Route('/{groupId}/helper-need', name: 'helper_need_get', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function helperNeed(string $departmentId, string $groupId): JsonResponse
+    {
+        return $this->handleBauprojekt(
+            $departmentId,
+            $groupId,
+            fn (Department $d, User $u, Group $g) => $this->bauprojekt->getHelperNeed($d, $u, $g),
+        );
+    }
+
+    #[Route('/{groupId}/helper-need', name: 'helper_need_put', methods: ['PUT'])]
+    #[IsGranted('ROLE_USER')]
+    public function saveHelperNeed(string $departmentId, string $groupId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handleBauprojekt(
+            $departmentId,
+            $groupId,
+            fn (Department $d, User $u, Group $g) => $this->bauprojekt->saveHelperNeed($d, $u, $g, is_array($data) ? $data : []),
+        );
+    }
+
+    #[Route('/{groupId}/places', name: 'places_add', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function addPlace(string $departmentId, string $groupId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handleBauprojekt(
+            $departmentId,
+            $groupId,
+            fn (Department $d, User $u, Group $g) => $this->groupService->addGroupPlace($d, $u, $g, is_array($data) ? $data : []),
+            201,
+        );
+    }
+
+    #[Route('/{groupId}/places/{placeId}', name: 'places_update', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function updatePlace(string $departmentId, string $groupId, string $placeId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handleBauprojekt(
+            $departmentId,
+            $groupId,
+            fn (Department $d, User $u, Group $g) => $this->groupService->updateGroupPlace($d, $u, $g, $placeId, is_array($data) ? $data : []),
+        );
+    }
+
+    #[Route('/{groupId}/places/{placeId}', name: 'places_remove', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function removePlace(string $departmentId, string $groupId, string $placeId): JsonResponse
+    {
+        return $this->handleBauprojekt(
+            $departmentId,
+            $groupId,
+            fn (Department $d, User $u, Group $g) => $this->groupService->removeGroupPlace($d, $u, $g, $placeId),
         );
     }
 

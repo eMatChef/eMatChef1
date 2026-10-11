@@ -29,6 +29,7 @@
           v-if="canShareGroup(group)"
           variant="secondary"
           size="small"
+          :title="t('grossanlass.planung.ressorts.shareHint')"
           @click="openShare(group)"
         >
           {{ t('grossanlass.planung.ressorts.shareWith') }}
@@ -62,27 +63,43 @@
 
       <ul v-if="projects.length" class="bauprojekt-rows">
         <li v-for="project in projects" :key="project.id" class="bauprojekt-row">
-          <GrossanlassGroupNodeIcon node-type="bauprojekt" />
+          <GrossanlassGroupNodeIcon :node-type="project.node_type" />
           <div class="bauprojekt-row__main">
-            <button type="button" class="bauprojekt-row__name" @click="openProject(project)">
+            <button type="button" class="bauprojekt-row__name" @click="openLeaf(project)">
               {{ project.name }}
             </button>
+            <span v-if="project.node_type === 'auftrag'" class="kind-badge kind-badge--auftrag">{{ kindLabel(project) }}</span>
+            <span v-if="usageWindow(project)" class="window-chip">{{ usageWindow(project) }}</span>
             <span
               v-if="buildStatusChip(project)"
               class="status-chip"
               :class="`status-chip--${resolveBuildStatus(project)}`"
             >{{ buildStatusChip(project) }}</span>
-            <span class="bauprojekt-row__meta">{{ projectMaterialSummary(project.id) }}</span>
+            <span v-if="project.node_type !== 'auftrag'" class="bauprojekt-row__meta">{{ projectMaterialSummary(project.id) }}</span>
             <span v-if="shareCaption(project)" class="share-badge">{{ shareCaption(project) }}</span>
           </div>
           <div class="bauprojekt-row__actions">
-            <EButton variant="secondary" size="small" @click="openProject(project)">
+            <EButton
+              v-if="project.node_type !== 'auftrag'"
+              variant="secondary"
+              size="small"
+              @click="openProject(project)"
+            >
               {{ t('grossanlass.planung.ressorts.openProject') }}
+            </EButton>
+            <EButton
+              v-if="canEditGroup(project)"
+              variant="secondary"
+              size="small"
+              @click="openEditGroup(project)"
+            >
+              {{ t('common.edit') }}
             </EButton>
             <EButton
               v-if="canShareGroup(project)"
               variant="secondary"
               size="small"
+              :title="t('grossanlass.planung.ressorts.shareHint')"
               @click="openShare(project)"
             >
               {{ t('grossanlass.planung.ressorts.shareWith') }}
@@ -115,6 +132,7 @@ import {
   resolveBuildStatus,
   showsGaBuildStatus,
 } from '@/utils/grossanlassBuildStatus'
+import { isGrossanlassLeafNodeType } from '@/utils/grossanlassGroupNode'
 import GrossanlassGroupNodeIcon from '@/components/grossanlass/GrossanlassGroupNodeIcon.vue'
 import {
   MEIN_RESSORT_TREE_KEY,
@@ -154,6 +172,12 @@ const {
   shareCaption,
 } = tree
 
+/** Bauprojekte öffnen ihr Briefing, Aufträge (schlank) den Bearbeitungsdialog. */
+function openLeaf(group: GrossanlassGroup) {
+  if (group.node_type === 'auftrag') openEditGroup(group)
+  else openProject(group)
+}
+
 const childAreas = computed(() => unterressortsOf(props.group))
 const projects = computed(() => bauprojekteOf(props.group))
 const childCount = computed(() => childAreas.value.length + projects.value.length)
@@ -183,7 +207,7 @@ function procurementUnder(group: GrossanlassGroup): 'quoted' | 'build' | null {
 }
 
 function reportedUnder(group: GrossanlassGroup): string[] {
-  if (group.node_type === 'bauprojekt') return []
+  if (isGrossanlassLeafNodeType(group.node_type)) return []
   const direct = bauprojekteOf(group).map((project) => project.build_status)
   const nested = unterressortsOf(group).flatMap((area) => reportedUnder(area))
   return [...direct, ...nested].filter((status): status is string => !!status)

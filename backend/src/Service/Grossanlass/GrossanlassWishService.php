@@ -1512,7 +1512,7 @@ class GrossanlassWishService
         }
         $kind = $group->getGrossanlassKind();
 
-        return $kind === null || $kind === '' || $kind === Group::GROSSANLASS_KIND_TEILBEREICH;
+        return $kind === null || $kind === '' || $kind === Group::GROSSANLASS_KIND_TEILBEREICH || $kind === Group::GROSSANLASS_KIND_AUFTRAG;
     }
 
     private function findWishInRound(Department $department, string $roundId, string $wishId): ActivityGrossanlassWishLine

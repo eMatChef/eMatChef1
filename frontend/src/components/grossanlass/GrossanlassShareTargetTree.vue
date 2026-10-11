@@ -116,12 +116,13 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ShareCreateRow from '@/components/grossanlass/GrossanlassShareCreateRow.vue'
 import GrossanlassGroupNodeIcon from '@/components/grossanlass/GrossanlassGroupNodeIcon.vue'
+import type { GrossanlassNodeType } from '@/api/grossanlassGroups'
 
 export type ShareTargetNode = {
   id: string
   name: string
   kind: string
-  nodeType: 'ressort' | 'unterressort' | 'bauprojekt'
+  nodeType: GrossanlassNodeType
   selectable: boolean
   canCreate: boolean
   children: ShareTargetNode[]

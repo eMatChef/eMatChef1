@@ -40,7 +40,6 @@
           <p v-if="periodInvalid" class="warn" role="alert">{{ t('grossanlass.planung.stammdaten.periodEndBeforeStart') }}</p>
           <GrossanlassKeyDatesPanel
             :department-id="departmentId"
-            hide-event-period
             embedded
           />
         </section>
@@ -137,15 +136,17 @@
             {{ t('grossanlass.planung.stammdaten.logisticsNodeOpenRessorts') }}
           </router-link>
         </section>
-        <ETextarea
-          v-model="notes"
-          class="notes-field"
-          :label="t('grossanlass.planung.stammdaten.notes')"
-          :placeholder="t('grossanlass.planung.stammdaten.notesPlaceholder')"
-          :disabled="!canManage"
-          rows="3"
-          hide-details="auto"
-        />
+        <div class="mt-6">
+          <ETextarea
+            v-model="notes"
+            class="notes-field"
+            :label="t('grossanlass.planung.stammdaten.notes')"
+            :placeholder="t('grossanlass.planung.stammdaten.notesPlaceholder')"
+            :disabled="!canManage"
+            rows="3"
+            hide-details="auto"
+          />
+        </div>
       </div>
     </template>
 

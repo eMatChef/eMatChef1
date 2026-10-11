@@ -305,7 +305,7 @@ class GrossanlassAccessService
     {
         if ($group->getParentId() !== null && $group->getParentId() !== '') {
             $kind = $group->getGrossanlassKind();
-            if ($kind === null || $kind === '' || $kind === Group::GROSSANLASS_KIND_TEILBEREICH) {
+            if ($kind === null || $kind === '' || $kind === Group::GROSSANLASS_KIND_TEILBEREICH || $kind === Group::GROSSANLASS_KIND_AUFTRAG) {
                 return false;
             }
         }

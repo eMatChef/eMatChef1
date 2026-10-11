@@ -1,4 +1,5 @@
 import { computed, type Ref } from 'vue'
+import { isGrossanlassLeafNodeType } from '@/utils/grossanlassGroupNode'
 import { useAuthStore } from '@/stores/auth'
 import type { GrossanlassGroup } from '@/api/grossanlassGroups'
 import { gaCanManagePlanung, gaCanManageStruktur, gaIsBereichsleitung } from '@/utils/grossanlassAccess'
@@ -92,6 +93,8 @@ export function useGrossanlassRessortScope(groups: Ref<GrossanlassGroup[]>) {
   }
 
   function canShareGroup(group?: GrossanlassGroup | null): boolean {
+    // Nur Bereiche und Bauprojekte können gemeinsam geplant werden, keine Ressorts (oberste Ebene).
+    if (group && !group.parent_id) return false
     if (canManageStruktur.value) return true
     if (!group) return false
     return canActOnOwnBranch(group) || isLeaderOfGroupOrAncestor(group)
@@ -120,7 +123,7 @@ export function useGrossanlassRessortScope(groups: Ref<GrossanlassGroup[]>) {
   }
 
   function canCreateChild(parent: GrossanlassGroup): boolean {
-    if (parent.node_type === 'bauprojekt') return false
+    if (isGrossanlassLeafNodeType(parent.node_type)) return false
     return canManageStruktur.value || canActOnOwnBranch(parent) || isLeaderOfGroupOrAncestor(parent)
   }
 

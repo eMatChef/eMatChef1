@@ -223,7 +223,7 @@ async function loadPickups() {
 
 function openPickupJob(groupId: string) {
   if (!departmentId.value) return
-  void router.push(`/${departmentId.value}/ga/planning/build-jobs?project=${groupId}`)
+  void router.push(`/${departmentId.value}/ga/planning/jobs?project=${groupId}`)
 }
 const roleOptions = computed(() => ({
   isUserRole: isUserRole.value,

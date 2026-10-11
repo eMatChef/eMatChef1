@@ -27,8 +27,12 @@ class DepartmentGrossanlassPlace
     #[ORM\Column(type: 'string', length: 255)]
     private string $name = '';
 
+    /**
+     * @deprecated Übergangsspalte. Führend ist department_grossanlass_place_group.
+     *             Wird nur gespiegelt (eine Gruppe = Wert, sonst NULL) und später entfernt.
+     */
     #[ORM\Column(name: 'group_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
-    private ?string $groupId = null;
+    private ?string $legacyGroupId = null;
 
     #[ORM\Column(name: 'unterlager_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $unterlagerId = null;
@@ -90,8 +94,10 @@ class DepartmentGrossanlassPlace
     public function getName(): string { return $this->name; }
     public function setName(string $name): self { $this->name = $name; return $this; }
 
-    public function getGroupId(): ?string { return $this->groupId; }
-    public function setGroupId(?string $groupId): self { $this->groupId = $groupId ?: null; return $this; }
+    /** @deprecated Nur Spiegel der Zuordnungstabelle, nie als Datenquelle lesen. */
+    public function getLegacyGroupId(): ?string { return $this->legacyGroupId; }
+    /** @deprecated Wird ausschliesslich von GrossanlassPlaceService gepflegt. */
+    public function setLegacyGroupId(?string $groupId): self { $this->legacyGroupId = $groupId ?: null; return $this; }
 
     public function getUnterlagerId(): ?string { return $this->unterlagerId; }
     public function setUnterlagerId(?string $unterlagerId): self { $this->unterlagerId = $unterlagerId ?: null; return $this; }
