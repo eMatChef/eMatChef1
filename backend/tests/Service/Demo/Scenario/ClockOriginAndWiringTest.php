@@ -38,6 +38,8 @@ final class ClockOriginAndWiringTest extends ScenarioTestCase
             new \App\Service\Demo\Organisation\DemoOrganisationCatalog(),
             (new \ReflectionClass(\App\Service\Clock\BusinessClock::class))->newInstanceWithoutConstructor(),
             (new \ReflectionClass(\App\Service\Bootstrap\DemoGrossanlassEventProcessSeedService::class))->newInstanceWithoutConstructor(),
+            (new \ReflectionClass(\App\Service\Bootstrap\DemoGrossanlassEventLogisticsSeedService::class))->newInstanceWithoutConstructor(),
+            (new \ReflectionClass(\App\Service\Demo\Reset\DemoEventResetter::class))->newInstanceWithoutConstructor(),
         );
     }
 

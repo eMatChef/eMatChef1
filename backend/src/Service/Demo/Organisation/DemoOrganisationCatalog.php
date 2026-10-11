@@ -241,6 +241,7 @@ class DemoOrganisationCatalog
                 $fail(sprintf('%s: grossanlass.%s braucht einen Namen und gültige Koordinaten (latitude, longitude).', $key, $part));
             }
         }
+        $this->validateLogistics($key, $ga['logistics'] ?? [], $fail);
         $allowed = ['months_before_5', 'months_before_2', 'build', 'during_event', 'teardown', 'months_after_2'];
         $presetKeys = [];
         foreach ($ga['clockPresets'] ?? [] as $preset) {
@@ -263,6 +264,45 @@ class DemoOrganisationCatalog
             if (isset($ga['eventStart'], $ga['eventEnd']) && $time($ga['eventEnd']) > $time($ga['eventStart']) && $time($phase['start'] ?? null) !== null && $time($phase['end'] ?? null) !== null
                 && ($time($phase['start']) < $time($ga['eventStart']) || $time($phase['end']) > $time($ga['eventEnd']))) {
                 $fail(sprintf('%s: grossanlass.phases «%s» liegt ausserhalb des Anlasszeitraums (eventStart bis eventEnd).', $key, $phaseKey));
+            }
+        }
+    }
+
+    /**
+     * Logistik-Stammdaten des Katalogs (Budget-Limits, Regale, Fahrzeuge, Fahrerkarten, Chargen): Pflichtfelder und eindeutige Schlüssel.
+     *
+     * @param array<string, mixed> $logistics
+     * @param callable(string): void $fail
+     */
+    private function validateLogistics(string $key, array $logistics, callable $fail): void
+    {
+        foreach ($logistics['budget'] ?? [] as $area => $limit) {
+            if (!\in_array($area, ['material', 'logistik'], true) || !\is_numeric($limit) || (float) $limit < 0) {
+                $fail(sprintf('%s: grossanlass.logistics.budget «%s»: Bereich (material|logistik) und Limit ≥ 0 erforderlich.', $key, $area));
+            }
+        }
+        $unique = static function (array $rows, string $field) use ($key, $fail): void {
+            $seen = [];
+            foreach ($rows as $row) {
+                $value = (string) ($row[$field] ?? '');
+                if ($value === '' || isset($seen[$value])) {
+                    $fail(sprintf('%s: grossanlass.logistics: «%s» fehlt oder ist doppelt (%s).', $key, $field, $value));
+                }
+                $seen[$value] = true;
+            }
+        };
+        foreach (['racks' => 'key', 'vehicles' => 'key', 'cards' => 'account', 'charges' => 'key'] as $part => $field) {
+            $unique($logistics[$part] ?? [], $field);
+        }
+        foreach ($logistics['racks'] ?? [] as $rack) {
+            if (trim((string) ($rack['name'] ?? '')) === '' || ($rack['slots'] ?? []) === []) {
+                $fail(sprintf('%s: grossanlass.logistics.racks «%s»: name und mindestens ein Fach erforderlich.', $key, $rack['key'] ?? ''));
+            }
+        }
+        foreach ($logistics['charges'] ?? [] as $charge) {
+            if (trim((string) ($charge['name'] ?? '')) === '' || trim((string) ($charge['source'] ?? '')) === '' || (int) ($charge['quantity'] ?? 0) < 1
+                || !\in_array($charge['origin'] ?? null, ['own', 'loan', 'buy', 'buy_resale', 'donation'], true)) {
+                $fail(sprintf('%s: grossanlass.logistics.charges «%s»: name, source, quantity ≥ 1 und gültige origin erforderlich.', $key, $charge['key'] ?? ''));
             }
         }
     }

@@ -6,12 +6,14 @@ namespace App\Service\Demo\Scenario;
 
 use App\Entity\Department;
 use App\Service\Bootstrap\DemoGrossanlassEventJobsSeedService;
+use App\Service\Bootstrap\DemoGrossanlassEventLogisticsSeedService;
 use App\Service\Bootstrap\DemoGrossanlassEventProcessSeedService;
 use App\Service\Clock\BusinessClock;
 use App\Service\Demo\Organisation\DemoOrganisationCatalog;
 use App\Service\Demo\Organisation\DemoOrganisationSeeder;
 use App\Service\Demo\Organisation\ManagedSeedApplier;
 use App\Service\Demo\Organisation\SyncReport;
+use App\Service\Demo\Reset\DemoEventResetter;
 use App\Service\Grossanlass\GrossanlassClockOriginResolver;
 
 final class GrossanlassEventScenario extends AbstractCatalogScenario
@@ -24,6 +26,8 @@ final class GrossanlassEventScenario extends AbstractCatalogScenario
         private DemoOrganisationCatalog $catalog,
         private BusinessClock $clock,
         private DemoGrossanlassEventProcessSeedService $process,
+        private DemoGrossanlassEventLogisticsSeedService $logistics,
+        private DemoEventResetter $resetter,
     ) {
         parent::__construct($organisationSeeder);
     }
@@ -38,6 +42,20 @@ final class GrossanlassEventScenario extends AbstractCatalogScenario
         return 'Grossanlass Event';
     }
 
+    /**
+     * Sicherer Reset ohne Löschung (nur über den Runner, per Konsole `app:demo:reset`): verwaltete Seed-Werte, gelöschte
+     * Seed-Datensätze mit gleichem QR-Code und die Uhr. Die Oberfläche bietet ihn nicht an ({@see DemoResetService::SUPPORTED}).
+     */
+    public function supportsReset(): bool
+    {
+        return true;
+    }
+
+    public function reset(SeedContext $context): SeedResult
+    {
+        return $this->resetter->apply($context, $this);
+    }
+
     public function expectsGrossanlass(): bool
     {
         return true;
@@ -49,7 +67,7 @@ final class GrossanlassEventScenario extends AbstractCatalogScenario
      */
     public function sync(SeedContext $context): SeedResult
     {
-        $structure = $this->organisationSeeder->sync($this, $context, array_merge($this->content->expectedSeedKeys($this->key()), $this->process->expectedSeedKeys($this->key(), $this->mapDef()), $this->process->earlierSeedKeys($context), [$this->key() . ':clock']));
+        $structure = $this->organisationSeeder->sync($this, $context, array_merge($this->content->expectedSeedKeys($this->key()), $this->process->expectedSeedKeys($this->key(), $this->mapDef()), $this->process->earlierSeedKeys($context), $this->logistics->expectedSeedKeys($this->key(), $this->logisticsDef()), [$this->key() . ':clock']));
         if ($context->isDryRun() || $structure->status !== SeedResult::OK) {
             return $structure;
         }
@@ -62,6 +80,7 @@ final class GrossanlassEventScenario extends AbstractCatalogScenario
         $context = $context->withDepartment($department);
         $this->content->syncScenario($context, $report, $this->catalog->version());
         $this->process->syncScenario($context, $report, $this->mapDef(), $this->catalog->version());
+        $this->logistics->syncScenario($context, $report, $this->logisticsDef(), $this->catalog->version());
         $this->initialiseClock($context, $department, $report);
 
         return SeedResult::ok(
@@ -74,7 +93,7 @@ final class GrossanlassEventScenario extends AbstractCatalogScenario
 
     protected function verifyContent(SeedContext $context): array
     {
-        return array_merge(parent::verifyContent($context), $this->content->verifyScenario($context), $this->process->verifyScenario($context, $this->mapDef()));
+        return array_merge(parent::verifyContent($context), $this->content->verifyScenario($context), $this->process->verifyScenario($context, $this->mapDef()), $this->logistics->verifyScenario($context, $this->logisticsDef()));
     }
 
     /**
@@ -88,6 +107,14 @@ final class GrossanlassEventScenario extends AbstractCatalogScenario
         }
 
         return $this->catalogOrigin() ?? $this->grossanlassOrigin->originFor($department);
+    }
+
+    /** @return array<string, mixed> Katalog `grossanlass.logistics` (Budget-Limits, Lager, Fahrzeuge, Fahrerkarten, Chargen) */
+    private function logisticsDef(): array
+    {
+        $def = $this->catalog->scenario($this->key())['grossanlass']['logistics'] ?? [];
+
+        return \is_array($def) ? $def : [];
     }
 
     /** @return array<string, mixed> Katalog `grossanlass.map` (Geländekarte samt Platzierung) */

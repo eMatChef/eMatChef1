@@ -40,22 +40,13 @@ final class RunnerAndCommandsTest extends ScenarioTestCase
         return new DemoScenarioRunner($em, $identity, $this->createMock(DemoSeedLedger::class));
     }
 
-    public function testOnlyTheSetupScenarioSupportsReset(): void
+    public function testOnlySetupAndEventSupportReset(): void
     {
         $seeder = $this->createMock(\App\Service\Demo\Organisation\DemoOrganisationSeeder::class);
         $origin = (new \ReflectionClass(\App\Service\Grossanlass\GrossanlassClockOriginResolver::class))->newInstanceWithoutConstructor();
         $resetter = (new \ReflectionClass(\App\Service\Demo\Reset\DemoSetupResetter::class))->newInstanceWithoutConstructor();
         foreach ([
             new \App\Service\Demo\Scenario\MaterialverwaltungScenario($seeder),
-            new \App\Service\Demo\Scenario\GrossanlassEventScenario(
-                $seeder,
-                $origin,
-                (new \ReflectionClass(\App\Service\Bootstrap\DemoGrossanlassEventJobsSeedService::class))->newInstanceWithoutConstructor(),
-                (new \ReflectionClass(\App\Service\Demo\Scenario\DemoScenarioIdentity::class))->newInstanceWithoutConstructor(),
-                new \App\Service\Demo\Organisation\DemoOrganisationCatalog(),
-                (new \ReflectionClass(\App\Service\Clock\BusinessClock::class))->newInstanceWithoutConstructor(),
-                (new \ReflectionClass(\App\Service\Bootstrap\DemoGrossanlassEventProcessSeedService::class))->newInstanceWithoutConstructor(),
-            ),
             new \App\Service\Demo\Scenario\GrossanlassCampScenario($seeder, $origin),
         ] as $scenario) {
             self::assertFalse($scenario->supportsReset(), $scenario->key());
@@ -66,8 +57,21 @@ final class RunnerAndCommandsTest extends ScenarioTestCase
                 self::assertStringContainsString('noch nicht verfügbar', $e->getMessage());
             }
         }
-        // Erstes freigegebenes Szenario: «Grossanlass Einrichtung» (Ablauf siehe DemoSetupResetIntegrationTest)
+        // Freigegeben: «Grossanlass Einrichtung» (Ablauf siehe DemoSetupResetIntegrationTest) und «Grossanlass Event» (nur der
+        // sichere Reset ohne Löschung, per Konsole; die Oberfläche bietet ihn nicht an, siehe DemoResetService::SUPPORTED).
         self::assertTrue((new \App\Service\Demo\Scenario\GrossanlassSetupScenario($seeder, $origin, $resetter))->supportsReset());
+        self::assertTrue((new \App\Service\Demo\Scenario\GrossanlassEventScenario(
+            $seeder,
+            $origin,
+            (new \ReflectionClass(\App\Service\Bootstrap\DemoGrossanlassEventJobsSeedService::class))->newInstanceWithoutConstructor(),
+            (new \ReflectionClass(\App\Service\Demo\Scenario\DemoScenarioIdentity::class))->newInstanceWithoutConstructor(),
+            new \App\Service\Demo\Organisation\DemoOrganisationCatalog(),
+            (new \ReflectionClass(\App\Service\Clock\BusinessClock::class))->newInstanceWithoutConstructor(),
+            (new \ReflectionClass(\App\Service\Bootstrap\DemoGrossanlassEventProcessSeedService::class))->newInstanceWithoutConstructor(),
+            (new \ReflectionClass(\App\Service\Bootstrap\DemoGrossanlassEventLogisticsSeedService::class))->newInstanceWithoutConstructor(),
+            (new \ReflectionClass(\App\Service\Demo\Reset\DemoEventResetter::class))->newInstanceWithoutConstructor(),
+        ))->supportsReset());
+        self::assertNotContains(\App\Service\Demo\Scenario\DemoScenarioKey::GROSSANLASS_EVENT, \App\Service\Demo\Reset\DemoResetService::SUPPORTED);
     }
 
     public function testSyncOfPlaceholderScenarioIsNotImplementedAndWritesNothing(): void

@@ -18,6 +18,7 @@ use App\Entity\DepartmentGrossanlassPlace;
 use App\Entity\Group;
 use App\Entity\Profile;
 use App\Entity\User;
+use App\Service\Demo\DemoStableCodes;
 use App\Service\Demo\Organisation\ManagedSeedApplier;
 use App\Service\Demo\Organisation\ManagedSpec;
 use App\Service\Demo\Organisation\SyncReport;
@@ -425,26 +426,40 @@ final class DemoGrossanlassEventProcessSeedService
         if (!$einsatz instanceof DepartmentGrossanlassEinsatz) {
             return;
         }
-        // Packaufträge: der Standard-Pack entsteht mit dem Einsatz, weitere über den Packdienst; Codes vergibt die App und bleiben stabil.
+        // Packaufträge: der Standard-Pack entsteht mit dem Einsatz, weitere über den Packdienst. Der öffentliche QR-Code ergibt sich aus
+        // dem Seed-Schlüssel und bleibt damit auch nach einem Reset derselbe.
         for ($i = 1; $i <= $def['packs']; ++$i) {
-            $this->once($context, $report, $key . ':pack:' . $def['key'] . ':' . $i, $version, function () use ($department, $actor, $einsatz): ?DepartmentGrossanlassPack {
-                $existing = $this->packRows($einsatz);
-                $recorded = $this->recordedPackIds($einsatz);
-                foreach ($existing as $pack) {
-                    if (!isset($recorded[$pack->getId()])) {
-                        return $pack;
-                    }
-                }
-                $this->packs->addPack($department, $actor, $einsatz->getId());
-                foreach ($this->packRows($einsatz) as $pack) {
-                    if (!isset($recorded[$pack->getId()])) {
-                        return $pack;
+            $packKey = $key . ':pack:' . $def['key'] . ':' . $i;
+            $this->once($context, $report, $packKey, $version, function () use ($department, $actor, $einsatz, $key, $packKey): ?DepartmentGrossanlassPack {
+                $pack = $this->nextUnrecordedPack($department, $actor, $einsatz);
+                if ($pack instanceof DepartmentGrossanlassPack) {
+                    $code = DemoStableCodes::prefixed(GrossanlassIdGenerator::prefix(GrossanlassIdGenerator::PACK), $key, $packKey);
+                    if ($this->entityManager->getRepository(DepartmentGrossanlassPack::class)->findOneBy(['publicCode' => $code]) === null) {
+                        $pack->setPublicCode($code);
                     }
                 }
 
-                return null;
+                return $pack;
             });
         }
+    }
+
+    private function nextUnrecordedPack(Department $department, User $actor, DepartmentGrossanlassEinsatz $einsatz): ?DepartmentGrossanlassPack
+    {
+        $recorded = $this->recordedPackIds($einsatz);
+        foreach ($this->packRows($einsatz) as $pack) {
+            if (!isset($recorded[$pack->getId()])) {
+                return $pack;
+            }
+        }
+        $this->packs->addPack($department, $actor, $einsatz->getId());
+        foreach ($this->packRows($einsatz) as $pack) {
+            if (!isset($recorded[$pack->getId()])) {
+                return $pack;
+            }
+        }
+
+        return null;
     }
 
     /** @return list<DepartmentGrossanlassPack> */
@@ -516,7 +531,8 @@ final class DemoGrossanlassEventProcessSeedService
     {
         $this->managedApplier->ensure($context, $report, new ManagedSpec(
             seedKey: $seedKey,
-            create: static fn (): object => throw new \LogicException('Der Ort wird mit dem Bauprojekt angelegt.'),
+            // Der Ort entsteht mit dem Bauprojekt; wurde er gelöscht und neu angelegt, gilt die Platzierung für den neuen Ort.
+            create: static fn (): object => $place,
             find: fn (string $id): ?object => $this->entityManager->find(DepartmentGrossanlassPlace::class, $id),
             idOf: static fn (object $p): string => (string) $p->getId(),
             read: static fn (object $p): array => ['map_id' => $p->getMapId(), 'map_x' => $p->getMapX() !== null ? round((float) $p->getMapX(), 4) : null, 'map_y' => $p->getMapY() !== null ? round((float) $p->getMapY(), 4) : null],
@@ -527,6 +543,7 @@ final class DemoGrossanlassEventProcessSeedService
             },
             desired: $desired,
             adopt: static fn (): object => $place,
+            resettable: true,
         ), $version);
     }
 
@@ -650,7 +667,7 @@ final class DemoGrossanlassEventProcessSeedService
                     'delivery_at' => '2027-05-19 12:00:00', 'delivery_label' => 'Abholung ab Lager am 19.05.2027, 12:00 Uhr', 'lead_days' => 14,
                     'inbound_mode' => 'pickup', 'return_needed' => false, 'pdf' => true, 'selected' => true,
                 ],
-                'order' => ['ordered_at' => '2027-04-12 12:00:00', 'cost' => '220.00', 'ref' => 'B-2027-014', 'delivery_at' => '2027-05-19 12:00:00', 'notes' => 'Abholung auf Palette, Lieferschein beilegen.'],
+                'order' => ['ordered_at' => '2027-04-01 12:00:00', 'cost' => '220.00', 'ref' => 'B-2027-014', 'delivery_at' => '2027-05-19 12:00:00', 'notes' => 'Abholung auf Palette, Lieferschein beilegen.'],
             ],
             [
                 'key' => 'lader',

@@ -488,6 +488,62 @@
             "end": "2027-06-23T12:00:00"
           }
         ],
+        "logistics": {
+          "budget": {
+            "material": 2000,
+            "logistik": 900
+          },
+          "racks": [
+            { "key": "regal-a", "name": "Regal A – Kleinmaterial", "sort": 1, "slots": ["Fach 1", "Fach 2", "Fach 3"] },
+            { "key": "bodenlager", "name": "Bodenlager Bau", "sort": 2, "slots": ["Palette 1", "Palette 2"] }
+          ],
+          "vehicles": [
+            { "key": "transporter", "name": "Transporter 3,5 t", "length_m": 4.2, "width_m": 1.9, "height_m": 2.0, "payload_kg": 1200, "volume_m3": 12, "notes": "Demo-Fahrzeug" },
+            { "key": "lieferwagen-hebebuehne", "name": "Lieferwagen mit Hebebühne", "length_m": 4.8, "width_m": 2.0, "height_m": 2.1, "payload_kg": 1000, "volume_m3": 14, "notes": "Demo-Fahrzeug" },
+            { "key": "anhaenger", "name": "Anhänger 2 t", "length_m": 3.0, "width_m": 1.6, "height_m": 0.6, "payload_kg": 2000, "volume_m3": 3, "notes": "Demo-Fahrzeug" }
+          ],
+          "cards": [
+            { "account": "ga-lw", "may_drive": true, "classes": ["b", "be"] },
+            { "account": "ga-clw", "may_drive": true, "classes": ["b"] },
+            { "account": "ga-helfer", "may_drive": true, "classes": ["b"] }
+          ],
+          "charges": [
+            {
+              "key": "bauzaun-eigen",
+              "name": "Bauzaunelemente 3,5 m",
+              "source": "Eigenbestand Demo Grossanlass",
+              "origin": "own",
+              "owner_kind": "grossanlass",
+              "quantity": 60,
+              "present_from": "2027-05-19T13:00:00",
+              "present_to": "2027-06-23T12:00:00"
+            },
+            {
+              "key": "festbank-leihe",
+              "name": "Festbankgarnituren",
+              "source": "Zeltverleih Beispiel",
+              "origin": "loan",
+              "owner_kind": "external",
+              "quantity": 40,
+              "handover_from": "2027-06-02T08:00:00",
+              "handover_to": "2027-06-02T10:00:00",
+              "present_from": "2027-06-02T10:00:00",
+              "present_to": "2027-06-08T12:00:00",
+              "return_from": "2027-06-08T12:00:00",
+              "return_to": "2027-06-08T16:00:00"
+            },
+            {
+              "key": "holzschnitzel-spende",
+              "name": "Holzschnitzel (Sackware)",
+              "source": "Sponsoring Beispiel AG",
+              "origin": "donation",
+              "owner_kind": "grossanlass",
+              "quantity": 25,
+              "present_from": "2027-06-01T08:00:00",
+              "present_to": "2027-06-23T12:00:00"
+            }
+          ]
+        },
         "clockOrigin": "2027-04-04T16:00:00",
         "map": {
           "fixture": "event-gelaende.webp",

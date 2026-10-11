@@ -131,13 +131,23 @@ class GrossanlassBudgetAreaService
      */
     private function positions(Department $department): array
     {
-        $costs = $this->entityManager->getRepository(DepartmentGrossanlassCost::class)->findBy(['departmentId' => $department->getId()]);
+        $costs = array_values(array_filter(
+            $this->entityManager->getRepository(DepartmentGrossanlassCost::class)->findBy(['departmentId' => $department->getId()]),
+            static fn ($c) => $c instanceof DepartmentGrossanlassCost && $c->isMainKind() && $c->getStatus() !== DepartmentGrossanlassCost::STATUS_CANCELLED,
+        ));
+        // Die Zusage einer Beschaffungsposition hat eine eigene Kostenzeile ohne Betrag; die Position selbst zählt schon.
+        $lineIds = [];
+        foreach ($costs as $cost) {
+            if ($cost->getProcurementLineId() !== null) {
+                $lineIds[$cost->getProcurementLineId()] = true;
+            }
+        }
         $out = [];
         foreach ($costs as $cost) {
-            if (!$cost instanceof DepartmentGrossanlassCost || !$cost->isMainKind() || $cost->getStatus() === DepartmentGrossanlassCost::STATUS_CANCELLED) {
+            $line = $cost->getProcurementLine();
+            if ($line === null && $this->belongsToCountedLine($cost, $lineIds)) {
                 continue;
             }
-            $line = $cost->getProcurementLine();
             $area = $line instanceof ActivityGrossanlassProcurementLine && $line->getWishKind() === 'fahrzeug'
                 ? DepartmentGrossanlassBudgetArea::AREA_LOGISTIK
                 : DepartmentGrossanlassBudgetArea::AREA_MATERIAL;
@@ -148,6 +158,28 @@ class GrossanlassBudgetAreaService
         }
 
         return $out;
+    }
+
+    /**
+     * Zusage einer Beschaffungsposition (direkt verknüpft oder über die Anfrage der Position): ihre eigene Kostenzeile trägt
+     * keinen eigenen Betrag, die Position zählt schon.
+     *
+     * @param array<string, true> $lineIds Positionen mit eigener Hauptkostenzeile
+     */
+    private function belongsToCountedLine(DepartmentGrossanlassCost $cost, array $lineIds): bool
+    {
+        $commitment = $cost->getCommitment();
+        if ($commitment === null) {
+            return false;
+        }
+        $candidates = [$commitment->getProcurementLineId(), ...($commitment->getInquiry()?->getLineIds() ?? [])];
+        foreach ($candidates as $lineId) {
+            if (\is_string($lineId) && isset($lineIds[$lineId])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** @return array{0: string, 1: float} */

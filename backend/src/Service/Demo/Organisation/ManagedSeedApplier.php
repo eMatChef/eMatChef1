@@ -41,6 +41,9 @@ class ManagedSeedApplier
                 $entity = $this->createEntity($spec);
                 $record->rebind($entity::class, ($spec->idOf)($entity))->markManaged(self::hash($spec->desired), $catalogVersion);
                 ++$report->recreated;
+                if ($spec->afterCreate !== null) {
+                    ($spec->afterCreate)($entity);
+                }
 
                 return $entity;
             }

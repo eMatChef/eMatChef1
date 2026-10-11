@@ -42,6 +42,7 @@ class DemoSetupResetter
     /** Tabellen, die zum Seed-Ausgangszustand gehören und nie gelöscht werden (nur gezählt und gemeldet). */
     private const KEEP = [
         'membership' => 'Mitgliedschaften (Seed-Mitglieder werden auf die Katalog-Rolle gesetzt; weitere bleiben unverändert)',
+        'department_grossanlass_budget_area' => 'Budget-Limits Material und Logistik (Beschaffungseinstellung, kein Einrichtungsdatum)',
         'department_grossanlass_user_card' => 'Benutzerkarten (aus den Mitgliedschaften abgeleitet)',
         'department_grossanlass_config' => 'GA-Konfiguration (wird auf Seed-Werte zurückgesetzt)',
         'department_calendar_period' => 'Kalenderperiode des Anlasses (Datum wird auf den Seed-Zeitraum gesetzt)',

@@ -18,6 +18,7 @@ use App\Entity\DepartmentGrossanlassVehicleNeed;
 use App\Entity\Group;
 use App\Entity\Profile;
 use App\Entity\User;
+use App\Service\Demo\DemoStableCodes;
 use App\Service\Demo\Organisation\ManagedSeedApplier;
 use App\Service\Demo\Organisation\ManagedSpec;
 use App\Service\Demo\Organisation\SyncReport;
@@ -404,6 +405,7 @@ final class DemoGrossanlassEventJobsSeedService
             },
             desired: $desired,
             adopt: fn (): ?object => $this->adoptUnrecorded(Group::class, ['departmentId' => $department->getId(), 'name' => $def['name'], 'parentId' => $parent->getId()]),
+            resettable: true,
         ), $version);
 
         return $entity instanceof Group ? $entity : null;
@@ -421,7 +423,15 @@ final class DemoGrossanlassEventJobsSeedService
             write: static function (object $p, array $d): void {
             },
             desired: ['group_id' => $job->getId(), 'kind' => 'bauprojekt'],
-            adopt: $ensure,
+            adopt: fn (): ?object => $this->adoptUnrecorded(DepartmentGrossanlassPlace::class, ['departmentId' => $department->getId(), 'groupId' => $job->getId()]),
+            afterCreate: function (object $p) use ($context, $seedKey): void {
+                // Neu angelegter Ort: QR-Code reproduzierbar aus dem Seed-Schlüssel, damit er nach einem Reset derselbe bleibt.
+                $code = DemoStableCodes::prefixed(GrossanlassIdGenerator::prefix(GrossanlassIdGenerator::PLACE_PUBLIC), $context->scenarioKey(), $seedKey);
+                if ($p instanceof DepartmentGrossanlassPlace && $this->entityManager->getRepository(DepartmentGrossanlassPlace::class)->findOneBy(['publicCode' => $code]) === null) {
+                    $p->setPublicCode($code);
+                }
+            },
+            resettable: true,
         ), $version);
     }
 
@@ -502,6 +512,7 @@ final class DemoGrossanlassEventJobsSeedService
 
                 return $line instanceof ActivityGrossanlassWishLine && !$this->isRecorded($line::class, (string) $line->getId()) ? $line : null;
             },
+            resettable: true,
         ), $version);
     }
 
@@ -541,6 +552,7 @@ final class DemoGrossanlassEventJobsSeedService
                     ->setStartsAt(new \DateTime($d['starts_at']))->setDurationMinutes($d['duration']);
             },
             desired: $desired,
+            resettable: true,
         ), $version);
     }
 
@@ -580,6 +592,7 @@ final class DemoGrossanlassEventJobsSeedService
                     ->setStartsAt(new \DateTime($d['starts_at']))->setDurationMinutes($d['duration']);
             },
             desired: $desired,
+            resettable: true,
         ), $version);
     }
 
@@ -629,6 +642,7 @@ final class DemoGrossanlassEventJobsSeedService
                 $l->setCategory($d['category_id'] !== null ? $this->entityManager->find(ActivityGrossanlassProcurementCategory::class, $d['category_id']) : null);
             },
             desired: $desired,
+            resettable: true,
         ), $version);
 
         return $entity instanceof ActivityGrossanlassProcurementLine ? $entity : null;
@@ -671,6 +685,7 @@ final class DemoGrossanlassEventJobsSeedService
                     ->setRequestingGroup($group)->setPayerGroup($group);
             },
             desired: $desired,
+            resettable: true,
         ), $version);
     }
 
