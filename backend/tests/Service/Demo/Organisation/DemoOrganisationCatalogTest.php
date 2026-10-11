@@ -248,10 +248,15 @@ final class DemoOrganisationCatalogTest extends TestCase
             return $d;
         }, 'clockPresets'];
         yield 'event end before start' => [static function (array $d): array {
-            $d['scenarios']['grossanlass-event']['grossanlass']['eventEnd'] = '2027-06-04T15:00:00';
+            $d['scenarios']['grossanlass-event']['grossanlass']['eventEnd'] = '2027-05-19T12:00:00';
 
             return $d;
         }, 'eventEnd muss nach eventStart'];
+        yield 'phase outside the event period' => [static function (array $d): array {
+            $d['scenarios']['grossanlass-event']['grossanlass']['phases'][2]['end'] = '2027-06-24T12:00:00';
+
+            return $d;
+        }, 'ausserhalb des Anlasszeitraums'];
         yield 'phase with unknown key' => [static function (array $d): array {
             $d['scenarios']['grossanlass-event']['grossanlass']['phases'][0]['key'] = 'vorbereitung';
 
@@ -290,8 +295,8 @@ final class DemoOrganisationCatalogTest extends TestCase
         $catalog = new DemoOrganisationCatalog();
         $event = $catalog->scenario('grossanlass-event')['grossanlass'];
         self::assertSame(['event', true], [$event['guestActivityType'], $event['setupReleased']]);
-        // Event-Stammdaten (fiktiver Veranstaltungsplatz) und feste Zeiten 2027 (lokale Wandzeit, nie aus dem heutigen Datum)
-        self::assertSame(['2027-06-04T16:00:00', '2027-06-06T16:00:00', '2027-04-04T16:00:00'], [$event['eventStart'], $event['eventEnd'], $event['clockOrigin']]);
+        // Anlasszeitraum = gesamter Zeitraum von Aufbaubeginn bis Abbauende; feste Zeiten 2027 (lokale Wandzeit, nie aus dem heutigen Datum)
+        self::assertSame(['2027-05-19T13:00:00', '2027-06-23T12:00:00', '2027-04-04T16:00:00'], [$event['eventStart'], $event['eventEnd'], $event['clockOrigin']]);
         // Schnellwahl der Demo-Uhr (Europe/Zurich-Wandzeit): Aufbau, Event und Abbau springen bewusst mitten in die Phase
         self::assertSame([
             'months_before_5' => '2027-01-04T16:00:00',
@@ -302,10 +307,19 @@ final class DemoOrganisationCatalogTest extends TestCase
             'months_after_2' => '2027-08-06T16:00:00',
         ], array_column($event['clockPresets'], 'at', 'key'));
         self::assertSame(
-            ['aufbau' => ['2027-05-19T13:00:00', '2027-06-04T16:00:00'], 'abbau' => ['2027-06-06T17:00:00', '2027-06-23T12:00:00']],
+            [
+                'aufbau' => ['2027-05-19T13:00:00', '2027-06-04T16:00:00'],
+                'durchfuehrung' => ['2027-06-04T16:00:00', '2027-06-06T16:00:00'],
+                'abbau' => ['2027-06-06T17:00:00', '2027-06-23T12:00:00'],
+            ],
             array_column(array_map(static fn (array $p): array => ['key' => $p['key'], 'range' => [$p['start'], $p['end']]], $event['phases']), 'range', 'key'),
         );
-        self::assertSame('Demo-Festplatz Seewiese', $event['venue']['name']);
+        // Standorte aus dem bisherigen Event: Eventplatz (nur Koordinaten, keine erfundene Strasse), Zustellpunkt, Lager
+        self::assertSame(['Event Platz', 47.1783698, 8.0470522, ''], [$event['venue']['name'], $event['venue']['latitude'], $event['venue']['longitude'], $event['venue']['street'] ?? '']);
+        self::assertSame(['Ettiswilerstrasse', '3', '6242', 'Wauwil'], [$event['delivery']['street'], $event['delivery']['streetNumber'], $event['delivery']['postalCode'], $event['delivery']['city']]);
+        self::assertSame([47.1804331, 8.049413], [$event['storage']['latitude'], $event['storage']['longitude']]);
+        self::assertNotEquals([$event['venue']['latitude'], $event['venue']['longitude']], [$event['storage']['latitude'], $event['storage']['longitude']]);
+        self::assertNotEquals([$event['venue']['latitude'], $event['venue']['longitude']], [$event['delivery']['latitude'], $event['delivery']['longitude']]);
         self::assertNotSame('', $event['locationText']);
         self::assertNotSame('', $event['notes']);
         self::assertSame(['guestActivityType' => 'camp', 'setupReleased' => true], $catalog->scenario('grossanlass-camp')['grossanlass']);

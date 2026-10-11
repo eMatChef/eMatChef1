@@ -344,6 +344,8 @@ POST /api/departments/grossanlass
 
 Validierung: `planned_event_end >= planned_event_start` (falls gesetzt).
 
+**Bedeutung des Anlasszeitraums.** Ohne eigene Phasen ist `planned_event_*` zugleich die Durchführung, und die Kalenderperiode `grossanlass` folgt ihm. Hat das Department eigene Perioden `aufbau`/`abbau` (Demo-Event 2027), umfasst `planned_event_*` den gesamten Zeitraum von Aufbaubeginn bis Abbauende; `grossanlass` bleibt dann die davon unabhängig gepflegte Durchführung. Die Stammdaten bearbeiten Beginn und Ende mit Datum und Uhrzeit (`EDateRangeField`, `ETimeField`, 15-Minuten-Raster; gespeicherte Zeiten ausserhalb des Rasters wie 23:59 werden unverändert angezeigt). Die Werte sind Wandzeit ohne Zeitzonenumrechnung.
+
 **Kein** camp/event-Activity-Wizard, **kein** 4-Schritt-Setup.
 
 ### 2.5 Chief-MW — Benachrichtigung & Zugang

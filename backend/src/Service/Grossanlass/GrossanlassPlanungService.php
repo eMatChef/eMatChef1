@@ -859,8 +859,20 @@ final class GrossanlassPlanungService
         return false;
     }
 
+    /**
+     * Ohne eigene Phasen (Aufbau/Abbau) ist der Anlasszeitraum zugleich die Durchführung: die Periode «grossanlass» folgt ihm.
+     * Hat das Department eigene Aufbau-/Abbau-Perioden, umfasst der Anlasszeitraum alle Phasen und «grossanlass» bleibt die
+     * davon unabhängig gepflegte Durchführung.
+     */
     private function syncEventCalendarPeriod(Department $department, \DateTime $start, \DateTime $end): void
     {
+        $phases = $this->entityManager->getRepository(DepartmentCalendarPeriod::class)->count([
+            'departmentId' => $department->getId(),
+            'label' => [DepartmentCalendarPeriod::LABEL_AUFBAU, DepartmentCalendarPeriod::LABEL_ABBAU],
+        ]);
+        if ($phases > 0) {
+            return;
+        }
         $period = $this->entityManager->getRepository(DepartmentCalendarPeriod::class)->findOneBy([
             'departmentId' => $department->getId(),
             'label' => DepartmentCalendarPeriod::LABEL_GROSSANLASS,

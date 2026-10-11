@@ -438,26 +438,48 @@
       "grossanlass": {
         "guestActivityType": "event",
         "setupReleased": true,
-        "locationText": "Demo-Festplatz Seewiese",
+        "locationText": "Event Platz",
         "notes": "Mehrtägige Pfadi-Grossveranstaltung mit Aufbau, Veranstaltungsbetrieb und Rückbau.",
         "venue": {
-          "name": "Demo-Festplatz Seewiese",
-          "street": "Seewiesenweg",
-          "streetNumber": "1",
+          "name": "Event Platz",
+          "postalCode": "6212",
+          "city": "Kaltbach",
+          "canton": "LU",
+          "latitude": 47.1783698,
+          "longitude": 8.0470522
+        },
+        "delivery": {
+          "name": "Event Platz – Zustellung",
+          "street": "Ettiswilerstrasse",
+          "streetNumber": "3",
           "postalCode": "6242",
           "city": "Wauwil",
           "canton": "LU",
-          "latitude": 47.17837,
-          "longitude": 8.04705
+          "latitude": 47.1831479,
+          "longitude": 8.02793
         },
-        "eventStart": "2027-06-04T16:00:00",
-        "eventEnd": "2027-06-06T16:00:00",
+        "storage": {
+          "name": "Lagerplatz Gelände",
+          "postalCode": "6212",
+          "city": "Kaltbach",
+          "canton": "LU",
+          "latitude": 47.1804331,
+          "longitude": 8.049413
+        },
+        "eventStart": "2027-05-19T13:00:00",
+        "eventEnd": "2027-06-23T12:00:00",
         "phases": [
           {
             "key": "aufbau",
             "name": "Aufbau",
             "start": "2027-05-19T13:00:00",
             "end": "2027-06-04T16:00:00"
+          },
+          {
+            "key": "durchfuehrung",
+            "name": "Event-Durchführung",
+            "start": "2027-06-04T16:00:00",
+            "end": "2027-06-06T16:00:00"
           },
           {
             "key": "abbau",
@@ -480,16 +502,16 @@
           "overlayOpacity": 0.72,
           "placements": {
             "Hauptbühnen-Podest": [
-              0.59,
-              0.73
+              0.567,
+              0.713
             ],
             "Lichtbrücke Traversen": [
-              0.57,
+              0.54,
               0.7
             ],
             "FOH-Erweiterung": [
-              0.52,
-              0.66
+              0.575,
+              0.678
             ],
             "Delay-Tower Ost": [
               0.64,
@@ -504,12 +526,12 @@
               0.39
             ],
             "Info-Pagode Eingang": [
-              0.5,
-              0.44
+              0.51,
+              0.45
             ],
             "Ticket-Häuschen Eingang": [
-              0.52,
-              0.47
+              0.49,
+              0.432
             ],
             "Bar-Tresen West": [
               0.49,
@@ -536,8 +558,8 @@
               0.55
             ],
             "WC-Park West": [
-              0.49,
-              0.42
+              0.47,
+              0.4
             ],
             "Crew-Duschen": [
               0.65,

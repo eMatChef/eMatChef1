@@ -137,13 +137,19 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             // Event-Stammdaten
             $event = $this->eventId($conn);
             $config = $conn->fetchAssociative('SELECT * FROM department_grossanlass_config WHERE department_id=?', [$event]);
-            self::assertSame('Demo-Festplatz Seewiese', $config['location_text']);
+            self::assertSame('Event Platz', $config['location_text']);
             self::assertStringContainsString('Mehrtägige Pfadi-Grossveranstaltung', (string) $config['notes']);
             $venue = $conn->fetchAssociative('SELECT * FROM address WHERE id=?', [$config['venue_address_id']]);
-            self::assertSame(['event', 'Seewiesenweg', '1', '6242', 'Wauwil', 'Schweiz'], [$venue['type'], $venue['street'], $venue['street_number'], $venue['postal_code'], $venue['city'], $venue['country']]);
-            // Feste Event-Zeiten 2027 (lokale Wandzeit): Anlass, Hauptaktivität, Kalenderperioden Aufbau/Event/Abbau
-            self::assertSame(['2027-06-04 16:00:00', '2027-06-06 16:00:00'], [(string) $config['planned_event_start'], (string) $config['planned_event_end']]);
-            self::assertSame(['2027-06-04 16:00:00', '2027-06-06 16:00:00'], array_values($conn->fetchNumeric('SELECT a.usage_start, a.usage_end FROM activity a JOIN department_grossanlass_config c ON c.main_activity_id=a.id WHERE c.department_id=?', [$event])));
+            self::assertSame(['event', 'Event Platz', '', '6212', 'Kaltbach', 'Schweiz'], [$venue['type'], $venue['name'], (string) $venue['street'], $venue['postal_code'], $venue['city'], $venue['country']]);
+            // Zustellpunkt (hängt am Eventplatz) und Lager (primär) mit je eigenen Koordinaten
+            $delivery = $conn->fetchAssociative('SELECT * FROM address WHERE department_id=? AND type=?', [$event, 'event_delivery']);
+            $storage = $conn->fetchAssociative('SELECT * FROM address WHERE department_id=? AND type=?', [$event, 'storage']);
+            self::assertSame([$venue['id'], 'Ettiswilerstrasse', '6242'], [$delivery['parent_id'], $delivery['street'], $delivery['postal_code']]);
+            self::assertTrue((bool) $storage['is_primary']);
+            self::assertCount(3, array_unique([$venue['latitude'] . '/' . $venue['longitude'], $delivery['latitude'] . '/' . $delivery['longitude'], $storage['latitude'] . '/' . $storage['longitude']]));
+            // Feste Event-Zeiten 2027 (lokale Wandzeit): Anlasszeitraum (Aufbau bis Abbau) in Anlass und Hauptaktivität, Kalenderperioden Aufbau/Durchführung/Abbau
+            self::assertSame(['2027-05-19 13:00:00', '2027-06-23 12:00:00'], [(string) $config['planned_event_start'], (string) $config['planned_event_end']]);
+            self::assertSame(['2027-05-19 13:00:00', '2027-06-23 12:00:00'], array_values($conn->fetchNumeric('SELECT a.usage_start, a.usage_end FROM activity a JOIN department_grossanlass_config c ON c.main_activity_id=a.id WHERE c.department_id=?', [$event])));
             $periods = [];
             foreach ($conn->fetchAllAssociative('SELECT label, start_date || \' \' || start_time AS s, end_date || \' \' || end_time AS e FROM department_calendar_period WHERE department_id=? ORDER BY label', [$event]) as $row) {
                 $periods[$row['label']] = [$row['s'], $row['e']];

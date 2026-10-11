@@ -231,6 +231,16 @@ class DemoOrganisationCatalog
         if (isset($ga['eventStart'], $ga['eventEnd']) && $time($ga['eventEnd']) <= $time($ga['eventStart'])) {
             $fail(sprintf('%s: grossanlass.eventEnd muss nach eventStart liegen.', $key));
         }
+        foreach (['venue', 'delivery', 'storage'] as $part) {
+            if (!isset($ga[$part])) {
+                continue;
+            }
+            $lat = $ga[$part]['latitude'] ?? null;
+            $lon = $ga[$part]['longitude'] ?? null;
+            if (trim((string) ($ga[$part]['name'] ?? '')) === '' || !\is_numeric($lat) || !\is_numeric($lon) || abs((float) $lat) > 90 || abs((float) $lon) > 180) {
+                $fail(sprintf('%s: grossanlass.%s braucht einen Namen und gültige Koordinaten (latitude, longitude).', $key, $part));
+            }
+        }
         $allowed = ['months_before_5', 'months_before_2', 'build', 'during_event', 'teardown', 'months_after_2'];
         $presetKeys = [];
         foreach ($ga['clockPresets'] ?? [] as $preset) {
@@ -243,12 +253,16 @@ class DemoOrganisationCatalog
         $seen = [];
         foreach ($ga['phases'] ?? [] as $phase) {
             $phaseKey = (string) ($phase['key'] ?? '');
-            if (!\in_array($phaseKey, ['aufbau', 'abbau'], true) || isset($seen[$phaseKey])) {
-                $fail(sprintf('%s: grossanlass.phases: Schlüssel «%s» ungültig oder doppelt (aufbau|abbau).', $key, $phaseKey));
+            if (!\in_array($phaseKey, ['aufbau', 'durchfuehrung', 'abbau'], true) || isset($seen[$phaseKey])) {
+                $fail(sprintf('%s: grossanlass.phases: Schlüssel «%s» ungültig oder doppelt (aufbau|durchfuehrung|abbau).', $key, $phaseKey));
             }
             $seen[$phaseKey] = true;
             if (trim((string) ($phase['name'] ?? '')) === '' || $time($phase['start'] ?? null) === null || $time($phase['end'] ?? null) === null || $time($phase['end']) <= $time($phase['start'])) {
                 $fail(sprintf('%s: grossanlass.phases «%s»: name, start und end (Ende nach Start) erforderlich.', $key, $phaseKey));
+            }
+            if (isset($ga['eventStart'], $ga['eventEnd']) && $time($ga['eventEnd']) > $time($ga['eventStart']) && $time($phase['start'] ?? null) !== null && $time($phase['end'] ?? null) !== null
+                && ($time($phase['start']) < $time($ga['eventStart']) || $time($phase['end']) > $time($ga['eventEnd']))) {
+                $fail(sprintf('%s: grossanlass.phases «%s» liegt ausserhalb des Anlasszeitraums (eventStart bis eventEnd).', $key, $phaseKey));
             }
         }
     }

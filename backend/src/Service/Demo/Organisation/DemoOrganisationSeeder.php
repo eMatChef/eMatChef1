@@ -126,6 +126,11 @@ class DemoOrganisationSeeder
             $this->ensureGrossanlassConfig($context, $report, $key, $department, $cat['grossanlass'], $users, $version);
             if (isset($cat['grossanlass']['locationText']) || isset($cat['grossanlass']['eventStart'])) {
                 $expected = array_merge($expected, [$key . ':venue-address', $key . ':stammdaten']);
+                foreach (['delivery', 'storage'] as $part) {
+                    if (isset($cat['grossanlass'][$part])) {
+                        $expected[] = $key . ':' . $part . '-address';
+                    }
+                }
                 if ($context->findRecord($key . ':master') !== null) {
                     $expected[] = $key . ':master'; // frühere Fassung ohne Anlassbeginn (nicht mehr geführt, nicht gelöscht)
                 }
@@ -274,6 +279,11 @@ class DemoOrganisationSeeder
         }
         if (isset($cat['grossanlass']['clockPresets'])) {
             $required[] = $key . ':clock-presets';
+        }
+        foreach (['delivery', 'storage'] as $part) {
+            if (isset($cat['grossanlass'][$part])) {
+                $required[] = $key . ':' . $part . '-address';
+            }
         }
         foreach ($cat['adminScopes'] ?? [] as $scope) {
             $required[] = $key . ':adminscope:' . $scope['account'];
@@ -458,48 +468,14 @@ class DemoOrganisationSeeder
         }
         $address = null;
         if (isset($def['venue'])) {
-            $venue = $def['venue'];
-            $addressDesired = [
-                'name' => (string) $venue['name'],
-                'street' => (string) $venue['street'],
-                'street_number' => (string) $venue['streetNumber'],
-                'postal_code' => (string) $venue['postalCode'],
-                'city' => (string) $venue['city'],
-                'canton' => (string) $venue['canton'],
-                'latitude' => (float) $venue['latitude'],
-                'longitude' => (float) $venue['longitude'],
-            ];
-            $address = $this->applier->ensure($context, $report, new ManagedSpec(
-                seedKey: $key . ':venue-address',
-                create: function () use ($department): Address {
-                    $a = new Address();
-                    $a->setId(IdGenerator::generateUnique($this->entityManager, Address::class));
-                    $a->setScope(Address::SCOPE_DEPARTMENT);
-                    $a->setDepartment($department);
-                    $a->setType(Address::TYPE_EVENT);
-                    $a->setCountry('Schweiz');
-
-                    return $a;
-                },
-                find: fn (string $id): ?object => $this->entityManager->find(Address::class, $id),
-                idOf: static fn (object $a): string => (string) $a->getId(),
-                read: static fn (object $a): array => [
-                    'name' => $a->getName(),
-                    'street' => $a->getStreet(),
-                    'street_number' => $a->getStreetNumber(),
-                    'postal_code' => $a->getPostalCode(),
-                    'city' => $a->getCity(),
-                    'canton' => $a->getCanton(),
-                    'latitude' => $a->getLatitude() !== null ? (float) $a->getLatitude() : null,
-                    'longitude' => $a->getLongitude() !== null ? (float) $a->getLongitude() : null,
-                ],
-                write: static function (object $a, array $d): void {
-                    $a->setName($d['name'])->setStreet($d['street'])->setStreetNumber($d['street_number'])->setPostalCode($d['postal_code'])
-                        ->setCity($d['city'])->setCanton($d['canton'])->setLatitude($d['latitude'])->setLongitude($d['longitude']);
-                },
-                desired: $addressDesired,
-                resettable: true,
-            ), $version);
+            $address = $this->ensureAddress($context, $report, $key . ':venue-address', $department, Address::TYPE_EVENT, $def['venue'], null, false, $version);
+            // Zustellpunkt (Anlieferungen, Transporte) und Lager (Material, Packaufträge, Rücklieferungen) gehören zum Eventplatz.
+            if (isset($def['delivery'])) {
+                $this->ensureAddress($context, $report, $key . ':delivery-address', $department, Address::TYPE_EVENT_DELIVERY, $def['delivery'], $address?->getId(), false, $version);
+            }
+            if (isset($def['storage'])) {
+                $this->ensureAddress($context, $report, $key . ':storage-address', $department, 'storage', $def['storage'], null, true, $version);
+            }
         }
 
         $desired = [
@@ -528,11 +504,11 @@ class DemoOrganisationSeeder
                 'event_start' => $c->getPlannedEventStart()->format('Y-m-d H:i:s'),
                 'event_end' => $c->getPlannedEventEnd()?->format('Y-m-d H:i:s'),
             ] : []),
-            write: function (object $c, array $d) use ($department): void {
+            write: function (object $c, array $d): void {
                 $c->setLocationText($d['location_text'])->setNotes($d['notes']);
                 $c->setVenueAddress($d['venue_address_id'] !== null ? $this->entityManager->find(Address::class, $d['venue_address_id']) : null);
                 if (isset($d['event_start'], $d['event_end'])) {
-                    $this->applyEventPeriod($department, $c, new \DateTime($d['event_start']), new \DateTime($d['event_end']));
+                    $this->applyEventPeriod($c, new \DateTime($d['event_start']), new \DateTime($d['event_end']));
                 }
             },
             desired: $desired,
@@ -541,14 +517,68 @@ class DemoOrganisationSeeder
         ), $version);
     }
 
-    /** Anlasszeitraum in Konfiguration, Kalenderperiode «grossanlass» und Hauptaktivität gleichziehen (Wandzeit, naive Datumswerte). */
-    private function applyEventPeriod(Department $department, DepartmentGrossanlassConfig $config, \DateTime $start, \DateTime $end): void
+    /**
+     * Verwaltete Adresse des Departments (Eventplatz, Zustellpunkt, Lager). Dreiwege-Vergleich; von Hand geänderte Werte bleiben.
+     *
+     * @param array<string, mixed> $def
+     */
+    private function ensureAddress(SeedContext $context, SyncReport $report, string $seedKey, Department $department, string $type, array $def, ?string $parentId, bool $primary, string $version): ?Address
+    {
+        $desired = [
+            'name' => (string) $def['name'],
+            'street' => (string) ($def['street'] ?? ''),
+            'street_number' => (string) ($def['streetNumber'] ?? ''),
+            'postal_code' => (string) ($def['postalCode'] ?? ''),
+            'city' => (string) ($def['city'] ?? ''),
+            'canton' => (string) ($def['canton'] ?? ''),
+            'latitude' => (float) $def['latitude'],
+            'longitude' => (float) $def['longitude'],
+        ];
+        $address = $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $seedKey,
+            create: function () use ($department, $type, $parentId, $primary): Address {
+                $a = new Address();
+                $a->setId(IdGenerator::generateUnique($this->entityManager, Address::class));
+                $a->setScope(Address::SCOPE_DEPARTMENT);
+                $a->setDepartment($department);
+                $a->setType($type);
+                $a->setCountry('Schweiz');
+                $a->setParent($parentId !== null ? $this->entityManager->find(Address::class, $parentId) : null);
+                $a->setIsPrimary($primary);
+
+                return $a;
+            },
+            find: fn (string $id): ?object => $this->entityManager->find(Address::class, $id),
+            idOf: static fn (object $a): string => (string) $a->getId(),
+            read: static fn (object $a): array => [
+                'name' => $a->getName(),
+                'street' => $a->getStreet(),
+                'street_number' => $a->getStreetNumber(),
+                'postal_code' => $a->getPostalCode(),
+                'city' => $a->getCity(),
+                'canton' => $a->getCanton(),
+                'latitude' => $a->getLatitude() !== null ? (float) $a->getLatitude() : null,
+                'longitude' => $a->getLongitude() !== null ? (float) $a->getLongitude() : null,
+            ],
+            write: static function (object $a, array $d): void {
+                $a->setName($d['name'])->setStreet($d['street'])->setStreetNumber($d['street_number'])->setPostalCode($d['postal_code'])
+                    ->setCity($d['city'])->setCanton($d['canton'])->setLatitude($d['latitude'])->setLongitude($d['longitude']);
+            },
+            desired: $desired,
+            resettable: true,
+        ), $version);
+
+        return $address instanceof Address ? $address : null;
+    }
+
+    /**
+     * Anlasszeitraum (Beginn des Aufbaus bis Ende des Abbaus) in Konfiguration und Hauptaktivität (Wandzeit, naive Datumswerte).
+     * Die Kalenderperiode «grossanlass» ist die Durchführung und folgt dem Anlasszeitraum nicht; sie wird als Phase geführt.
+     */
+    private function applyEventPeriod(DepartmentGrossanlassConfig $config, \DateTime $start, \DateTime $end): void
     {
         $config->setPlannedEventStart($start);
         $config->setPlannedEventEnd($end);
-        foreach ($this->entityManager->getRepository(DepartmentCalendarPeriod::class)->findBy(['departmentId' => $department->getId(), 'label' => DepartmentCalendarPeriod::LABEL_GROSSANLASS]) as $period) {
-            $this->setPeriodTimes($period, $start, $end);
-        }
         $activity = $config->getMainActivity();
         if ($activity !== null) {
             $activity->setUsageStart($start);
@@ -565,14 +595,18 @@ class DemoOrganisationSeeder
     }
 
     /**
-     * Fixe Daten des Anlasses (Aufbau, Abbau) als Kalenderperioden. Dreiwege-Vergleich; eine vorhandene gleich beschriftete
+     * Fixe Daten des Anlasses (Aufbau, Durchführung, Abbau) als Kalenderperioden. Dreiwege-Vergleich; eine vorhandene gleich beschriftete
      * Periode des Szenario-Departments wird einmalig übernommen.
      *
      * @param array<string, mixed> $phase
      */
     private function ensureGrossanlassPhase(SeedContext $context, SyncReport $report, string $key, Department $department, array $phase, string $version): void
     {
-        $label = $phase['key'] === 'abbau' ? DepartmentCalendarPeriod::LABEL_ABBAU : DepartmentCalendarPeriod::LABEL_AUFBAU;
+        $label = match ($phase['key']) {
+            'abbau' => DepartmentCalendarPeriod::LABEL_ABBAU,
+            'durchfuehrung' => DepartmentCalendarPeriod::LABEL_GROSSANLASS,
+            default => DepartmentCalendarPeriod::LABEL_AUFBAU,
+        };
         $start = new \DateTime(str_replace('T', ' ', (string) $phase['start']));
         $end = new \DateTime(str_replace('T', ' ', (string) $phase['end']));
         $desired = ['name' => (string) $phase['name'], 'start' => $start->format('Y-m-d H:i:s'), 'end' => $end->format('Y-m-d H:i:s')];

@@ -12,6 +12,7 @@
           density="comfortable"
           :aria-label="label || ariaLabel"
           :disabled="disabled"
+          exact-display
         />
       </div>
     </div>
@@ -55,7 +56,10 @@ const hasError = computed(() => {
 const timeModel = computed({
   get(): Date {
     const raw = model.value?.trim() || '00:00'
-    return dayAtTime(TIME_ANCHOR, raw)
+    // Gespeicherte Zeiten ausserhalb des 15-Minuten-Rasters (z. B. 23:59) unverändert anzeigen; gerundet wird erst bei der Auswahl.
+    const match = /^(\d{1,2}):(\d{2})/.exec(raw)
+    if (!match) return dayAtTime(TIME_ANCHOR, raw)
+    return new Date(TIME_ANCHOR.getFullYear(), TIME_ANCHOR.getMonth(), TIME_ANCHOR.getDate(), Number(match[1]), Number(match[2]), 0, 0)
   },
   set(d: Date | null) {
     if (!d || !Number.isFinite(d.getTime())) return

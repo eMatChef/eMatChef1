@@ -366,6 +366,8 @@ final class DemoGrossanlassEventProcessSeedService
         $inquiry->setName((string) $def['name']);
         $inquiry->setEmail((string) $def['email']);
         $inquiry->setPlace((string) $def['place']);
+        $inquiry->setLatitude(isset($def['latitude']) ? (float) $def['latitude'] : null);
+        $inquiry->setLongitude(isset($def['longitude']) ? (float) $def['longitude'] : null);
         $inquiry->setPhone((string) $def['phone']);
         $inquiry->setContactName((string) $def['contact_name']);
         $inquiry->setOffering((string) $def['offering']);
@@ -635,7 +637,7 @@ final class DemoGrossanlassEventProcessSeedService
                 'quote_reference' => 'HH-2027-014',
                 'line' => ['label' => 'Schwartenbretter', 'quantity' => 30, 'unit' => 'Stk', 'kind' => 'material', 'category' => self::CATEGORY_BAU, 'cost_kind' => 'purchase', 'notes' => 'Fassadenverkleidung, Restposten.'],
                 'inquiry' => [
-                    'name' => 'Häberli Holz', 'email' => 'verkauf@haeberli-holz.example', 'place' => 'Wauwil', 'phone' => '041 000 00 11', 'contact_name' => 'Verkauf Holz',
+                    'name' => 'Häberli Holz', 'email' => 'verkauf@haeberli-holz.example', 'place' => 'Ruswil', 'latitude' => 47.1003743, 'longitude' => 8.1413014, 'phone' => '041 000 00 11', 'contact_name' => 'Verkauf Holz',
                     'offering' => 'Schnittholz, Bretter und Konstruktionsholz', 'category' => self::CATEGORY_BAU, 'status' => DepartmentGrossanlassInquiry::STATUS_ANTWORT,
                     'asked_via' => 'mail', 'asked_at' => '2027-03-02 09:15:00', 'asked_lines' => [],
                     'thread' => [
@@ -644,7 +646,7 @@ final class DemoGrossanlassEventProcessSeedService
                     ],
                 ],
                 'quote' => [
-                    'supplier' => 'Häberli Holz', 'amount' => '220.00', 'notes' => 'Offerte HH-2027-014, Abholung ab Lager Wauwil.', 'date' => '04.03.2027',
+                    'supplier' => 'Häberli Holz', 'amount' => '220.00', 'notes' => 'Offerte HH-2027-014, Abholung ab Lager Ruswil.', 'date' => '04.03.2027',
                     'delivery_at' => '2027-05-19 12:00:00', 'delivery_label' => 'Abholung ab Lager am 19.05.2027, 12:00 Uhr', 'lead_days' => 14,
                     'inbound_mode' => 'pickup', 'return_needed' => false, 'pdf' => true, 'selected' => true,
                 ],
