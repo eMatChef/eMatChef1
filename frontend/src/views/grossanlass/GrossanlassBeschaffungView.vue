@@ -104,6 +104,7 @@ const allTabItems = [
   { id: 'commitments', labelKey: 'grossanlass.beschaffung.tabZusagen', icon: 'mdi-handshake-outline' },
   { id: 'orders', labelKey: 'grossanlass.beschaffung.tabBestellungen', icon: 'mdi-cart-outline' },
   { id: 'received', labelKey: 'grossanlass.beschaffung.tabErhalten', icon: 'mdi-package-check' },
+  { id: 'budget', labelKey: 'grossanlass.beschaffung.tabBudget', icon: 'mdi-cash-multiple' },
 ] as const
 
 const tabItems = computed(() => {

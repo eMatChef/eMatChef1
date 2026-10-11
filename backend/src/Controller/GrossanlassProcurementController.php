@@ -6,6 +6,7 @@ namespace App\Controller;
 
 use App\Entity\Department;
 use App\Entity\User;
+use App\Service\Grossanlass\GrossanlassBudgetAreaService;
 use App\Service\Grossanlass\GrossanlassCostService;
 use App\Service\Grossanlass\GrossanlassGmailAccountService;
 use App\Service\Grossanlass\GrossanlassInquiryService;
@@ -30,6 +31,7 @@ class GrossanlassProcurementController extends AbstractController
         private GrossanlassGmailAccountService $gmail,
         private GroupAccessService $groupAccess,
         private GrossanlassCostService $costService,
+        private GrossanlassBudgetAreaService $budgetAreas,
     ) {}
 
     #[Route('/bedarf', name: 'bedarf_overview', methods: ['GET'])]
@@ -858,6 +860,52 @@ class GrossanlassProcurementController extends AbstractController
         }
 
         return new JsonResponse(null, 204);
+    }
+
+    #[Route('/budget-bereiche', name: 'budget_areas_overview', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function budgetAreasOverview(string $departmentId): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        try {
+            return new JsonResponse($this->budgetAreas->overview($department, $currentUser));
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+    }
+
+    #[Route('/budget-bereiche', name: 'budget_areas_limits', methods: ['PUT'])]
+    #[IsGranted('ROLE_USER')]
+    public function budgetAreasLimits(string $departmentId, Request $request): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        $data = json_decode($request->getContent(), true);
+
+        try {
+            return new JsonResponse($this->budgetAreas->setLimits($department, $currentUser, is_array($data) ? $data : []));
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
     }
 
     #[Route('/budgets', name: 'budgets_list', methods: ['GET'])]

@@ -202,6 +202,24 @@ Kategorie-Rahmen bleibt auf `activity_grossanlass_procurement_category.rahmen_ch
 
 ---
 
+### 7.5 `department_grossanlass_budget_area` (Budget Material & Logistik)
+
+**IST.** Je Department höchstens zwei Zeilen: Limit `material` und Limit `logistik` (`limit_chf`, Primärschlüssel `department_id` + `area`). Das **Gesamtbudget ist die Summe beider Limits** und wird nicht gespeichert; beim Speichern der Limits wird der Anlass-Rahmen (`department_grossanlass_budget`, Zahler `NULL`/Logistik-Knoten) auf diese Summe nachgeführt, damit es keinen zweiten Gesamtbetrag gibt. Wird der Anlass-Rahmen auf der Seite «Kosten» von Hand anders gesetzt, weicht er von der Summe ab, bis die Limits erneut gespeichert werden (**OFFEN**: Rahmen-Feld dort sperren, sobald Limits existieren).
+
+Auswertung (`GrossanlassBudgetAreaService`, `GET/PUT …/grossanlass/beschaffung/budget-bereiche`, nur MW/CMW): jede Hauptkostenposition (eine je Beschaffungsposition) zählt **genau einmal** auf ihrer weitesten Stufe, daher keine Doppelzählung zwischen Bedarf, Anfrage, Offerte, Zusage und Bestellung:
+
+| Stufe | Bedingung | Betrag |
+| --- | --- | --- |
+| `bedarf` | nur Kostenposition | geplanter Betrag (`soll_chf`) |
+| `offerte` | Offerten, keine gewählt | günstigste Offerte |
+| `zusage` | Offerte gewählt | Betrag der gewählten Offerte |
+| `bestellt` | Bestellung, Ware nicht vollständig eingegangen | Betrag der Bestellung |
+| `effektiv` | Bestellung, Ware vollständig im Wareneingang | Betrag der Bestellung |
+
+Bereich: Beschaffungsart «fahrzeug» = Logistik, alles andere (auch «beides») = Material. **Annahmen, fachlich zu bestätigen:** «beides» zählt zum Material; Positionen ohne Beschaffungsposition (reine Nebenkosten) zählen zum Material; «effektiv» heisst Wareneingang vollständig, nicht Rechnung bezahlt (es gibt keine Rechnungserfassung). Verfügbarer Rest = Limit − (Zusagen + Bestellt + Effektiv); Überschreitung wird zusätzlich für die Erwartung (alle Stufen) gemeldet. Die BusinessClock verändert die Kennzahlen nicht; sie ändern sich nur durch ausdrücklich ausgelöste Aktionen.
+
+UI: Beschaffung › «Budget Material & Logistik» mit den Reitern Gesamt | Material | Logistik (`?bereich=`); die linke GA-Navigation führt unter «Beschaffung» direkt zu Anfragen & Offerten, Zusagen, Bestellungen und diesem Budget (für die bisherigen Beschaffungsrollen, keine neuen Rechte).
+
 ## 8. Status der Cost-Zeile
 
 | `status` | Bedeutung |

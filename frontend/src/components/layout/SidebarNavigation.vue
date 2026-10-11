@@ -210,6 +210,20 @@
         <v-icon icon="mdi-cart-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.beschaffung') }}</span>
       </router-link>
+      <template v-if="showGrossanlassBeschaffungSubLinks">
+        <router-link
+          v-for="item in grossanlassBeschaffungSubItems"
+          :key="item.id"
+          :to="item.to"
+          class="nav-item nav-item--sub"
+          :class="{ active: item.active }"
+          :title="item.label"
+          :data-testid="`nav-beschaffung-${item.id}`"
+        >
+          <v-icon :icon="item.icon" class="nav-icon nav-icon--mdi" size="18" />
+          <span class="nav-label nav-label--sub" :class="{ visible: showNavLabels }">{{ item.label }}</span>
+        </router-link>
+      </template>
       <router-link
         v-if="showGrossanlassUebersichtMenu"
         :to="getLink('/ga/material')"
@@ -353,6 +367,20 @@
         <v-icon icon="mdi-cart-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.beschaffung') }}</span>
       </router-link>
+      <template v-if="showGrossanlassBeschaffungSubLinks">
+        <router-link
+          v-for="item in grossanlassBeschaffungSubItems"
+          :key="item.id"
+          :to="item.to"
+          class="nav-item nav-item--sub"
+          :class="{ active: item.active }"
+          :title="item.label"
+          :data-testid="`nav-beschaffung-${item.id}`"
+        >
+          <v-icon :icon="item.icon" class="nav-icon nav-icon--mdi" size="18" />
+          <span class="nav-label nav-label--sub" :class="{ visible: showNavLabels }">{{ item.label }}</span>
+        </router-link>
+      </template>
 
       <!-- Anfragen (Komm/Spon; MW/CMW über Beschaffung) -->
       <router-link
@@ -1134,6 +1162,29 @@ const showGrossanlassMailboxOnlyMenu = computed(() => {
 const showGrossanlassKostenMenu = computed(() => {
   if (isSuperAdmin.value || !isGrossanlassDept.value) return false
   return gaCanSeeAnlassOverview(authStore.currentDepartmentRole)
+})
+
+/** Unterpunkte der Beschaffung für MW/CMW; die Zielseiten sind die bestehenden Beschaffungs-Tabs. */
+const showGrossanlassBeschaffungSubLinks = computed(
+  () => showGrossanlassBeschaffungMenu.value && gaCanManageProcurement(authStore.currentDepartmentRole),
+)
+
+const grossanlassBeschaffungSubItems = computed(() => {
+  const here = route.path
+  const item = (id: string, labelKey: string, icon: string, tab: string, also: string[] = []) => ({
+    id,
+    label: t(labelKey),
+    icon,
+    to: getLink(`/ga/procurement/${tab}`),
+    active: [tab, ...also].some((x) => here.includes(`/ga/procurement/${x}`)),
+  })
+
+  return [
+    item('inquiries', 'sidebar.beschaffungInquiriesOffers', 'mdi-email-multiple-outline', 'inquiries', ['offers']),
+    item('commitments', 'sidebar.beschaffungCommitments', 'mdi-handshake-outline', 'commitments'),
+    item('orders', 'sidebar.beschaffungOrders', 'mdi-cart-outline', 'orders'),
+    item('budget', 'sidebar.beschaffungBudget', 'mdi-cash-multiple', 'budget'),
+  ]
 })
 
 const grossanlassBeschaffungLink = computed(() => {

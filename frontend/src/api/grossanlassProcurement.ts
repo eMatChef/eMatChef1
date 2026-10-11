@@ -795,6 +795,46 @@ export async function listGrossanlassBudgets(departmentId: string): Promise<Gros
   return response.data
 }
 
+export type GrossanlassBudgetAreaKey = 'total' | 'material' | 'logistik'
+
+export interface GrossanlassBudgetAreaFigures {
+  planned_chf: number
+  expected_chf: number
+  offers_chf: number
+  commitments_chf: number
+  ordered_chf: number
+  actual_chf: number
+  committed_chf: number
+  remaining_chf: number
+  overrun_committed_chf: number
+  overrun_expected_chf: number
+  over_budget: boolean
+  position_count: number
+  stages: Record<'bedarf' | 'offerte' | 'zusage' | 'bestellt' | 'effektiv', number>
+}
+
+export type GrossanlassBudgetAreaOverview = Record<GrossanlassBudgetAreaKey, GrossanlassBudgetAreaFigures> & {
+  can_manage: boolean
+}
+
+export async function getGrossanlassBudgetAreas(departmentId: string): Promise<GrossanlassBudgetAreaOverview> {
+  const response = await apiClient.get<GrossanlassBudgetAreaOverview>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/budget-bereiche`,
+  )
+  return response.data
+}
+
+export async function saveGrossanlassBudgetAreaLimits(
+  departmentId: string,
+  data: { material_chf: number | null; logistik_chf: number | null },
+): Promise<GrossanlassBudgetAreaOverview> {
+  const response = await apiClient.put<GrossanlassBudgetAreaOverview>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/budget-bereiche`,
+    data,
+  )
+  return response.data
+}
+
 export async function listGrossanlassCosts(
   departmentId: string,
   params?: Record<string, string | undefined>,

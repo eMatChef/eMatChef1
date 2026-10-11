@@ -1556,6 +1556,17 @@ const routes: RouteRecordRaw[] = [
                   ...routeHead('grossanlassBeschaffungBestellungen'),
                 },
               },
+              {
+                path: 'budget',
+                name: 'GrossanlassBeschaffungBudget',
+                component: () => import('@/views/grossanlass/GrossanlassBeschaffungBudgetView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_PROCUREMENT_ROUTE_ROLES],
+                  beschaffungTab: 'budget',
+                  ...routeHead('grossanlassBeschaffungBudget'),
+                },
+              },
             ],
           },
           {
