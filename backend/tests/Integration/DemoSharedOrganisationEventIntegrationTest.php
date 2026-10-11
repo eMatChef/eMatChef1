@@ -181,7 +181,7 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             self::assertSame('2027-06-16', substr((string) $conn->fetchOne('SELECT max(window_end) FROM "group" WHERE department_id=?', [$event]), 0, 10));
             self::assertSame(0, (int) $conn->fetchOne('SELECT count(*) FROM "group" WHERE department_id=? AND (window_start < DATE \'2027-05-19\' OR window_end > DATE \'2027-06-23\')', [$event]));
             // Materialwünsche, Orte, Aufgaben, Fahrzeugbedarfe, Beschaffung und Kosten (6 aus Beschaffung/Zusagen, 2 aus den Chargen Leihe und Spende)
-            self::assertSame(57, (int) $conn->fetchOne('SELECT count(*) FROM activity_grossanlass_wish_line l JOIN "group" g ON g.id=l.group_id WHERE g.department_id=?', [$event]));
+            self::assertSame(60, (int) $conn->fetchOne('SELECT count(*) FROM activity_grossanlass_wish_line l JOIN "group" g ON g.id=l.group_id WHERE g.department_id=?', [$event]));
             self::assertSame(20, (int) $conn->fetchOne("SELECT count(*) FROM department_grossanlass_place WHERE department_id=? AND kind='bauprojekt'", [$event]));
             self::assertSame([7, 6, 5, 8], [
                 (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_task WHERE department_id=?', [$event]),

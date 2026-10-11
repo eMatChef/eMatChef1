@@ -31,13 +31,8 @@ Eine einzige Sidebar (`components/layout/SidebarNavigation.vue`). MW/CMW sehen d
 | Anlass | Helferpool | `/{deptId}/ga/helper-pool` | `mdi-account-group-outline` |
 | Anlass | Aufgaben | `/{deptId}/dept/tasks` | `mdi-clipboard-list` |
 | Material | Beschaffung | `/{deptId}/ga/procurement` | `mdi-cart-outline` |
-| Material | – Anfragen & Offerten | `…/procurement/inquiries` (+ `offers`) | `mdi-email-multiple-outline` |
-| Material | – Zusagen | `…/procurement/commitments` | `mdi-handshake-outline` |
-| Material | – Bestellungen | `…/procurement/orders` | `mdi-cart-outline` |
-| Material | – Budget Material & Logistik | `…/procurement/budget` | `mdi-cash-multiple` |
 | Material | Material | `/{deptId}/ga/material` → `stock` | `mdi-package-variant` |
 | Logistik | Logistik | `/{deptId}/ga/logistics` → `dispatch` | `mdi-truck-fast-outline` |
-| Logistik | Fahrzeuge | `/{deptId}/ga/vehicles` → `requests` | `mdi-truck-outline` |
 | Betrieb | Werkstatt | `/{deptId}/ga/workshop` | `mdi-wrench` |
 | Finanzen | Kosten | `/{deptId}/ga/costs` | `mdi-cash-multiple` |
 | Kommunikation | Nachrichten | `/{deptId}/dept/notifications` | `mdi-bell-outline` |
@@ -46,11 +41,13 @@ Eine einzige Sidebar (`components/layout/SidebarNavigation.vue`). MW/CMW sehen d
 | unten | Konfiguration | `/{deptId}/ga/settings` | – |
 | unten | Hilfe | `/{deptId}/ga/help/ga` | – |
 
+**Kompakte Hauptnavigation:** Unter «Material» stehen nur «Beschaffung» und «Material», unter «Logistik» nur «Logistik». Anfragen & Offerten, Zusagen, Bestellungen und Budget sind Tabs innerhalb von «Beschaffung» (`…/procurement/*`); Fahrzeuge ist ein Tab innerhalb von «Logistik» und bleibt unter `/{deptId}/ga/vehicles` erreichbar. Nur die Sidebar-Einträge sind entfallen, Seiten und Routen bestehen unverändert. Die flache Sicht der übrigen Rollen (z. B. Bereichsleitung) behält ihren Fahrzeuge-Eintrag, weil diese Rollen keinen Logistik-Zugang haben.
+
 **Tabs innerhalb der Menüpunkte** (kein eigener Sidebar-Eintrag, damit keine doppelten Seiten entstehen):
 
 | Menüpunkt | Tabs (Route-Suffix) |
 | --- | --- |
-| Planung | Wünsche `requests`, Aufträge `jobs`, Bauaufträge `build-jobs`, Transporte `transports`, Belegung `occupancy`, Konflikte `conflicts` |
+| Planung | Wünsche `requests`, Aufträge inkl. Bauaufträge `jobs`, Transporte `transports`, Belegung `occupancy`, Konflikte `conflicts` |
 | Beschaffung | Bedarf `demand`, Anfragen `inquiries`, Offerten `offers`, Zusagen `commitments`, Bestellungen `orders`, Budget `budget` |
 | Material | Bestand `stock`, Wareneingang `goods-receipt`, Ausgabe `issue`, Packen `pack`, Rückbau `teardown`, Weiterverkauf `resale` |
 | Fahrzeuge | Wünsche `requests`, Fuhrpark `fleet` |
@@ -102,11 +99,11 @@ Kurzformen: *Route* = unter `/{deptId}/`; *Komp.* = Vue-Datei unter `frontend/sr
 | Feld | Inhalt |
 | --- | --- |
 | Mockup-Quelle | #298: `auftraege/` (Prototyp), Bauaufträge, Transporte |
-| Route / Komp. | `ga/planning/{requests,jobs,build-jobs,transports,occupancy,conflicts}` · `GrossanlassPlanungView` (Shell), `GrossanlassPlanungRoundsPane`, `auftraege/GrossanlassAuftraegeView`, `GrossanlassBauauftraegeView`, `GrossanlassFahrauftraegeView`, `GrossanlassMaterialEinsaetzeView`, `GrossanlassMaterialKonflikteView` |
+| Route / Komp. | `ga/planning/{requests,jobs,transports,occupancy,conflicts}` · `GrossanlassPlanungView` (Shell), `GrossanlassPlanungRoundsPane`, `auftraege/GrossanlassAuftraegeView`, `GrossanlassBauauftraegeView`, `GrossanlassFahrauftraegeView`, `GrossanlassMaterialEinsaetzeView`, `GrossanlassMaterialKonflikteView` |
 | Backend | `GrossanlassPlanungController`, `GrossanlassPlanningRoundController`, `GrossanlassRoundFormController`, `GrossanlassWishController`, `GrossanlassUebersichtController` |
-| UI-Stand | teilweise: Wünsche, Bauaufträge, Transporte, Belegung, Konflikte angebunden; **Aufträge = Prototyp** |
-| Abweichungen | Aufträge (Prototyp) und Bauaufträge (angebunden) überlappen fachlich; Wunsch-Formular wählt Phase über Textauswahl (siehe §5) |
-| Fachfragen | Aufträge vs. Bauaufträge (eine oder zwei Konzepte?); Verhältnis zu Aufgaben |
+| UI-Stand | angebunden: Wünsche, Aufträge/Bauaufträge (eine Ansicht, Groups-API), Transporte, Belegung, Konflikte |
+| Abweichungen | Auftrag und Bauauftrag sind ein Modell (Blatt `auftrag` bzw. `bauprojekt`); Material-/Baufortschritt sind aus Beschaffungsstand bzw. Bau-Status abgeleitet; Wunsch-Formular wählt Phase über Textauswahl (siehe §5) |
+| Fachfragen | Verhältnis zu Aufgaben; Helfer-/Material-Fortschritt pro Karte erst mit einem Sammel-Endpunkt exakt |
 | Abhängigkeiten | Aufgaben, Helferpool, Material, Logistik |
 | Nächster Schritt | Planung-Tab für Tab, Wünsche zuerst |
 
@@ -488,4 +485,4 @@ Der korrigierte Seed-Stand wurde nicht verändert, nur geprüft (Katalog-Test, I
 | **Budget** | Material und Logistik getrennt; fünf Kostenstufen verbindlich und nie als Gesamtkosten addiert; Wareneingang ≠ Rechnung/Zahlung. Details beim Menüpunkt Budget |
 | **Event-Reset** | Ziel beschlossen: vollständiger Demo-Reset inkl. Prozessdaten auf den Seed-Ausgangszustand, mit Schutz anderer Departments, des Legacy-Events, von Benutzern/Identitäten, stabilen QR-Identitäten, eindeutiger Erkennung manueller Daten sowie Änderungsvorschau und Bestätigung. Der bisherige nicht löschende Reset bleibt; **kein neuer Löschmechanismus**, Umsetzung beim passenden Modulschritt |
 | **Zusagen vs. Absprachen** | Begriffsfrage offen (§2) |
-| **Aufträge vs. Bauaufträge** | Konzeptfrage offen (§3.1) |
+| **Aufträge vs. Bauaufträge** | entschieden: ein Modell (Group-Blatt), eine Ansicht |

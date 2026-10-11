@@ -18,7 +18,7 @@ Das bestehende Grossanlass-UI ist das fachliche und visuelle Zielbild. Es wird b
 | --- | --- | --- |
 | Department `Demo Grossanlass`, `demo_mode`, Ausgangsuhr | **IST** | `DemoGrossanlassSeedService::ensureDepartment`, `ensureDemoClock` |
 | Ressort-Baum (Infrastruktur → Material & Logistik / Bauten / Wasser & Sanitär) | **IST** | `ensureDemoRessort`, `ensureGroup` |
-| Rollen-User `ga-mw`, `ga-cmw`, `ga-ok`, `ga-komm`, `ga-spon`, `ga-lw`, `ga-clw`, `ga-bereich`, `ga-helfer` | **IST** | `demo-accounts.json`, [Seed-README](../../../backend/data/seeds/dev-demo/README.md) |
+| Rollen-User `ga-mw`, `ga-cmw`, `ga-ok`, `ga-komm`, `ga-spon`, `ga-lw`, `ga-clw`, `ga-bereich`, `ga-helfer`, `ga-user` (nur Event) | **IST** | `demo-accounts.json`, [Seed-README](../../../backend/data/seeds/dev-demo/README.md) |
 | Fahrkarte/Helfer-Verifikation | **IST** | `ensureHelperDriveCard` |
 | Zusagen (Festtische, Transporter), Orte, Einsätze (Selbstabholung, Fahrauftrag, pending) | **IST** | `ensureCommitment`, `ensurePlace`, `ensureEinsatz` |
 | Zeitstrahl relativ zum Anker E (klein) | **IST** | `ensureTimeline`, `eventWindow` |

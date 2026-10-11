@@ -186,6 +186,9 @@ class DemoOrganisationSeeder
             }
             $membershipKey = self::membershipKey($key, $member['department'] ?? null, $member['account']);
             $expected[] = $membershipKey;
+            if (\array_key_exists('helper', $member)) {
+                $expected[] = $membershipKey . ':helper';
+            }
             $this->ensureMembership($context, $report, $membershipKey, $target, $user, $member, $version);
             foreach ($member['groups'] ?? [] as $gm) {
                 $group = $groups[$gm['group']] ?? null;
@@ -293,6 +296,9 @@ class DemoOrganisationSeeder
         }
         foreach ($cat['members'] as $m) {
             $required[] = self::membershipKey($key, $m['department'] ?? null, $m['account']);
+            if (\array_key_exists('helper', $m)) {
+                $required[] = self::membershipKey($key, $m['department'] ?? null, $m['account']) . ':helper';
+            }
             foreach ($m['groups'] ?? [] as $gm) {
                 $required[] = $key . ':groupmember:' . $m['account'] . ':' . $gm['group'];
             }
@@ -360,6 +366,9 @@ class DemoOrganisationSeeder
         foreach ($cat['members'] as $m) {
             $sharedKeys[] = DemoSeedLedger::SHARED_USERS . ':user:' . $m['account'];
             $seedKeys[] = self::membershipKey($key, $m['department'] ?? null, $m['account']);
+            if (\array_key_exists('helper', $m)) {
+                $seedKeys[] = self::membershipKey($key, $m['department'] ?? null, $m['account']) . ':helper';
+            }
             foreach ($m['groups'] ?? [] as $gm) {
                 $seedKeys[] = $key . ':groupmember:' . $m['account'] . ':' . $gm['group'];
             }
@@ -1003,6 +1012,23 @@ class DemoOrganisationSeeder
             adopt: fn (): ?object => $find($user->getId() . ':'),
             resettable: true,
         ), $version);
+
+        // Helfer-Flag als eigener verwalteter Wert: der Hash der Rolle bleibt unverändert, andere Mitgliedschaften unberührt.
+        if (\array_key_exists('helper', $member)) {
+            $this->applier->ensure($context, $report, new ManagedSpec(
+                seedKey: $seedKey . ':helper',
+                create: static fn (): Membership => throw new \LogicException('Helfer-Flag setzt eine vorhandene Mitgliedschaft voraus.'),
+                find: $find,
+                idOf: static fn (object $m): string => $m->getUserId() . ':' . $m->getDepartmentId(),
+                read: static fn (object $m): array => ['is_helper' => $m->getIsHelper()],
+                write: static function (object $m, array $d): void {
+                    $m->setIsHelper((bool) $d['is_helper']);
+                },
+                desired: ['is_helper' => (bool) $member['helper']],
+                adopt: fn (): ?object => $find($user->getId() . ':'),
+                resettable: true,
+            ), $version);
+        }
     }
 
     /**

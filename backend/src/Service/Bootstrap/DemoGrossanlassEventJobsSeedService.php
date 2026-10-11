@@ -181,6 +181,11 @@ final class DemoGrossanlassEventJobsSeedService
         $keys = [];
         foreach ($this->catalog() as $cluster) {
             $keys[] = $scenarioKey . ':bauprojekt:bereich:' . self::slug((string) $cluster['bereich']);
+            $sub = $this->subBereiche()[(string) $cluster['bereich']] ?? null;
+            if ($sub !== null) {
+                $keys[] = $scenarioKey . ':bauprojekt:bereich:' . self::slug($sub['name']);
+                $keys[] = $scenarioKey . ':ort:bereich:' . self::slug($sub['name']);
+            }
             foreach ($cluster['jobs'] as $job) {
                 $jobSlug = self::slug((string) $job['name']);
                 $keys[] = $scenarioKey . ':bauprojekt:' . $jobSlug;
@@ -253,9 +258,24 @@ final class DemoGrossanlassEventJobsSeedService
             if (!$bereich instanceof Group) {
                 continue;
             }
+            $sub = $this->subBereiche()[(string) $cluster['bereich']] ?? null;
+            $subGroup = null;
+            if ($sub !== null) {
+                $subGroup = $this->managedGroup($context, $report, $key . ':bauprojekt:bereich:' . self::slug($sub['name']), $department, $bereich, [
+                    'name' => $sub['name'],
+                    'kind' => Group::GROSSANLASS_KIND_BEREICH,
+                    'sort' => $sub['sort'],
+                    'description' => $sub['description'],
+                    'window' => $this->windowFor($sub['name']),
+                ], $version);
+                if ($subGroup instanceof Group) {
+                    $this->managedAreaPlace($context, $report, $key . ':ort:bereich:' . self::slug($sub['name']), $department, $subGroup, $version);
+                }
+            }
             foreach ($cluster['jobs'] as $jobDef) {
                 $jobSlug = self::slug((string) $jobDef['name']);
-                $job = $this->managedGroup($context, $report, $key . ':bauprojekt:' . $jobSlug, $department, $bereich, [
+                $jobParent = $subGroup instanceof Group && \in_array($jobDef['name'], $sub['jobs'] ?? [], true) ? $subGroup : $bereich;
+                $job = $this->managedGroup($context, $report, $key . ':bauprojekt:' . $jobSlug, $department, $jobParent, [
                     'name' => (string) $jobDef['name'],
                     'kind' => Group::GROSSANLASS_KIND_TEILBEREICH,
                     'sort' => (int) $jobDef['sort'],
@@ -322,6 +342,8 @@ final class DemoGrossanlassEventJobsSeedService
             'FOH-Erweiterung' => ['2027-05-31', '2027-06-08'],
             'Lichtbrücke Traversen' => ['2027-06-01', '2027-06-09'],
             'Bühne & Gerüst' => ['2027-05-31', '2027-06-09'],
+            // Untergruppe «Hauptbühne»: umfasst Podest und FOH-Erweiterung
+            'Hauptbühne' => ['2027-05-31', '2027-06-09'],
             // Sanitär- und Wasserbau: bis zur Rücklieferung der Anlagen
             'WC-Park West' => ['2027-06-01', '2027-06-14'],
             'Crew-Duschen' => ['2027-06-01', '2027-06-14'],
@@ -419,13 +441,36 @@ final class DemoGrossanlassEventJobsSeedService
             create: $ensure,
             find: fn (string $id): ?object => $this->entityManager->find(DepartmentGrossanlassPlace::class, $id),
             idOf: static fn (object $p): string => (string) $p->getId(),
-            read: static fn (object $p): array => ['group_id' => $p->getGroupId(), 'kind' => $p->getKind()],
+            read: fn (object $p): array => ['group_id' => $p instanceof DepartmentGrossanlassPlace ? $this->places->soleGroupId($p) : null, 'kind' => $p->getKind()],
             write: static function (object $p, array $d): void {
             },
             desired: ['group_id' => $job->getId(), 'kind' => 'bauprojekt'],
-            adopt: fn (): ?object => $this->adoptUnrecorded(DepartmentGrossanlassPlace::class, ['departmentId' => $department->getId(), 'groupId' => $job->getId()]),
+            adopt: fn (): ?object => $this->adoptUnrecordedPlace($department, $job),
             afterCreate: function (object $p) use ($context, $seedKey): void {
                 // Neu angelegter Ort: QR-Code reproduzierbar aus dem Seed-Schlüssel, damit er nach einem Reset derselbe bleibt.
+                $code = DemoStableCodes::prefixed(GrossanlassIdGenerator::prefix(GrossanlassIdGenerator::PLACE_PUBLIC), $context->scenarioKey(), $seedKey);
+                if ($p instanceof DepartmentGrossanlassPlace && $this->entityManager->getRepository(DepartmentGrossanlassPlace::class)->findOneBy(['publicCode' => $code]) === null) {
+                    $p->setPublicCode($code);
+                }
+            },
+            resettable: true,
+        ), $version);
+    }
+
+    /** Karten-Ort vom Typ «Fläche» für einen Bereich; ohne Polygon, das Polygon wird in der Oberfläche gezeichnet und nie vom Seed überschrieben. */
+    private function managedAreaPlace(SeedContext $context, SyncReport $report, string $seedKey, Department $department, Group $bereich, string $version): void
+    {
+        $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $seedKey,
+            create: fn (): DepartmentGrossanlassPlace => $this->places->ensureForArea($department, $bereich),
+            find: fn (string $id): ?object => $this->entityManager->find(DepartmentGrossanlassPlace::class, $id),
+            idOf: static fn (object $p): string => (string) $p->getId(),
+            read: fn (object $p): array => ['group_id' => $p instanceof DepartmentGrossanlassPlace ? $this->places->soleGroupId($p) : null, 'kind' => $p->getKind()],
+            write: static function (object $p, array $d): void {
+            },
+            desired: ['group_id' => $bereich->getId(), 'kind' => 'area'],
+            adopt: fn (): ?object => $this->adoptUnrecordedPlace($department, $bereich),
+            afterCreate: function (object $p) use ($context, $seedKey): void {
                 $code = DemoStableCodes::prefixed(GrossanlassIdGenerator::prefix(GrossanlassIdGenerator::PLACE_PUBLIC), $context->scenarioKey(), $seedKey);
                 if ($p instanceof DepartmentGrossanlassPlace && $this->entityManager->getRepository(DepartmentGrossanlassPlace::class)->findOneBy(['publicCode' => $code]) === null) {
                     $p->setPublicCode($code);
@@ -697,6 +742,14 @@ final class DemoGrossanlassEventJobsSeedService
         return $entity !== null && !$this->isRecorded($class, (string) $entity->getId()) ? $entity : null;
     }
 
+    /** Standort der Gruppe (über die Zuordnungstabelle), sofern er noch nicht vom Seed verwaltet wird. */
+    private function adoptUnrecordedPlace(Department $department, Group $group): ?object
+    {
+        $place = $this->places->findForGroup($department, $group->getId());
+
+        return $place !== null && !$this->isRecorded(DepartmentGrossanlassPlace::class, $place->getId()) ? $place : null;
+    }
+
     private function isRecorded(string $class, string $id): bool
     {
         return $this->entityManager->getRepository(\App\Entity\DemoSeedRecord::class)->findOneBy(['entityClass' => $class, 'entityId' => $id]) !== null;
@@ -716,6 +769,8 @@ final class DemoGrossanlassEventJobsSeedService
             ['key' => 'podest-demontage', 'job' => 'Hauptbühnen-Podest', 'title' => 'Podest demontieren', 'description' => 'Elemente lösen, zählen und für die Rücklieferung verladen.', 'sort' => 2, 'date' => '2027-06-07', 'hour' => 8, 'duration' => 360],
             ['key' => 'zaun-felder', 'job' => 'Bauzaun Perimeter', 'title' => 'Zaunfelder stellen', 'description' => 'Zaunfelder entlang des Perimeters stellen und verklammern.', 'sort' => 1, 'date' => '2027-06-01', 'hour' => 7, 'minute' => 30, 'duration' => 240],
             ['key' => 'zaun-abbau', 'job' => 'Bauzaun Perimeter', 'title' => 'Zaunfelder abbauen', 'description' => 'Felder und Klammern einsammeln, Vollständigkeit prüfen.', 'sort' => 2, 'date' => '2027-06-08', 'hour' => 8, 'duration' => 300],
+            ['key' => 'foh-dach', 'job' => 'FOH-Erweiterung', 'title' => 'Dach', 'description' => 'Dach zusammenschrauben und für den Kran vorbereiten.', 'sort' => 1, 'date' => '2027-05-31', 'hour' => 8, 'duration' => 120],
+            ['key' => 'foh-seiten', 'job' => 'FOH-Erweiterung', 'title' => 'Seiten zusammenbauen', 'description' => '', 'sort' => 2, 'date' => '2027-05-31', 'hour' => 8, 'duration' => 240],
             ['key' => 'zelt-aufbau', 'job' => 'Catering-Zelt 20×30', 'title' => 'Zelt aufstellen', 'description' => 'Zelthülle aufrichten, abspannen und Böden verlegen.', 'sort' => 1, 'date' => '2027-06-02', 'hour' => 8, 'duration' => 360],
         ];
     }
@@ -734,6 +789,24 @@ final class DemoGrossanlassEventJobsSeedService
             ['key' => 'zelt-abholen', 'job' => 'Catering-Zelt 20×30', 'vehicle' => '7,5-t-Lastwagen', 'task' => 'Zeltmaterial abholen', 'sort' => 1, 'date' => '2027-06-01', 'hour' => 13, 'duration' => 60],
             ['key' => 'aggregat-retour', 'job' => 'Notstromaggregat', 'vehicle' => 'Lieferwagen mit Hebebühne', 'task' => 'Dieselaggregat zurückbringen', 'sort' => 2, 'date' => '2027-06-14', 'hour' => 8, 'duration' => 60],
             ['key' => 'zelt-retour', 'job' => 'Catering-Zelt 20×30', 'vehicle' => '7,5-t-Lastwagen', 'task' => 'Zeltmaterial zurückbringen', 'sort' => 2, 'date' => '2027-06-15', 'hour' => 9, 'duration' => 60],
+        ];
+    }
+
+    /**
+     * Untergeordnete Bereiche innerhalb eines Gewerks: Gewerk-Name → Bereich mit seinen Bauprojekten. Der Bereich erhält einen
+     * Karten-Ort vom Typ «Fläche» ohne Polygon; die Grenzen werden in der Karte gezeichnet (keine erfundenen Koordinaten).
+     *
+     * @return array<string, array{name: string, sort: int, description: string, jobs: list<string>}>
+     */
+    private function subBereiche(): array
+    {
+        return [
+            'Bühne & Gerüst' => [
+                'name' => 'Hauptbühne',
+                'sort' => 5,
+                'description' => 'Bühnenbereich mit Hauptbühnen-Podest und FOH-Erweiterung.',
+                'jobs' => ['Hauptbühnen-Podest', 'FOH-Erweiterung'],
+            ],
         ];
     }
 
@@ -975,6 +1048,7 @@ final class DemoGrossanlassEventJobsSeedService
                             $this->mat('OSB 18 mm Platten', 24, 'Stk', 'Eingang Nord', 'Beplankung Wände und Dach.', false),
                             $this->mat('Bitumenschindeln anthrazit', 8, 'Stk', 'Eingang Nord', 'Dachdeckung Ticket-Häuschen, Pakete à 3 m².', false),
                             $this->mat('Holzbauschrauben 6×80 Sortiment', 4, 'Stk', 'Eingang Nord', 'Schrauben-Kartons inkl. Winkelverbinder.', false),
+                            $this->mat('Schwartenbund', 1, 'Stk', 'Eingang Nord', 'Aus dem früheren Demo-Anlass übernommen (damals Bauprojekt «Holzbau Eingang»).', false),
                         ],
                     ],
                     [
@@ -1057,6 +1131,8 @@ final class DemoGrossanlassEventJobsSeedService
                             $this->rent('Podest 2×1 m Höhe 0.6 m', 12, 'FOH', 'Erweiterung Mischpult-Fläche.'),
                             $this->rent('Wetterdach 4×4 m', 1, 'FOH', 'Leichtes Zeltdach über FoH, inkl. Fussplatten.'),
                             $this->rent('Seitenvorhang 4 m', 2, 'FOH', 'Sicht- und Wetterschutz FoH-Seiten.'),
+                            $this->mat('Nägel', 1, 'Stk', 'FOH', 'Aus dem früheren Demo-Anlass übernommen (damals Bauprojekt «FOH Bau»).', false),
+                            $this->mat('Plane', 1, 'Stk', 'FOH', 'Aus dem früheren Demo-Anlass übernommen (damals Bauprojekt «FOH Bau»).', false),
                         ],
                     ],
                     [

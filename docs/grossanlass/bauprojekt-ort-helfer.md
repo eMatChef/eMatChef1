@@ -58,7 +58,8 @@ Ein Typ, aufgeschlüsselt über `kind`:
 
 | `kind` | Beispiel | Verknüpfung |
 | --- | --- | --- |
-| `bauprojekt` | Bühne, Wasserstelle | `group_id` auf Group `grossanlass_kind = teilbereich` |
+| `bauprojekt` | Bühne, Wasserstelle (Punkt) | Zuordnung über `department_grossanlass_place_group` (siehe 3.1b) |
+| `area` | Bereich als Polygon | Zuordnung über `department_grossanlass_place_group` |
 | `unterlager` | Region Ost | `unterlager_id` (Ist: Seed aus Unterlager) |
 | `anfahrt` | Anfahrpunkt / Tor für Fahrten | Ziel-Ort für Fahrauftrag |
 | `poi` | Tor, Infopoint | ohne Projekt |
@@ -75,6 +76,20 @@ Kein `kind: matplatz`. Zentraler Materialplatz = **Lagerstandort** unter Standor
 | Alias (gedruckte Schilder) | `/i/p/{code}` | `GET /api/public/lookup/p/{code}` |
 
 `entity_type` bleibt `ga_place`. Scanner-Typ `ga_place` für beide Pfade. Pack-Ankommen (`scanArrive`) ändert sich nicht — Ziel ist weiterhin `destination_place_id`.
+
+### 3.1b Zuordnung Standort ↔ Gruppe (`department_grossanlass_place_group`)
+
+Ein **Standort** (Punkt oder Polygon) ist eigenständig: eigene ID, Name, Koordinaten, Polygon und QR-Code. Gruppen (Ressort, Bereich, Bauprojekt) werden ihm **zugeordnet**.
+
+- **Tabelle:** `place_id`, `group_id`, Primärschlüssel `(place_id, group_id)`, Fremdschlüssel mit `ON DELETE CASCADE`, normaler Index auf `group_id` (kein Unique, `Version20261014090000`). Ein Standort darf mehreren Gruppen gehören und eine Gruppe mehreren Standorten: **ein Polygon plus beliebig viele Punkte**, auch bei Aufträgen und Bauprojekten.
+- **Hauptstandort:** `findForGroup()` und das Feld `place` der Gruppen-API liefern den Hauptstandort: das Polygon, sonst die älteste Zuordnung. `places` enthält alle Standorte, Hauptstandort zuerst. `place_id` in der Gruppen-API ersetzt weiterhin nur den Hauptstandort gleicher Art; zusätzliche Punkte laufen über `POST /groups/{id}/places` (`place_id` oder `name`, `latitude`, `longitude`), `PATCH`/`DELETE /groups/{id}/places/{placeId}` (Berechtigung wie Gruppe bearbeiten; gemeinsam genutzte Punkte nur mit Recht auf die Standortverwaltung). Punkte ändern nie das Polygon; Entkoppeln löscht nie einen Standort.
+- **Entkoppeln** entfernt ausschliesslich die Zuordnung. Standort, Name, Koordinaten, Polygon und QR-Code bleiben erhalten. Löschen geschieht nur in der Standortverwaltung (und nur ohne Blocker).
+- **Name:** Der Standortname gehört dem Standort. Der Gruppenname ist nur der Vorschlag beim erstmaligen Anlegen; Gruppen-Umbenennungen ändern ihn nie. Eine Umbenennung ist eine bewusste Aktion (Feld «Standortname» im Karteneditor bzw. Standortverwaltung).
+- **Punkt oder Bereich** wählt der Benutzer frei (`place_kind`: `point` | `area`), unabhängig vom Gruppentyp.
+- **API:** Orte liefern `group_ids` (alle Gruppen). `group_id` ist nur ein **Übergangswert**: gesetzt, wenn der Standort genau einer Gruppe gehört, sonst `null` (nie eine beliebig gewählte Gruppe). Schreiben akzeptiert `group_ids` (ersetzt die Zuordnung); das alte `group_id` wird nur bei höchstens einer Zuordnung akzeptiert. Gruppen-API: `place_id`, `place_kind`, `place_name`.
+- **Berechtigungen:** Eine Gruppenberechtigung erlaubt, die eigene Zuordnung zu setzen oder zu lösen. Wird ein Standort von mehreren Gruppen genutzt, sind Änderungen an Name, Typ oder Polygon nur mit dem Recht auf die Standortverwaltung (Anlassübersicht / Einsatz-Meldung) möglich; die Oberfläche weist darauf hin, dass sie für alle Gruppen gelten.
+- **Übergangsspalte:** `department_grossanlass_place.group_id` ist **nicht mehr führend**. Sie wird vom `GrossanlassPlaceService` nur gespiegelt (genau eine Gruppe = Wert, sonst `NULL`) und kann in einer späteren Migration entfernt werden, sobald kein Rollback auf den alten Stand mehr nötig ist. Lesen darf niemand mehr aus ihr (`DepartmentGrossanlassPlace::getLegacyGroupId()` ist `@deprecated`).
+- **Migration:** `Version20261013090000` legt die Tabelle an und übernimmt alle bisherigen Zuordnungen verlustfrei (wiederholbar); `down()` stellt die Spiegelspalte wieder her.
 
 ### 3.1a Eine Karte (`department_grossanlass_map` + Stammdaten-Leaflet)
 
@@ -203,3 +218,14 @@ Der Ablauf oben ist Ist, soweit P1–P8 abgehakt sind. Bauvorhaben-Status, Polyg
 - [x] **P8** Einsatz aus dem Bauprojekt im bestehenden Einsatz-Tool (Fenster + GA-Ort vorausgefüllt)
 
 Umsetzung: bestehende `GrossanlassPlaceService` / Pack / Wunsch erweitern — keine Parallelmodule.
+
+
+### 3.1c Helferbedarf (`department_grossanlass_group_helper_need`)
+
+Aufträge und Bauaufträge erfassen zuerst nur die **benötigte Anzahl Helfer**; optional Funktionen mit Anzahl (z. B. 2 Elektriker, 4 Aufbauhelfer). Zeile mit leerem `label` = Gesamtbedarf, weitere Zeilen = Funktionen. Funktionen **teilen** den Gesamtbedarf auf und werden nicht zusätzlich gezählt: der Gesamtbedarf ist mindestens die Summe der Funktionen. API: `GET`/`PUT /groups/{id}/helper-need`; das Briefing enthält `helper_need`. Der Bedarf ist getrennt von der **Einteilung** (Helferpool-Mitglieder der Gruppe mit `membership.is_helper` und Aufgabenzuweisungen, je Person einmal). Die Auftragskarten (`order-cards`, `staffing.need`/`staffing.assigned`) zeigen «eingeteilt / benötigt»; ohne erfassten Bedarf ist `need` `null`. Migration `Version20261014100000`.
+
+**Helferbedarf je Aufgabe (`department_grossanlass_task_helper_need`, Migration `Version20261015090000`).** Der Bedarf wird in «Aufgaben & Material» bei jeder Aufgabe erfasst: Gesamtzahl, optional Funktionen mit Anzahl (gleiche Semantik wie oben, Primärschlüssel `(task_id, label)`). Aufgaben-API (`POST`/`PATCH /groups/{id}/tasks`) nimmt und liefert `helper_need`. Personen werden weiterhin erst später zugewiesen. Zeitlich getrennte Aufgaben werden **nicht addiert**: `GrossanlassBauprojektService::helperDemandOverTime()` liefert den Spitzenbedarf (Maximum der gleichzeitig laufenden Aufgaben; Aufgaben ohne Zeitblock zählen immer mit) und die Abschnitte als `timeline`; das Briefing und `GET /groups/{id}/helper-need` enthalten sie unter `from_tasks`. Die Auftragskarten (`staffing.need`) nutzen den Spitzenbedarf, sobald eine Aufgabe Bedarf hat. Der gruppenweite Bedarf (`group_helper_need`) bleibt als Altbestand erhalten und lesbar; unter `/ga/my-unit` wird er nicht mehr bearbeitet, sondern nur noch als Hinweis angezeigt, solange keine Aufgabe einen Bedarf hat. Auftrag und Bauauftrag werden unter `/ga/my-unit` und `/ga/planning/jobs` über denselben Dialog `GrossanlassOrderDialog` angelegt und bearbeitet (Reiter «Grunddaten» und «Aufgaben & Material»; Formularlogik in `utils/grossanlassOrderForm.ts`). Neue Aufträge erfassen keinen gruppenweiten Bedarf mehr.
+
+**Gemeinsamer Dialog (`/ga/my-unit`).** «Bearbeiten» und «Aufgaben & Material» öffnen denselben Dialog mit den Reitern «Grunddaten» und «Aufgaben & Material» (`GrossanlassBauprojektPanel` mit `scope="tasks-material"`). Wer die Gruppe nicht bearbeiten darf, sieht nur den zweiten Reiter. Beide Reiter bleiben gemountet; beim Schliessen warnt der Dialog bei ungespeicherten Grunddaten oder Aufgaben/Material.
+
+**Lokaler Migrationsstatus:** «Executed Unavailable» (3) betrifft die in `mvdb` angewendeten Versionen `20260805120000`, `20260813190000` und `20260813210000`, deren Dateien in diesem Branch fehlen (von einem anderen Stand ausgeführt). Sie sind für diese Arbeit ohne Wirkung.

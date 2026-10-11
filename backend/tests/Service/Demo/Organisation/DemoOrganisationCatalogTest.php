@@ -341,7 +341,12 @@ final class DemoOrganisationCatalogTest extends TestCase
         $catalog = new DemoOrganisationCatalog();
         $roles = static fn (string $key): array => array_column($catalog->scenario($key)['members'], 'role', 'account');
         $event = $roles('grossanlass-event');
-        foreach (['ga-mw', 'ga-cmw', 'ga-ok', 'ga-komm', 'ga-spon', 'ga-lw', 'ga-clw', 'ga-bereich', 'ga-helfer'] as $account) {
+        // Fabian (ga-helfer) ist nur im Event Helfer («h»); in Camp und Setup bleibt er Mitglied («u»).
+        self::assertSame('h', $event['ga-helfer']);
+        self::assertSame('u', $roles('grossanlass-camp')['ga-helfer']);
+        self::assertSame('u', $roles('grossanlass-setup')['ga-helfer']);
+        self::assertSame('u', $event['ga-user']);
+        foreach (['ga-mw', 'ga-cmw', 'ga-ok', 'ga-komm', 'ga-spon', 'ga-lw', 'ga-clw', 'ga-bereich'] as $account) {
             // dieselbe Rolle im Event und im Camp: ein Login testet beide Anlässe nach seiner vorgesehenen Rolle
             self::assertArrayHasKey($account, $roles('grossanlass-camp'), "$account im Camp");
             self::assertSame($event[$account], $roles('grossanlass-camp')[$account], "$account Rolle im Camp");

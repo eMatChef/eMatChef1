@@ -17,7 +17,7 @@ class DemoOrganisationCatalog
 {
     public const FILE = __DIR__ . '/../../../../data/seeds/dev-demo/organisations.json';
 
-    private const MEMBERSHIP_ROLES = ['mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'l1', 'l2', 'l3', 'u'];
+    private const MEMBERSHIP_ROLES = ['mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'l1', 'l2', 'l3', 'u', 'h'];
     private const GROUP_ROLES = ['leader', 'member'];
     private const KINDS = ['ressort', 'bereich', 'teilbereich'];
     /** Schlüssel des Szenario-Departments in members[].department, adminScopes[].roots usw. */

@@ -80,6 +80,7 @@ Legacy-Event und seine Dateien (`var/uploads/3dc94912d836/`) werden nicht angefa
 ## 7. Was erhalten bleibt und geschützt ist
 
 - Benutzer, Rollen, Mitgliedschaften, MFA und externe Identitäten: Zeilenzahlen von `user` (38), `membership` (75) und `department` (23) unverändert.
+- **Zugriff von `ga-mw` auf das Legacy-Event:** Der Sync ändert ihn nicht und legt ihn nicht an. `mvdb` enthält bereits eine Mitgliedschaft `ga-mw` → `3dc94912d836` mit Rolle `u` (Basismitglied, nicht primär, keine Gruppen); `ga-mw` ist ausserdem `mw` im Event `2d42e87c5197`. Der Department-Wechsler listet alle Mitgliedschaften, `ga-mw` sieht also beide Anlässe. Sie steht nicht im Seed-Katalog (der Katalog kennt nur Szenario-Departments, das Legacy-Department ist nicht verwaltet); der Sync lässt fremde Mitgliedschaften unverändert. Es gibt keine MW-/Admin-Rechte im Legacy-Event.
 - Legacy-Event `3dc94912d836`: 34 Gruppen, 23 Orte, 4 Adressen unverändert; Camp, Setup und Materialverwaltung unverändert (Prüfsumme über alle Ledger-Einträge dieser drei Szenarien vor und nach dem Lauf identisch); alle übrigen Departments unverändert.
 - Manuelle Änderungen: jeder Seed-Datensatz wird per Dreiwege-Vergleich behandelt (Seed-Wert, zuletzt geschriebener Wert, aktueller Wert). Von Hand Geändertes bleibt und erscheint als Abweichung; auf der Kopie traten keine auf.
 - Bestehende QR-Codes der 20 vorhandenen Orte bleiben (sie sind bereits vergeben); die neuen Packaufträge und Lager-QR erhalten reproduzierbare Codes aus dem Seed-Schlüssel (`DemoStableCodes`). Keine Legacy-Codes werden kopiert.
@@ -94,3 +95,4 @@ Es gibt einen sicheren Reset ohne Löschung (`app:demo:reset --scenario=grossanl
 1. (erledigt) Die drei Dateien des Probelaufs wurden entfernt (§6).
 2. Soll die Ortsangabe «Kaltbach» (aus den Koordinaten abgeleitet) bleiben oder soll der Eventplatz ganz ohne PLZ/Ort geführt werden, wie im Legacy-Event?
 3. Das Logistik-Limit (900 CHF) liegt absichtlich unter dem Teleskoplader (950 CHF), damit die Budgetüberschreitung prüfbar ist.
+4. Legacy-Zugriff `ga-mw` (Rolle `u`) bleibt eine lokale Mitgliedschaft in `mvdb` ohne Seed-Eintrag. Soll sie reproduzierbar sein (Katalog-Erweiterung für nicht verwaltete Departments), ist das ein eigener Schritt; bis dahin geht sie bei einer neu aufgebauten Datenbank verloren (dort existiert das Legacy-Department ohnehin nicht).

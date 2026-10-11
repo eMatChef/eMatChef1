@@ -7,7 +7,7 @@ fixe Test-TOTP-Secrets für `superadmin`, `orgchef`, `suborgchef` (Reseed änder
 Dazu `supplier@demo.ematchef.ch` (Testfirma, Supplier-Bereich)
 und Grossanlass-Rollen in der Abteilung **Demo Grossanlass**:
 feat/grossanlass-material-flow
-`ga-mw@`, `ga-cmw@`, `ga-ok@`, `ga-komm@`, `ga-spon@`, `ga-lw@`, `ga-clw@`, `ga-bereich@` (Leader), `ga-helfer@` (jeweils `@demo.ematchef.ch`).
+`ga-mw@`, `ga-cmw@`, `ga-ok@`, `ga-komm@`, `ga-spon@`, `ga-lw@`, `ga-clw@`, `ga-bereich@` (Leader), `ga-helfer@` (Helfer-Rolle `h` im Event, sonst Mitglied `u`), `ga-user@` (Mitglied `u`, nur Event) (jeweils `@demo.ematchef.ch`).
 develop
 
 ## Grossanlass-Demo-Szenario (PFF-inspiriert)
@@ -29,7 +29,9 @@ Infrastruktur
 |------|----------------|
 | ga-mw | Leader Material & Logistik |
 | ga-bereich | Leader Bauten |
-| ga-helfer | Mitglied Bauten (+ Fahrrecht Demo) |
+| ga-helfer | Helfer (`h`) im Event, Mitglied Bauten (+ Fahrrecht Demo); in Camp und Setup Mitglied `u` |
+| ga-user | Mitglied `u` im Event, Mitglied Bauten |
+| ga-lw | zusätzlich Flag `is_helper` (interner Helfer) |
 | ga-ok | Mitglied Infrastruktur (anlassweite Übersicht) |
 | ga-komm / ga-spon / ga-lw / ga-clw | nur Dept-Rolle, kein Baum-Zwang (LW/CLW noch ohne Logistikrechte) |
 

@@ -346,6 +346,7 @@
         {
           "account": "ga-lw",
           "role": "lw",
+          "helper": true,
           "primary": true,
           "groups": [
             {
@@ -391,6 +392,19 @@
         },
         {
           "account": "ga-helfer",
+          "role": "h",
+          "helper": false,
+          "primary": true,
+          "groups": [
+            {
+              "group": "bauten",
+              "role": "member",
+              "primary": true
+            }
+          ]
+        },
+        {
+          "account": "ga-user",
           "role": "u",
           "primary": true,
           "groups": [
