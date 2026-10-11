@@ -24,6 +24,10 @@ Das bestehende Grossanlass-UI ist das fachliche und visuelle Zielbild. Es wird b
 | Zeitstrahl relativ zum Anker E (klein) | **IST** | `ensureTimeline`, `eventWindow` |
 | Event-Inhalt im Szenario `grossanlass-event` (fester Zeitplan 2027: Anlasszeitraum 19.05. 13:00 – 23.06. 12:00; Aufbau bis 04.06., Event 04.–06.06., Abbau 06.–23.06.): Stammdaten, 8 Ressorts, 6 Gewerke, 20 Bauprojekte mit Zeitfenster, 57 Materialwünsche, Orte auf der Geländekarte, Aufgaben, Fahrzeugbedarfe, Beschaffungsablauf (Anfrage, Offerte mit PDF, Budget, Bestellung, Zusage), Einsätze und Packaufträge | **IST** (ledger-geführt, `app:demo:sync`) | `DemoGrossanlassEventJobsSeedService::syncScenario`, `DemoGrossanlassEventProcessSeedService`, [../SEED-KONZEPT.md §7.13](../SEED-KONZEPT.md#713-gemeinsame-demo-organisation-und-event-inhalt-ist-katalog-20261010) |
 | Demo-Lieferant (Testfirma) | **IST** | `DemoSupplierSeedService` |
+| Event-Standorte (Eventplatz, Zustellpunkt, Lager), fixe Daten Aufbau/Durchführung/Abbau, Anlasszeitraum 19.05.–23.06.2027 | **IST** | `DemoOrganisationSeeder` (`:venue-address`, `:delivery-address`, `:storage-address`, `:phase:*`) |
+| Budget Material & Logistik, Lager (Regale, Fächer, QR), Fahrzeuge, Fahrerkarten, Chargen mit Eigentümer | **IST** | `DemoGrossanlassEventLogisticsSeedService` |
+| Sicherer Event-Reset ohne Löschung (Konsole), stabile QR-Codes | **IST** | `DemoEventResetter`, `DemoStableCodes` |
+| Verlauf Januar–August als Datenstand, Rücknahme/Rücktransport/Kontrolle, Reset mit Löschung | **OFFEN** (Freigabe) | [GROSSANLASS-EVENT-ENTSCHEIDUNGEN.md](./GROSSANLASS-EVENT-ENTSCHEIDUNGEN.md) |
 | Wipe | **IST** | `DemoGrossanlassWipeService`, `app:demo-grossanlass:wipe` |
 | Offerten, Bestellungen, Wareneingänge/Teillieferungen, Zuweisungen | **SOLL** (Seed) | Entities teilweise vorhanden |
 | Packaufträge/Paletten, QR-Labels, Transportbedarf mit Touren | **SOLL** (Seed) | Backend-Pack/Fahrten vorhanden, UI Packen/Dispo auf Mock |

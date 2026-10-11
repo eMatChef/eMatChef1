@@ -169,6 +169,8 @@ Gespeicherte Ist-Daten späterer Phasen existieren schon, wenn die Uhr noch am A
 - (b) Der Seed liefert alle Phasen und Ansichten filtern nach `occurred_at ≤ BusinessClock::now()`. Das verletzt «Uhr verändert keine Zustände» nicht, braucht aber Filter in jeder Abfrage.
 - (c) Mehrere Ausgangspunkte (Snapshots).
 
+**Stand Event 2027 (IST):** Variante (a) für den Seed (Ausgangszustand 04.04.2027); die Entscheidung über Phasen-Zustände (Variante c) steht in [scenarios/GROSSANLASS-EVENT-ENTSCHEIDUNGEN.md](./scenarios/GROSSANLASS-EVENT-ENTSCHEIDUNGEN.md) zur Freigabe.
+
 **Empfehlung (SOLL, nicht entschieden):** (a) als Standard. Mehrere «Prozesszustände» je Szenario (§1) entstehen durch **mehrere Vorgänge in unterschiedlichen Zuständen zum Ausgangspunkt** (ein Vorgang abgeschlossen, einer laufend, einer geplant), nicht durch Ist-Daten aus der Zukunft. (b) und (c) nur, wenn eine Vorführung explizit rückwärts reisen muss. Mit P14 verträglich: Der Seed ist am Ausgangspunkt konsistent; ein Clock-Reset stellt diese Konsistenz wieder her.
 
 ## 6. Mengenbilanz und Datenintegrität
@@ -454,7 +456,11 @@ Demo Organisation
 | Aufgaben, Fahrzeugbedarfe | `:aufgabe:<key>`, `:fahrzeugbedarf:<key>` | 7 und 6, in Aufbau und Abbau |
 | Beschaffung (direkt) | `:beschaffung:<key>`, `:kosten:<key>` | 2 direkte Beschaffungszeilen mit je einer geplanten Kostenposition |
 | Beschaffungsablauf | `:ablauf:<kette>:<schritt>` | Kette **holz** (Kauf): Bedarf → Anfrage (Mail-Verlauf) → Offerte mit PDF → Budget → Bestellung → Zusage (Kauf); Kette **lader** (Miete): Bedarf → Anfrage → Offerte mit PDF (gewählt, budgetiert) → Zusage aus der Anfrage; Kette **naegel**: Anfrage per Telefon, Offerte ohne PDF; ein Anfrage-Entwurf. Fiktive Firmen mit `.example`-Adressen |
-| Einsätze, Packaufträge | `:einsatz:<key>`, `:pack:<einsatz>:<n>` | Abholung der bestellten Ware (Fahrauftrag) und Materialzuteilung an ein Bauprojekt; 3 Packaufträge mit **neuen** öffentlichen Codes |
+| Einsätze, Packaufträge | `:einsatz:<key>`, `:pack:<einsatz>:<n>` | Abholung der bestellten Ware (Fahrauftrag) und Materialzuteilung an ein Bauprojekt; 4 Packaufträge mit **neuen** öffentlichen Codes, die aus dem Seed-Schlüssel abgeleitet sind (`DemoStableCodes`) |
+| Budget Material & Logistik | `:budget:material`, `:budget:logistik` | Limits 2'000 und 900 CHF (Gesamtbudget 2'900 CHF, der Anlass-Rahmen folgt der Summe). Das Logistik-Limit liegt bewusst unter dem Teleskoplader (950 CHF), damit eine Budgetüberschreitung prüfbar ist |
+| Lager | `:lager:regal:<key>`, `:lager:fach:<regal>:<n>`, `:lager:qr` | 2 Regale mit 5 Fächern im Lagerstandort, QR-Codes (Lagerstandort, Regale, Fächer) aus dem Seed-Schlüssel abgeleitet |
+| Fahrzeuge, Fahrerkarten | `:fahrzeug:<key>`, `:fahrerkarte:<konto>` | 3 Fahrzeuge (Transporter, Lieferwagen mit Hebebühne, Anhänger) und Fahrerkarten für `ga-lw`, `ga-clw`, `ga-helfer` (Fahrberechtigung, Klassen B/BE) |
+| Chargen mit Eigentümer | `:charge:<key>` | Eigenbestand (Bauzaunelemente, Eigentümer Grossanlass), Leihe von einer Firma (Festbankgarnituren, Eigentümer extern, Rückgabepflicht), Spende (Holzschnitzel). Der Seed bucht keine Warenbewegung |
 | Geländekarte | `:karte:gelaende` | Fixture `data/seeds/dev-demo/files/event-gelaende.webp` (Hash im Katalog, Quelle © swisstopo), über `GrossanlassMapService`/`MediaStorageService`; Bounds und Opazität aus dem Katalog |
 | Demo-Uhr | `:clock`, `:clock-presets` | einmalige Erstinitialisierung auf 04.04.2027 16:00 (`grossanlass.clockOrigin`); danach nie mehr verstellt; feste Schnellwahl (`demo_clock_presets`) |
 
@@ -466,7 +472,11 @@ Demo Organisation
 
 Schutz: Dreiwege-Vergleich pro Datensatz; von Hand geänderte Werte bleiben und erscheinen als Abweichung, gelöschte Datensätze werden wieder angelegt, nichts wird gelöscht. Die Prozess-Schritte (Beschaffungsablauf, Einsätze, Packaufträge, Karte) entstehen genau einmal über die bestehenden Dienste und werden im Ledger geführt; ein gelöschter Schritt wird gemeldet, nicht neu erzeugt. `app:demo:verify` meldet fehlende Ledger-Einträge, fehlende Datensätze, fehlende Dateien (Karte, Offerten-PDFs) und ein Fixture, dessen Hash nicht zum Katalog passt.
 
-**Legacy-Quelle** (`old-Demo-Grossanlass-Event`, bleibt unverändert) diente als fachliche Vorlage; es werden keine IDs, Zeilen, QR-Codes oder Dateien kopiert. Die Firmen der Beschaffungsketten verwenden die Namen aus dem Altbestand (Häberli Holz, Maki Landtechnik) mit fiktiven `.example`-Kontaktdaten; Bestellungen unterstützen im Datenmodell kein PDF (nur Offerten).
+**Legacy-Quelle** (`old-Demo-Grossanlass-Event`, bleibt unverändert) diente als fachliche Vorlage; es werden keine IDs, Zeilen, QR-Codes oder Dateien kopiert. Übernommen sind Standortdaten (Eventplatz, Zustellpunkt, Lager, Kartengrenzen und Opazität, Kartenpositionen) und die Namen der Beschaffungsfirmen (Häberli Holz mit den Koordinaten des Altbestands, Maki Landtechnik) mit fiktiven `.example`-Kontaktdaten; die Ortsangabe «Ruswil» für Häberli Holz folgt den Koordinaten (amtliche PLZ-Ebene von geo.admin.ch). Die beiden anderen Firmen haben keine Koordinaten, weil der Altbestand keine enthält. Bestellungen unterstützen im Datenmodell kein PDF (nur Offerten).
+
+**Prozessverlauf und Uhr.** Der Seed ist der konsistente Ausgangszustand zum Ausgangspunkt 04.04.2027 16:00. Die BusinessClock verändert nur Anzeige und Zeitberechnung und bucht nichts. Spätere Prozessphasen führt der Benutzer ausdrücklich aus; ein Verlauf Januar bis August als Datenstand braucht eine Architekturentscheidung ([scenarios/GROSSANLASS-EVENT-ENTSCHEIDUNGEN.md](./scenarios/GROSSANLASS-EVENT-ENTSCHEIDUNGEN.md)).
+
+**Reset.** Für `grossanlass-event` gibt es einen sicheren Reset **ohne Löschung** (`DemoEventResetter`, `app:demo:reset --scenario=grossanlass-event --confirm=grossanlass-event`): verwaltete Seed-Werte zurücksetzen, gelöschte Seed-Datensätze mit demselben QR-Code neu anlegen, Uhr auf 04.04.2027 16:00. Prozessdaten und Chargen von Hand bleiben unverändert und werden im Plan gezählt. Die Oberfläche bietet ihn nicht an. Ein Reset mit Löschung ist **OFFEN** (Eigentumsnachweis, siehe Entscheidungsdokument).
 
 ## 8. Umgang mit bestehenden Commands und Daten (SOLL)
 

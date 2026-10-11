@@ -50,6 +50,21 @@ npm run test:e2e
 
 **Sicherheit:** E2E-Passwort nur als Env/GitHub-Secret — nie in Issues, Chat oder Git.
 
+## Demo «Grossanlass Event 2027» (isolierte Umgebung)
+
+`frontend/e2e/ga-event-demo.spec.ts` prüft Anlasszeitraum, Stammdaten-Zeiten, Navigation unter «Beschaffung», Budget Material & Logistik, die Schnellwahl der Demo-Uhr und dass ein Zeitsprung keine Budgetzahlen ändert. Er läuft **nur gegen eine isolierte, frisch mit `app:demo:sync --all` befüllte Umgebung** (nie gegen eine Datenbank mit von Hand veränderten Demo-Daten; die Demo-Uhr ist Datenbankzustand und der Test verstellt sie vorübergehend), aktiv nur mit `E2E_GA_DEMO=1` und dem öffentlichen Demo-Konto `ga-mw`.
+
+Lokal ohne Eingriff in `mvdb`: Wegwerf-PostgreSQL (eigener Container, eigene Datenbank, migriert und befüllt), zweiter Backend-Container desselben Images mit `DATABASE_URL` auf diese Datenbank (Port 8083), Vite mit `VITE_API_PROXY_TARGET=http://127.0.0.1:8083` und den Hosts `app.ematchef.test` auf Port 5199; Chromium bildet die Hosts über `E2E_HOST_RESOLVER='MAP *.ematchef.test 127.0.0.1, MAP ematchef.test 127.0.0.1'` auf 127.0.0.1 ab (Playwright-Config, kein Eintrag in `/etc/hosts` nötig):
+
+```bash
+E2E_GA_DEMO=1 E2E_BASE_URL=http://app.ematchef.test:5199 \
+E2E_HOST_RESOLVER='MAP *.ematchef.test 127.0.0.1, MAP ematchef.test 127.0.0.1' \
+E2E_USER_EMAIL=ga-mw@demo.ematchef.ch E2E_USER_PASSWORD='<Demo-Passwort aus demo-accounts.json>' \
+npx playwright test e2e/ga-event-demo.spec.ts
+```
+
+**Achtung:** Ein Neustart des Backend-Containers der Entwicklungsumgebung führt `doctrine:migrations:migrate` gegen `mvdb` aus (Entrypoint) und würde damit neue Migrationen anwenden.
+
 ## CI
 
 Workflow **E2E Smoke** (`.github/workflows/e2e-smoke.yml`):
