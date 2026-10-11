@@ -36,6 +36,8 @@ final class ClockOriginAndWiringTest extends ScenarioTestCase
             (new \ReflectionClass(\App\Service\Bootstrap\DemoGrossanlassEventJobsSeedService::class))->newInstanceWithoutConstructor(),
             (new \ReflectionClass(\App\Service\Demo\Scenario\DemoScenarioIdentity::class))->newInstanceWithoutConstructor(),
             new \App\Service\Demo\Organisation\DemoOrganisationCatalog(),
+            (new \ReflectionClass(\App\Service\Clock\BusinessClock::class))->newInstanceWithoutConstructor(),
+            (new \ReflectionClass(\App\Service\Bootstrap\DemoGrossanlassEventProcessSeedService::class))->newInstanceWithoutConstructor(),
         );
     }
 
@@ -51,8 +53,8 @@ final class ClockOriginAndWiringTest extends ScenarioTestCase
         $keyed = $this->gaDepartment(DemoScenarioKey::GROSSANLASS_EVENT);
         self::assertFalse($legacy->supports($keyed));
         self::assertTrue($scenarioResolver->supports($keyed));
-        // Bestehender Ausgangspunkt unverändert: Anlassbeginn − 5 Tage, 09:00
-        self::assertSame('2026-11-06 09:00:00', $scenarioResolver->originFor($keyed)->format('Y-m-d H:i:s'));
+        // Event: fester Ausgangspunkt aus dem Katalog (04.04.2027 16:00), unabhängig vom Anlassbeginn der Konfiguration
+        self::assertSame('2027-04-04 16:00:00', $scenarioResolver->originFor($keyed)->format('Y-m-d H:i:s'));
     }
 
     public function testScenarioWithoutOriginFallsBackToRealTimeAndUnregisteredKeyIsIgnored(): void
@@ -80,7 +82,7 @@ final class ClockOriginAndWiringTest extends ScenarioTestCase
         $realDept = $this->department('r1', false, true);
 
         self::assertSame('2026-11-06 09:00:00', $clock->originFor($unkeyed)->format('Y-m-d H:i:s'));
-        self::assertSame('2026-11-06 09:00:00', $clock->originFor($keyed)->format('Y-m-d H:i:s'));
+        self::assertSame('2027-04-04 16:00:00', $clock->originFor($keyed)->format('Y-m-d H:i:s'));
         // Szenario ohne Ausgangspunkt und echtes Department: reale Zeit, kein Resolver greift
         foreach ([$material, $realDept] as $d) {
             self::assertEqualsWithDelta(time(), $clock->originFor($d)->getTimestamp(), 5);

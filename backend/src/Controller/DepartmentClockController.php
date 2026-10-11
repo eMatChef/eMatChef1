@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Department;
+use App\Entity\DepartmentCalendarPeriod;
 use App\Entity\User;
 use App\Service\Clock\BusinessClock;
 use App\Service\GroupAccessService;
@@ -129,6 +130,47 @@ class DepartmentClockController extends AbstractController
             'real_now' => $real->format(self::WALL_CLOCK),
             'offset_seconds' => $this->clock->offsetSeconds($department),
             'can_travel' => $this->clock->supportsTravel($department),
+            'presets' => $this->presets($department),
         ];
+    }
+
+    /**
+     * Schnellwahl der Demo-Uhr, abgeleitet aus dem Anlasszeitraum und den fixen Daten (Aufbau, Abbau) der
+     * Grossanlass-Konfiguration; nichts davon ist im Frontend hinterlegt. Alle Zeiten sind Wandzeit (lokale Veranstaltungszeit).
+     * Departments ohne Grossanlass-Konfiguration haben keine Schnellwahl.
+     *
+     * @return list<array{key: string, at: string}>
+     */
+    private function presets(Department $department): array
+    {
+        $config = $department->getGrossanlassConfig();
+        if ($config === null) {
+            return [];
+        }
+        $start = \DateTimeImmutable::createFromInterface($config->getPlannedEventStart());
+        $end = $config->getPlannedEventEnd() !== null ? \DateTimeImmutable::createFromInterface($config->getPlannedEventEnd()) : $start;
+        $period = function (string $label) use ($department): ?DepartmentCalendarPeriod {
+            $row = $this->entityManager->getRepository(DepartmentCalendarPeriod::class)->findOneBy(['departmentId' => $department->getId(), 'label' => $label]);
+
+            return $row instanceof DepartmentCalendarPeriod ? $row : null;
+        };
+        $at = static fn (\DateTimeInterface $date, \DateTimeInterface $time): \DateTimeImmutable => new \DateTimeImmutable($date->format('Y-m-d') . ' ' . $time->format('H:i:s'));
+
+        $presets = [
+            ['key' => 'months_before_5', 'at' => $start->modify('-5 months')],
+            ['key' => 'months_before_2', 'at' => $start->modify('-2 months')],
+        ];
+        $build = $period(DepartmentCalendarPeriod::LABEL_AUFBAU);
+        if ($build !== null) {
+            $presets[] = ['key' => 'build', 'at' => $at($build->getStartDate(), $build->getStartTime())];
+        }
+        $midDay = $start->setTime(0, 0)->modify(sprintf('+%d days', intdiv((int) $start->setTime(0, 0)->diff($end->setTime(0, 0))->days, 2)));
+        $presets[] = ['key' => 'during_event', 'at' => $midDay->setTime(12, 0)];
+        $teardown = $period(DepartmentCalendarPeriod::LABEL_ABBAU);
+        $teardownDay = $teardown !== null ? $at($teardown->getStartDate(), $teardown->getStartTime()) : $end;
+        $presets[] = ['key' => 'teardown', 'at' => $teardownDay->setTime(0, 0)->modify('+1 day')->setTime(9, 0)];
+        $presets[] = ['key' => 'months_after_2', 'at' => $end->modify('+2 months')];
+
+        return array_map(static fn (array $p): array => ['key' => $p['key'], 'at' => $p['at']->format(self::WALL_CLOCK)], $presets);
     }
 }

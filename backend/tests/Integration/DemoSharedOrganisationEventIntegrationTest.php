@@ -37,6 +37,10 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
         (new Dotenv())->usePutenv(false)->loadEnv(dirname(__DIR__, 2) . '/.env', 'APP_ENV', 'test', ['test']);
         $_ENV['DATABASE_URL'] = $_SERVER['DATABASE_URL'] = $url;
 
+        // Dateien, die der Seed im Dateispeicher ablegt (Karte, Offerten-PDFs), nach dem Test wieder entfernen.
+        $uploads = dirname(__DIR__, 2) . '/var/uploads';
+        $before = is_dir($uploads) ? array_diff((array) scandir($uploads), ['.', '..']) : [];
+
         FreshKernel::run(function ($kernel) use ($test): void {
             $c = $kernel->getContainer();
             /** @var EntityManagerInterface $em */
@@ -49,6 +53,12 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
                 $conn->rollBack();
             }
         }, $url, [DemoScenarioRunner::class, DemoScenarioRegistry::class, DemoOrganisationCatalog::class, \App\Service\Demo\Legacy\LegacyDemoRename::class, \App\Service\Bootstrap\DemoGrossanlassSeedService::class]);
+
+        if (is_dir($uploads)) {
+            foreach (array_diff((array) scandir($uploads), ['.', '..'], $before) as $created) {
+                (new \Symfony\Component\Filesystem\Filesystem())->remove($uploads . '/' . $created);
+            }
+        }
     }
 
     /** @return array<string, SeedResult> */
@@ -140,29 +150,73 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             self::assertSame('Demo-Festplatz Seewiese', $config['location_text']);
             self::assertStringContainsString('Mehrtägige Pfadi-Grossveranstaltung', (string) $config['notes']);
             $venue = $conn->fetchAssociative('SELECT * FROM address WHERE id=?', [$config['venue_address_id']]);
-            self::assertSame(['event', 'Seewiesenweg', '1', '6000', 'Luzern', 'Schweiz'], [$venue['type'], $venue['street'], $venue['street_number'], $venue['postal_code'], $venue['city'], $venue['country']]);
-            $start = new \DateTimeImmutable((string) $config['planned_event_start']);
-            self::assertSame($start->setTime(0, 0)->modify('+2 days')->format('Y-m-d') . ' 23:59:59', (new \DateTimeImmutable((string) $config['planned_event_end']))->format('Y-m-d H:i:s'));
-            self::assertSame((new \DateTimeImmutable((string) $config['planned_event_end']))->format('Y-m-d'), (string) $conn->fetchOne('SELECT end_date FROM department_calendar_period WHERE department_id=?', [$event]));
+            self::assertSame(['event', 'Seewiesenweg', '1', '6242', 'Wauwil', 'Schweiz'], [$venue['type'], $venue['street'], $venue['street_number'], $venue['postal_code'], $venue['city'], $venue['country']]);
+            // Feste Event-Zeiten 2027 (lokale Wandzeit): Anlass, Hauptaktivität, Kalenderperioden Aufbau/Event/Abbau
+            self::assertSame(['2027-06-04 16:00:00', '2027-06-06 16:00:00'], [(string) $config['planned_event_start'], (string) $config['planned_event_end']]);
+            self::assertSame(['2027-06-04 16:00:00', '2027-06-06 16:00:00'], array_values($conn->fetchNumeric('SELECT a.usage_start, a.usage_end FROM activity a JOIN department_grossanlass_config c ON c.main_activity_id=a.id WHERE c.department_id=?', [$event])));
+            $periods = [];
+            foreach ($conn->fetchAllAssociative('SELECT label, start_date || \' \' || start_time AS s, end_date || \' \' || end_time AS e FROM department_calendar_period WHERE department_id=? ORDER BY label', [$event]) as $row) {
+                $periods[$row['label']] = [$row['s'], $row['e']];
+            }
+            ksort($periods);
+            self::assertSame([
+                'abbau' => ['2027-06-06 17:00:00', '2027-06-23 12:00:00'],
+                'aufbau' => ['2027-05-19 13:00:00', '2027-06-04 16:00:00'],
+                'grossanlass' => ['2027-06-04 16:00:00', '2027-06-06 16:00:00'],
+            ], $periods);
+            // Demo-Uhr: einmalige Erstinitialisierung auf 04.04.2027 16:00 (Wandzeit)
+            $offset = (int) $conn->fetchOne('SELECT demo_clock_offset_seconds FROM department WHERE id=?', [$event]);
+            self::assertEqualsWithDelta((new \DateTimeImmutable('2027-04-04 16:00:00', new \DateTimeZone('UTC')))->getTimestamp(), time() + $offset, 180);
+            self::assertSame(1, (int) $conn->fetchOne("SELECT count(*) FROM demo_seed_record WHERE seed_key='grossanlass-event:clock'"));
 
             // Ressorts und Bereiche (Organisationsstruktur) sowie Bauprojekte: 13 Katalog-Gruppen + 6 Gewerke + 20 Bauprojekte
             self::assertSame(13 + 6 + 20, (int) $conn->fetchOne('SELECT count(*) FROM "group" WHERE department_id=?', [$event]));
             self::assertSame(8, (int) $conn->fetchOne("SELECT count(*) FROM \"group\" WHERE department_id=? AND grossanlass_kind='ressort'", [$event]));
             self::assertSame(20, (int) $conn->fetchOne("SELECT count(*) FROM \"group\" WHERE department_id=? AND grossanlass_kind='teilbereich' AND build_status='planned'", [$event]));
-            // Zeitfenster relativ zum Anlass: Aufbau vor Beginn, Rückbau nach dem Ende
-            $min = (string) $conn->fetchOne('SELECT min(window_start) FROM "group" WHERE department_id=?', [$event]);
-            $max = (string) $conn->fetchOne('SELECT max(window_end) FROM "group" WHERE department_id=?', [$event]);
-            self::assertSame($start->setTime(0, 0)->modify('-10 days')->format('Y-m-d'), substr($min, 0, 10));
-            self::assertSame($start->setTime(0, 0)->modify('+3 days')->format('Y-m-d'), substr($max, 0, 10));
+            // Feste Zeitfenster: vom Aufbaubeginn (19.05.) bis zum Ende der Rücklieferung innerhalb des Abbaus (16.06.)
+            self::assertSame('2027-05-19', substr((string) $conn->fetchOne('SELECT min(window_start) FROM "group" WHERE department_id=?', [$event]), 0, 10));
+            self::assertSame('2027-06-16', substr((string) $conn->fetchOne('SELECT max(window_end) FROM "group" WHERE department_id=?', [$event]), 0, 10));
+            self::assertSame(0, (int) $conn->fetchOne('SELECT count(*) FROM "group" WHERE department_id=? AND (window_start < DATE \'2027-05-19\' OR window_end > DATE \'2027-06-23\')', [$event]));
             // Materialwünsche, Orte, Aufgaben, Fahrzeugbedarfe, Beschaffung und Kosten
             self::assertSame(57, (int) $conn->fetchOne('SELECT count(*) FROM activity_grossanlass_wish_line l JOIN "group" g ON g.id=l.group_id WHERE g.department_id=?', [$event]));
             self::assertSame(20, (int) $conn->fetchOne("SELECT count(*) FROM department_grossanlass_place WHERE department_id=? AND kind='bauprojekt'", [$event]));
-            self::assertSame([5, 5, 4, 4], [
+            self::assertSame([7, 6, 5, 6], [
                 (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_task WHERE department_id=?', [$event]),
                 (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_vehicle_need WHERE department_id=?', [$event]),
                 (int) $conn->fetchOne('SELECT count(*) FROM activity_grossanlass_procurement_line WHERE department_id=?', [$event]),
                 (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_cost WHERE department_id=?', [$event]),
             ]);
+            // Beschaffungsablauf: Bedarf → Anfrage → Offerte (PDF) → Budget → Bestellung → Zusage → Einsatz → Packauftrag
+            $row = static fn (string $sql): array => $conn->fetchAllAssociative($sql, [$event]);
+            self::assertSame(['bestellt', 'bedarf', 'budgetiert', 'offerte_eingeholt', 'bedarf'], array_column($row("SELECT status FROM activity_grossanlass_procurement_line WHERE department_id=? ORDER BY CASE label WHEN 'Schwartenbretter' THEN 0 WHEN 'Festzelt 3x3 m' THEN 1 WHEN 'Teleskoplader' THEN 2 WHEN 'Nägel 5x80' THEN 3 ELSE 4 END"), 'status'));
+            self::assertSame([3, 2], [
+                (int) $conn->fetchOne('SELECT count(*) FROM activity_grossanlass_procurement_quote q JOIN activity_grossanlass_procurement_line l ON l.id=q.procurement_line_id WHERE l.department_id=?', [$event]),
+                (int) $conn->fetchOne('SELECT count(*) FROM activity_grossanlass_procurement_quote q JOIN activity_grossanlass_procurement_line l ON l.id=q.procurement_line_id WHERE l.department_id=? AND q.pdf_filename IS NOT NULL', [$event]),
+            ]);
+            // Bestellung gehört zur gewählten Offerte derselben Position und zur Kauf-Zusage; die Zusage der Miete kommt aus der Anfrage
+            self::assertSame(1, (int) $conn->fetchOne("SELECT count(*) FROM activity_grossanlass_procurement_order o JOIN activity_grossanlass_procurement_quote q ON q.procurement_line_id=o.procurement_line_id AND q.selected = true JOIN department_grossanlass_commitment c ON c.procurement_line_id=o.procurement_line_id AND c.origin='buy' WHERE c.department_id=? AND o.order_ref='B-2027-014' AND q.amount_chf = o.cost_chf", [$event]));
+            $origins = [];
+            foreach ($conn->fetchAllAssociative('SELECT origin, count(*) AS n FROM department_grossanlass_commitment WHERE department_id=? GROUP BY origin', [$event]) as $r) {
+                $origins[$r['origin']] = (int) $r['n'];
+            }
+            ksort($origins);
+            self::assertSame(['buy' => 1, 'loan' => 1], $origins);
+            self::assertSame(['antwort', 'entwurf', 'gesendet', 'zusage'], $conn->fetchFirstColumn('SELECT status FROM department_grossanlass_inquiry WHERE department_id=? ORDER BY status', [$event]));
+            self::assertSame([4, 4], [
+                (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_einsatz WHERE department_id=?', [$event]),
+                (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_pack WHERE department_id=?', [$event]),
+            ]);
+            // Packaufträge: neue, eindeutige öffentliche Codes (keine Legacy-Codes)
+            $codes = $conn->fetchFirstColumn('SELECT public_code FROM department_grossanlass_pack WHERE department_id=?', [$event]);
+            self::assertCount(4, array_unique($codes));
+            self::assertSame([], array_values(array_intersect($codes, ['pk03ac0d0924', 'pk192ad9fe02', 'pkabe9899b32', 'pkbb2dde53cb'])));
+            // Geländekarte: Datei (Hash im Katalog), Bounds, Opazität, platzierte Orte mit Koordinaten
+            $map = $conn->fetchAssociative('SELECT * FROM department_grossanlass_map WHERE department_id=?', [$event]);
+            self::assertSame(['Gelände (© swisstopo)', 943, 721], [$map['name'], (int) $map['image_width'], (int) $map['image_height']]);
+            self::assertEqualsWithDelta([47.18446266494, 47.176207763535, 8.0551671981812, 8.0383444725869, 0.72], [(float) $map['bounds_north'], (float) $map['bounds_south'], (float) $map['bounds_east'], (float) $map['bounds_west'], (float) $map['overlay_opacity']], 1e-9);
+            self::assertSame(20, (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_place WHERE department_id=? AND map_id=? AND map_x IS NOT NULL AND latitude IS NOT NULL', [$event, $map['id']]));
+            self::assertFileExists(dirname(__DIR__, 2) . '/var/uploads/' . $event . '/photos/grossanlass-map/' . $map['id'] . '/' . $map['image_filename']);
+            self::assertSame((new DemoOrganisationCatalog())->scenario('grossanlass-event')['grossanlass']['map']['sha256'], hash_file('sha256', dirname(__DIR__, 2) . '/data/seeds/dev-demo/files/event-gelaende.webp'));
             // Der Event-Inhalt gehört ausschliesslich dem Event-Szenario
             self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM demo_seed_record WHERE scenario_key<>'grossanlass-event' AND (seed_key LIKE '%:wunsch:%' OR seed_key LIKE '%:bauprojekt:%')"));
             foreach (['grossanlass-camp', 'grossanlass-setup', 'materialverwaltung'] as $other) {
@@ -177,6 +231,12 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
                 self::assertSame([], $result->notes, $key);
             }
             self::assertSame($before, $this->counts($conn));
+            self::assertSame($offset, (int) $conn->fetchOne('SELECT demo_clock_offset_seconds FROM department WHERE id=?', [$event]));
+            // Vom Benutzer verstellte Uhr (z. B. «Während Event») bleibt nach jedem weiteren Sync erhalten
+            $manual = (new \DateTimeImmutable('2027-06-05 12:00:00', new \DateTimeZone('UTC')))->getTimestamp() - time();
+            $conn->executeStatement('UPDATE department SET demo_clock_offset_seconds=? WHERE id=?', [$manual, $event]);
+            $this->syncAll($runner, $registry, $em);
+            self::assertSame($manual, (int) $conn->fetchOne('SELECT demo_clock_offset_seconds FROM department WHERE id=?', [$event]));
             self::assertSame($othersBefore, $conn->fetchAllAssociative("SELECT * FROM demo_seed_record WHERE scenario_key IN ('grossanlass-camp','grossanlass-setup','materialverwaltung') ORDER BY seed_key"));
         });
     }
@@ -297,6 +357,41 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
                 self::assertSame([], array_values(array_filter($result->notes, static fn (string $n): bool => !str_starts_with($n, 'Verwaist'))), $key);
             }
             self::assertSame($before, $this->counts($conn));
+        });
+    }
+
+    public function testVerifyDetectsMissingFilesAndRepeatedSyncKeepsThemStable(): void
+    {
+        $this->withDb(function (DemoScenarioRunner $runner, DemoScenarioRegistry $registry, EntityManagerInterface $em, Connection $conn): void {
+            $this->syncAll($runner, $registry, $em);
+            $event = $registry->get(DemoScenarioKey::GROSSANLASS_EVENT);
+            self::assertSame([], $runner->verify($event));
+            $department = $this->eventId($conn);
+            $uploads = dirname(__DIR__, 2) . '/var/uploads/' . $department;
+            $mapFile = (string) $conn->fetchOne('SELECT image_filename FROM department_grossanlass_map WHERE department_id=?', [$department]);
+            $mapId = (string) $conn->fetchOne('SELECT id FROM department_grossanlass_map WHERE department_id=?', [$department]);
+            $files = glob($uploads . '/*/*/*/*') ?: [];
+            self::assertGreaterThanOrEqual(3, \count($files)); // Karte und zwei Offerten-PDFs im Dateispeicher
+            $pdfCount = \count(glob($uploads . '/documents/grossanlass-procurement-quote/*/*.pdf') ?: []);
+            self::assertSame(2, $pdfCount);
+            $codesBefore = $conn->fetchFirstColumn('SELECT public_code FROM department_grossanlass_pack WHERE department_id=? ORDER BY public_code', [$department]);
+
+            // fehlende Karte und fehlendes PDF werden vom Verify erkannt
+            unlink($uploads . '/photos/grossanlass-map/' . $mapId . '/' . $mapFile);
+            $pdf = (glob($uploads . '/documents/grossanlass-procurement-quote/*/*.pdf') ?: [])[0];
+            unlink($pdf);
+            $em->clear();
+            $violations = $runner->verify($event);
+            self::assertNotEmpty(array_filter($violations, static fn (string $v): bool => str_contains($v, 'Karte') && str_contains($v, 'fehlt')));
+            self::assertNotEmpty(array_filter($violations, static fn (string $v): bool => str_contains($v, 'Offerten-PDF')));
+
+            // Wiederholter Sync legt weder Dateien noch Datensätze doppelt an; QR-/Pack-Codes bleiben stabil
+            $before = $this->counts($conn);
+            $em->clear();
+            $runner->sync($event);
+            self::assertSame($before, $this->counts($conn));
+            self::assertSame($codesBefore, $conn->fetchFirstColumn('SELECT public_code FROM department_grossanlass_pack WHERE department_id=? ORDER BY public_code', [$department]));
+            self::assertSame(1, (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_map WHERE department_id=?', [$department]));
         });
     }
 }

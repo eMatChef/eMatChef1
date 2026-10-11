@@ -123,9 +123,16 @@ class DemoOrganisationSeeder
         if (isset($cat['grossanlass']) && $scenario->expectsGrossanlass()) {
             $expected[] = $key . ':config';
             $this->ensureGrossanlassConfig($context, $report, $key, $department, $cat['grossanlass'], $users, $version);
-            if (isset($cat['grossanlass']['locationText']) || isset($cat['grossanlass']['eventDays'])) {
-                $expected = array_merge($expected, [$key . ':venue-address', $key . ':master']);
+            if (isset($cat['grossanlass']['locationText']) || isset($cat['grossanlass']['eventStart'])) {
+                $expected = array_merge($expected, [$key . ':venue-address', $key . ':stammdaten']);
+                if ($context->findRecord($key . ':master') !== null) {
+                    $expected[] = $key . ':master'; // frühere Fassung ohne Anlassbeginn (nicht mehr geführt, nicht gelöscht)
+                }
                 $this->ensureGrossanlassMaster($context, $report, $key, $department, $cat['grossanlass'], $version);
+                foreach ($cat['grossanlass']['phases'] ?? [] as $phase) {
+                    $expected[] = $key . ':phase:' . $phase['key'];
+                    $this->ensureGrossanlassPhase($context, $report, $key, $department, $phase, $version);
+                }
             }
         }
 
@@ -256,6 +263,9 @@ class DemoOrganisationSeeder
         }
         foreach ($cat['participants'] ?? [] as $participantKey) {
             $required[] = $key . ':participant:' . $participantKey;
+        }
+        foreach ($cat['grossanlass']['phases'] ?? [] as $phase) {
+            $required[] = $key . ':phase:' . $phase['key'];
         }
         foreach ($cat['adminScopes'] ?? [] as $scope) {
             $required[] = $key . ':adminscope:' . $scope['account'];
@@ -489,13 +499,16 @@ class DemoOrganisationSeeder
             'notes' => (string) ($def['notes'] ?? $config->getNotes()),
             'venue_address_id' => $address instanceof Address ? $address->getId() : $config->getVenueAddressId(),
         ];
-        if (isset($def['eventDays'])) {
-            $end = \DateTime::createFromInterface($config->getPlannedEventStart())->setTime(0, 0, 0)->modify(sprintf('+%d days', (int) $def['eventDays'] - 1))->setTime(23, 59, 59);
-            $desired['event_end'] = $end->format('Y-m-d H:i:s');
+        // Feste Wandzeiten (lokale Veranstaltungszeit): nie aus dem heutigen Datum berechnet, auch nicht beim Reset oder
+        // beim Verstellen der Demo-Uhr.
+        $withPeriod = isset($def['eventStart'], $def['eventEnd']);
+        if ($withPeriod) {
+            $desired['event_start'] = str_replace('T', ' ', (string) $def['eventStart']);
+            $desired['event_end'] = str_replace('T', ' ', (string) $def['eventEnd']);
         }
 
         $this->applier->ensure($context, $report, new ManagedSpec(
-            seedKey: $key . ':master',
+            seedKey: $key . ':stammdaten',
             create: static fn (): object => throw new \LogicException('Die Grossanlass-Konfiguration wird mit dem Department angelegt.'),
             find: fn (string $id): ?object => $this->entityManager->find(DepartmentGrossanlassConfig::class, $id),
             idOf: static fn (object $c): string => (string) $c->getDepartmentId(),
@@ -503,12 +516,15 @@ class DemoOrganisationSeeder
                 'location_text' => $c->getLocationText(),
                 'notes' => $c->getNotes(),
                 'venue_address_id' => $c->getVenueAddressId(),
-            ] + (isset($desired['event_end']) ? ['event_end' => $c->getPlannedEventEnd()?->format('Y-m-d H:i:s')] : []),
+            ] + ($withPeriod ? [
+                'event_start' => $c->getPlannedEventStart()->format('Y-m-d H:i:s'),
+                'event_end' => $c->getPlannedEventEnd()?->format('Y-m-d H:i:s'),
+            ] : []),
             write: function (object $c, array $d) use ($department): void {
                 $c->setLocationText($d['location_text'])->setNotes($d['notes']);
                 $c->setVenueAddress($d['venue_address_id'] !== null ? $this->entityManager->find(Address::class, $d['venue_address_id']) : null);
-                if (isset($d['event_end'])) {
-                    $this->applyEventEnd($department, $c, new \DateTime($d['event_end']));
+                if (isset($d['event_start'], $d['event_end'])) {
+                    $this->applyEventPeriod($department, $c, new \DateTime($d['event_start']), new \DateTime($d['event_end']));
                 }
             },
             desired: $desired,
@@ -517,16 +533,77 @@ class DemoOrganisationSeeder
         ), $version);
     }
 
-    private function applyEventEnd(Department $department, DepartmentGrossanlassConfig $config, \DateTime $end): void
+    /** Anlasszeitraum in Konfiguration, Kalenderperiode «grossanlass» und Hauptaktivität gleichziehen (Wandzeit, naive Datumswerte). */
+    private function applyEventPeriod(Department $department, DepartmentGrossanlassConfig $config, \DateTime $start, \DateTime $end): void
     {
+        $config->setPlannedEventStart($start);
         $config->setPlannedEventEnd($end);
         foreach ($this->entityManager->getRepository(DepartmentCalendarPeriod::class)->findBy(['departmentId' => $department->getId(), 'label' => DepartmentCalendarPeriod::LABEL_GROSSANLASS]) as $period) {
-            $period->setEndDate((clone $end)->setTime(0, 0, 0));
+            $this->setPeriodTimes($period, $start, $end);
         }
         $activity = $config->getMainActivity();
         if ($activity !== null) {
+            $activity->setUsageStart($start);
             $activity->setUsageEnd($end);
         }
+    }
+
+    private function setPeriodTimes(DepartmentCalendarPeriod $period, \DateTime $start, \DateTime $end): void
+    {
+        $period->setStartDate((clone $start)->setTime(0, 0, 0));
+        $period->setEndDate((clone $end)->setTime(0, 0, 0));
+        $period->setStartTime(\DateTime::createFromFormat('H:i:s', $start->format('H:i:s')) ?: clone $start);
+        $period->setEndTime(\DateTime::createFromFormat('H:i:s', $end->format('H:i:s')) ?: clone $end);
+    }
+
+    /**
+     * Fixe Daten des Anlasses (Aufbau, Abbau) als Kalenderperioden. Dreiwege-Vergleich; eine vorhandene gleich beschriftete
+     * Periode des Szenario-Departments wird einmalig übernommen.
+     *
+     * @param array<string, mixed> $phase
+     */
+    private function ensureGrossanlassPhase(SeedContext $context, SyncReport $report, string $key, Department $department, array $phase, string $version): void
+    {
+        $label = $phase['key'] === 'abbau' ? DepartmentCalendarPeriod::LABEL_ABBAU : DepartmentCalendarPeriod::LABEL_AUFBAU;
+        $start = new \DateTime(str_replace('T', ' ', (string) $phase['start']));
+        $end = new \DateTime(str_replace('T', ' ', (string) $phase['end']));
+        $desired = ['name' => (string) $phase['name'], 'start' => $start->format('Y-m-d H:i:s'), 'end' => $end->format('Y-m-d H:i:s')];
+
+        $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $key . ':phase:' . $phase['key'],
+            create: function () use ($department, $label): DepartmentCalendarPeriod {
+                $p = new DepartmentCalendarPeriod();
+                $p->setId(IdGenerator::generateUnique($this->entityManager, DepartmentCalendarPeriod::class));
+                $p->setDepartmentId($department->getId());
+                $p->setLabel($label);
+
+                return $p;
+            },
+            find: fn (string $id): ?object => $this->entityManager->find(DepartmentCalendarPeriod::class, $id),
+            idOf: static fn (object $p): string => (string) $p->getId(),
+            read: static fn (object $p): array => [
+                'name' => $p->getName(),
+                'start' => (new \DateTime($p->getStartDate()->format('Y-m-d') . ' ' . $p->getStartTime()->format('H:i:s')))->format('Y-m-d H:i:s'),
+                'end' => (new \DateTime($p->getEndDate()->format('Y-m-d') . ' ' . $p->getEndTime()->format('H:i:s')))->format('Y-m-d H:i:s'),
+            ],
+            write: function (object $p, array $d): void {
+                $p->setName($d['name']);
+                $this->setPeriodTimes($p, new \DateTime($d['start']), new \DateTime($d['end']));
+            },
+            desired: $desired,
+            adopt: fn (): ?object => $this->adoptPeriod($department, $label),
+        ), $version);
+    }
+
+    private function adoptPeriod(Department $department, string $label): ?DepartmentCalendarPeriod
+    {
+        $period = $this->entityManager->getRepository(DepartmentCalendarPeriod::class)->findOneBy(['departmentId' => $department->getId(), 'label' => $label]);
+        if (!$period instanceof DepartmentCalendarPeriod) {
+            return null;
+        }
+        $taken = $this->entityManager->getRepository(DemoSeedRecord::class)->findOneBy(['entityClass' => DepartmentCalendarPeriod::class, 'entityId' => $period->getId()]);
+
+        return $taken === null ? $period : null;
     }
 
     private function createDepartment(DemoScenarioInterface $scenario, Organisation $organisation, User $owner, string $name): Department

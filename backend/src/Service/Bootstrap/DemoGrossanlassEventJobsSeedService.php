@@ -131,8 +131,9 @@ final class DemoGrossanlassEventJobsSeedService
                     ++$createdJobs;
                 }
 
-                $validFrom = $this->dateFromOffset($eventStart, (int) $jobDef['from'])->setTime(8, 0);
-                $validTo = $this->dateFromOffset($eventStart, (int) $jobDef['to'])->setTime(18, 0);
+                [$from, $to] = $this->windowFor((string) $jobDef['name']);
+                $validFrom = new \DateTime($from . ' 08:00:00');
+                $validTo = new \DateTime($to . ' 18:00:00');
 
                 foreach ($jobDef['materials'] as $material) {
                     /** @var array<string, mixed> $material */
@@ -239,8 +240,6 @@ final class DemoGrossanlassEventJobsSeedService
         $actor = $this->resolveActor();
         $round = $this->planningRounds->ensureOpenMaterialWishRound($department, $actor);
         $form = $this->formService->findOrCreateFormForRound($round);
-        [$eventStart] = $this->eventWindow($department);
-
         $jobs = [];
         foreach ($this->catalog() as $cluster) {
             $bereich = $this->managedGroup($context, $report, $key . ':bauprojekt:bereich:' . self::slug((string) $cluster['bereich']), $department, $aufbau, [
@@ -248,9 +247,8 @@ final class DemoGrossanlassEventJobsSeedService
                 'kind' => Group::GROSSANLASS_KIND_BEREICH,
                 'sort' => (int) $cluster['sort'],
                 'description' => (string) ($cluster['bereich_desc'] ?? ''),
-                'from' => (int) $cluster['from'],
-                'to' => (int) $cluster['to'],
-            ], $eventStart, $version);
+                'window' => $this->windowFor((string) $cluster['bereich']),
+            ], $version);
             if (!$bereich instanceof Group) {
                 continue;
             }
@@ -261,16 +259,16 @@ final class DemoGrossanlassEventJobsSeedService
                     'kind' => Group::GROSSANLASS_KIND_TEILBEREICH,
                     'sort' => (int) $jobDef['sort'],
                     'description' => (string) $jobDef['description'],
-                    'from' => (int) $jobDef['from'],
-                    'to' => (int) $jobDef['to'],
-                ], $eventStart, $version);
+                    'window' => $this->windowFor((string) $jobDef['name']),
+                ], $version);
                 if (!$job instanceof Group) {
                     continue;
                 }
                 $jobs[(string) $jobDef['name']] = $job;
                 $this->managedPlace($context, $report, $key . ':ort:' . $jobSlug, $department, $job, $version);
-                $validFrom = $this->dateFromOffset($eventStart, (int) $jobDef['from'])->setTime(8, 0);
-                $validTo = $this->dateFromOffset($eventStart, (int) $jobDef['to'])->setTime(18, 0);
+                [$from, $to] = $this->windowFor((string) $jobDef['name']);
+                $validFrom = new \DateTime($from . ' 08:00:00');
+                $validTo = new \DateTime($to . ' 18:00:00');
                 foreach ($jobDef['materials'] as $material) {
                     $this->managedWish($context, $report, $key . ':wunsch:' . $jobSlug . ':' . self::slug((string) $material['label']), $round, $form, $job, $actor, $material, $validFrom, $validTo, (string) $cluster['firma'], $version);
                 }
@@ -280,13 +278,13 @@ final class DemoGrossanlassEventJobsSeedService
         foreach ($this->taskCatalog() as $def) {
             $group = $jobs[$def['job']] ?? null;
             if ($group instanceof Group) {
-                $this->managedTask($context, $report, $key . ':aufgabe:' . $def['key'], $department, $group, $def, $eventStart, $version);
+                $this->managedTask($context, $report, $key . ':aufgabe:' . $def['key'], $department, $group, $def, $version);
             }
         }
         foreach ($this->vehicleNeedCatalog() as $def) {
             $group = $jobs[$def['job']] ?? null;
             if ($group instanceof Group) {
-                $this->managedVehicleNeed($context, $report, $key . ':fahrzeugbedarf:' . $def['key'], $department, $group, $def, $eventStart, $version);
+                $this->managedVehicleNeed($context, $report, $key . ':fahrzeugbedarf:' . $def['key'], $department, $group, $def, $version);
             }
         }
         foreach ($this->procurementCatalog() as $def) {
@@ -301,6 +299,57 @@ final class DemoGrossanlassEventJobsSeedService
         $this->entityManager->flush();
     }
 
+    /**
+     * Feste Zeitfenster der Gewerke und Bauprojekte im Event-Zeitplan 2027 (Aufbau 19.05.–04.06., Durchführung 04.–06.06.,
+     * Abbau 06.–23.06.): Beginn der Aufbauarbeiten bis Ende des Rückbaus bzw. der Rücklieferung. Absolute Tage, einmalig
+     * fachlich festgelegt; nichts wird aus dem heutigen Datum oder dem Anlassbeginn abgeleitet. Gewerke umfassen ihre Bauprojekte.
+     *
+     * @return array<string, array{0: string, 1: string}> Name → [von, bis] (Y-m-d)
+     */
+    private function scenarioWindows(): array
+    {
+        return [
+            // Holzbau: früher Aufbau, Rückbau gleich nach dem Anlass
+            'Ticket-Häuschen Eingang' => ['2027-05-19', '2027-06-09'],
+            'Bar-Tresen West' => ['2027-05-21', '2027-06-09'],
+            'Crew-Hütte Backstage' => ['2027-05-20', '2027-06-09'],
+            'Rollstuhlrampe Haupteingang' => ['2027-05-24', '2027-06-08'],
+            'Holzbau' => ['2027-05-19', '2027-06-09'],
+            // Bühne & Gerüst: Aufbau in der letzten Woche, Rückbau mit dem Gerüstbauer
+            'Hauptbühnen-Podest' => ['2027-05-31', '2027-06-09'],
+            'Delay-Tower Ost' => ['2027-05-31', '2027-06-08'],
+            'FOH-Erweiterung' => ['2027-05-31', '2027-06-08'],
+            'Lichtbrücke Traversen' => ['2027-06-01', '2027-06-09'],
+            'Bühne & Gerüst' => ['2027-05-31', '2027-06-09'],
+            // Sanitär- und Wasserbau: bis zur Rücklieferung der Anlagen
+            'WC-Park West' => ['2027-06-01', '2027-06-14'],
+            'Crew-Duschen' => ['2027-06-01', '2027-06-14'],
+            'Grauwasser Hauptbühne' => ['2027-06-01', '2027-06-11'],
+            'Sanitär- & Wasserbau' => ['2027-06-01', '2027-06-14'],
+            // Energie & Strom
+            'Hauptverteiler CEE' => ['2027-05-28', '2027-06-11'],
+            'Notstromaggregat' => ['2027-05-30', '2027-06-14'],
+            'Wegeleuchten Gelände' => ['2027-06-01', '2027-06-14'],
+            'Energie & Strom' => ['2027-05-28', '2027-06-14'],
+            // Zelte & Wetterschutz
+            'Catering-Zelt 20×30' => ['2027-06-01', '2027-06-15'],
+            'Crew-Zelt Backstage' => ['2027-06-01', '2027-06-15'],
+            'Info-Pagode Eingang' => ['2027-06-02', '2027-06-12'],
+            'Zelte & Wetterschutz' => ['2027-06-01', '2027-06-15'],
+            // Sicherheit & Zaun
+            'Bauzaun Perimeter' => ['2027-05-31', '2027-06-16'],
+            'Dränggitter Front of Stage' => ['2027-06-01', '2027-06-12'],
+            'Fluchtweg-Markierung' => ['2027-06-02', '2027-06-14'],
+            'Sicherheit & Zaun' => ['2027-05-31', '2027-06-16'],
+        ];
+    }
+
+    /** @return array{0: string, 1: string} */
+    private function windowFor(string $name): array
+    {
+        return $this->scenarioWindows()[$name] ?? throw new \LogicException(sprintf('Kein Zeitfenster für «%s» im Event-Zeitplan 2027.', $name));
+    }
+
     /** Stabiler Schlüsselteil aus einem Anzeigenamen (Umlaute und Sonderzeichen ersetzt). */
     public static function slug(string $name): string
     {
@@ -310,7 +359,7 @@ final class DemoGrossanlassEventJobsSeedService
     }
 
     /** @param array<string, mixed> $def */
-    private function managedGroup(SeedContext $context, SyncReport $report, string $seedKey, Department $department, Group $parent, array $def, \DateTimeInterface $eventStart, string $version): ?Group
+    private function managedGroup(SeedContext $context, SyncReport $report, string $seedKey, Department $department, Group $parent, array $def, string $version): ?Group
     {
         $desired = [
             'name' => $def['name'],
@@ -318,8 +367,8 @@ final class DemoGrossanlassEventJobsSeedService
             'kind' => $def['kind'],
             'sort' => $def['sort'],
             'description' => $def['description'],
-            'window_start' => $this->dateFromOffset($eventStart, $def['from'])->format('Y-m-d'),
-            'window_end' => $this->dateFromOffset($eventStart, $def['to'])->format('Y-m-d'),
+            'window_start' => $def['window'][0],
+            'window_end' => $def['window'][1],
             'build_status' => Group::BUILD_STATUS_PLANNED,
         ];
         $entity = $this->applier->ensure($context, $report, new ManagedSpec(
@@ -457,14 +506,14 @@ final class DemoGrossanlassEventJobsSeedService
     }
 
     /** @param array<string, mixed> $def */
-    private function managedTask(SeedContext $context, SyncReport $report, string $seedKey, Department $department, Group $group, array $def, \DateTimeInterface $eventStart, string $version): void
+    private function managedTask(SeedContext $context, SyncReport $report, string $seedKey, Department $department, Group $group, array $def, string $version): void
     {
         $desired = [
             'group_id' => $group->getId(),
             'title' => (string) $def['title'],
             'description' => (string) $def['description'],
             'sort' => (int) $def['sort'],
-            'starts_at' => $this->dateFromOffset($eventStart, (int) $def['day'])->setTime((int) $def['hour'], (int) ($def['minute'] ?? 0))->format('Y-m-d H:i:s'),
+            'starts_at' => sprintf('%s %02d:%02d:00', $def['date'], (int) $def['hour'], (int) ($def['minute'] ?? 0)),
             'duration' => (int) $def['duration'],
         ];
         $this->applier->ensure($context, $report, new ManagedSpec(
@@ -496,14 +545,14 @@ final class DemoGrossanlassEventJobsSeedService
     }
 
     /** @param array<string, mixed> $def */
-    private function managedVehicleNeed(SeedContext $context, SyncReport $report, string $seedKey, Department $department, Group $group, array $def, \DateTimeInterface $eventStart, string $version): void
+    private function managedVehicleNeed(SeedContext $context, SyncReport $report, string $seedKey, Department $department, Group $group, array $def, string $version): void
     {
         $desired = [
             'group_id' => $group->getId(),
             'vehicle' => (string) $def['vehicle'],
             'task' => (string) $def['task'],
             'sort' => (int) $def['sort'],
-            'starts_at' => $this->dateFromOffset($eventStart, (int) $def['day'])->setTime((int) $def['hour'], (int) ($def['minute'] ?? 0))->format('Y-m-d H:i:s'),
+            'starts_at' => sprintf('%s %02d:%02d:00', $def['date'], (int) $def['hour'], (int) ($def['minute'] ?? 0)),
             'duration' => (int) $def['duration'],
         ];
         $this->applier->ensure($context, $report, new ManagedSpec(
@@ -638,27 +687,38 @@ final class DemoGrossanlassEventJobsSeedService
         return $this->entityManager->getRepository(\App\Entity\DemoSeedRecord::class)->findOneBy(['entityClass' => $class, 'entityId' => $id]) !== null;
     }
 
-    /** @return list<array<string, mixed>> */
+    /**
+     * Aufgaben der Bauprojekte im Aufbau und Abbau (feste Tage, siehe {@see scenarioWindows()}).
+     *
+     * @return list<array<string, mixed>>
+     */
     private function taskCatalog(): array
     {
         return [
-            ['key' => 'ticket-staenderwerk', 'job' => 'Ticket-Häuschen Eingang', 'title' => 'Ständerwerk aufstellen', 'description' => 'Rahmen nach Bauplan zusammenbauen und ausrichten.', 'sort' => 1, 'day' => -8, 'hour' => 8, 'duration' => 120],
-            ['key' => 'ticket-dach', 'job' => 'Ticket-Häuschen Eingang', 'title' => 'Dach eindecken', 'description' => 'OSB-Beplankung verlegen und Schindeln aufbringen.', 'sort' => 2, 'day' => -4, 'hour' => 8, 'duration' => 180],
-            ['key' => 'podest-montage', 'job' => 'Hauptbühnen-Podest', 'title' => 'Podest montieren', 'description' => 'Podest-Elemente verschrauben, Höhe und Waage prüfen.', 'sort' => 1, 'day' => -3, 'hour' => 8, 'duration' => 480],
-            ['key' => 'zaun-felder', 'job' => 'Bauzaun Perimeter', 'title' => 'Zaunfelder stellen', 'description' => 'Zaunfelder entlang des Perimeters stellen und verklammern.', 'sort' => 1, 'day' => -3, 'hour' => 7, 'minute' => 30, 'duration' => 240],
-            ['key' => 'zelt-aufbau', 'job' => 'Catering-Zelt 20×30', 'title' => 'Zelt aufstellen', 'description' => 'Zelthülle aufrichten, abspannen und Böden verlegen.', 'sort' => 1, 'day' => -2, 'hour' => 8, 'duration' => 360],
+            ['key' => 'ticket-staenderwerk', 'job' => 'Ticket-Häuschen Eingang', 'title' => 'Ständerwerk aufstellen', 'description' => 'Rahmen nach Bauplan zusammenbauen und ausrichten.', 'sort' => 1, 'date' => '2027-05-20', 'hour' => 8, 'duration' => 120],
+            ['key' => 'ticket-dach', 'job' => 'Ticket-Häuschen Eingang', 'title' => 'Dach eindecken', 'description' => 'OSB-Beplankung verlegen und Schindeln aufbringen.', 'sort' => 2, 'date' => '2027-05-26', 'hour' => 8, 'duration' => 180],
+            ['key' => 'podest-montage', 'job' => 'Hauptbühnen-Podest', 'title' => 'Podest montieren', 'description' => 'Podest-Elemente verschrauben, Höhe und Waage prüfen.', 'sort' => 1, 'date' => '2027-06-01', 'hour' => 8, 'duration' => 480],
+            ['key' => 'podest-demontage', 'job' => 'Hauptbühnen-Podest', 'title' => 'Podest demontieren', 'description' => 'Elemente lösen, zählen und für die Rücklieferung verladen.', 'sort' => 2, 'date' => '2027-06-07', 'hour' => 8, 'duration' => 360],
+            ['key' => 'zaun-felder', 'job' => 'Bauzaun Perimeter', 'title' => 'Zaunfelder stellen', 'description' => 'Zaunfelder entlang des Perimeters stellen und verklammern.', 'sort' => 1, 'date' => '2027-06-01', 'hour' => 7, 'minute' => 30, 'duration' => 240],
+            ['key' => 'zaun-abbau', 'job' => 'Bauzaun Perimeter', 'title' => 'Zaunfelder abbauen', 'description' => 'Felder und Klammern einsammeln, Vollständigkeit prüfen.', 'sort' => 2, 'date' => '2027-06-08', 'hour' => 8, 'duration' => 300],
+            ['key' => 'zelt-aufbau', 'job' => 'Catering-Zelt 20×30', 'title' => 'Zelt aufstellen', 'description' => 'Zelthülle aufrichten, abspannen und Böden verlegen.', 'sort' => 1, 'date' => '2027-06-02', 'hour' => 8, 'duration' => 360],
         ];
     }
 
-    /** @return list<array<string, mixed>> */
+    /**
+     * Fahrzeugbedarfe der Bauprojekte (feste Tage).
+     *
+     * @return list<array<string, mixed>>
+     */
     private function vehicleNeedCatalog(): array
     {
         return [
-            ['key' => 'aggregat-anliefern', 'job' => 'Notstromaggregat', 'vehicle' => 'Lieferwagen mit Hebebühne', 'task' => 'Dieselaggregat anliefern', 'sort' => 1, 'day' => -4, 'hour' => 8, 'duration' => 60],
-            ['key' => 'tresen-liefern', 'job' => 'Bar-Tresen West', 'vehicle' => 'Lieferwagen', 'task' => 'Tresen-Elemente liefern', 'sort' => 1, 'day' => -6, 'hour' => 9, 'duration' => 45],
-            ['key' => 'podest-entladen', 'job' => 'Hauptbühnen-Podest', 'vehicle' => 'Teleskoplader', 'task' => 'Podest-Elemente entladen', 'sort' => 1, 'day' => -3, 'hour' => 7, 'minute' => 30, 'duration' => 90],
-            ['key' => 'zelt-abholen', 'job' => 'Catering-Zelt 20×30', 'vehicle' => '7,5-t-Lastwagen', 'task' => 'Zeltmaterial abholen', 'sort' => 1, 'day' => -3, 'hour' => 13, 'duration' => 60],
-            ['key' => 'zelt-retour', 'job' => 'Catering-Zelt 20×30', 'vehicle' => '7,5-t-Lastwagen', 'task' => 'Zeltmaterial zurückbringen', 'sort' => 2, 'day' => 3, 'hour' => 9, 'duration' => 60],
+            ['key' => 'tresen-liefern', 'job' => 'Bar-Tresen West', 'vehicle' => 'Lieferwagen', 'task' => 'Tresen-Elemente liefern', 'sort' => 1, 'date' => '2027-05-21', 'hour' => 9, 'duration' => 45],
+            ['key' => 'aggregat-anliefern', 'job' => 'Notstromaggregat', 'vehicle' => 'Lieferwagen mit Hebebühne', 'task' => 'Dieselaggregat anliefern', 'sort' => 1, 'date' => '2027-05-30', 'hour' => 8, 'duration' => 60],
+            ['key' => 'podest-entladen', 'job' => 'Hauptbühnen-Podest', 'vehicle' => 'Teleskoplader', 'task' => 'Podest-Elemente entladen', 'sort' => 1, 'date' => '2027-05-31', 'hour' => 7, 'minute' => 30, 'duration' => 90],
+            ['key' => 'zelt-abholen', 'job' => 'Catering-Zelt 20×30', 'vehicle' => '7,5-t-Lastwagen', 'task' => 'Zeltmaterial abholen', 'sort' => 1, 'date' => '2027-06-01', 'hour' => 13, 'duration' => 60],
+            ['key' => 'aggregat-retour', 'job' => 'Notstromaggregat', 'vehicle' => 'Lieferwagen mit Hebebühne', 'task' => 'Dieselaggregat zurückbringen', 'sort' => 2, 'date' => '2027-06-14', 'hour' => 8, 'duration' => 60],
+            ['key' => 'zelt-retour', 'job' => 'Catering-Zelt 20×30', 'vehicle' => '7,5-t-Lastwagen', 'task' => 'Zeltmaterial zurückbringen', 'sort' => 2, 'date' => '2027-06-15', 'hour' => 9, 'duration' => 60],
         ];
     }
 
@@ -670,8 +730,6 @@ final class DemoGrossanlassEventJobsSeedService
         return [
             ['key' => 'festzelt-3x3', 'job' => 'Info-Pagode Eingang', 'kind' => 'material', 'label' => 'Festzelt 3x3 m', 'qty' => 4, 'notes' => 'Als Wetterschutz an den Eingängen.', 'category' => $category, 'cost_kind' => DepartmentGrossanlassCost::KIND_LOAN, 'soll_chf' => 480],
             ['key' => 'stromverteiler-63a', 'job' => 'Hauptverteiler CEE', 'kind' => 'material', 'label' => 'Stromverteiler 63 A', 'qty' => 6, 'notes' => 'Mietgeräte für die Unterverteilung.', 'category' => $category, 'cost_kind' => DepartmentGrossanlassCost::KIND_RENTAL, 'soll_chf' => 360],
-            ['key' => 'teleskoplader', 'job' => 'Hauptbühnen-Podest', 'kind' => 'fahrzeug', 'label' => 'Teleskoplader', 'qty' => 1, 'notes' => 'Für Montage der Podest-Elemente und der Lichtbrücke.', 'category' => $category, 'cost_kind' => DepartmentGrossanlassCost::KIND_RENTAL, 'soll_chf' => 950],
-            ['key' => 'schwartenbretter', 'job' => 'Ticket-Häuschen Eingang', 'kind' => 'material', 'label' => 'Schwartenbretter', 'qty' => 30, 'notes' => 'Fassadenverkleidung, Restposten.', 'category' => $category, 'cost_kind' => DepartmentGrossanlassCost::KIND_PURCHASE, 'soll_chf' => 220],
         ];
     }
 

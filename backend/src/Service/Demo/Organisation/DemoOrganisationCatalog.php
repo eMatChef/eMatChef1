@@ -103,6 +103,7 @@ class DemoOrganisationCatalog
                 $fail(sprintf('%s: department.name fehlt.', $key));
             }
             $this->validateParentRef($key, $scenario, $scenarios, $fail);
+            $this->validateGrossanlassTimes($key, $scenario['grossanlass'] ?? [], $fail);
             $departmentKeys = $this->validateDepartments($key, $scenario, $fail);
             $groupKeys = [];
             foreach ($scenario['groups'] ?? [] as $group) {
@@ -200,6 +201,45 @@ class DemoOrganisationCatalog
                         $fail(sprintf('%s: adminScopes: Wurzel «%s» von «%s» unbekannt.', $key, $root, $account));
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Feste Grossanlass-Zeiten (Wandzeit `YYYY-MM-DDTHH:MM:SS`): Anlassbeginn/-ende, Phasen (Aufbau/Abbau) und Uhr-Ausgangspunkt.
+     * Sie werden nie aus dem heutigen Datum berechnet.
+     *
+     * @param array<string, mixed> $ga
+     */
+    private function validateGrossanlassTimes(string $key, array $ga, callable $fail): void
+    {
+        $time = static function (mixed $value): ?\DateTimeImmutable {
+            if (!\is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/', $value)) {
+                return null;
+            }
+
+            return \DateTimeImmutable::createFromFormat('!Y-m-d\TH:i:s', $value) ?: null;
+        };
+        foreach (['eventStart', 'eventEnd', 'clockOrigin'] as $field) {
+            if (isset($ga[$field]) && $time($ga[$field]) === null) {
+                $fail(sprintf('%s: grossanlass.%s muss die Wandzeit «JJJJ-MM-TTTHH:MM:SS» sein.', $key, $field));
+            }
+        }
+        if (isset($ga['eventStart']) !== isset($ga['eventEnd'])) {
+            $fail(sprintf('%s: grossanlass.eventStart und eventEnd gehören zusammen.', $key));
+        }
+        if (isset($ga['eventStart'], $ga['eventEnd']) && $time($ga['eventEnd']) <= $time($ga['eventStart'])) {
+            $fail(sprintf('%s: grossanlass.eventEnd muss nach eventStart liegen.', $key));
+        }
+        $seen = [];
+        foreach ($ga['phases'] ?? [] as $phase) {
+            $phaseKey = (string) ($phase['key'] ?? '');
+            if (!\in_array($phaseKey, ['aufbau', 'abbau'], true) || isset($seen[$phaseKey])) {
+                $fail(sprintf('%s: grossanlass.phases: Schlüssel «%s» ungültig oder doppelt (aufbau|abbau).', $key, $phaseKey));
+            }
+            $seen[$phaseKey] = true;
+            if (trim((string) ($phase['name'] ?? '')) === '' || $time($phase['start'] ?? null) === null || $time($phase['end'] ?? null) === null || $time($phase['end']) <= $time($phase['start'])) {
+                $fail(sprintf('%s: grossanlass.phases «%s»: name, start und end (Ende nach Start) erforderlich.', $key, $phaseKey));
             }
         }
     }

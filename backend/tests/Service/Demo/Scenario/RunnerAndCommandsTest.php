@@ -53,6 +53,8 @@ final class RunnerAndCommandsTest extends ScenarioTestCase
                 (new \ReflectionClass(\App\Service\Bootstrap\DemoGrossanlassEventJobsSeedService::class))->newInstanceWithoutConstructor(),
                 (new \ReflectionClass(\App\Service\Demo\Scenario\DemoScenarioIdentity::class))->newInstanceWithoutConstructor(),
                 new \App\Service\Demo\Organisation\DemoOrganisationCatalog(),
+                (new \ReflectionClass(\App\Service\Clock\BusinessClock::class))->newInstanceWithoutConstructor(),
+                (new \ReflectionClass(\App\Service\Bootstrap\DemoGrossanlassEventProcessSeedService::class))->newInstanceWithoutConstructor(),
             ),
             new \App\Service\Demo\Scenario\GrossanlassCampScenario($seeder, $origin),
         ] as $scenario) {

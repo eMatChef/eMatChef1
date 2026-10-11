@@ -339,13 +339,13 @@ Kein Command löscht ohne Szenario-Schlüssel. Alle Commands ausser `verify`/`st
 
 ### 7.11 Phase 2: Demo-Organisationen (IST)
 
-Code: `backend/src/Service/Demo/Organisation/`, Katalog: `backend/data/seeds/dev-demo/organisations.json` (versioniert über `catalogVersion`, aktuell `2026.10.7`). Migration `Version20261008110000` (zwei nullable Spalten am Ledger). Aufgerufen über `app:demo:sync --scenario=<key>|--all` (und `app:demo:verify`); **kein** Deployment-Schritt.
+Code: `backend/src/Service/Demo/Organisation/`, Katalog: `backend/data/seeds/dev-demo/organisations.json` (versioniert über `catalogVersion`, aktuell `2026.10.9`). Migration `Version20261008110000` (zwei nullable Spalten am Ledger). Aufgerufen über `app:demo:sync --scenario=<key>|--all` (und `app:demo:verify`); **kein** Deployment-Schritt.
 
 **Was ein Sync je Szenario anlegt:** Organisation → Department (plus zusätzliche Hierarchie-Departments, s. u.) → Gruppenbaum → Benutzer → Mitgliedschaften → Gruppenmitgliedschaften → Verwaltungsbereiche. Alle Szenarien verwenden **dieselbe** Demo-Organisation («Demo Organisation», §7.13) und haben je ein eigenes Szenario-Department. **Demo-Benutzer sind reine Testdaten ohne Bezug zu echten Identitäten und gehören keinem Szenario:** ein Konto darf in mehreren Demo-Departments Mitglied sein, je Department aber nur einmal (Katalog-Validator). Konten ohne Department-Mitgliedschaft (`sharedAccounts`, derzeit der Lieferant) legt jeder Sync mit an. Auf einer **neuen Develop-Installation** erzeugt `app:demo:sync --all` damit sämtliche Demo-Konten selbstständig.
 
 **Rollenmodell der Demo-Daten (IST seit Katalog 2026.10.3):** Globale Rollen (`sa`, `org`, `sub`) stehen in `profile.roles` und sind **keine** Mitgliedschaftsrolle. Superadmin, Orgchef und Suborgchef erhalten **nie** automatisch eine MW-Rolle (der Katalog-Validator lehnt `mw`/`cmw` für diese Konten ab; `verify` meldet sie als Verstoss). Ihre Verwaltungszuständigkeit steht in `adminScopes` (Department-Wurzeln im Admin-Scope des Profils, `profile.admin_capabilities.scope.department_root_ids`; der Unterbaum gehört dazu), ihre operativen Rollen nur ausdrücklich unter `members`. Früher sähte der Katalog für alle drei Konten `mw` in allen drei Szenario-Departments; das war ein Seed-Fehler (Ursache: `CreateRoleUsersCommand::getMembershipRole` speicherte sa/org/sub als `mw`, der Katalog übernahm das).
 
-**Seed-Katalog (Version 2026.10.7):**
+**Seed-Katalog (Version 2026.10.9):**
 
 | Szenario | Organisation / Departments | Gruppen | Konten (Rolle) |
 | --- | --- | --- | --- |
@@ -420,7 +420,7 @@ Jedes Grossanlass-Szenario deklariert im Katalog `grossanlass: {guestActivityTyp
 - **Konten (Katalog 2026.10.6):** Alle neun `ga-*`-Konten (`ga-mw`, `ga-cmw`, `ga-ok`, `ga-komm`, `ga-spon`, `ga-lw`, `ga-clw`, `ga-bereich`, `ga-helfer`) sind in **Event, Camp und Einrichtung** Mitglied, jeweils mit derselben Rolle wie im Event (keine neuen Konten, nie primär). Im Camp führt `ga-bereich` das Ressort «Lagergruppen» und `ga-helfer` ist Mitglied von «Gruppe A»; die eigenen `camp-*`-Konten bleiben. Vor der Freigabe im Setup-Szenario: `ga-mw` und `ga-ok` richten ein und geben frei, `ga-cmw` richtet ein, gibt aber nicht frei; alle anderen Rollen haben keinen GA-Zugang. Der Primär-Stern der `ga-*`-Konten liegt auf dem umbenannten Altbestand «old-Demo Grossanlass» (wird nicht angefasst); das Department wird über das Benutzermenü gewählt. Früher automatisch gesäte MW-Rollen von Superadmin/Orgchef/Suborgchef werden auch hier nur bei unverändertem Seed-Stand entfernt (`retiredMembers`).
 - **Klickfolge zum Testen:** siehe öffentliche Seite «Grossanlass: Ersteinrichtung testen» in `eMatChef/documentation`.
 
-### 7.13 Gemeinsame Demo-Organisation und Event-Inhalt (IST, Katalog 2026.10.7)
+### 7.13 Gemeinsame Demo-Organisation und Event-Inhalt (IST, Katalog 2026.10.9)
 
 **Gemeinsame Organisation.** Der Katalog hat genau eine `organisation` («Demo Organisation») auf oberster Ebene; ein eigener `organisation`-Block je Szenario ist ungültig. Struktur nach einem Voll-Sync:
 
@@ -444,17 +444,26 @@ Demo Organisation
 
 | Datenart | Seed-Schlüssel | Umfang |
 | --- | --- | --- |
-| Stammdaten | `:master`, `:venue-address` | Veranstaltungsort «Demo-Festplatz Seewiese», fiktive Adresse (Typ `event`), Beschreibung, Anlassdauer 3 Tage (`eventDays`; Ende, Kalenderperiode und Hauptaktivität folgen) |
+| Stammdaten | `:stammdaten`, `:venue-address` | Veranstaltungsort «Demo-Festplatz Seewiese» (fiktiver Name, Koordinaten des Kartenausschnitts), Beschreibung, **fester** Anlasszeitraum 04.06.2027 16:00 – 06.06.2027 16:00 (Konfiguration, Kalenderperiode «grossanlass», Hauptaktivität) |
+| Fixe Daten | `:phase:aufbau`, `:phase:abbau` | Aufbau 19.05.2027 13:00 – 04.06.2027 16:00, Abbau 06.06.2027 17:00 – 23.06.2027 12:00 (Kalenderperioden mit Uhrzeit) |
 | Ressorts und Bereiche | `:group:<key>` (Katalog) | OK / Gesamtleitung, Infrastruktur (Aufbau, Technik › Wasser & Sanitär), Logistik (Material, Transporte), Programm, Verpflegung, Sicherheit, Kommunikation, Sponsoring |
-| Gewerke und Bauprojekte | `:bauprojekt:bereich:<slug>`, `:bauprojekt:<slug>` | 6 Gewerke unter «Aufbau», 20 Bauprojekte mit Zeitfenster (Tage relativ zum Anlassbeginn, −10 bis +3) |
-| Materialwünsche | `:wunsch:<bauprojekt>:<material>` | 57 Wünsche mit Mengen in der offenen Materialrunde |
-| Orte | `:ort:<slug>` | je Bauprojekt ein Ort (über `GrossanlassPlaceService`) |
-| Aufgaben, Fahrzeugbedarfe | `:aufgabe:<key>`, `:fahrzeugbedarf:<key>` | 5 und 5, relativ zum Anlassbeginn |
-| Beschaffung, Kosten | `:beschaffung:<key>`, `:kosten:<key>` | 4 direkte Beschaffungszeilen mit je einer geplanten Kostenposition |
+| Gewerke und Bauprojekte | `:bauprojekt:bereich:<slug>`, `:bauprojekt:<slug>` | 6 Gewerke unter «Aufbau», 20 Bauprojekte mit **festen** Zeitfenstern vom Aufbaubeginn bis zum Ende von Abbau/Rücklieferung (19.05.–16.06.2027; Tabelle `scenarioWindows()` im Event-Jobs-Dienst) |
+| Materialwünsche | `:wunsch:<bauprojekt>:<material>` | 57 Wünsche mit Mengen in der offenen Materialrunde, gültig im Zeitfenster des Bauprojekts |
+| Orte | `:ort:<slug>`, `:ort-karte:<slug>` | je Bauprojekt ein Ort; Platzierung auf der Geländekarte (`map_id`, `map_x`, `map_y`, Koordinaten) |
+| Aufgaben, Fahrzeugbedarfe | `:aufgabe:<key>`, `:fahrzeugbedarf:<key>` | 7 und 6, in Aufbau und Abbau |
+| Beschaffung (direkt) | `:beschaffung:<key>`, `:kosten:<key>` | 2 direkte Beschaffungszeilen mit je einer geplanten Kostenposition |
+| Beschaffungsablauf | `:ablauf:<kette>:<schritt>` | Kette **holz** (Kauf): Bedarf → Anfrage (Mail-Verlauf) → Offerte mit PDF → Budget → Bestellung → Zusage (Kauf); Kette **lader** (Miete): Bedarf → Anfrage → Offerte mit PDF (gewählt, budgetiert) → Zusage aus der Anfrage; Kette **naegel**: Anfrage per Telefon, Offerte ohne PDF; ein Anfrage-Entwurf. Fiktive Firmen mit `.example`-Adressen |
+| Einsätze, Packaufträge | `:einsatz:<key>`, `:pack:<einsatz>:<n>` | Abholung der bestellten Ware (Fahrauftrag) und Materialzuteilung an ein Bauprojekt; 3 Packaufträge mit **neuen** öffentlichen Codes |
+| Geländekarte | `:karte:gelaende` | Fixture `data/seeds/dev-demo/files/event-gelaende.webp` (Hash im Katalog, Quelle © swisstopo), über `GrossanlassMapService`/`MediaStorageService`; Bounds und Opazität aus dem Katalog |
+| Demo-Uhr | `:clock` | einmalige Erstinitialisierung auf 04.04.2027 16:00 (`grossanlass.clockOrigin`); danach nie mehr verstellt |
 
-Schutz: Dreiwege-Vergleich pro Datensatz; von Hand geänderte Werte bleiben und erscheinen als Abweichung, gelöschte Datensätze werden wieder angelegt, nichts wird gelöscht. Beginn und Zeitraum des Anlasses setzt der Seed nicht neu; alle Zeitfenster hängen am vorhandenen Anlassbeginn (Demo-Uhr: Anlassbeginn − 5 Tage).
+**Zeitsemantik.** Alle Grossanlass-Zeiten sind **naive Wandzeit** (DB `timestamp without time zone`, API mit `+00:00`-Suffix, Frontend liest sie ohne Zeitzonenumrechnung). Die Event-Termine sind lokale Veranstaltungszeiten in Europe/Zurich; weil nie in UTC-Instants umgerechnet wird, bleibt der Wert über die Sommerzeit hinweg unverändert (28.03. und 31.10.2027). Die Daten im Katalog (`eventStart`, `eventEnd`, `phases`, `clockOrigin`) sind fest: kein Sync, kein Reset und keine Zeitreise rechnet sie aus dem heutigen Datum. Die BusinessClock bleibt die eine zentrale Uhr (Offset zur realen Serverzeit); der Katalog-Ausgangspunkt wirkt als Zielzeit der Erstinitialisierung und des Header-Zurücksetzens.
 
-**Bewusst nicht aus dem alten Event übernommen** (Quelle: `old-Demo-Grossanlass-Event`, bleibt unverändert): Zusagen/Einsätze/Packaufträge mit Lieferantenbezug, Beschaffungsanfragen mit Mail-Verlauf (reale Firmennamen, Gmail-Bezüge), Geländekarte mit Bilddatei, Lieferanten-/Lageradressen, manuelle Testgruppen. Offerten, Bestellungen, Wareneingänge und Packen bleiben **SOLL** (siehe [scenarios/GROSSANLASS.md §2](./scenarios/GROSSANLASS.md)).
+**Schnellwahl der Demo-Uhr.** `GET /api/departments/{id}/clock` liefert `presets`, vom Server aus Anlasszeitraum und den Kalenderperioden Aufbau/Abbau abgeleitet (nichts ist im Frontend hinterlegt): 5 und 2 Monate vor Beginn, Aufbaubeginn, mittlerer Eventtag 12:00, Abbau (Tag nach Abbaubeginn 09:00), 2 Monate nach Ende. Für Event 2027: 04.01., 04.04., 19.05. 13:00, 05.06. 12:00, 07.06. 09:00, 06.08.2027. Departments ohne Grossanlass-Konfiguration haben keine Schnellwahl. Es gibt keine automatischen Zeitsprünge.
+
+Schutz: Dreiwege-Vergleich pro Datensatz; von Hand geänderte Werte bleiben und erscheinen als Abweichung, gelöschte Datensätze werden wieder angelegt, nichts wird gelöscht. Die Prozess-Schritte (Beschaffungsablauf, Einsätze, Packaufträge, Karte) entstehen genau einmal über die bestehenden Dienste und werden im Ledger geführt; ein gelöschter Schritt wird gemeldet, nicht neu erzeugt. `app:demo:verify` meldet fehlende Ledger-Einträge, fehlende Datensätze, fehlende Dateien (Karte, Offerten-PDFs) und ein Fixture, dessen Hash nicht zum Katalog passt.
+
+**Legacy-Quelle** (`old-Demo-Grossanlass-Event`, bleibt unverändert) diente als fachliche Vorlage; es werden keine IDs, Zeilen, QR-Codes oder Dateien kopiert. Die Firmen der Beschaffungsketten verwenden die Namen aus dem Altbestand (Häberli Holz, Maki Landtechnik) mit fiktiven `.example`-Kontaktdaten; Bestellungen unterstützen im Datenmodell kein PDF (nur Offerten).
 
 ## 8. Umgang mit bestehenden Commands und Daten (SOLL)
 

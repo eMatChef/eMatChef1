@@ -1,6 +1,6 @@
 {
-  "catalogVersion": "2026.10.7",
-  "_comment": "Versionierter Seed-Katalog der Demo-Organisationen. Schlüssel (key) sind stabile Seed-Identitäten und werden nie umbenannt; Anzeigenamen dürfen sich ändern. Konten stammen aus demo-accounts.json. Demo-Benutzer sind reine Testdaten, gehören keinem Szenario und dürfen in mehreren Demo-Departments Mitglied sein. Globale Rollen (sa/org/sub) stehen in profile.roles und sind keine Mitgliedschaftsrolle: Superadmin, Orgchef und Suborgchef erhalten nie automatisch eine MW-Rolle; ihre Verwaltungszuständigkeit steht in adminScopes (roots = Department-Wurzeln samt Unterbaum, organisation = die Organisation des Szenarios; kombinierbar, auch über mehrere Szenarien; ohne Eintrag keine Verwaltungsrechte), operative Rollen nur ausdrücklich unter members. Alle Szenarien teilen die eine Demo-Organisation (oberste Ebene organisation); Organisations-Scopes sind nicht erlaubt, Verwaltungsbereiche nur über roots. department.parentRef (optional) kann das Szenario-Department unter ein zusätzliches Department eines anderen Szenarios hängen; die Einrichtung nutzt es bewusst nicht, weil sie sonst im Verwaltungsbereich des Orgchefs läge (Rechteausweitung). Zusätzliche Departments (departments) bilden nur die Hierarchie ab, ohne Prozessdaten. members[].department verweist auf einen Schlüssel aus departments (ohne Angabe: das Szenario-Department). retiredMembers nennt früher fälschlich gesäte Mitgliedschaften, die nur entfernt werden, wenn sie unverändert vom Seed stammen. Doku: docs/demo/SEED-KONZEPT.md §7.11.",
+  "catalogVersion": "2026.10.9",
+  "_comment": "Versionierter Seed-Katalog der Demo-Organisationen. Schlüssel (key) sind stabile Seed-Identitäten und werden nie umbenannt; Anzeigenamen dürfen sich ändern. Konten stammen aus demo-accounts.json. Demo-Benutzer sind reine Testdaten, gehören keinem Szenario und dürfen in mehreren Demo-Departments Mitglied sein. Globale Rollen (sa/org/sub) stehen in profile.roles und sind keine Mitgliedschaftsrolle: Superadmin, Orgchef und Suborgchef erhalten nie automatisch eine MW-Rolle; ihre Verwaltungszuständigkeit steht in adminScopes (roots = Department-Wurzeln samt Unterbaum, organisation = die Organisation des Szenarios; kombinierbar, auch über mehrere Szenarien; ohne Eintrag keine Verwaltungsrechte), operative Rollen nur ausdrücklich unter members. Alle Szenarien teilen die eine Demo-Organisation (oberste Ebene organisation); Organisations-Scopes sind nicht erlaubt, Verwaltungsbereiche nur über roots. department.parentRef (optional) kann das Szenario-Department unter ein zusätzliches Department eines anderen Szenarios hängen; die Einrichtung nutzt es bewusst nicht, weil sie sonst im Verwaltungsbereich des Orgchefs läge (Rechteausweitung). Zusätzliche Departments (departments) bilden nur die Hierarchie ab, ohne Prozessdaten. members[].department verweist auf einen Schlüssel aus departments (ohne Angabe: das Szenario-Department). retiredMembers nennt früher fälschlich gesäte Mitgliedschaften, die nur entfernt werden, wenn sie unverändert vom Seed stammen. Doku: docs/demo/SEED-KONZEPT.md §7.11. Grossanlass-Zeiten (eventStart/eventEnd, phases, clockOrigin) sind feste Wandzeiten (lokale Veranstaltungszeit Europe/Zurich, ohne Zeitzonenumrechnung wie alle Grossanlass-Zeiten) und werden nie aus dem heutigen Datum berechnet; clockOrigin setzt die Demo-Uhr einmalig bei der Erstinitialisierung.",
   "organisation": {
     "name": "Demo Organisation"
   },
@@ -438,18 +438,128 @@
       "grossanlass": {
         "guestActivityType": "event",
         "setupReleased": true,
-        "eventDays": 3,
         "locationText": "Demo-Festplatz Seewiese",
         "notes": "Mehrtägige Pfadi-Grossveranstaltung mit Aufbau, Veranstaltungsbetrieb und Rückbau.",
         "venue": {
           "name": "Demo-Festplatz Seewiese",
           "street": "Seewiesenweg",
           "streetNumber": "1",
-          "postalCode": "6000",
-          "city": "Luzern",
+          "postalCode": "6242",
+          "city": "Wauwil",
           "canton": "LU",
-          "latitude": 47.0502,
-          "longitude": 8.3093
+          "latitude": 47.17837,
+          "longitude": 8.04705
+        },
+        "eventStart": "2027-06-04T16:00:00",
+        "eventEnd": "2027-06-06T16:00:00",
+        "phases": [
+          {
+            "key": "aufbau",
+            "name": "Aufbau",
+            "start": "2027-05-19T13:00:00",
+            "end": "2027-06-04T16:00:00"
+          },
+          {
+            "key": "abbau",
+            "name": "Abbau",
+            "start": "2027-06-06T17:00:00",
+            "end": "2027-06-23T12:00:00"
+          }
+        ],
+        "clockOrigin": "2027-04-04T16:00:00",
+        "map": {
+          "fixture": "event-gelaende.webp",
+          "sha256": "eac4a15e31829ea7620c5c6ecb7d0ad96f84a4c4411691e8d56f17da0c1a8caa",
+          "name": "Gelände (© swisstopo)",
+          "bounds": {
+            "north": 47.18446266494,
+            "south": 47.176207763535,
+            "east": 8.0551671981812,
+            "west": 8.0383444725869
+          },
+          "overlayOpacity": 0.72,
+          "placements": {
+            "Hauptbühnen-Podest": [
+              0.59,
+              0.73
+            ],
+            "Lichtbrücke Traversen": [
+              0.57,
+              0.7
+            ],
+            "FOH-Erweiterung": [
+              0.52,
+              0.66
+            ],
+            "Delay-Tower Ost": [
+              0.64,
+              0.6
+            ],
+            "Catering-Zelt 20×30": [
+              0.47,
+              0.71
+            ],
+            "Crew-Zelt Backstage": [
+              0.65,
+              0.39
+            ],
+            "Info-Pagode Eingang": [
+              0.5,
+              0.44
+            ],
+            "Ticket-Häuschen Eingang": [
+              0.52,
+              0.47
+            ],
+            "Bar-Tresen West": [
+              0.49,
+              0.46
+            ],
+            "Crew-Hütte Backstage": [
+              0.67,
+              0.36
+            ],
+            "Rollstuhlrampe Haupteingang": [
+              0.54,
+              0.43
+            ],
+            "Hauptverteiler CEE": [
+              0.62,
+              0.5
+            ],
+            "Notstromaggregat": [
+              0.68,
+              0.52
+            ],
+            "Wegeleuchten Gelände": [
+              0.55,
+              0.55
+            ],
+            "WC-Park West": [
+              0.49,
+              0.42
+            ],
+            "Crew-Duschen": [
+              0.65,
+              0.43
+            ],
+            "Grauwasser Hauptbühne": [
+              0.57,
+              0.78
+            ],
+            "Bauzaun Perimeter": [
+              0.36,
+              0.3
+            ],
+            "Dränggitter Front of Stage": [
+              0.6,
+              0.68
+            ],
+            "Fluchtweg-Markierung": [
+              0.4,
+              0.62
+            ]
+          }
         }
       }
     },

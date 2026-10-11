@@ -6,6 +6,7 @@ namespace App\Tests\Controller;
 
 use App\Controller\DepartmentClockController;
 use App\Entity\Department;
+use App\Entity\DepartmentCalendarPeriod;
 use App\Entity\DepartmentGrossanlassConfig;
 use App\Service\Grossanlass\GrossanlassClockOriginResolver;
 use App\Entity\User;
@@ -103,6 +104,72 @@ final class DepartmentClockControllerTest extends TestCase
         self::assertSame(200, $controller->put('dep000000001', $this->putRequest('+1 day'))->getStatusCode());
     }
 
+    public function testQuickSelectionIsDerivedFromTheFixedEventPhases(): void
+    {
+        $department = $this->department(true, true);
+        $config = $department->getGrossanlassConfig();
+        $config->setPlannedEventStart(new \DateTime('2027-06-04 16:00:00'));
+        $config->setPlannedEventEnd(new \DateTime('2027-06-06 16:00:00'));
+        $period = static function (string $label, string $start, string $end): DepartmentCalendarPeriod {
+            $p = new DepartmentCalendarPeriod();
+            $p->setLabel($label);
+            $p->setStartDate(new \DateTime(substr($start, 0, 10)))->setStartTime(new \DateTime(substr($start, 11)));
+            $p->setEndDate(new \DateTime(substr($end, 0, 10)))->setEndTime(new \DateTime(substr($end, 11)));
+
+            return $p;
+        };
+        $periods = [
+            DepartmentCalendarPeriod::LABEL_AUFBAU => $period('aufbau', '2027-05-19 13:00:00', '2027-06-04 16:00:00'),
+            DepartmentCalendarPeriod::LABEL_ABBAU => $period('abbau', '2027-06-06 17:00:00', '2027-06-23 12:00:00'),
+        ];
+        $controller = $this->controller($department, 'prod', true, $periods);
+
+        $presets = json_decode((string) $controller->get('dep000000001')->getContent(), true)['presets'];
+
+        self::assertSame([
+            'months_before_5' => '2027-01-04T16:00:00',
+            'months_before_2' => '2027-04-04T16:00:00',
+            'build' => '2027-05-19T13:00:00',
+            'during_event' => '2027-06-05T12:00:00',
+            'teardown' => '2027-06-07T09:00:00',
+            'months_after_2' => '2027-08-06T16:00:00',
+        ], array_column($presets, 'at', 'key'));
+        // Wandzeit ohne Zeitzone: gleiche Werte unabhängig von Sommerzeit (Winter im Januar, Sommer im August)
+        foreach ($presets as $preset) {
+            self::assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/', $preset['at']);
+        }
+    }
+
+    public function testDepartmentWithoutGrossanlassHasNoQuickSelection(): void
+    {
+        $controller = $this->controller($this->department(true), 'prod', true);
+
+        self::assertSame([], json_decode((string) $controller->get('dep000000001')->getContent(), true)['presets']);
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function wallClockTargets(): iterable
+    {
+        yield 'winter' => ['2027-01-04T16:00:00'];
+        yield 'before spring change' => ['2027-03-28T01:59:00'];
+        yield 'after spring change' => ['2027-03-28T03:00:00'];
+        yield 'event day' => ['2027-06-05T12:00:00'];
+        yield 'before autumn change' => ['2027-10-31T02:30:00'];
+        yield 'after autumn change' => ['2027-10-31T03:00:00'];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('wallClockTargets')]
+    public function testTravelTargetsKeepTheirWallClockAcrossDaylightSavingChanges(string $target): void
+    {
+        $controller = $this->controller($this->department(true, true), 'prod', true);
+
+        $body = json_decode((string) $controller->put('dep000000001', $this->putRequest($target))->getContent(), true);
+
+        // Die Fachzeit ist naive Wandzeit: das gesetzte Datum erscheint unverändert (kein Zeitzonen- oder Sommerzeitversatz)
+        self::assertEqualsWithDelta(strtotime($target . 'Z'), strtotime($body['now'] . 'Z'), 3);
+        self::assertSame(substr($target, 0, 16), substr($body['now'], 0, 16));
+    }
+
     private function putRequest(string $now): Request
     {
         return Request::create('/x', 'PUT', content: (string) json_encode(['now' => $now]));
@@ -123,10 +190,12 @@ final class DepartmentClockControllerTest extends TestCase
         return $department;
     }
 
-    private function controller(Department $department, string $env, bool $member): DepartmentClockController
+    /** @param array<string, DepartmentCalendarPeriod> $periods Kalenderperioden nach Label */
+    private function controller(Department $department, string $env, bool $member, array $periods = []): DepartmentClockController
     {
         $repository = $this->createMock(EntityRepository::class);
         $repository->method('find')->willReturn($department);
+        $repository->method('findOneBy')->willReturnCallback(static fn (array $criteria): ?DepartmentCalendarPeriod => $periods[$criteria['label'] ?? ''] ?? null);
         $em = $this->createMock(EntityManagerInterface::class);
         $em->method('getRepository')->willReturn($repository);
         $kernel = $this->createMock(KernelInterface::class);

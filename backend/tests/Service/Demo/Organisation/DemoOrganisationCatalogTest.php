@@ -237,6 +237,21 @@ final class DemoOrganisationCatalogTest extends TestCase
 
             return $d;
         }, 'Wurzel «nirgendwo»'];
+        yield 'event end before start' => [static function (array $d): array {
+            $d['scenarios']['grossanlass-event']['grossanlass']['eventEnd'] = '2027-06-04T15:00:00';
+
+            return $d;
+        }, 'eventEnd muss nach eventStart'];
+        yield 'phase with unknown key' => [static function (array $d): array {
+            $d['scenarios']['grossanlass-event']['grossanlass']['phases'][0]['key'] = 'vorbereitung';
+
+            return $d;
+        }, 'grossanlass.phases'];
+        yield 'time without wall clock format' => [static function (array $d): array {
+            $d['scenarios']['grossanlass-event']['grossanlass']['clockOrigin'] = '2027-04-04 16:00';
+
+            return $d;
+        }, 'Wandzeit'];
         yield 'bad version' => [static function (array $d): array {
             $d['catalogVersion'] = 'v1';
 
@@ -265,8 +280,12 @@ final class DemoOrganisationCatalogTest extends TestCase
         $catalog = new DemoOrganisationCatalog();
         $event = $catalog->scenario('grossanlass-event')['grossanlass'];
         self::assertSame(['event', true], [$event['guestActivityType'], $event['setupReleased']]);
-        // Event-Stammdaten (fiktiver Veranstaltungsplatz) und dreitägiger Anlass
-        self::assertSame(3, $event['eventDays']);
+        // Event-Stammdaten (fiktiver Veranstaltungsplatz) und feste Zeiten 2027 (lokale Wandzeit, nie aus dem heutigen Datum)
+        self::assertSame(['2027-06-04T16:00:00', '2027-06-06T16:00:00', '2027-04-04T16:00:00'], [$event['eventStart'], $event['eventEnd'], $event['clockOrigin']]);
+        self::assertSame(
+            ['aufbau' => ['2027-05-19T13:00:00', '2027-06-04T16:00:00'], 'abbau' => ['2027-06-06T17:00:00', '2027-06-23T12:00:00']],
+            array_column(array_map(static fn (array $p): array => ['key' => $p['key'], 'range' => [$p['start'], $p['end']]], $event['phases']), 'range', 'key'),
+        );
         self::assertSame('Demo-Festplatz Seewiese', $event['venue']['name']);
         self::assertNotSame('', $event['locationText']);
         self::assertNotSame('', $event['notes']);
