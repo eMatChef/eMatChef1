@@ -189,6 +189,7 @@ final class DemoGrossanlassEventProcessSeedService
             return;
         }
 
+        $this->adoptEarlierLine($context, $report, $key . 'bedarf', (string) ($chain['earlier_key'] ?? ''), $version);
         $line = $this->once($context, $report, $key . 'bedarf', $version, function () use ($department, $actor, $group, $chain): ActivityGrossanlassProcurementLine {
             $row = $this->procurement->createLineDirect($department, $actor, [
                 'group_id' => $group->getId(),
@@ -268,6 +269,44 @@ final class DemoGrossanlassEventProcessSeedService
                 return $this->entityManager->find(DepartmentGrossanlassCommitment::class, $row['id']) ?? throw new \LogicException('Zusage nicht gefunden');
             });
         }
+    }
+
+    /**
+     * Frühere Seed-Fassungen führten «Schwartenbretter» und «Teleskoplader» als direkte Beschaffungszeilen (`beschaffung:<key>`).
+     * Der Ablauf übernimmt diese Zeile (kein Duplikat), statt eine zweite mit gleichem Namen anzulegen.
+     */
+    private function adoptEarlierLine(SeedContext $context, SyncReport $report, string $seedKey, string $earlierKey, string $version): void
+    {
+        if ($earlierKey === '' || $context->findRecord($seedKey) !== null) {
+            return;
+        }
+        $earlier = $context->findRecord($context->scenarioKey() . ':beschaffung:' . $earlierKey);
+        $line = $earlier !== null ? $this->find(ActivityGrossanlassProcurementLine::class, $earlier->getEntityId()) : null;
+        if ($line instanceof ActivityGrossanlassProcurementLine) {
+            $context->record($seedKey, $line, (string) $line->getId(), ManagedSeedApplier::hash(['seeded' => true]), $version);
+            $this->entityManager->flush(); // der folgende once()-Aufruf muss den neuen Ledger-Eintrag sehen
+            ++$report->adopted;
+        }
+    }
+
+    /**
+     * Ledger-Schlüssel früherer Fassungen, die vorhanden bleiben, aber nicht mehr geführt werden (nicht als verwaist melden).
+     *
+     * @return list<string>
+     */
+    public function earlierSeedKeys(SeedContext $context): array
+    {
+        $keys = [];
+        foreach (['schwartenbretter', 'teleskoplader'] as $name) {
+            foreach (['beschaffung', 'kosten'] as $kind) {
+                $key = $context->scenarioKey() . ':' . $kind . ':' . $name;
+                if ($context->findRecord($key) !== null) {
+                    $keys[] = $key;
+                }
+            }
+        }
+
+        return $keys;
     }
 
     /** @param array<string, mixed> $q */
@@ -591,6 +630,7 @@ final class DemoGrossanlassEventProcessSeedService
         return [
             [
                 'key' => 'holz',
+                'earlier_key' => 'schwartenbretter',
                 'job' => 'Ticket-Häuschen Eingang',
                 'quote_reference' => 'HH-2027-014',
                 'line' => ['label' => 'Schwartenbretter', 'quantity' => 30, 'unit' => 'Stk', 'kind' => 'material', 'category' => self::CATEGORY_BAU, 'cost_kind' => 'purchase', 'notes' => 'Fassadenverkleidung, Restposten.'],
@@ -612,6 +652,7 @@ final class DemoGrossanlassEventProcessSeedService
             ],
             [
                 'key' => 'lader',
+                'earlier_key' => 'teleskoplader',
                 'job' => 'Hauptbühnen-Podest',
                 'quote_reference' => 'ML-2027-031',
                 'zusage' => true,

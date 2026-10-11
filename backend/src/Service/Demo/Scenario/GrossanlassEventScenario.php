@@ -49,7 +49,7 @@ final class GrossanlassEventScenario extends AbstractCatalogScenario
      */
     public function sync(SeedContext $context): SeedResult
     {
-        $structure = $this->organisationSeeder->sync($this, $context, array_merge($this->content->expectedSeedKeys($this->key()), $this->process->expectedSeedKeys($this->key(), $this->mapDef()), [$this->key() . ':clock']));
+        $structure = $this->organisationSeeder->sync($this, $context, array_merge($this->content->expectedSeedKeys($this->key()), $this->process->expectedSeedKeys($this->key(), $this->mapDef()), $this->process->earlierSeedKeys($context), [$this->key() . ':clock']));
         if ($context->isDryRun() || $structure->status !== SeedResult::OK) {
             return $structure;
         }
