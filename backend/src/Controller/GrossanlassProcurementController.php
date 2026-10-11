@@ -656,6 +656,44 @@ class GrossanlassProcurementController extends AbstractController
         return new JsonResponse($overview);
     }
 
+    #[Route('/wishes/categorize', name: 'wishes_categorize', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function categorizeBedarfWishes(string $departmentId, Request $request): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $ids = $data['wish_line_ids'] ?? null;
+        $categoryId = $data['category_id'] ?? null;
+        if (!is_array($ids) || !is_string($categoryId) || $categoryId === '') {
+            return new JsonResponse(['error' => 'wish_line_ids und category_id sind erforderlich'], 400);
+        }
+
+        try {
+            $overview = $this->procurementService->categorizeBedarfWishes(
+                $department,
+                $currentUser,
+                $ids,
+                $categoryId,
+                ($data['overwrite'] ?? false) === true,
+            );
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+
+        return new JsonResponse($overview);
+    }
+
     #[Route('/collector/{wishId}/to-inquiry', name: 'collector_to_inquiry', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
     public function collectorToInquiry(string $departmentId, string $wishId, Request $request): JsonResponse

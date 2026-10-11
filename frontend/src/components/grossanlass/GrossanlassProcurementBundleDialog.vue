@@ -143,7 +143,7 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{
-  saved: []
+  saved: [processed: { wishIds: string[]; vehicleIds: string[] }]
   'category-created': [category: GrossanlassProcurementCategory]
 }>()
 
@@ -256,7 +256,7 @@ async function submit() {
       payer_group_id: payerGroupId.value,
     })
     open.value = false
-    emit('saved')
+    emit('saved', { wishIds: [...selectedIds.value], vehicleIds: [...selectedVehicleIds.value] })
   } catch (e: any) {
     errorMessage.value = e.response?.data?.error || t('grossanlass.beschaffung.bedarf.errorBundle')
   } finally {

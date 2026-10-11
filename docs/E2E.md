@@ -65,6 +65,8 @@ npx playwright test e2e/ga-event-demo.spec.ts
 
 **Achtung:** Ein Neustart des Backend-Containers der Entwicklungsumgebung führt `doctrine:migrations:migrate` gegen `mvdb` aus (Entrypoint) und würde damit neue Migrationen anwenden.
 
+`frontend/e2e/ga-procurement-categorize.spec.ts` prüft den Bedarf-Pool (`/ga/procurement/demand`): eine einzige Liste, Auswahl über mehrere Suchen, «Auswahl anzeigen», Massenkategorisierung inkl. ausgefilterter Wünsche und Überschreibungsbestätigung. Aktiv mit `E2E_GA_CATEGORIZE=1` und dem Demo-Konto `ga-mw`; der Test **setzt Kategorien** der Materialwünsche, sie müssen danach zurückgesetzt werden (`category_id` auf NULL), daher nur gegen eine Wegwerf-Umgebung. Lokal über HTTPS (`https://ematchef.test` via nginx; über HTTP wird das Auth-Cookie nicht übernommen) mit `ignoreHTTPSErrors`.
+
 ## CI
 
 Workflow **E2E Smoke** (`.github/workflows/e2e-smoke.yml`):

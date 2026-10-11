@@ -8,6 +8,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'activity_grossanlass_wish_line')]
 #[ORM\Index(name: 'idx_grossanlass_wish_round', columns: ['round_id'])]
 #[ORM\Index(name: 'idx_grossanlass_wish_group', columns: ['group_id'])]
+#[ORM\Index(name: 'idx_grossanlass_wish_category', columns: ['category_id'])]
 class ActivityGrossanlassWishLine
 {
     public const KIND_MATERIAL = 'material';
@@ -92,6 +93,13 @@ class ActivityGrossanlassWishLine
 
     #[ORM\Column(name: 'enough_on_hand_ref_id', type: 'string', length: 12, nullable: true)]
     private ?string $enoughOnHandRefId = null;
+
+    #[ORM\Column(name: 'category_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $categoryId = null;
+
+    #[ORM\ManyToOne(targetEntity: ActivityGrossanlassProcurementCategory::class)]
+    #[ORM\JoinColumn(name: 'category_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?ActivityGrossanlassProcurementCategory $category = null;
 
     #[ORM\Column(type: 'string', length: 20)]
     private string $status = self::STATUS_REQUESTED;
@@ -397,6 +405,24 @@ class ActivityGrossanlassWishLine
             'enough_on_hand_detail' => $this->enoughOnHandDetail,
             'enough_on_hand_ref_id' => $this->enoughOnHandRefId,
         ];
+    }
+
+    public function getCategoryId(): ?string
+    {
+        return $this->categoryId;
+    }
+
+    public function getCategory(): ?ActivityGrossanlassProcurementCategory
+    {
+        return $this->category;
+    }
+
+    public function setCategory(?ActivityGrossanlassProcurementCategory $category): self
+    {
+        $this->category = $category;
+        $this->categoryId = $category?->getId();
+
+        return $this;
     }
 
     public function getStatus(): string

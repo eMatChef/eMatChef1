@@ -23,6 +23,10 @@ export interface GrossanlassProcurementPoolWish {
   valid_from: string
   valid_to: string
   notes?: string | null
+  category_id?: string | null
+  category_name?: string | null
+  category_parent_id?: string | null
+  category_parent_name?: string | null
   created_by_user_id?: string
   created_by_name: string
   created_at: string
@@ -401,10 +405,21 @@ export async function discardGrossanlassCollectorItem(
 export async function updateGrossanlassBedarfWish(
   departmentId: string,
   wishLineId: string,
-  data: Partial<CreateGrossanlassWishPayload>,
+  data: Partial<CreateGrossanlassWishPayload> & { category_id?: string | null },
 ): Promise<GrossanlassBedarfOverview> {
   const response = await apiClient.put<GrossanlassBedarfOverview>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/wishes/${wishLineId}`,
+    data,
+  )
+  return response.data
+}
+
+export async function categorizeGrossanlassBedarfWishes(
+  departmentId: string,
+  data: { wish_line_ids: string[]; category_id: string; overwrite?: boolean },
+): Promise<GrossanlassBedarfOverview> {
+  const response = await apiClient.post<GrossanlassBedarfOverview>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/wishes/categorize`,
     data,
   )
   return response.data

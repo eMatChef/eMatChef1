@@ -1640,8 +1640,91 @@ class GrossanlassProcurementService
         }
 
         $this->wishService->updateWish($department, $user, $wish->getRoundId(), $wishLineId, $data);
+        $this->applyWishCategory($wish, $department, $data);
 
         return $this->getBedarfOverview($department, $user);
+    }
+
+    /**
+     * Setzt ausschliesslich die Beschaffungskategorie für mehrere Materialwünsche (Batch).
+     * Überschreibt eine abweichende vorhandene Kategorie nur mit $overwrite = true.
+     *
+     * @param list<string> $wishLineIds
+     *
+     * @return array{
+     *     pool: list<array<string, mixed>>,
+     *     lines: list<array<string, mixed>>,
+     *     categories: list<array<string, mixed>>,
+     *     suggestions: list<array<string, mixed>>
+     * }
+     */
+    public function categorizeBedarfWishes(
+        Department $department,
+        User $user,
+        array $wishLineIds,
+        string $categoryId,
+        bool $overwrite = false,
+    ): array {
+        $this->assertCanManageProcurement($department, $user);
+
+        $wishLineIds = array_values(array_unique(array_filter($wishLineIds, 'is_string')));
+        if ($wishLineIds === []) {
+            throw new \InvalidArgumentException('Keine Wünsche ausgewählt');
+        }
+        $category = $this->findCategoryInDepartment($department, $categoryId);
+
+        $wishes = [];
+        $conflicts = 0;
+        foreach ($wishLineIds as $wishId) {
+            $wish = $this->entityManager->getRepository(ActivityGrossanlassWishLine::class)->find($wishId);
+            if (!$wish instanceof ActivityGrossanlassWishLine || !$this->wishBelongsToDepartment($wish, $department)) {
+                throw new \InvalidArgumentException('Wunsch nicht gefunden');
+            }
+            if ($wish->getRound()->getFormPurpose() !== ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH) {
+                throw new \InvalidArgumentException('Nur Materialwünsche können kategorisiert werden');
+            }
+            $link = $this->findWishLinkInDepartment($department, $wishId);
+            if ($link !== null && $link->getProcurementLine()->getStatus() !== ActivityGrossanlassProcurementLine::STATUS_BEDARF) {
+                throw new \InvalidArgumentException('Wunsch gehört zu einer Position, die nicht mehr im Status «Bedarf» ist');
+            }
+            $current = $wish->getCategory();
+            if ($current !== null && $current->getId() !== $category->getId()) {
+                ++$conflicts;
+            }
+            $wishes[] = $wish;
+        }
+
+        if ($conflicts > 0 && !$overwrite) {
+            throw new \InvalidArgumentException(sprintf(
+                '%d Wünsche haben bereits eine andere Kategorie; Überschreiben muss bestätigt werden',
+                $conflicts,
+            ));
+        }
+
+        $this->entityManager->wrapInTransaction(static function () use ($wishes, $category): void {
+            foreach ($wishes as $wish) {
+                $wish->setCategory($category);
+            }
+        });
+
+        return $this->getBedarfOverview($department, $user);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function applyWishCategory(ActivityGrossanlassWishLine $wish, Department $department, array $data): void
+    {
+        if (!array_key_exists('category_id', $data)) {
+            return;
+        }
+        $categoryId = $data['category_id'];
+        $wish->setCategory(
+            $categoryId === null || $categoryId === ''
+                ? null
+                : $this->findCategoryInDepartment($department, (string) $categoryId),
+        );
+        $this->entityManager->flush();
     }
 
     /**
@@ -2508,11 +2591,17 @@ class GrossanlassProcurementService
     private function wishToPoolArray(ActivityGrossanlassWishLine $wish): array
     {
         $profile = $wish->getCreatedByUser()->getProfile();
+        $category = $wish->getCategory();
+        $categoryParent = $category?->getParent();
 
         return [
             'id' => $wish->getId(),
             'round_id' => $wish->getRoundId(),
             'round_name' => $wish->getRound()->getName(),
+            'category_id' => $category?->getId(),
+            'category_name' => $category?->getName(),
+            'category_parent_id' => $categoryParent?->getId(),
+            'category_parent_name' => $categoryParent?->getName(),
             'group_id' => $wish->getGroupId(),
             'group_name' => $wish->getGroup()->getName(),
             'wish_kind' => $wish->getWishKind(),
