@@ -12668,6 +12668,7 @@
           "ANLASS": "Anlass",
           "ORT": "Ort",
           "ZEITRAUMTEXT": "Zeitraum-Hinweis (Einstellungen)",
+          "ANLASSZEITRAUM": "Anlasszeitraum (gesamter Anlass inkl. Aufbau und Abbau)",
           "MATERIALLISTE": "Gewünschte Artikel je Kategorie (ohne Menge)",
           "BEREICHE": "Grobe Bereiche (Werkzeuge, Fahrzeuge, …)",
           "ABSENDER": "Absender",

@@ -265,6 +265,7 @@ import {
 import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import {
   calendarRangeForPhaseChoice,
+  periodsWithinEvent,
   isWishPhaseSelectField,
   mapWishPhaseChoiceToCalendarLabel,
   unionCalendarPeriods,
@@ -903,7 +904,11 @@ watch(
       return
     }
     void listDepartmentCalendarPeriods(id).then((rows) => {
-      calendarPeriods.value = rows
+      const config = authStore.departments.find((d) => d.department_id === id)?.department?.grossanlass_config
+      calendarPeriods.value = periodsWithinEvent(rows, {
+        start: config?.planned_event_start,
+        end: config?.planned_event_end,
+      })
     }).catch(() => {
       calendarPeriods.value = []
     })

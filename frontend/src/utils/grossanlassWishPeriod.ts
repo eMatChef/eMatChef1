@@ -20,6 +20,29 @@ export function mapWishPhaseChoiceToCalendarLabel(choice: string): CalendarPerio
   return null
 }
 
+/**
+ * Nur fixe Daten innerhalb des Anlasszeitraums (Wandzeit, ohne Zeitzonenumrechnung) stehen zur Auswahl.
+ * Ohne bekannten Anlasszeitraum bleibt die Liste unverändert.
+ */
+export function periodsWithinEvent(
+  periods: DepartmentCalendarPeriod[],
+  event: { start?: string | null; end?: string | null } | null | undefined,
+): DepartmentCalendarPeriod[] {
+  const from = wallClock(event?.start)
+  const to = wallClock(event?.end)
+  if (!from || !to || to < from) return periods
+  return periods.filter((period) => {
+    const start = `${period.start_date}T${clock(period.start_time, '00:00')}`
+    const end = `${period.end_date}T${clock(period.end_time, '23:59')}`
+    return start >= from && end <= to
+  })
+}
+
+function wallClock(raw?: string | null): string {
+  const match = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/.exec((raw || '').trim())
+  return match ? `${match[1]}T${match[2]}` : ''
+}
+
 export function unionCalendarPeriods(
   periods: DepartmentCalendarPeriod[],
   labels: CalendarPeriodLabel[],

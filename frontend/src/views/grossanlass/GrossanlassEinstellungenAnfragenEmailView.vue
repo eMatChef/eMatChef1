@@ -1113,6 +1113,7 @@ async function loadPreview() {
     .join(', ') || 'Bereiche folgen'
   let materialListe = leafNames
   let areas = rootNames
+  let anlassZeitraum = '1. Mai bis 30. Juni 2027'
   if (departmentId.value) {
     try {
       const live = await previewGrossanlassMail(departmentId.value, { kind: tpl.kind })
@@ -1120,6 +1121,8 @@ async function loadPreview() {
       const liveAreas = (live.placeholders?.BEREICHE || '').trim()
       if (liveList !== '') materialListe = liveList
       if (liveAreas !== '') areas = liveAreas
+      const liveZeitraum = (live.placeholders?.ANLASSZEITRAUM || '').trim()
+      if (liveZeitraum !== '') anlassZeitraum = liveZeitraum
     } catch {
       /* lokale Vorschau */
     }
@@ -1130,6 +1133,7 @@ async function loadPreview() {
     ANLASS: 'Anlass',
     ORT: '',
     ZEITRAUMTEXT: zeitraumTextForMail(zeitraumText.value),
+    ANLASSZEITRAUM: anlassZeitraum,
     MATERIALLISTE: materialListe,
     BEREICHE: areas,
     ABSENDER: 'OK Material & Logistik',

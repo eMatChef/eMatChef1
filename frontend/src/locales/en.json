@@ -9980,6 +9980,7 @@
           "ANLASS": "Event",
           "ORT": "Place",
           "ZEITRAUMTEXT": "Time window (from settings)",
+          "ANLASSZEITRAUM": "Event period (whole event incl. setup and teardown)",
           "MATERIALLISTE": "Requested items under each category (no quantities)",
           "BEREICHE": "Coarse areas (tools, vehicles, …)",
           "ABSENDER": "Sender",

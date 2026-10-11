@@ -16,6 +16,25 @@ describe('grossanlass routes under /:departmentId/ga', () => {
     expect(resolved.matched.some((r) => r.meta.requiresGrossanlassDepartment)).toBe(true)
   })
 
+  it.each([
+    'ga/my-unit', 'ga/my-assignments', 'ga/planning/requests', 'ga/planning/jobs', 'ga/planning/build-jobs',
+    'ga/planning/transports', 'ga/planning/occupancy', 'ga/planning/conflicts', 'ga/helper-pool', 'dept/tasks',
+    'ga/procurement/demand', 'ga/procurement/inquiries', 'ga/procurement/offers', 'ga/procurement/commitments',
+    'ga/procurement/orders', 'ga/procurement/budget', 'ga/material/stock', 'ga/material/goods-receipt',
+    'ga/material/issue', 'ga/material/pack', 'ga/material/teardown', 'ga/material/resale',
+    'ga/logistics/dispatch', 'ga/vehicles/requests', 'ga/vehicles/fleet', 'ga/workshop', 'ga/costs',
+    'ga/displays', 'ga/activity-settings/general', 'ga/settings/my-department', 'ga/help/ga',
+  ])('menu target /dep-1/%s is a real route', (suffix) => {
+    const resolved = router.resolve(`/dep-1/${suffix}`)
+    expect(resolved.matched.length).toBeGreaterThan(0)
+    expect(resolved.params.departmentId).toBe('dep-1')
+    expect(resolved.name ?? resolved.matched[resolved.matched.length - 1].name).toBeDefined()
+  })
+
+  it('has no route for the removed procurement tab «Erhalten» (goods receipt lives under Material)', () => {
+    expect(router.resolve('/dep-1/ga/procurement/received').name).toBeUndefined()
+  })
+
   it('keeps no legacy GA routes below /:departmentId', () => {
     for (const legacy of ['/dep-1/planung/transporte', '/dep-1/material/bestand', '/dep-1/mein-ressort']) {
       expect(router.resolve(legacy).matched.some((r) => r.meta.requiresGrossanlassDepartment)).toBe(false)
