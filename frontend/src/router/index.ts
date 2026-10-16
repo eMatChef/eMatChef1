@@ -1819,6 +1819,17 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresGrossanlassDepartment: true,
                   ...routeHead('grossanlassLogistikDisposition'),
+          {
+            // WYSIWYG-Editor für das Layout eines Infoscreens (Entwurf, Vorschau, Veröffentlichung).
+            path: 'displays/:screenId/layout',
+            name: 'GrossanlassDisplayLayoutEditor',
+            component: () => import('@/views/settings/DisplayLayoutEditorView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+              ...routeHead('displayLayoutEditor'),
+            },
+          },
                 },
               },
             ],

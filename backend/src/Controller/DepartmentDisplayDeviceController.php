@@ -6,6 +6,7 @@ use App\Entity\DepartmentDisplayDevice;
 use App\Entity\DepartmentDisplayScreen;
 use App\Entity\User;
 use App\Service\Display\DepartmentDisplayDeviceService;
+use App\Service\Display\Layout\DisplayDeviceProfileService;
 use App\Service\Display\DepartmentDisplayScreenService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -26,6 +27,7 @@ class DepartmentDisplayDeviceController extends AbstractController
         private EntityManagerInterface $entityManager,
         private DepartmentDisplayScreenService $screenService,
         private DepartmentDisplayDeviceService $deviceService,
+        private DisplayDeviceProfileService $profileService,
     ) {
     }
 
@@ -43,7 +45,7 @@ class DepartmentDisplayDeviceController extends AbstractController
         ));
     }
 
-    /** Umbenennen und/oder einem anderen Infoscreen desselben Departments zuweisen. */
+    /** Umbenennen, einem anderen Infoscreen desselben Departments zuweisen und/oder das Bildschirmprofil setzen. */
     #[Route('/{deviceId}', name: 'update', methods: ['PATCH'])]
     public function update(string $departmentId, string $deviceId, Request $request): JsonResponse
     {
@@ -61,6 +63,15 @@ class DepartmentDisplayDeviceController extends AbstractController
             }
             if (\array_key_exists('name', $data)) {
                 $this->deviceService->rename($device, (string) $data['name']);
+            }
+            if (\array_key_exists('profile', $data)) {
+                try {
+                    $device->setDisplayProfile($this->profileService->normalize($data['profile']));
+                } catch (\InvalidArgumentException $e) {
+                    return new JsonResponse(['error' => $e->getMessage()], 400);
+                }
+                $device->setUpdatedAt(new \DateTime());
+                $this->entityManager->flush();
             }
 
             return null;

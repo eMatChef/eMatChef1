@@ -80,3 +80,7 @@ Workflow **E2E Smoke** (`.github/workflows/e2e-smoke.yml`):
 ## Preview-Deploy
 
 Pro-PR-URLs (`pr-N.…`) sind **noch nicht** eingerichtet (braucht Host/DNS). Smokes laufen gegen Develop.
+
+## Infoscreen-Layouts (Editor, Veröffentlichung, Kopplung)
+
+`frontend/e2e/display-layout.spec.ts` prüft den Weg Infoscreen ohne Gerät erstellen → Vorlage/leeres Layout im Editor ändern (Drag-and-drop, Skalieren) → Vorschau für TV und LED-Wall → Entwurf speichern (Gerät unverändert) → veröffentlichen (Gerät übernimmt die Revision) → «Bildschirm hinzufügen» mit Display-Adresse und Anleitung → passive Anzeige ohne Bedienelemente und Zonenrotation; zusätzlich, dass normale Departments die bisherige Konfiguration behalten. Er legt Infoscreens und ein Gerät an und läuft deshalb **nur gegen eine isolierte, frisch migrierte Datenbank** (nie `mvdb`), aktiv mit `E2E_DISPLAY_LAYOUT=1`. Benötigt ein Grossanlass-Department (`E2E_GA_DEPT`), optional ein normales (`E2E_NORMAL_DEPT`) und ein fremdes ohne Mitgliedschaft des Users (`E2E_FOREIGN_DEPT`, prüft die Department-Isolation der API), einen Verwaltungs-User (`app:ensure-e2e-user` mit anschliessend Rolle `dc`, `E2E_USER_EMAIL`/`E2E_USER_PASSWORD`), die App-URL als `E2E_BASE_URL` und die Display-URL als `E2E_DISPLAY_URL`; die Hosts werden wie oben über `E2E_HOST_RESOLVER` abgebildet.

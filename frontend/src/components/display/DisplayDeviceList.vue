@@ -22,6 +22,7 @@
             {{ device.last_contact_at ? t('display.devices.lastContact', { date: formatDate(device.last_contact_at, true) }) : t('display.devices.neverContacted') }}
           </span>
           <span v-if="device.created_via !== 'pairing'">{{ t(`display.devices.via.${device.created_via}`) }}</span>
+          <span v-if="profileSummary(device)">{{ profileSummary(device) }}</span>
         </div>
         <div class="device-actions">
           <template v-if="device.approval_state !== 'revoked'">
@@ -34,6 +35,7 @@
             >
               {{ device.approval_state === 'expired' ? t('display.devices.reapprove') : t('display.devices.extend') }}
             </EButton>
+            <EButton variant="secondary" size="small" @click="openProfile(device)">{{ t('display.profile.open') }}</EButton>
             <EButton v-if="targets.length" variant="secondary" size="small" @click="openReassign(device)">
               {{ t('display.devices.reassign') }}
             </EButton>
@@ -50,6 +52,14 @@
         </div>
       </li>
     </ul>
+
+    <DisplayDeviceProfileDialog
+      v-model="profileOpen"
+      :department-id="departmentId"
+      :device="profileTarget"
+      :layout-enabled="layoutEnabled"
+      @saved="emit('changed')"
+    />
 
     <EDialog v-model="renameOpen" :max-width="420" :title="t('display.devices.rename')">
       <ETextField v-model="renameValue" :label="t('display.pairDialog.deviceName')" maxlength="120" hide-details />
@@ -76,6 +86,7 @@ import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
+import DisplayDeviceProfileDialog from './DisplayDeviceProfileDialog.vue'
 import {
   deleteDisplayDevice,
   extendDisplayDevice,
@@ -90,6 +101,8 @@ const props = defineProps<{
   devices: DisplayDeviceRow[]
   /** Andere aktive Infoscreens desselben Departments (Ziele für „Zuweisen“). */
   targets: { id: string; name: string }[]
+  /** Layouts aktiv (Grossanlass): Layoutvarianten im Bildschirmprofil wählbar. */
+  layoutEnabled?: boolean
 }>()
 
 const emit = defineEmits<{ changed: [] }>()
@@ -105,6 +118,8 @@ const renameTarget = ref<DisplayDeviceRow | null>(null)
 const reassignOpen = ref(false)
 const reassignTo = ref<string | null>(null)
 const reassignTarget = ref<DisplayDeviceRow | null>(null)
+const profileOpen = ref(false)
+const profileTarget = ref<DisplayDeviceRow | null>(null)
 
 const targetItems = computed(() => props.targets.map((s) => ({ value: s.id, title: s.name })))
 
@@ -135,6 +150,20 @@ async function run(device: DisplayDeviceRow, action: () => Promise<unknown>, suc
   } finally {
     busyId.value = null
   }
+}
+
+function openProfile(device: DisplayDeviceRow) {
+  profileTarget.value = device
+  profileOpen.value = true
+}
+
+function profileSummary(device: DisplayDeviceRow): string {
+  const p = device.profile
+  if (!p) return ''
+  const parts: string[] = []
+  if (p.pixel_width && p.pixel_height) parts.push(`${p.pixel_width}×${p.pixel_height}`)
+  if (p.aspect_ratio) parts.push(p.aspect_ratio)
+  return parts.join(' · ')
 }
 
 function openRename(device: DisplayDeviceRow) {

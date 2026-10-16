@@ -35,6 +35,19 @@ export async function getDisplayDeviceData(): Promise<DisplayDeviceData> {
   return { state: 'active', device: res.data.device, data: mapDisplayPayload(res.data) }
 }
 
+/** Bildschirmprofil eines Geräts: Format, native Auflösung, Betrachtungsabstand, Lesbarkeit, Layoutvariante. */
+export interface DisplayDeviceProfile {
+  width_cm: number | null
+  height_cm: number | null
+  pixel_width: number | null
+  pixel_height: number | null
+  aspect_ratio: string | null
+  viewing_distance_m: number | null
+  font_profile: 'auto' | 'small' | 'normal' | 'large' | 'xlarge'
+  /** null = automatische Auswahl nach Seitenverhältnis */
+  variant_id: string | null
+}
+
 export interface DisplayDeviceRow {
   id: string
   screen_id: string
@@ -46,6 +59,7 @@ export interface DisplayDeviceRow {
   last_contact_at: string | null
   revoked_at: string | null
   created_via: 'pairing' | 'manual' | 'migrated'
+  profile: DisplayDeviceProfile | null
   created_at: string
 }
 
@@ -59,7 +73,7 @@ export async function listDisplayDevices(departmentId: string): Promise<DisplayD
 export async function updateDisplayDevice(
   departmentId: string,
   deviceId: string,
-  body: { name?: string; screen_id?: string },
+  body: { name?: string; screen_id?: string; profile?: Partial<DisplayDeviceProfile> | null },
 ): Promise<DisplayDeviceRow> {
   const res = await apiClient.patch<DisplayDeviceRow>(`${base(departmentId)}/${encodeURIComponent(deviceId)}`, body)
   return res.data

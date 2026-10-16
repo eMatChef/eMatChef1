@@ -5,10 +5,12 @@ namespace App\Service\Display;
 use App\Entity\Activity;
 use App\Entity\Address;
 use App\Entity\Department;
+use App\Entity\DepartmentDisplayDevice;
 use App\Entity\DepartmentDisplayScreen;
 use App\Entity\Group;
 use App\Entity\WorkshopTicket;
 use App\Service\ActivityAccessService;
+use App\Service\Display\Layout\DisplayLayoutService;
 use App\Service\Public\PublicCodeService;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -22,14 +24,21 @@ final class DepartmentDisplayDataService
         private PublicCodeService $publicCodeService,
         private ActivityAccessService $activityAccess,
         private DepartmentDisplayScreenService $displayScreenService,
+        private DisplayLayoutService $layoutService,
     ) {
     }
 
     /**
+     * @param string $layoutSource `published` (Geräte, nur die aktive Revision) oder `draft` (nur authentifizierte Vorschau)
+     *
      * @return array<string, mixed>
      */
-    public function buildPayloadForScreen(DepartmentDisplayScreen $screen): array
-    {
+    public function buildPayloadForScreen(
+        DepartmentDisplayScreen $screen,
+        ?DepartmentDisplayDevice $device = null,
+        string $layoutSource = 'published',
+        ?string $variantOverride = null,
+    ): array {
         $departmentId = $screen->getDepartmentId();
         $department = $this->entityManager->getRepository(Department::class)->find($departmentId);
         $departmentName = $department?->getName() ?? '';
@@ -44,6 +53,7 @@ final class DepartmentDisplayDataService
         return [
             // Grossanlass ist ein Department; Inhalte kommen künftig vom jeweiligen Scope-Provider.
             'scope' => $department?->isGrossanlass() ? 'grossanlass' : 'department',
+            'layout' => $this->layoutService->payload($screen, $device, $layoutSource, $variantOverride),
             'department_name' => $departmentName,
             'screen_name' => $screen->getName(),
             'subtitle_text' => $screen->getSubtitleText(),

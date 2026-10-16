@@ -19,35 +19,18 @@
     <template v-else>
       <div class="card create-card">
         <h3 class="section-heading">{{ t('settings.displayScreens.createTitle') }}</h3>
-        <p class="muted">{{ t('settings.displayScreens.addHint') }}</p>
-        <div class="create-actions">
-          <EButton variant="primary" @click="openPairNew">{{ t('settings.displayScreens.add') }}</EButton>
-        </div>
-        <details class="settings-accordion manual-create">
-          <summary>{{ t('settings.displayScreens.createWithoutScanner') }}</summary>
-          <div class="accordion-body">
-            <p class="muted">{{ t('settings.displayScreens.createWithoutScannerHint') }}</p>
-            <div class="create-row">
-              <ETextField
-                v-model="newScreenName"
-                class="create-row__name"
-                :label="t('settings.displayScreens.nameLabel')"
-                :placeholder="t('settings.displayScreens.namePlaceholder')"
-                :disabled="creating"
-                maxlength="120"
-                hide-details
-              />
-              <EButton
-                variant="secondary"
-                :disabled="creating || !newScreenName.trim()"
-                :loading="creating"
-                @click="createScreen"
-              >
-                {{ t('common.create') }}
-              </EButton>
-            </div>
+        <div class="create-paths">
+          <div class="create-path">
+            <h4 class="block-title">{{ t('settings.displayScreens.createScreenTitle') }}</h4>
+            <p class="muted">{{ t('settings.displayScreens.createScreenHint') }}</p>
+            <EButton variant="primary" @click="createDialogOpen = true">{{ t('settings.displayScreens.createScreen') }}</EButton>
           </div>
-        </details>
+          <div class="create-path">
+            <h4 class="block-title">{{ t('settings.displayScreens.addDeviceTitle') }}</h4>
+            <p class="muted">{{ t('settings.displayScreens.addHint') }}</p>
+            <EButton variant="secondary" @click="openPairNew">{{ t('settings.displayScreens.add') }}</EButton>
+          </div>
+        </div>
       </div>
 
       <ELoadingState v-if="loading" variant="inline" :message="t('settings.displayScreens.loading')" />
@@ -95,7 +78,24 @@
                 />
                 <p class="muted field-hint">{{ t('settings.displayScreens.subtitleHint') }}</p>
 
-                <p v-if="isGrossanlassDept" class="muted field-hint">{{ t('settings.displayScreens.gaContentHint') }}</p>
+                <section v-if="isGrossanlassDept" class="layout-block">
+                  <p class="label label--tight">{{ t('settings.displayScreens.layoutTitle') }}</p>
+                  <p class="layout-status">
+                    <span class="badge" :class="screen.layout?.published_number ? 'badge--ok' : 'badge--idle'">
+                      {{ screen.layout?.published_number ? t('settings.displayScreens.layoutPublished', { n: screen.layout.published_number }) : t('settings.displayScreens.layoutNotPublished') }}
+                    </span>
+                    <span v-if="!screen.layout?.has_draft" class="badge badge--idle">{{ t('settings.displayScreens.layoutNone') }}</span>
+                  </p>
+                  <p class="muted field-hint">{{ t('settings.displayScreens.layoutHint') }}</p>
+                  <div class="layout-actions">
+                    <EButton variant="primary" size="small" @click="openEditor(screen)">
+                      {{ screen.layout?.has_draft ? t('settings.displayScreens.layoutEdit') : t('settings.displayScreens.layoutSetup') }}
+                    </EButton>
+                    <EButton v-if="screen.layout?.has_draft" variant="secondary" size="small" @click="openPreview(screen, 'draft')">
+                      {{ t('settings.displayScreens.layoutPreviewDraft') }}
+                    </EButton>
+                  </div>
+                </section>
                 <template v-else>
                 <p class="label label--tight content-label">{{ t('settings.displayScreens.showPanelsLabel') }}</p>
 
@@ -191,7 +191,7 @@
                     variant="secondary"
                     size="small"
                     :title="t('settings.displayScreens.previewHint')"
-                    @click="openPreview(screen)"
+                    @click="openPreview(screen, isGrossanlassDept ? 'published' : undefined)"
                   >
                     {{ t('settings.displayScreens.previewOpen') }}
                   </EButton>
@@ -205,6 +205,7 @@
                   :department-id="selectedDepartmentId || ''"
                   :devices="devicesByScreen[screen.id] || []"
                   :targets="activeScreens.filter((x) => x.id !== screen.id && !x.revoked_at).map((x) => ({ id: x.id, name: x.name }))"
+                  :layout-enabled="isGrossanlassDept"
                   @changed="reloadDevices"
                 />
               </section>
@@ -254,7 +255,16 @@
       v-model="pairDialogOpen"
       :department-id="selectedDepartmentId || ''"
       :screen="pairTarget"
+      :known-display-urls="screens.map((x) => x.display_url)"
       @paired="onPaired"
+    />
+
+    <DisplayScreenCreateDialog
+      v-model="createDialogOpen"
+      :department-id="selectedDepartmentId || ''"
+      :catalog="layoutCatalog"
+      :sources="screens"
+      @created="onScreenCreated"
     />
 
     <EDialog v-model="manualDialogOpen" :max-width="560" :title="t('settings.displayScreens.manualAccess')">
@@ -340,12 +350,13 @@ import { copyTextToClipboard } from '@/utils/clipboard'
 import { getDisplayOrigin } from '@/utils/displayHost'
 import DisplayPairDialog from '@/components/display/DisplayPairDialog.vue'
 import DisplayDeviceList from '@/components/display/DisplayDeviceList.vue'
+import DisplayScreenCreateDialog from '@/components/display/DisplayScreenCreateDialog.vue'
+import { getLayoutCatalog, type LayoutCatalog } from '@/api/displayLayout'
 import { listDisplayDevices, type DisplayDeviceRow } from '@/api/displayDevice'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import { EButton, ECheckbox, EDialog, ETextField, ETextarea } from '@/components/form/base'
 import {
-  createDisplayScreen,
   deleteDisplayScreen,
   listDisplayScreens,
   reactivateDisplayScreen,
@@ -413,8 +424,8 @@ const { t } = useI18n()
 const selectedDepartmentId = computed<string | null>(() => String(route.params.departmentId || '') || null)
 const screens = ref<DisplayScreenSettings[]>([])
 const loading = ref(false)
-const creating = ref(false)
-const newScreenName = ref('')
+const createDialogOpen = ref(false)
+const layoutCatalog = ref<LayoutCatalog | null>(null)
 const rotatingId = ref<string | null>(null)
 const revokingId = ref<string | null>(null)
 const reactivatingId = ref<string | null>(null)
@@ -475,13 +486,26 @@ const setupDialogOpen = computed({
 })
 
 /** Vorschau im neuen Tab: gleiche Anzeige-Engine, Daten über die normale User-Berechtigung. */
-function openPreview(screen: DisplayScreenSettings) {
+function openPreview(screen: DisplayScreenSettings, source?: 'draft' | 'published') {
   const href = router.resolve({
     name: 'DisplayPreview',
     params: { departmentId: screen.department_id, screenId: screen.id },
-    query: { back: route.fullPath },
+    query: { back: route.fullPath, ...(source ? { source } : {}) },
   }).href
   window.open(href, '_blank')
+}
+
+function openEditor(screen: DisplayScreenSettings) {
+  void router.push({ name: 'GrossanlassDisplayLayoutEditor', params: { departmentId: screen.department_id, screenId: screen.id } })
+}
+
+/** Neuer Infoscreen (ohne Gerät): Grossanlass führt direkt in den Layout-Editor. */
+function onScreenCreated(created: DisplayScreenSettings) {
+  screens.value = [created, ...screens.value]
+  initDraftsFromScreens(screens.value)
+  syncExpandedFromScreens(screens.value)
+  toast.success(t('settings.displayScreens.toastCreated'))
+  if (isGrossanlassDept.value) openEditor(created)
 }
 
 function openPairNew() {
@@ -632,6 +656,7 @@ async function loadScreens(deptId: string) {
   loading.value = true
   try {
     screens.value = await listDisplayScreens(deptId)
+    layoutCatalog.value = await getLayoutCatalog(deptId).catch(() => null)
     await reloadDevices()
     initDraftsFromScreens(screens.value)
     syncExpandedFromScreens(screens.value)
@@ -640,25 +665,6 @@ async function loadScreens(deptId: string) {
     toast.error(t('settings.displayScreens.toastLoadError'))
   } finally {
     loading.value = false
-  }
-}
-
-async function createScreen() {
-  if (!selectedDepartmentId.value || !newScreenName.value.trim()) return
-  creating.value = true
-  try {
-    const created = await createDisplayScreen(selectedDepartmentId.value, newScreenName.value.trim())
-    screens.value = [created, ...screens.value]
-    initDraftsFromScreens(screens.value)
-    syncExpandedFromScreens(screens.value)
-    newScreenName.value = ''
-    if (created.access_code) showRevealedSetup(created.public_id, created.access_code)
-    toast.success(t('settings.displayScreens.toastCreated'))
-  } catch (err: unknown) {
-    const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-    toast.error(msg || t('settings.displayScreens.toastCreateError'))
-  } finally {
-    creating.value = false
   }
 }
 
@@ -1191,5 +1197,59 @@ watch(selectedDepartmentId, async (deptId) => {
 }
 .code-label {
   margin-top: 12px;
+}
+
+.create-paths {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.create-path {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+}
+
+.create-path .block-title,
+.create-path p {
+  margin: 0;
+}
+
+.layout-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+}
+
+.layout-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+
+.layout-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.badge--ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge--idle {
+  background: #f3f4f6;
+  color: #374151;
 }
 </style>

@@ -27,3 +27,25 @@ export function getDisplayEntryUrl(): string {
   const origin = getDisplayOrigin()
   return `${origin}/display`
 }
+
+/**
+ * Adresse, die auf dem Fernseher im Browser geöffnet wird (Startseite der Display-Domain mit Kopplungs-QR).
+ * Quelle: die vom Backend konfigurierte Display-Origin (`display_url` vorhandener Infoscreens, `APP_DISPLAY_URL`),
+ * sonst die Frontend-Konfiguration (`VITE_DISPLAY_HOST`), sonst der manuelle Einstieg auf der App-Origin. Nie hartcodiert.
+ */
+export function resolveKioskHomeUrl(screenDisplayUrls: readonly string[] = []): string {
+  for (const raw of screenDisplayUrls) {
+    try {
+      const url = new URL(raw)
+      return url.origin
+    } catch {
+      /* relative oder ungültige URL: nächste prüfen */
+    }
+  }
+  const displayOrigin = getDisplayOrigin()
+  if (displayOrigin) return displayOrigin
+  const appOrigin = (import.meta.env.VITE_APP_ORIGIN || '').trim().replace(/\/$/, '')
+  if (appOrigin) return `${appOrigin}/display`
+  if (typeof window !== 'undefined') return `${window.location.origin}/display`
+  return '/display'
+}

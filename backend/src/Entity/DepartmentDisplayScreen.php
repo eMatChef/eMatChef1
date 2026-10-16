@@ -69,6 +69,25 @@ class DepartmentDisplayScreen
     #[ORM\Column(name: 'show_statistics', type: 'boolean')]
     private bool $showStatistics = false;
 
+    /** Bearbeitbarer Layout-Entwurf (Schema siehe DisplayLayoutValidator); null = noch kein Layout angelegt. */
+    #[ORM\Column(name: 'layout_draft', type: 'json', nullable: true)]
+    private ?array $layoutDraft = null;
+
+    /** Zähler für die optimistische Versionsprüfung beim Speichern des Entwurfs. */
+    #[ORM\Column(name: 'layout_draft_version', type: 'integer', options: ['default' => 0])]
+    private int $layoutDraftVersion = 0;
+
+    /** Herkunft des Entwurfs: {template_id, template_version} bzw. {screen_id}; reine Information. */
+    #[ORM\Column(name: 'layout_draft_origin', type: 'json', nullable: true)]
+    private ?array $layoutDraftOrigin = null;
+
+    #[ORM\Column(name: 'layout_draft_updated_at', type: 'datetime', nullable: true)]
+    private ?\DateTimeInterface $layoutDraftUpdatedAt = null;
+
+    /** Nummer der aktiven veröffentlichten Revision; null = nichts veröffentlicht. */
+    #[ORM\Column(name: 'layout_published_number', type: 'integer', nullable: true)]
+    private ?int $layoutPublishedNumber = null;
+
     public function __construct()
     {
         $this->createdAt = new \DateTime();
@@ -329,6 +348,70 @@ class DepartmentDisplayScreen
     public function setShowStatistics(bool $showStatistics): self
     {
         $this->showStatistics = $showStatistics;
+
+        return $this;
+    }
+
+    /** @return array<string, mixed>|null */
+    public function getLayoutDraft(): ?array
+    {
+        return $this->layoutDraft;
+    }
+
+    /** @param array<string, mixed>|null $layoutDraft */
+    public function setLayoutDraft(?array $layoutDraft): self
+    {
+        $this->layoutDraft = $layoutDraft;
+
+        return $this;
+    }
+
+    public function getLayoutDraftVersion(): int
+    {
+        return $this->layoutDraftVersion;
+    }
+
+    public function setLayoutDraftVersion(int $layoutDraftVersion): self
+    {
+        $this->layoutDraftVersion = $layoutDraftVersion;
+
+        return $this;
+    }
+
+    /** @return array<string, mixed>|null */
+    public function getLayoutDraftOrigin(): ?array
+    {
+        return $this->layoutDraftOrigin;
+    }
+
+    /** @param array<string, mixed>|null $layoutDraftOrigin */
+    public function setLayoutDraftOrigin(?array $layoutDraftOrigin): self
+    {
+        $this->layoutDraftOrigin = $layoutDraftOrigin;
+
+        return $this;
+    }
+
+    public function getLayoutDraftUpdatedAt(): ?\DateTimeInterface
+    {
+        return $this->layoutDraftUpdatedAt;
+    }
+
+    public function setLayoutDraftUpdatedAt(?\DateTimeInterface $layoutDraftUpdatedAt): self
+    {
+        $this->layoutDraftUpdatedAt = $layoutDraftUpdatedAt;
+
+        return $this;
+    }
+
+    public function getLayoutPublishedNumber(): ?int
+    {
+        return $this->layoutPublishedNumber;
+    }
+
+    public function setLayoutPublishedNumber(?int $layoutPublishedNumber): self
+    {
+        $this->layoutPublishedNumber = $layoutPublishedNumber;
 
         return $this;
     }

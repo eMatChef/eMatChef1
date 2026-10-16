@@ -89,7 +89,7 @@ class PublicDisplayDeviceController extends AbstractController
         if ($state === DepartmentDisplayDeviceService::STATE_EXPIRED) {
             $response = new JsonResponse($meta, 403);
         } elseif ($withData) {
-            $response = new JsonResponse($meta + $this->dataService->buildPayloadForScreen($identity['screen']));
+            $response = new JsonResponse($meta + $this->dataService->buildPayloadForScreen($identity['screen'], $device));
         } else {
             $response = new JsonResponse($meta);
         }
