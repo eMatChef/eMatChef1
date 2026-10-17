@@ -93,6 +93,22 @@ class GrossanlassAccessService
         return GrossanlassAccessRoles::canConnectGmail($this->gaRole($user, $department));
     }
 
+    public function canManageStaffing(User $user, Department $department): bool
+    {
+        $config = $department->getGrossanlassConfig();
+
+        return GrossanlassAccessRoles::canManageStaffing(
+            $this->gaRole($user, $department),
+            $config?->isStaffingMwAllowed() ?? true,
+            $config?->isStaffingOkAllowed() ?? true,
+        );
+    }
+
+    public function canSeeStaffingOverview(User $user, Department $department): bool
+    {
+        return GrossanlassAccessRoles::canSeeStaffingOverview($this->gaRole($user, $department));
+    }
+
     public function canApproveEinsatz(User $user, Department $department): bool
     {
         return GrossanlassAccessRoles::canApproveEinsatz($this->gaRole($user, $department));

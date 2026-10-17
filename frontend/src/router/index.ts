@@ -40,6 +40,7 @@ import {
   GA_HELPER_ROUTE_ROLES,
   GA_MAILBOX_ROUTE_ROLES,
   GA_MAIL_SETTINGS_ROUTE_ROLES,
+  GA_HELFERPOOL_ROUTE_ROLES,
   GA_MATERIAL_ROUTE_ROLES,
   GA_MATERIALS_ROUTE_ROLES,
   GA_PLANUNG_ROUTE_ROLES,
@@ -1835,7 +1836,7 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/grossanlass/helferpool/GrossanlassHelferpoolView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+              requiredRoles: [...GA_HELFERPOOL_ROUTE_ROLES],
               ...routeHead('grossanlassHelferpool'),
             },
           },
@@ -2237,36 +2238,11 @@ const routes: RouteRecordRaw[] = [
             path: 'tasks',
             name: 'Tasks',
             component: () => import('@/views/TasksShellView.vue'),
-            redirect: (to) => {
-              const authStore = useAuthStore()
-              const deptId = String(to.params.departmentId || '')
-              if (deptId && authStore.isDepartmentGrossanlass(deptId)) {
-                return { name: gaIsGrossanlassHelper(authStore.currentDepartmentRole) ? 'TasksGaMine' : 'TasksGaMaster' }
-              }
-              return { name: 'TasksGeneral' }
-            },
+            redirect: { name: 'TasksGeneral' },
             meta: {
               ...routeHead('tasks'),
             },
             children: [
-              {
-                path: 'aufgaben',
-                name: 'TasksGaMaster',
-                component: () => import('@/views/grossanlass/aufgaben/GrossanlassAufgabenMasterView.vue'),
-                meta: {
-                  requiresGrossanlassDepartment: true,
-                  ...routeHead('tasksGaMaster'),
-                },
-              },
-              {
-                path: 'meine',
-                name: 'TasksGaMine',
-                component: () => import('@/views/grossanlass/aufgaben/GrossanlassMeineAufgabenView.vue'),
-                meta: {
-                  requiresGrossanlassDepartment: true,
-                  ...routeHead('tasksGaMine'),
-                },
-              },
               {
                 path: 'allgemein',
                 name: 'TasksGeneral',

@@ -7,15 +7,16 @@ namespace App\Service\Grossanlass;
 use App\Entity\ActivityGrossanlassProcurementLine;
 use App\Entity\ActivityGrossanlassWishLine;
 use App\Entity\Department;
+use App\Entity\DepartmentGrossanlassDependency;
 use App\Entity\DepartmentGrossanlassEinsatz;
 use App\Entity\DepartmentGrossanlassGroupHelperNeed;
-use App\Entity\DepartmentGrossanlassTaskHelperNeed;
 use App\Entity\DepartmentGrossanlassMap;
 use App\Entity\DepartmentGrossanlassPlace;
 use App\Entity\DepartmentGrossanlassTask;
 use App\Entity\DepartmentGrossanlassVehicleNeed;
 use App\Entity\Group;
 use App\Entity\User;
+use App\Service\InboxMessageService;
 use App\Util\GrossanlassIdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -34,6 +35,12 @@ final class GrossanlassBauprojektService
         private GrossanlassProcurementService $procurement,
         private GrossanlassProcurementProgress $procurementProgress,
         private GrossanlassMaterialProgressService $materialProgress,
+        private GrossanlassStaffingNeedService $staffingNeeds,
+        private GrossanlassTaskWorkflowService $taskWorkflow,
+        private InboxMessageService $inbox,
+        private GrossanlassDependencyService $dependencies,
+        private GrossanlassOrderAcceptanceService $acceptance,
+        private GrossanlassOrderArchiveService $archive,
     ) {}
 
     /**
@@ -96,14 +103,17 @@ final class GrossanlassBauprojektService
     public function updateWindow(Department $department, User $user, Group $group, array $data): array
     {
         $this->assertBauprojekt($department, $group);
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar oder ausführbar
         $this->assertCanEdit($department, $user, $group);
         $start = $this->parseOptionalDate($data['window_start'] ?? null, 'window_start');
         $end = $this->parseOptionalDate($data['window_end'] ?? null, 'window_end');
         if ($start !== null && $end !== null && $end < $start) {
             throw new \InvalidArgumentException('Zeitfenster Ende muss nach Start liegen');
         }
+        $windowsBefore = $this->staffingNeeds->snapshotWindows($group);
         $group->setWindowStart($start);
         $group->setWindowEnd($end);
+        $this->staffingNeeds->realign($group, $windowsBefore); // Bedarf folgt dem Fenster der Aufgaben ohne eigene Zeit
         if (array_key_exists('build_status', $data) && $this->access->canSetBuildStatus($user, $department, $group)) {
             $raw = $data['build_status'];
             if ($raw === null || $raw === '') {
@@ -134,7 +144,42 @@ final class GrossanlassBauprojektService
         $this->assertGroup($department, $group);
         $this->assertCanSee($department, $user, $group);
 
-        return $this->serializeTasks($group);
+        return $this->serializeTasks($department, $user, $group);
+    }
+
+    /**
+     * Aufgaben aller für den Benutzer sichtbaren Gruppen (zentrale Aufgabenübersicht).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function listAllTasks(Department $department, User $user, bool $includeArchived = false): array
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        $rows = $this->entityManager->getRepository(DepartmentGrossanlassTask::class)
+            ->findBy(['departmentId' => $department->getId(), 'isDefault' => false], ['startsAt' => 'ASC', 'sortOrder' => 'ASC']);
+        $helperTaskIds = $this->taskWorkflow->assignedHelperTaskIds($user, $department->getId());
+        $visible = [];
+        $shown = [];
+        foreach ($rows as $row) {
+            if (!$includeArchived && $row->getGroup()->isArchived()) {
+                continue; // archivierte Bauaufträge: nur über den Filter «archivierte anzeigen»
+            }
+            $groupId = $row->getGroupId();
+            if (!isset($visible[$groupId])) {
+                try {
+                    $this->assertCanSee($department, $user, $row->getGroup());
+                    $visible[$groupId] = true;
+                } catch (\Throwable) {
+                    $visible[$groupId] = false;
+                }
+            }
+            // Eigene Aufgaben (verantwortlich oder als Helfer eingeteilt) sind auch ohne Ressortzugriff sichtbar.
+            if ($visible[$groupId] || $row->getAssigneeUserId() === $user->getId() || in_array($row->getId(), $helperTaskIds, true)) {
+                $shown[] = $row;
+            }
+        }
+
+        return $this->serializeTaskList($shown, $department, $user, $helperTaskIds);
     }
 
     /**
@@ -145,11 +190,16 @@ final class GrossanlassBauprojektService
     public function createTask(Department $department, User $user, Group $group, array $data): array
     {
         $this->assertBauprojekt($department, $group);
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar oder ausführbar
         $this->assertCanEdit($department, $user, $group);
+        $this->acceptance->assertTasksMutable($group->getId()); // keine neue Aufgabe in einem gemeldeten/abgenommenen Bauauftrag
         $title = trim((string) ($data['title'] ?? ''));
         $description = trim((string) ($data['description'] ?? ''));
         if ($title === '' && $description === '') {
             throw new \InvalidArgumentException('Titel oder Beschrieb ist erforderlich');
+        }
+        if (is_array($data['helper_need'] ?? null)) {
+            self::normalizeHelperNeedInput($data['helper_need']); // vor dem Anlegen prüfen, damit keine halbe Aufgabe bleibt
         }
         $max = (int) $this->entityManager->getRepository(DepartmentGrossanlassTask::class)
             ->createQueryBuilder('t')
@@ -171,14 +221,22 @@ final class GrossanlassBauprojektService
         $task->setDescription($description === '' ? null : $description);
         $task->setSortOrder($max + 1);
         $this->applyTaskSchedule($task, $data);
+        if (trim((string) ($data['rework_event_id'] ?? '')) !== '') {
+            // Nachbesserung: an eine Rückweisung dieses Bauauftrags geknüpft; Zuteilung/Ressort kommen nur aus den Eingabedaten (kein Auto-Übernehmen)
+            $task->setReworkEventId($this->acceptance->assertReworkEvent($group, (string) $data['rework_event_id'])->getId());
+        }
+        if (array_key_exists('status', $data)) {
+            $this->taskWorkflow->assertStatusChangeAllowed($task, (string) $data['status'], false);
+            $task->setStatus((string) $data['status']);
+        }
         $this->entityManager->persist($task);
         $this->entityManager->flush();
         if (is_array($data['helper_need'] ?? null)) {
-            $this->saveTaskHelperNeed($task, $data['helper_need']);
+            $this->saveTaskHelperNeed($department, $task, $data['helper_need']);
             $this->entityManager->flush();
         }
 
-        return $this->serializeTask($task);
+        return $this->serializeTaskFor($task, $department, $user, $group);
     }
 
     /**
@@ -189,8 +247,16 @@ final class GrossanlassBauprojektService
     public function updateTask(Department $department, User $user, Group $group, string $taskId, array $data): array
     {
         $this->assertBauprojekt($department, $group);
-        $this->assertCanEdit($department, $user, $group);
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar oder ausführbar
         $task = $this->findTask($department, $group, $taskId);
+        $perms = $this->taskWorkflow->permissionsFor($user, $task, $this->canEdit($department, $user, $group));
+        if (!$perms['edit']) {
+            // Verantwortliche ohne Bearbeitungsrecht dürfen nur den Arbeitsfortschritt (Status) melden.
+            if (!$perms['report'] || array_diff(array_keys($data), ['status']) !== []) {
+                throw new \RuntimeException('Keine Berechtigung für dieses Bauprojekt');
+            }
+        }
+        $windowsBefore = $this->staffingNeeds->snapshotWindows($group);
         if (array_key_exists('title', $data)) {
             $task->setTitle(trim((string) $data['title']));
         }
@@ -205,21 +271,477 @@ final class GrossanlassBauprojektService
             $task->setSortOrder((int) $data['sort_order']);
         }
         $this->applyTaskSchedule($task, $data);
+        if (array_key_exists('status', $data)) {
+            $this->taskWorkflow->assertStatusChangeAllowed($task, (string) $data['status'], $perms['approve']);
+            if ($task->getStatus() === DepartmentGrossanlassTask::STATUS_DONE && (string) $data['status'] !== DepartmentGrossanlassTask::STATUS_DONE) {
+                $this->acceptance->assertTasksMutable($group->getId()); // abgenommene Aufgabe wieder öffnen würde die Gesamtabnahme ungültig machen
+            }
+            if ((string) $data['status'] === DepartmentGrossanlassTask::STATUS_PROGRESS && $task->getStatus() !== DepartmentGrossanlassTask::STATUS_PROGRESS) {
+                $this->dependencies->assertCanProceed($task, $this->dependencyVisibility($department, $user)); // wartende Aufgabe kann nicht gestartet werden
+            }
+            $task->setStatus((string) $data['status']);
+        }
+        $this->staffingNeeds->realign($group, $windowsBefore); // Bedarf folgt der neuen Aufgabenzeit
         if (is_array($data['helper_need'] ?? null)) {
-            $this->saveTaskHelperNeed($task, $data['helper_need']);
+            $this->saveTaskHelperNeed($department, $task, $data['helper_need']);
         }
         $this->entityManager->flush();
 
-        return $this->serializeTask($task);
+        return $this->serializeTaskFor($task, $department, $user, $group);
+    }
+
+    /**
+     * Checklistenpunkt anlegen (nur Bearbeitungsrecht).
+     *
+     * @return array<string, mixed>
+     */
+    public function addTaskStep(Department $department, User $user, Group $group, string $taskId, string $label): array
+    {
+        $task = $this->taskForWorkflow($department, $user, $group, $taskId, 'edit');
+        $this->taskWorkflow->addStep($task, $label);
+        $this->entityManager->flush();
+
+        return $this->serializeTaskFor($task, $department, $user, $group);
+    }
+
+    /**
+     * Punkt umbenennen (Bearbeitungsrecht) oder abhaken (zusätzlich Verantwortliche und zugeteilte Helfer).
+     *
+     * @param array<string, mixed> $data label, done
+     *
+     * @return array<string, mixed>
+     */
+    public function updateTaskStep(Department $department, User $user, Group $group, string $taskId, string $stepId, array $data): array
+    {
+        $task = $this->taskForWorkflow($department, $user, $group, $taskId, 'check');
+        $perms = $this->taskWorkflow->permissionsFor($user, $task, $this->canEdit($department, $user, $group));
+        $this->taskWorkflow->updateStep($task, $stepId, $data, $user, $perms);
+        $this->entityManager->flush();
+
+        return $this->serializeTaskFor($task, $department, $user, $group);
+    }
+
+    /** @return array<string, mixed> */
+    public function deleteTaskStep(Department $department, User $user, Group $group, string $taskId, string $stepId): array
+    {
+        $task = $this->taskForWorkflow($department, $user, $group, $taskId, 'edit');
+        $this->taskWorkflow->deleteStep($task, $stepId);
+        $this->entityManager->flush();
+
+        return $this->serializeTaskFor($task, $department, $user, $group);
+    }
+
+    /**
+     * @param list<string> $orderedIds
+     *
+     * @return array<string, mixed>
+     */
+    public function reorderTaskSteps(Department $department, User $user, Group $group, string $taskId, array $orderedIds): array
+    {
+        $task = $this->taskForWorkflow($department, $user, $group, $taskId, 'edit');
+        $this->taskWorkflow->reorder($task, $orderedIds);
+        $this->entityManager->flush();
+
+        return $this->serializeTaskFor($task, $department, $user, $group);
+    }
+
+    /**
+     * Fertigmeldung (Verantwortliche oder Bearbeitungsrecht). Noch kein Abschluss; Kommentar optional.
+     *
+     * @return array<string, mixed>
+     */
+    public function reportTaskDone(Department $department, User $user, Group $group, string $taskId, ?string $note): array
+    {
+        $task = $this->taskForWorkflow($department, $user, $group, $taskId, 'report');
+        $this->dependencies->assertCanProceed($task, $this->dependencyVisibility($department, $user));
+        $this->taskWorkflow->reportDone($task, $user, $note);
+        $this->entityManager->flush();
+        $this->notifyTask($department, $user, $task, $this->taskWorkflow->approverCandidateIds($group), 'Aufgabe fertig gemeldet', 'wurde fertig gemeldet und wartet auf Abnahme', $note);
+
+        return $this->serializeTaskFor($task, $department, $user, $group);
+    }
+
+    /**
+     * Abnahme (Bearbeitungsrecht): erst damit gilt die Aufgabe als erledigt.
+     *
+     * @return array<string, mixed>
+     */
+    public function acceptTask(Department $department, User $user, Group $group, string $taskId): array
+    {
+        $task = $this->taskForWorkflow($department, $user, $group, $taskId, 'approve');
+        $reporter = $this->taskWorkflow->lastReporterId($task);
+        $this->taskWorkflow->accept($task, $user);
+        $this->entityManager->flush();
+        $this->notifyTask($department, $user, $task, array_filter([$reporter, $task->getAssigneeUserId()]), 'Aufgabe abgenommen', 'wurde abgenommen und ist erledigt', null);
+
+        return $this->serializeTaskFor($task, $department, $user, $group);
+    }
+
+    /**
+     * Rückgabe zur Nachbearbeitung mit Begründung (Bearbeitungsrecht).
+     *
+     * @return array<string, mixed>
+     */
+    public function returnTask(Department $department, User $user, Group $group, string $taskId, string $reason): array
+    {
+        $task = $this->taskForWorkflow($department, $user, $group, $taskId, 'approve');
+        $reporter = $this->taskWorkflow->lastReporterId($task);
+        $this->taskWorkflow->returnForRework($task, $user, $reason);
+        $this->entityManager->flush();
+        $this->notifyTask($department, $user, $task, array_filter([$reporter, $task->getAssigneeUserId()]), 'Aufgabe zur Nachbearbeitung zurückgegeben', 'wurde zur Nachbearbeitung zurückgegeben', $reason);
+
+        return $this->serializeTaskFor($task, $department, $user, $group);
+    }
+
+    /**
+     * Gesamtabnahme des Bauauftrags: Zustand, Verlauf und Rechte des Benutzers.
+     * Melden/Zurückziehen: Bearbeitungsrecht am Bauauftrag (wie Aufgaben). Abnehmen, Zurückweisen und Widerrufen: bestehendes
+     * Gruppen-Bearbeitungsrecht übergeordneter Personen (`canEditGroup`: Struktur, Bereichsleitung, Leitung der Gruppe oder
+     * eines Elternknotens, Teilen-Planung). Keine eigene Rollenverwaltung.
+     *
+     * @return array<string, mixed>
+     */
+    public function orderAcceptance(Department $department, User $user, Group $group): array
+    {
+        $this->assertGroup($department, $group);
+        $this->assertCanSee($department, $user, $group);
+
+        return $this->orderAcceptancePayload($department, $user, $group);
+    }
+
+    /** @return array<string, mixed> */
+    public function reportOrder(Department $department, User $user, Group $group): array
+    {
+        $this->assertGroup($department, $group);
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar oder ausführbar
+        $this->assertCanEdit($department, $user, $group);
+        $this->acceptance->report($department, $group, $user);
+
+        return $this->orderAcceptancePayload($department, $user, $group);
+    }
+
+    /** @return array<string, mixed> */
+    public function withdrawOrder(Department $department, User $user, Group $group): array
+    {
+        $this->assertGroup($department, $group);
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar oder ausführbar
+        $this->assertCanEdit($department, $user, $group);
+        $this->acceptance->withdraw($department, $group, $user);
+
+        return $this->orderAcceptancePayload($department, $user, $group);
+    }
+
+    /** @return array<string, mixed> */
+    public function acceptOrder(Department $department, User $user, Group $group): array
+    {
+        $this->assertGroup($department, $group);
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar oder ausführbar
+        $this->assertCanApproveOrder($department, $user, $group);
+        $this->acceptance->accept($department, $group, $user);
+
+        return $this->orderAcceptancePayload($department, $user, $group);
+    }
+
+    /** @return array<string, mixed> */
+    public function returnOrder(Department $department, User $user, Group $group, string $reason): array
+    {
+        $this->assertGroup($department, $group);
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar oder ausführbar
+        $this->assertCanApproveOrder($department, $user, $group);
+        $this->acceptance->returnOrder($department, $group, $user, $reason);
+
+        return $this->orderAcceptancePayload($department, $user, $group);
+    }
+
+    /** @return array<string, mixed> */
+    public function reopenOrder(Department $department, User $user, Group $group, string $reason): array
+    {
+        $this->assertGroup($department, $group);
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar oder ausführbar
+        $this->assertCanApproveOrder($department, $user, $group);
+        $this->acceptance->reopen($department, $group, $user, $reason);
+
+        return $this->orderAcceptancePayload($department, $user, $group);
+    }
+
+    private function assertCanApproveOrder(Department $department, User $user, Group $group): void
+    {
+        if (!$this->access->canEditGroup($user, $department, $group)) {
+            throw new \RuntimeException('Keine Berechtigung für die Gesamtabnahme dieses Bauauftrags');
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function orderAcceptancePayload(Department $department, User $user, Group $group): array
+    {
+        // Vorschläge für Nachbesserungen (nie automatisch zugewiesen): ursprüngliches Ressort und bisherige Verantwortliche
+        $rootId = $this->access->findRootRessortId($group);
+        $root = $this->entityManager->getRepository(Group::class)->find($rootId);
+        $assignees = [];
+        foreach ($this->acceptance->suggestedAssigneeIds($group->getId()) as $userId) {
+            $assignees[] = ['user_id' => $userId, 'name' => $this->entityManager->getRepository(User::class)->find($userId)?->getProfile()?->getDisplayName()];
+        }
+
+        return $this->acceptance->summary($group) + [
+            'rework_suggestion' => [
+                'ressort' => $root instanceof Group ? ['id' => $root->getId(), 'name' => $root->getName()] : null,
+                'assignees' => $assignees,
+            ],
+            'permissions' => [
+                'report' => $this->canEdit($department, $user, $group),
+                'approve' => $this->access->canEditGroup($user, $department, $group),
+            ],
+        ];
+    }
+
+    /**
+     * Aufgabe wartet auf eine andere Aufgabe (auch aus einem anderen Ressort desselben Grossanlasses).
+     * Berechtigung: Bearbeitungsrecht am Nachfolger, Sichtrecht am Vorgänger.
+     *
+     * @return array<string, mixed>
+     */
+    public function addTaskDependency(Department $department, User $user, Group $group, string $taskId, string $predecessorTaskId, string $mode = DepartmentGrossanlassDependency::MODE_SEQUENTIAL): array
+    {
+        $task = $this->taskForWorkflow($department, $user, $group, $taskId, 'edit');
+        $predecessor = $this->entityManager->getRepository(DepartmentGrossanlassTask::class)->find(trim($predecessorTaskId));
+        if (!$predecessor instanceof DepartmentGrossanlassTask || $predecessor->getDepartmentId() !== $department->getId() || $predecessor->isDefault()) {
+            throw new \InvalidArgumentException('Aufgabe nicht gefunden');
+        }
+        $this->assertCanSee($department, $user, $predecessor->getGroup());
+        $this->dependencies->add($department, $user, 'task', $task->getId(), $predecessor->getId(), $mode);
+        $this->entityManager->flush();
+
+        return $this->serializeTaskFor($task, $department, $user, $group);
+    }
+
+    /**
+     * Verknüpfungen einer Aufgabe lesen (Sichtrecht auf den Bauauftrag genügt; Vorgängerdetails nur mit Sichtrecht).
+     *
+     * @return array<string, mixed>
+     */
+    public function taskDependencies(Department $department, User $user, Group $group, string $taskId): array
+    {
+        $this->assertBauprojekt($department, $group);
+        $this->assertCanSee($department, $user, $group);
+
+        return $this->dependencyPayload($this->findTask($department, $group, $taskId), $department, $user);
+    }
+
+    /**
+     * Art einer Verknüpfung ändern (nacheinander ↔ gleichzeitig); Bearbeitungsrecht an der Aufgabe, protokolliert.
+     *
+     * @return array<string, mixed>
+     */
+    public function changeTaskDependencyMode(Department $department, User $user, Group $group, string $taskId, string $dependencyId, string $mode): array
+    {
+        $task = $this->taskForWorkflow($department, $user, $group, $taskId, 'edit');
+        $this->dependencies->changeMode($this->dependencies->find($department, 'task', $task->getId(), $dependencyId), $user, $mode);
+        $this->entityManager->flush();
+
+        return $this->serializeTaskFor($task, $department, $user, $group);
+    }
+
+    /** @return array<string, mixed> */
+    public function removeTaskDependency(Department $department, User $user, Group $group, string $taskId, string $dependencyId): array
+    {
+        $task = $this->taskForWorkflow($department, $user, $group, $taskId, 'edit');
+        $this->dependencies->remove($this->dependencies->find($department, 'task', $task->getId(), $dependencyId), $user);
+        $this->entityManager->flush();
+
+        return $this->serializeTaskFor($task, $department, $user, $group);
+    }
+
+    /**
+     * Abhängigkeit vorzeitig freigeben (Bearbeitungsrecht, Begründung Pflicht, protokolliert).
+     *
+     * @return array<string, mixed>
+     */
+    public function releaseTaskDependency(Department $department, User $user, Group $group, string $taskId, string $dependencyId, string $reason): array
+    {
+        $task = $this->taskForWorkflow($department, $user, $group, $taskId, 'edit');
+        $this->dependencies->release($this->dependencies->find($department, 'task', $task->getId(), $dependencyId), $user, $reason);
+        $this->entityManager->flush();
+
+        return $this->serializeTaskFor($task, $department, $user, $group);
+    }
+
+    /**
+     * Abhängigkeiten eines Bauauftrags (er wartet auf andere Bauaufträge).
+     *
+     * @return array{dependencies: list<array<string, mixed>>, waiting: bool}
+     */
+    public function groupDependencies(Department $department, User $user, Group $group): array
+    {
+        $this->assertGroup($department, $group);
+        $this->assertCanSee($department, $user, $group);
+
+        return $this->groupDependencyPayload($department, $user, $group);
+    }
+
+    /** @return array{dependencies: list<array<string, mixed>>, waiting: bool} */
+    public function addGroupDependency(Department $department, User $user, Group $group, string $predecessorGroupId): array
+    {
+        $this->assertGroup($department, $group);
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar oder ausführbar
+        $this->assertCanEdit($department, $user, $group);
+        $predecessor = $this->entityManager->getRepository(Group::class)->find(trim($predecessorGroupId));
+        if (!$predecessor instanceof Group || $predecessor->getDepartmentId() !== $department->getId()) {
+            throw new \InvalidArgumentException('Bauauftrag nicht gefunden');
+        }
+        $this->assertCanSee($department, $user, $predecessor);
+        $this->dependencies->add($department, $user, 'group', $group->getId(), $predecessor->getId());
+        $this->entityManager->flush();
+
+        return $this->groupDependencyPayload($department, $user, $group);
+    }
+
+    /** @return array{dependencies: list<array<string, mixed>>, waiting: bool} */
+    public function removeGroupDependency(Department $department, User $user, Group $group, string $dependencyId): array
+    {
+        $this->assertGroup($department, $group);
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar oder ausführbar
+        $this->assertCanEdit($department, $user, $group);
+        $this->dependencies->remove($this->dependencies->find($department, 'group', $group->getId(), $dependencyId), $user);
+        $this->entityManager->flush();
+
+        return $this->groupDependencyPayload($department, $user, $group);
+    }
+
+    /** @return array{dependencies: list<array<string, mixed>>, waiting: bool} */
+    public function releaseGroupDependency(Department $department, User $user, Group $group, string $dependencyId, string $reason): array
+    {
+        $this->assertGroup($department, $group);
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar oder ausführbar
+        $this->assertCanEdit($department, $user, $group);
+        $this->dependencies->release($this->dependencies->find($department, 'group', $group->getId(), $dependencyId), $user, $reason);
+        $this->entityManager->flush();
+
+        return $this->groupDependencyPayload($department, $user, $group);
+    }
+
+    /** @return array{dependencies: list<array<string, mixed>>, waiting: bool} */
+    private function groupDependencyPayload(Department $department, User $user, Group $group): array
+    {
+        $all = $this->dependencies->activeFor($department->getId(), 'group', $group->getId());
+        $openIds = array_map(static fn ($d) => $d->getId(), $this->dependencies->openOf($all));
+
+        return [
+            'dependencies' => array_map(static fn (array $d) => $d + ['open' => in_array($d['id'], $openIds, true)], $this->dependencies->serialize($all, $this->dependencyVisibility($department, $user))),
+            'waiting' => $openIds !== [],
+        ];
+    }
+
+    /**
+     * Problem melden: Aufgabe mit Begründung blockieren (Verantwortliche oder Bearbeitungsrecht).
+     *
+     * @return array<string, mixed>
+     */
+    public function blockTask(Department $department, User $user, Group $group, string $taskId, string $reason): array
+    {
+        $task = $this->taskForWorkflow($department, $user, $group, $taskId, 'report');
+        $this->taskWorkflow->block($task, $user, $reason);
+        $this->entityManager->flush();
+
+        return $this->serializeTaskFor($task, $department, $user, $group);
+    }
+
+    /**
+     * Blockierung aufheben – nur mit Bearbeitungsrecht, nie automatisch.
+     *
+     * @return array<string, mixed>
+     */
+    public function unblockTask(Department $department, User $user, Group $group, string $taskId): array
+    {
+        $task = $this->taskForWorkflow($department, $user, $group, $taskId, 'unblock');
+        $this->taskWorkflow->unblock($task);
+        $this->entityManager->flush();
+
+        return $this->serializeTaskFor($task, $department, $user, $group);
     }
 
     public function deleteTask(Department $department, User $user, Group $group, string $taskId): void
     {
         $this->assertBauprojekt($department, $group);
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar oder ausführbar
         $this->assertCanEdit($department, $user, $group);
         $task = $this->findTask($department, $group, $taskId);
+        $this->acceptance->assertTasksMutable($group->getId());
+        if ($task->getReworkEventId() !== null) {
+            throw new \InvalidArgumentException('Nachbesserungsaufgaben können nicht gelöscht werden; sie müssen abgenommen werden, bevor der Bauauftrag erneut gemeldet werden kann');
+        }
+        $this->dependencies->assertDeletable($department->getId(), [$task->getId()], []);
         $this->entityManager->remove($task);
         $this->entityManager->flush();
+    }
+
+    /**
+     * Personalbedarf des Bauprojekts: alle Bedarfe seiner Aufgaben inklusive Standardaufgabe «Allgemein» (ohne Helfernamen).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function listStaffingNeeds(Department $department, User $user, Group $group): array
+    {
+        $this->assertGroup($department, $group);
+        $this->assertCanSee($department, $user, $group);
+        $out = [];
+        foreach ($this->entityManager->getRepository(DepartmentGrossanlassTask::class)->findBy(['groupId' => $group->getId()]) as $task) {
+            foreach ($this->staffingNeeds->listForTask($task->getId()) as $need) {
+                $out[] = $this->staffingNeeds->serialize($need) + ['group_id' => $group->getId(), 'is_default_task' => $task->isDefault()];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Neuer Personalbedarf an einer Aufgabe; ohne `task_id` am Bauprojekt selbst (Standardaufgabe «Allgemein», lazy angelegt).
+     *
+     * @param array<string, mixed> $data task_id, label, required_count, starts_at, ends_at
+     *
+     * @return array<string, mixed>
+     */
+    public function createStaffingNeed(Department $department, User $user, Group $group, array $data): array
+    {
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar
+        $this->assertBauprojekt($department, $group);
+        $this->assertCanEdit($department, $user, $group);
+        $taskId = trim((string) ($data['task_id'] ?? ''));
+        $task = $taskId === '' ? $this->staffingNeeds->ensureDefaultTask($department, $group) : $this->findTask($department, $group, $taskId);
+
+        return $this->staffingNeeds->serialize($this->staffingNeeds->create($department, $task, $group, $data));
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>
+     */
+    public function updateStaffingNeed(Department $department, User $user, Group $group, string $needId, array $data): array
+    {
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar
+        $this->assertBauprojekt($department, $group);
+        $this->assertCanEdit($department, $user, $group);
+
+        return $this->staffingNeeds->serialize($this->staffingNeeds->update($this->findStaffingNeed($department, $group, $needId), $data));
+    }
+
+    public function deleteStaffingNeed(Department $department, User $user, Group $group, string $needId): void
+    {
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar
+        $this->assertBauprojekt($department, $group);
+        $this->assertCanEdit($department, $user, $group);
+        $this->staffingNeeds->delete($this->findStaffingNeed($department, $group, $needId));
+    }
+
+    private function findStaffingNeed(Department $department, Group $group, string $needId): \App\Entity\DepartmentGrossanlassStaffingNeed
+    {
+        $need = $this->staffingNeeds->find($department, $needId);
+        $task = $this->entityManager->find(DepartmentGrossanlassTask::class, $need->getTaskId());
+        if (!$task instanceof DepartmentGrossanlassTask || $task->getGroupId() !== $group->getId()) {
+            throw new \InvalidArgumentException('Personalbedarf nicht gefunden');
+        }
+
+        return $need;
     }
 
     /**
@@ -229,6 +751,7 @@ final class GrossanlassBauprojektService
      */
     public function createVehicleNeed(Department $department, User $user, Group $group, array $data): array
     {
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar
         $this->assertBauprojekt($department, $group);
         $this->assertCanEdit($department, $user, $group);
         $vehicle = trim((string) ($data['vehicle_label'] ?? ''));
@@ -270,6 +793,7 @@ final class GrossanlassBauprojektService
      */
     public function updateVehicleNeed(Department $department, User $user, Group $group, string $needId, array $data): array
     {
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar
         $this->assertBauprojekt($department, $group);
         $this->assertCanEdit($department, $user, $group);
         $row = $this->findVehicleNeed($department, $group, $needId);
@@ -328,6 +852,7 @@ final class GrossanlassBauprojektService
 
     public function deleteVehicleNeed(Department $department, User $user, Group $group, string $needId): void
     {
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar
         $this->assertBauprojekt($department, $group);
         $this->assertCanEdit($department, $user, $group);
         $row = $this->findVehicleNeed($department, $group, $needId);
@@ -342,6 +867,7 @@ final class GrossanlassBauprojektService
      */
     public function addMaterial(Department $department, User $user, Group $group, array $data): array
     {
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar
         $this->assertBauprojekt($department, $group);
         $this->assertCanEdit($department, $user, $group);
         $label = trim((string) ($data['label'] ?? ''));
@@ -380,6 +906,7 @@ final class GrossanlassBauprojektService
      */
     public function updateMaterial(Department $department, User $user, Group $group, string $lineId, array $data): array
     {
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar
         $this->assertBauprojekt($department, $group);
         $this->assertCanEdit($department, $user, $group);
         $mode = strtolower(trim((string) ($data['mode'] ?? $data['source'] ?? 'wish')));
@@ -506,7 +1033,7 @@ final class GrossanlassBauprojektService
             'description' => $group->getDescription(),
             'place' => $place instanceof DepartmentGrossanlassPlace ? $this->places->serialize($place) : null,
             'helper_need' => $this->serializeHelperNeed($group),
-            'tasks' => $this->serializeTasks($group),
+            'tasks' => $this->serializeTasks($department, $user, $group),
             'vehicles' => $this->serializeVehicleNeeds($group),
             'material' => $material,
             'direct_material' => $this->serializeDirectMaterial($group),
@@ -625,24 +1152,155 @@ final class GrossanlassBauprojektService
     /**
      * @return list<array<string, mixed>>
      */
-    private function serializeTasks(Group $group): array
+    private function serializeTasks(Department $department, User $user, Group $group): array
     {
         $rows = $this->entityManager->getRepository(DepartmentGrossanlassTask::class)
-            ->findBy(['groupId' => $group->getId()], ['sortOrder' => 'ASC', 'createdAt' => 'ASC']);
+            ->findBy(['groupId' => $group->getId(), 'isDefault' => false], ['sortOrder' => 'ASC', 'createdAt' => 'ASC']);
+
+        return $this->serializeTaskList($rows, $department, $user, $this->taskWorkflow->assignedHelperTaskIds($user, $department->getId()));
+    }
+
+    /**
+     * @param list<DepartmentGrossanlassTask> $rows
+     * @param list<string>                    $helperTaskIds
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function serializeTaskList(array $rows, Department $department, User $user, array $helperTaskIds): array
+    {
+        $taskIds = array_map(static fn (DepartmentGrossanlassTask $t) => $t->getId(), $rows);
+        $steps = $this->taskWorkflow->stepsByTask($taskIds);
+        $events = $this->taskWorkflow->eventsByTask($taskIds);
+        $canEditByGroup = [];
         $out = [];
         foreach ($rows as $row) {
-            if ($row instanceof DepartmentGrossanlassTask) {
-                $out[] = $this->serializeTask($row);
-            }
+            $groupId = $row->getGroupId();
+            $canEditByGroup[$groupId] ??= $this->canEdit($department, $user, $row->getGroup());
+            $perms = $this->taskWorkflow->permissionsFor($user, $row, $canEditByGroup[$groupId], $helperTaskIds);
+            $out[] = $this->serializeTask($row, $steps[trim($row->getId())] ?? [], $perms, $events[trim($row->getId())] ?? [], $this->dependencyPayload($row, $department, $user));
         }
 
         return $out;
     }
 
     /**
+     * Nachricht über die vorhandene Nachrichtenzentrale (Direktnachricht) an die Beteiligten; der Handelnde selbst
+     * erhält keine. Ein Zustellproblem darf die Aufgabenaktion nicht scheitern lassen.
+     *
+     * @param iterable<string> $recipientIds
+     */
+    private function notifyTask(Department $department, User $actor, DepartmentGrossanlassTask $task, iterable $recipientIds, string $subject, string $what, ?string $note): void
+    {
+        $title = trim($task->getTitle()) !== '' ? $task->getTitle() : (string) $task->getDescription();
+        $text = sprintf('«%s» %s (%s).', $title, $what, $actor->getProfile()?->getDisplayName() ?? 'Unbekannt');
+        if ($note !== null && trim($note) !== '') {
+            $text .= "\n\n" . trim($note);
+        }
+        $sent = [];
+        foreach ($recipientIds as $recipientId) {
+            $recipientId = trim((string) $recipientId);
+            if ($recipientId === '' || $recipientId === $actor->getId() || isset($sent[$recipientId])) {
+                continue;
+            }
+            $sent[$recipientId] = true;
+            try {
+                $recipient = $this->entityManager->getRepository(User::class)->find($recipientId);
+                if ($recipient instanceof User) {
+                    $this->inbox->sendUserMessage($department, $actor, $recipient, $subject . ': ' . $title, $text);
+                }
+            } catch (\Throwable) {
+                // Benachrichtigung ist ergänzend
+            }
+        }
+    }
+
+    /**
+     * Abhängigkeiten der Aufgabe (eigene und die ihres Bauauftrags) und «wartet auf …». Vorgängerdetails nur mit Sichtrecht.
+     *
+     * @return array{dependencies: list<array<string, mixed>>, waiting: bool, waiting_on: list<string>, waiting_hidden: int}
+     */
+    private function dependencyPayload(DepartmentGrossanlassTask $task, Department $department, User $user): array
+    {
+        $all = $this->dependencies->forTask($task);
+        $open = $this->dependencies->openOf($all);
+        $serialized = $this->dependencies->serialize($all, $this->dependencyVisibility($department, $user), $task->getId());
+        $openIds = array_map(static fn ($d) => $d->getId(), $open);
+        $openRows = array_filter($serialized, static fn (array $d) => in_array($d['id'], $openIds, true));
+
+        return [
+            'dependencies' => array_map(static fn (array $d) => $d + ['open' => in_array($d['id'], $openIds, true), 'inherited' => $d['kind'] === 'group'], $serialized),
+            'waiting' => $open !== [],
+            'waiting_on' => array_values(array_map(static fn (array $d) => (string) $d['predecessor_title'], array_filter($openRows, static fn (array $d) => $d['predecessor_visible']))),
+            'waiting_hidden' => count(array_filter($openRows, static fn (array $d) => !$d['predecessor_visible'])),
+        ];
+    }
+
+    /**
+     * Sichtrecht des Benutzers auf den Vorgänger einer Abhängigkeit (Aufgabe → deren Bauauftrag; Bauauftrag selbst).
+     *
+     * @return callable(DepartmentGrossanlassDependency, bool=): bool
+     */
+    private function dependencyVisibility(Department $department, User $user): callable
+    {
+        $byGroup = [];
+
+        return function (DepartmentGrossanlassDependency $d, bool $incoming = false) use ($department, $user, &$byGroup): bool {
+            $predecessorId = trim($incoming ? $d->getSuccessorId() : $d->getPredecessorId());
+            $groupId = $predecessorId;
+            if ($d->getKind() === DepartmentGrossanlassDependency::KIND_TASK) {
+                $task = $this->entityManager->getRepository(DepartmentGrossanlassTask::class)->find($predecessorId);
+                if (!$task instanceof DepartmentGrossanlassTask) {
+                    return false;
+                }
+                $groupId = $task->getGroupId();
+            }
+            if (!isset($byGroup[$groupId])) {
+                $group = $this->entityManager->getRepository(Group::class)->find($groupId);
+                try {
+                    if (!$group instanceof Group) {
+                        throw new \RuntimeException('Gruppe nicht gefunden');
+                    }
+                    $this->assertCanSee($department, $user, $group);
+                    $byGroup[$groupId] = true;
+                } catch (\Throwable) {
+                    $byGroup[$groupId] = false;
+                }
+            }
+
+            return $byGroup[$groupId];
+        };
+    }
+
+    /** @return array<string, mixed> */
+    private function serializeTaskFor(DepartmentGrossanlassTask $task, Department $department, User $user, Group $group): array
+    {
+        $steps = $this->taskWorkflow->stepsByTask([$task->getId()]);
+        $events = $this->taskWorkflow->eventsByTask([$task->getId()]);
+        $perms = $this->taskWorkflow->permissionsFor($user, $task, $this->canEdit($department, $user, $group));
+
+        return $this->serializeTask($task, $steps[trim($task->getId())] ?? [], $perms, $events[trim($task->getId())] ?? [], $this->dependencyPayload($task, $department, $user));
+    }
+
+    /**
+     * Aufgabe laden und die benötigte Aktion (edit|check|report|unblock|approve) serverseitig prüfen.
+     */
+    private function taskForWorkflow(Department $department, User $user, Group $group, string $taskId, string $action): DepartmentGrossanlassTask
+    {
+        $this->assertBauprojekt($department, $group);
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar oder ausführbar
+        $task = $this->findTask($department, $group, $taskId);
+        $perms = $this->taskWorkflow->permissionsFor($user, $task, $this->canEdit($department, $user, $group));
+        if (!$perms[$action]) {
+            throw new \RuntimeException('Keine Berechtigung für diese Aktion an der Aufgabe');
+        }
+
+        return $task;
+    }
+
+    /**
      * @return array<string, mixed>
      */
-    private function serializeTask(DepartmentGrossanlassTask $task): array
+    private function serializeTask(DepartmentGrossanlassTask $task, array $steps = [], ?array $permissions = null, array $events = [], array $dependencyPayload = []): array
     {
         return [
             'id' => $task->getId(),
@@ -653,7 +1311,15 @@ final class GrossanlassBauprojektService
             'starts_at' => $task->getStartsAt()?->format('Y-m-d\TH:i:s'),
             'duration_minutes' => $task->getDurationMinutes(),
             'assignee_user_id' => $task->getAssigneeUserId(),
+            'status' => $task->getStatus(),
             'helper_need' => $this->serializeTaskHelperNeed($task),
+            'steps' => $steps,
+            'blocked' => GrossanlassTaskWorkflowService::serializeBlock($task),
+            'permissions' => $permissions,
+            'events' => $events,
+            'order_status' => $this->acceptance->status($task->getGroupId()),
+            'rework' => $task->getReworkEventId() === null ? null : ['event_id' => trim($task->getReworkEventId())] + ($this->acceptance->reworkReasons([$task->getReworkEventId()])[trim($task->getReworkEventId())] ?? ['reason' => null, 'at' => null]),
+            ...$dependencyPayload,
             'created_at' => $task->getCreatedAt()->format(\DateTimeInterface::ATOM),
         ];
     }
@@ -764,6 +1430,7 @@ final class GrossanlassBauprojektService
             !$task instanceof DepartmentGrossanlassTask
             || $task->getDepartmentId() !== $department->getId()
             || $task->getGroupId() !== $group->getId()
+            || $task->isDefault() // Standardaufgabe «Allgemein» gehört nur zum Personalbedarf, nicht zur Aufgabenübersicht
         ) {
             throw new \InvalidArgumentException('Aufgabe nicht gefunden');
         }
@@ -792,38 +1459,18 @@ final class GrossanlassBauprojektService
     public function saveHelperNeed(Department $department, User $user, Group $group, array $data): array
     {
         $this->assertGroup($department, $group);
+        $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar oder ausführbar
         $this->assertCanEdit($department, $user, $group);
 
         ['total' => $total, 'functions' => $functions] = self::normalizeHelperNeedInput($data);
-
-        $wanted = [DepartmentGrossanlassGroupHelperNeed::TOTAL_LABEL => $total];
-        foreach ($functions as $f) {
-            $wanted[$f['label']] = $f['count'];
-        }
-        $repo = $this->entityManager->getRepository(DepartmentGrossanlassGroupHelperNeed::class);
-        $order = 0;
-        foreach ($repo->findBy(['groupId' => $group->getId()]) as $row) {
-            if (!isset($wanted[$row->getLabel()])) {
-                $this->entityManager->remove($row);
-            }
-        }
-        foreach ($wanted as $label => $count) {
-            $row = $repo->findOneBy(['groupId' => $group->getId(), 'label' => (string) $label]);
-            if ($row instanceof DepartmentGrossanlassGroupHelperNeed) {
-                $row->setRequiredCount($count);
-                $row->setSortOrder($order);
-            } else {
-                $this->entityManager->persist(new DepartmentGrossanlassGroupHelperNeed($group->getId(), (string) $label, $count, $order));
-            }
-            ++$order;
-        }
-        $this->entityManager->flush();
+        // Bedarf am Bauprojekt selbst hängt an der Standardaufgabe «Allgemein».
+        $this->staffingNeeds->syncBundle($department, $this->staffingNeeds->ensureDefaultTask($department, $group), $group, $total, $functions);
 
         return $this->serializeHelperNeed($group);
     }
 
     /**
-     * Prüft Gesamtzahl und Funktionen aus der Anfrage; der Gesamtbedarf ist mindestens die Summe der Funktionen.
+     * Prüft Gesamtzahl und Funktionen aus der Anfrage; die Funktionen sind Teilmenge des Gesamtbedarfs (sonst HelperNeedValidationException).
      *
      * @param array<string, mixed> $data
      * @return array{total: int, functions: list<array{label: string, count: int}>}
@@ -852,38 +1499,27 @@ final class GrossanlassBauprojektService
         }
         $functions = array_values($functions);
 
-        return ['total' => max($total, (int) array_sum(array_column($functions, 'count'))), 'functions' => $functions];
+        $sum = (int) array_sum(array_column($functions, 'count'));
+        if ($sum > $total) {
+            throw new HelperNeedValidationException(sprintf(
+                'Die Funktionen (%d) übersteigen den Gesamtbedarf (%d). Bitte Gesamtbedarf erhöhen oder Funktionen reduzieren.',
+                $sum,
+                $total,
+            ));
+        }
+
+        return ['total' => $total, 'functions' => $functions];
     }
 
     /**
-     * Speichert den Helferbedarf einer Aufgabe (ersetzt die bisherigen Zeilen).
+     * Speichert den Helferbedarf einer Aufgabe (Gesamtzahl + Funktionen) als Bündel ihrer Personalbedarfe.
      *
      * @param array<string, mixed> $data
      */
-    private function saveTaskHelperNeed(DepartmentGrossanlassTask $task, array $data): void
+    private function saveTaskHelperNeed(Department $department, DepartmentGrossanlassTask $task, array $data): void
     {
         ['total' => $total, 'functions' => $functions] = self::normalizeHelperNeedInput($data);
-        $wanted = [DepartmentGrossanlassTaskHelperNeed::TOTAL_LABEL => $total];
-        foreach ($functions as $f) {
-            $wanted[$f['label']] = $f['count'];
-        }
-        $repo = $this->entityManager->getRepository(DepartmentGrossanlassTaskHelperNeed::class);
-        foreach ($repo->findBy(['taskId' => $task->getId()]) as $row) {
-            if (!isset($wanted[$row->getLabel()])) {
-                $this->entityManager->remove($row);
-            }
-        }
-        $order = 0;
-        foreach ($wanted as $label => $count) {
-            $row = $repo->findOneBy(['taskId' => $task->getId(), 'label' => (string) $label]);
-            if ($row instanceof DepartmentGrossanlassTaskHelperNeed) {
-                $row->setRequiredCount($count);
-                $row->setSortOrder($order);
-            } elseif ($count > 0 || $label !== DepartmentGrossanlassTaskHelperNeed::TOTAL_LABEL) {
-                $this->entityManager->persist(new DepartmentGrossanlassTaskHelperNeed($task->getId(), (string) $label, $count, $order));
-            }
-            ++$order;
-        }
+        $this->staffingNeeds->syncBundle($department, $task, $task->getGroup(), $total, $functions);
     }
 
     /**
@@ -891,13 +1527,7 @@ final class GrossanlassBauprojektService
      */
     private function serializeTaskHelperNeed(DepartmentGrossanlassTask $task): array
     {
-        $rows = $this->entityManager->getRepository(DepartmentGrossanlassTaskHelperNeed::class)
-            ->findBy(['taskId' => $task->getId()], ['sortOrder' => 'ASC']);
-
-        return self::helperNeedFromRows(array_map(
-            static fn (DepartmentGrossanlassTaskHelperNeed $r) => ['label' => $r->getLabel(), 'count' => $r->getRequiredCount()],
-            $rows,
-        ));
+        return $this->staffingNeeds->bundleOf($task, $task->getGroup());
     }
 
     /**
@@ -954,19 +1584,7 @@ final class GrossanlassBauprojektService
      */
     private function taskNeedRows(Group $group): array
     {
-        $out = [];
-        $tasks = $this->entityManager->getRepository(DepartmentGrossanlassTask::class)->findBy(['groupId' => $group->getId()]);
-        foreach ($tasks as $task) {
-            if ($task instanceof DepartmentGrossanlassTask) {
-                $out[] = [
-                    'starts_at' => $task->getStartsAt(),
-                    'duration' => $task->getDurationMinutes(),
-                    'total' => $this->serializeTaskHelperNeed($task)['total'],
-                ];
-            }
-        }
-
-        return $out;
+        return $this->staffingNeeds->demandRows([$group->getId()])[$group->getId()] ?? [];
     }
 
     /**
@@ -974,14 +1592,12 @@ final class GrossanlassBauprojektService
      */
     private function serializeHelperNeed(Group $group): array
     {
-        $rows = $this->entityManager->getRepository(DepartmentGrossanlassGroupHelperNeed::class)
-            ->findBy(['groupId' => $group->getId()], ['sortOrder' => 'ASC']);
-
-        $need = self::helperNeedFromRows(array_map(
-            static fn (DepartmentGrossanlassGroupHelperNeed $r) => ['label' => $r->getLabel(), 'count' => $r->getRequiredCount()],
-            $rows,
-        ));
-        // Der Bedarf der Aufgaben ersetzt die gruppenweite Zahl nicht, sondern wird zeitlich daneben ausgewertet.
+        // Gesamtzahl und Funktionen des Bauprojekts selbst (Standardaufgabe «Allgemein»); der Bedarf aller
+        // Aufgaben kommt zeitlich ausgewertet daneben (`from_tasks`).
+        $default = $this->entityManager->getRepository(DepartmentGrossanlassTask::class)->findOneBy(['groupId' => $group->getId(), 'isDefault' => true]);
+        $need = $default instanceof DepartmentGrossanlassTask
+            ? $this->staffingNeeds->bundleOf($default, $group)
+            : ['total' => 0, 'functions' => [], 'unspecified' => 0];
         $need['from_tasks'] = self::helperDemandOverTime($this->taskNeedRows($group));
 
         return $need;

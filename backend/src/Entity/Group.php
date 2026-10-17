@@ -99,6 +99,16 @@ class Group
     #[ORM\OneToMany(mappedBy: 'group', targetEntity: GroupMembership::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
     private Collection $memberships;
 
+    /** Archivierter Bauauftrag (Soft-Delete): bleibt mit allen Aufgaben, Abnahmen und der Historie erhalten, ist aber nicht mehr bearbeitbar. */
+    #[ORM\Column(name: 'archived_at', type: 'datetime', nullable: true)]
+    private ?\DateTime $archivedAt = null;
+
+    #[ORM\Column(name: 'archived_by_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $archivedByUserId = null;
+
+    #[ORM\Column(name: 'archive_reason', type: 'text', nullable: true)]
+    private ?string $archiveReason = null;
+
     // Timestamps
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
@@ -319,6 +329,44 @@ class Group
     public function getUpdatedAt(): \DateTime
     {
         return $this->updatedAt;
+    }
+
+    public function isArchived(): bool
+    {
+        return $this->archivedAt !== null;
+    }
+
+    public function getArchivedAt(): ?\DateTime
+    {
+        return $this->archivedAt;
+    }
+
+    public function getArchivedByUserId(): ?string
+    {
+        return $this->archivedByUserId;
+    }
+
+    public function getArchiveReason(): ?string
+    {
+        return $this->archiveReason;
+    }
+
+    public function archive(string $userId, string $reason): self
+    {
+        $this->archivedAt = new \DateTime();
+        $this->archivedByUserId = $userId;
+        $this->archiveReason = $reason;
+
+        return $this;
+    }
+
+    public function restore(): self
+    {
+        $this->archivedAt = null;
+        $this->archivedByUserId = null;
+        $this->archiveReason = null;
+
+        return $this;
     }
 
     public function updateTimestamps(): void

@@ -8798,7 +8798,7 @@
   },
   "grossanlass": {
     "helperNeed": {
-      "taskTotal": "Helpers for this task",
+      "taskTotal": "Total helpers (incl. functions)",
       "peak": "Peak need: {n} helpers at the same time.",
       "peakHint": "Tasks at different times are not added up.",
       "legacy": "Previous overall need of this order: {n} helpers. Need is now entered per task.",
@@ -8807,6 +8807,8 @@
       "total": "Helpers needed",
       "function": "Function",
       "count": "Count",
+      "overflow": "Functions ({sum}) exceed the total need ({total}). Increase the total or reduce functions – not saved.",
+      "rest": "Without special function: {n}",
       "addFunction": "Add function",
       "remove": "Remove",
       "split": "Functions: {sum} of {total} helpers",
@@ -8814,7 +8816,7 @@
       "saved": "Helper need saved",
       "failed": "The helper need could not be saved."
     },
-      "setup": {
+    "setup": {
         "title": "Initial setup",
         "lead": "We need a few important details before the large event can start. After that you release it for all roles.",
         "leadOther": "This large event is being set up. Once the MW or the OK lead releases it, your area becomes available.",
@@ -9026,6 +9028,7 @@
       "res": {"title": "Resource demands", "summary": "{need} demand · {proposal} proposal · {planned} scheduled", "empty": "No resource demands recorded.", "add": "Add resource demand", "typeLabel": "Resource type", "labelField": "Name / category", "duration": "Duration (h)", "earliest": "Earliest from", "latest": "Latest until", "wishFrom": "Wish from", "wishTo": "Wish until", "flexible": "flexible", "fixed": "not flexible", "note": "Remark", "possible": "Possible", "wish": "Wish", "proposal": "Proposal", "plannedAt": "Scheduled", "demoNote": "Demo proposal, no automatic optimisation.", "accept": "Accept proposal", "otherTime": "Other time", "leaveOpen": "Leave open", "reopen": "Reopen", "planTime": "Set time", "start": "Start", "apply": "Apply", "toHelferpool": "To helper pool", "after": "Only possible after: {task}", "afterDone": "After “{task}” (done)", "type": {"crane": "Crane", "forklift": "Forklift", "machine": "Machine", "vehicle": "Vehicle", "trailer": "Trailer", "tool": "Special tool", "helper": "Helper / skill"}, "status": {"need": "Demand", "proposal": "Proposal", "planned": "Scheduled"}, "issue": {"outsideWindow": "Outside the possible window.", "tooShort": "Window shorter than the required duration.", "conflict": "Already booked: {where}.", "beforeDependency": "Starts before the previous task is finished."}},
       "dep": {"title": "Dependencies", "waits": "waits for: {task}", "finished": "finished"},
       "filterType": "Type",
+      "mineOnly": "My department/area",
       "type": {
         "order": "Order",
         "build": "Construction order"
@@ -9195,71 +9198,139 @@
     },
     "helferpool": {
       "title": "Helper pool",
-      "subtitle": "Who is available when, what can they do and where are they assigned?",
-      "intro": "Shows availability, skills and assignments. There is no automatic optimisation, only an overview of who fits professionally and in time.",
-      "prototype": "Prototype · demo data",
+      "subtitle": "Who is available when, who is assigned where and where is staff still missing?",
+      "intro": "Capture helpers, maintain availability and assign them to staffing needs. Professions and skills are wishes, not requirements. There is no automatic optimisation.",
+      "introReadonly": "Staffing needs and coverage of the tasks. GA-HV and GA-SUBHV can manage and assign helpers, as can GA-MW and GA-OK unless disabled in the GA settings.",
       "tab": {
         "helpers": "Helpers",
         "timeline": "Timeline",
-        "skills": "Skills"
+        "skills": "Skills",
+        "needs": "Staffing needs"
       },
-      "status": {
-        "free": "Free",
-        "partial": "Partly booked",
-        "busy": "Booked",
-        "unavailable": "Not available"
+      "kpi": {
+        "required": "People needed",
+        "open": "Needs with gaps",
+        "fill": "Coverage",
+        "helpers": "Active helpers",
+        "conflicts": "Conflicts"
       },
+      "helperStatus": {
+        "active": "Active",
+        "archived": "Archived"
+      },
+      "add": "Add helper",
+      "archive": "Archive",
+      "restore": "Restore",
+      "saved": "Saved",
+      "details": "Details",
       "contact": "Contact",
-      "skills": "Skills",
-      "licenses": "Driving licences",
-      "noLicense": "no driving licence",
+      "noContact": "No contact details",
       "availability": "Availability",
+      "availabilityHint": "Without recorded availability a binding assignment is not possible.",
+      "noAvailability": "No availability recorded",
+      "noAvailabilityInRange": "No availability in the period",
+      "addAvailability": "Add availability",
       "assignments": "Assignments",
       "noAssignments": "No assignments",
-      "freeWindows": "Free time slots",
-      "noFree": "No free time slots in the period",
-      "hours": "{free} h free of {total} h",
-      "details": "Details",
-      "assign": "Assign helper",
+      "assignmentCount": "{n} assignments in the period",
+      "override": "Exception",
+      "assigned": "Helper assigned",
       "unassign": "Remove assignment",
-      "assigned": "{name} assigned to “{task}”",
-      "assignedMany": "{n} helpers assigned",
-      "emptyTitle": "No matching helpers",
-      "emptyText": "Adjust period or filters.",
-      "period": {
-        "anlass": "Event week (2–8 Nov)",
-        "day": "4 Nov",
-        "next14": "Next 14 days"
-      },
+      "unassigned": "Assignment removed",
+      "emptyTitle": "No helpers",
+      "emptyText": "Add helpers or adjust the filter.",
       "filter": {
         "search": "Search",
-        "period": "Period",
-        "ressort": "Department / area",
-        "skill": "Skill",
-        "license": "Driving licence",
-        "availability": "Availability",
-        "org": "Organisation",
-        "all": "All",
-        "free": "Free only",
-        "availableAny": "Free or partly"
+        "status": "Status"
+      },
+      "field": {
+        "firstName": "First name",
+        "lastName": "Last name",
+        "email": "Email",
+        "phone": "Phone",
+        "note": "Note",
+        "from": "From",
+        "to": "To",
+        "time": "Time"
+      },
+      "form": {
+        "createTitle": "Add helper",
+        "editTitle": "Edit helper",
+        "hint": "Helpers do not need an eMatChef account. Only the necessary details are stored."
+      },
+      "assign": {
+        "button": "Assign helper",
+        "title": "Assign helper",
+        "editTitle": "Change assignment",
+        "helper": "Helper",
+        "undated": "This need has no time window yet. Assignments are only possible with a concrete time window.",
+        "partTimeHint": "Part-time is possible: the window may be shorter than the need (e.g. 08:00–10:00).",
+        "overrideReason": "Reason for the exception",
+        "overrideHint": "An exception is logged with its reason and the person who made it.",
+        "withOverride": "Assign as exception"
+      },
+      "needs": {
+        "group": "Order / construction project",
+        "onlyOpen": "Open only",
+        "emptyTitle": "No staffing needs",
+        "emptyText": "Staffing needs are entered on the tasks and construction projects.",
+        "projectNeed": "Project-level need",
+        "undatedHint": "No time window – cannot be assigned yet",
+        "count": "{assigned} of {required}",
+        "groupSum": "{required} people · peak {peak}",
+        "gap": "{from}–{to}: {missing} missing",
+        "showAssignments": "Assignments",
+        "hideAssignments": "Close",
+        "state": {
+          "undated": "No time",
+          "open": "Open",
+          "partial": "Partly",
+          "covered": "Covered",
+          "over": "Overstaffed"
+        }
+      },
+      "timeline": {
+        "start": "Start",
+        "days": "Period",
+        "nDays": "{n} days",
+        "emptyTitle": "No entries",
+        "emptyText": "There is neither availability nor assignments in this period."
       },
       "legend": {
         "available": "Available",
-        "assigned": "Assigned"
+        "assigned": "Assigned",
+        "override": "Assigned with exception"
       },
-      "need": {
-        "title": "Need from task",
-        "task": "Task / construction job",
-        "requirement": "Needs: {count} helpers {skill}",
-        "staffed": "{assigned} of {need} assigned",
-        "assignFits": "Assign matching ({n})",
-        "noOptimization": "Suggestion only, no automatic optimisation.",
-        "busy": "Fits professionally but booked: {task}",
-        "match": {
-          "fit": "Fits professionally and in time",
-          "unavailable": "Fits professionally, not available in time",
-          "assigned": "Already assigned"
-        }
+      "skillsNote": "Professions and skills are wishes: function wishes of the staffing needs, summarised across all tasks. They split the total need and are not counted in addition.",
+      "skillsFunction": "Function",
+      "skillsNoFunction": "No function",
+      "skillsRequired": "Needed",
+      "skillsAssigned": "Assigned",
+      "conflict": {
+        "double_booking": "The helper is already assigned in this time window. With a reason this can be saved as an exception:",
+        "no_availability": "No availability is recorded for this time window. Please add the helper's availability first.",
+        "outside_need_window": "The assignment must lie within the time window of the staffing need.",
+        "need_undated": "The staffing need has no time window yet.",
+        "helper_archived": "The helper is archived.",
+        "in_use": "There are still assignments.",
+        "stale": "The assignment was changed in the meantime. Please reload."
+      },
+      "conflictItem": {
+        "none": "No conflicts.",
+        "double_booking": "{name}: assigned twice ({when})",
+        "outside_availability": "{name}: assignment outside availability ({when})",
+        "outside_need_window": "{name}: assignment outside the need window ({when})",
+        "overbooked": "Overstaffed: {peak} assignments for {required} people needed",
+        "need_undated": "Staffing need without time window – cannot be assigned"
+      },
+      "warning": {
+        "overbooked": "The need is overstaffed.",
+        "double_booking_override": "Double booking saved as an exception."
+      },
+      "error": {
+        "load": "The helper pool could not be loaded.",
+        "save": "Saving failed.",
+        "assign": "Assignment failed."
       }
     },
     "verkauf": {
@@ -9838,11 +9909,13 @@
         "all": "All",
         "open": "Open",
         "progress": "In progress",
+        "review": "Reported done",
         "overdue": "Overdue",
         "done": "Done"
       },
       "bucket": {
         "overdue": "Overdue",
+        "review": "Awaiting acceptance",
         "today": "Today",
         "tomorrow": "Tomorrow",
         "later": "Later",
@@ -9900,6 +9973,144 @@
         "emptyTitle": "Nothing open today",
         "emptyText": "You have no work or driving orders today.",
         "back": "Back"
+      },
+      "create": {
+        "open": "New task",
+        "title": "New task",
+        "project": "Build project / order",
+        "name": "Task",
+        "start": "Start",
+        "minutes": "Duration (minutes)",
+        "error": "The task could not be saved."
+      },
+      "actionError": "Action failed or not allowed.",
+      "blocked": {
+        "chip": "Blocked",
+        "title": "Blocked",
+        "report": "Report problem",
+        "reason": "What is blocking the task?",
+        "submit": "Block",
+        "release": "Release block"
+      },
+      "review": {
+        "title": "Reported done",
+        "waiting": "The task is waiting for acceptance.",
+        "report": "Report done",
+        "accept": "Accept",
+        "giveBack": "Return for rework",
+        "giveBackSubmit": "Return",
+        "reason": "What needs to be reworked?",
+        "history": "History",
+        "event": {
+          "reported": "Reported done",
+          "accepted": "Accepted",
+          "returned": "Returned"
+        }
+      },
+      "deps": {
+        "addAction": "Add dependency",
+        "addSimultaneous": "At the same time as …",
+        "stateSimultaneous": "time-coordinated, no start lock",
+        "switchToSimultaneous": "Change to simultaneous",
+        "switchToSequential": "Change to sequential",
+        "mode": {
+          "label": "Type",
+          "sequential": "Sequential (predecessor must be accepted)",
+          "simultaneous": "Simultaneous"
+        },
+        "schedule": {
+          "noTime": "no time",
+          "none": "Time windows overlap (this task: {own}, linked task: {partner}).",
+          "no_overlap": "Time conflict: the time windows do not overlap (this task: {own}, linked task: {partner}). Nothing is changed automatically.",
+          "unscheduled": "Cannot coordinate times: at least one task has no start time (this task: {own}, linked task: {partner})."
+        },
+        "trace": {
+          "created": "Created by {name} on {at}",
+          "incoming": "created from the linked task",
+          "modeChanged": "Type changed by {name} on {at}"
+        },
+        "title": "Dependencies",
+        "none": "No dependencies.",
+        "chip": "Waiting",
+        "waitingOn": "Waiting for: {names}",
+        "viaOrder": "Build order",
+        "hidden": "Dependency not visible to you",
+        "waitingHidden": "{n} dependency(ies) not visible to you",
+        "stateWaitingGroup": "Final acceptance pending",
+        "stateDoneGroup": "Final acceptance done",
+        "stateWaiting": "not yet accepted",
+        "stateDone": "accepted",
+        "stateReleased": "released early",
+        "releasedBy": "Released by {name}",
+        "release": "Release early",
+        "releaseSubmit": "Release",
+        "reason": "Reason for release",
+        "remove": "Remove",
+        "add": "Waits for …",
+        "addButton": "Add",
+        "groupTitle": "Waits for (build orders)",
+        "groupWaiting": "This build order is still waiting for a predecessor; its tasks cannot be started."
+      },
+      "acceptance": {
+        "title": "Final acceptance",
+        "progress": "{done} of {total} tasks accepted",
+        "notEligible": "Final acceptance is only possible once the build order has tasks and all of them are accepted (done).",
+        "report": "Report for acceptance",
+        "withdraw": "Withdraw report",
+        "accept": "Accept build order",
+        "return": "Reject",
+        "reopen": "Revoke acceptance",
+        "confirm": "Confirm",
+        "status": { "open": "Open", "review": "Reported for acceptance", "accepted": "Accepted" },
+        "reason": {
+          "return": "Reason for rejection",
+          "reopen": "Reason for revoking"
+        },
+        "event": {
+          "reported": "Reported for acceptance",
+          "accepted": "Accepted",
+          "returned": "Rejected",
+          "withdrawn": "Report withdrawn",
+          "reopened": "Acceptance revoked"
+        },
+        "taskNote": {
+          "review": "The build order is reported for acceptance; tasks cannot be created, deleted or reopened.",
+          "accepted": "The build order is accepted; tasks cannot be created, deleted or reopened."
+        }
+      },
+      "rework": {
+        "chip": "Rework",
+        "reasonLine": "Rejection reason: {reason}",
+        "title": "Rework",
+        "none": "No rework tasks created yet.",
+        "create": "Create rework task",
+        "createSubmit": "Create",
+        "titleLabel": "Task",
+        "assignee": "Responsible (optional)",
+        "suggested": "suggested",
+        "suggestion": "Suggestion only, nothing is assigned automatically – department: {ressort}; previous responsible: {people}",
+        "open": "{n} rework task(s) not yet accepted; only then can the build order be reported for acceptance again."
+      },
+      "archive": {
+        "showArchived": "Show archived",
+        "chip": "Archived",
+        "banner": "This build order is archived and can no longer be edited or executed.",
+        "action": "Archive",
+        "restore": "Restore",
+        "title": "Archive build order",
+        "explain": "The build order is not deleted: tasks, acceptances, rejections, rework and the history are kept. It disappears from active lists and can be found via \"Show archived\".",
+        "hasHistory": "Work has already been done or logged, so it cannot be physically deleted.",
+        "reason": "Reason",
+        "confirm": "Archive",
+        "archived": "Build order archived",
+        "restored": "Build order restored"
+      },
+      "checklist": {
+        "title": "Checklist",
+        "add": "New item",
+        "addButton": "Add",
+        "up": "Move up",
+        "down": "Move down"
       }
     },
     "logistik": {
@@ -10933,6 +11144,10 @@
         "guestLead": "After they accept they get a camp or event under Activities — like a normal scout camp.",
         "hasGuests": "Invite participant departments",
         "hasGuestsHelp": "Other scout departments take part. Invites happen on the Participants tab.",
+        "staffingTitle": "Helper pool management",
+        "staffingHint": "GA-HV and GA-SUBHV always manage the helper pool. Here you decide whether GA-MW and GA-OK may also manage and assign helpers.",
+        "staffingMw": "GA-MW may manage the helper pool",
+        "staffingOk": "GA-OK may manage the helper pool",
         "hasGuestsNo": "OK only, no guest departments",
         "logisticsNode": "Event pot",
         "logisticsNodeHint": "The infrastructure / material envelope sits on a department or sub-department. You set that in the ressort overview.",

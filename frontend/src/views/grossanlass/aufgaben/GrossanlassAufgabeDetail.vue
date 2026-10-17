@@ -11,8 +11,8 @@
       <v-chip size="small" variant="tonal" :prepend-icon="KIND_ICON[task.kind]">
         {{ t(`grossanlass.aufgaben.kind.${task.kind}`) }}
       </v-chip>
-      <v-chip size="small" variant="flat" :color="STATUS_COLOR[statusKey(task)]">
-        {{ t(`grossanlass.aufgaben.status.${statusKey(task)}`) }}
+      <v-chip size="small" variant="flat" :color="STATUS_COLOR[statusKey(task, now)]">
+        {{ t(`grossanlass.aufgaben.status.${statusKey(task, now)}`) }}
       </v-chip>
     </div>
 
@@ -37,7 +37,7 @@
             variant="outlined"
             :closable="canAssign"
             class="mr-1"
-            @click:close="unassignPerson(task, person)"
+            @click:close="emit('assign', null)"
           >
             {{ person }}
           </v-chip>
@@ -58,10 +58,6 @@
       </div>
     </dl>
 
-    <section v-if="blockers.length" class="aufgabe-detail__section aufgabe-detail__wait">
-      <p><v-icon icon="mdi-timer-sand" size="16" /> {{ t('grossanlass.aufgaben.detail.waitsFor', { task: blockers.map((entry) => entry.title).join(', ') }) }}</p>
-    </section>
-
     <section v-if="task.helperNeed" class="aufgabe-detail__section aufgabe-detail__need">
       <h4>{{ t('grossanlass.aufgaben.detail.helperNeed') }}</h4>
       <p>
@@ -75,49 +71,120 @@
       <p>{{ task.description }}</p>
     </section>
 
-    <GrossanlassFahrauftragSteps v-if="task.kind === 'logistik' && task.route" :task="task" :read-only="readOnly" />
+    <section v-if="task.blocked" class="aufgabe-detail__section aufgabe-detail__blocked" data-testid="task-blocked">
+      <h4><v-icon icon="mdi-alert-octagon-outline" size="18" /> {{ t('grossanlass.aufgaben.blocked.title') }}</h4>
+      <p>{{ task.blocked.reason }}</p>
+      <EButton v-if="task.permissions?.unblock" variant="secondary" size="small" @click="emit('unblock')">
+        {{ t('grossanlass.aufgaben.blocked.release') }}
+      </EButton>
+    </section>
 
-    <template v-else>
-      <section class="aufgabe-detail__section">
-        <h4>{{ t('grossanlass.aufgaben.detail.progress') }}</h4>
-        <div class="aufgabe-progress">
-          <v-progress-linear :model-value="progress" height="10" rounded color="primary" />
-          <span>{{ progress }} %</span>
+    <section v-if="task.rework" class="aufgabe-detail__section aufgabe-detail__rework" data-testid="task-rework">
+      <h4><v-icon icon="mdi-wrench-outline" size="18" /> {{ t('grossanlass.aufgaben.rework.chip') }}</h4>
+      <p>{{ t('grossanlass.aufgaben.rework.reasonLine', { reason: task.rework.reason ?? '–' }) }}</p>
+    </section>
+
+    <p v-if="task.orderStatus && task.orderStatus !== 'open'" class="aufgabe-detail__order" data-testid="task-order-status">
+      <v-icon icon="mdi-lock-outline" size="16" /> {{ t(`grossanlass.aufgaben.acceptance.taskNote.${task.orderStatus}`) }}
+    </p>
+
+    <section v-if="task.waiting" class="aufgabe-detail__section aufgabe-detail__waiting" data-testid="task-waiting">
+      <h4><v-icon icon="mdi-timer-sand" size="18" /> {{ waitingText }}</h4>
+    </section>
+
+    <section v-if="task.dependencies?.length || (task.groupId && task.permissions?.edit && dependencyCandidates?.length)" class="aufgabe-detail__section">
+      <h4>{{ t('grossanlass.aufgaben.deps.title') }}</h4>
+      <GaDependencyList
+        :dependencies="task.dependencies ?? []"
+        :can-edit="!!task.permissions?.edit && !readOnly"
+        :candidates="dependencyCandidates ?? []"
+        allow-simultaneous
+        @add="(id, mode) => emit('dependencyAdd', id, mode)"
+        @change-mode="(dep, mode) => emit('dependencyMode', dep, mode)"
+        @remove="(dep) => emit('dependencyRemove', dep)"
+        @release="(dep, reason) => emit('dependencyRelease', dep, reason)"
+      />
+    </section>
+
+    <section v-if="task.status === 'review'" class="aufgabe-detail__section aufgabe-detail__review" data-testid="task-review">
+      <h4><v-icon icon="mdi-clipboard-check-outline" size="18" /> {{ t('grossanlass.aufgaben.review.title') }}</h4>
+      <p>{{ t('grossanlass.aufgaben.review.waiting') }}</p>
+      <div v-if="task.permissions?.approve && !readOnly && !returning" class="aufgabe-detail__actions">
+        <EButton variant="primary" size="small" @click="emit('accept')">{{ t('grossanlass.aufgaben.review.accept') }}</EButton>
+        <EButton variant="secondary" size="small" @click="returning = true">{{ t('grossanlass.aufgaben.review.giveBack') }}</EButton>
+      </div>
+      <div v-if="returning" class="aufgabe-detail__section">
+        <ETextField v-model="returnReason" :label="t('grossanlass.aufgaben.review.reason')" density="compact" hide-details />
+        <div class="aufgabe-detail__actions">
+          <EButton variant="primary" size="small" :disabled="!returnReason.trim()" @click="submitReturn">{{ t('grossanlass.aufgaben.review.giveBackSubmit') }}</EButton>
+          <EButton variant="secondary" size="small" @click="returning = false">{{ t('common.cancel') }}</EButton>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <section v-if="task.steps.length" class="aufgabe-detail__section">
-        <h4>{{ t('grossanlass.aufgaben.detail.steps') }}</h4>
-        <ul class="aufgabe-steps">
-          <li v-for="(step, index) in task.steps" :key="step.label">
-            <ECheckbox
-              :model-value="step.done"
-              :label="step.label"
-              hide-details
-              :disabled="readOnly"
-              @update:model-value="toggleStep(task, index)"
-            />
-          </li>
-        </ul>
-      </section>
-    </template>
+    <section v-if="task.steps.length || (task.groupId && task.permissions?.edit)" class="aufgabe-detail__section" data-testid="task-checklist">
+      <h4>{{ t('grossanlass.aufgaben.checklist.title') }}</h4>
+      <ul class="aufgabe-checklist">
+        <li v-for="(step, index) in task.steps" :key="step.id ?? step.label">
+          <v-checkbox-btn
+            :model-value="step.done"
+            :disabled="!step.id || !task.permissions?.check || !!task.blocked || readOnly"
+            color="primary"
+            :aria-label="step.label"
+            @update:model-value="(value) => emit('stepDone', step.id!, !!value)"
+          />
+          <span :class="{ 'aufgabe-checklist__done': step.done }">{{ step.label }}</span>
+          <span v-if="task.permissions?.edit && !readOnly" class="aufgabe-checklist__tools">
+            <v-btn icon="mdi-arrow-up" size="x-small" variant="text" :disabled="index === 0" :aria-label="t('grossanlass.aufgaben.checklist.up')" @click="emit('stepMove', step.id!, -1)" />
+            <v-btn icon="mdi-arrow-down" size="x-small" variant="text" :disabled="index === task.steps.length - 1" :aria-label="t('grossanlass.aufgaben.checklist.down')" @click="emit('stepMove', step.id!, 1)" />
+            <v-btn icon="mdi-delete-outline" size="x-small" variant="text" :aria-label="t('common.delete')" @click="emit('stepRemove', step.id!)" />
+          </span>
+        </li>
+      </ul>
+      <div v-if="task.permissions?.edit && !readOnly" class="aufgabe-checklist__add">
+        <ETextField v-model="newStep" :label="t('grossanlass.aufgaben.checklist.add')" density="compact" hide-details @keyup.enter="addStep" />
+        <EButton variant="secondary" size="small" :disabled="!newStep.trim()" @click="addStep">{{ t('grossanlass.aufgaben.checklist.addButton') }}</EButton>
+      </div>
+    </section>
 
-    <section v-if="task.materials.length" class="aufgabe-detail__section">
-      <h4>{{ t('grossanlass.aufgaben.detail.materials') }}</h4>
-      <ul class="aufgabe-materials">
-        <li v-for="item in task.materials" :key="item.label">
-          <span>{{ item.qty }}× {{ item.label }}</span>
-          <v-chip v-if="item.pack" size="x-small" variant="tonal">{{ item.pack }}</v-chip>
+    <section class="aufgabe-detail__section">
+      <h4>{{ t('grossanlass.aufgaben.detail.progress') }}</h4>
+      <div class="aufgabe-progress">
+        <v-progress-linear :model-value="progress" height="10" rounded color="primary" />
+        <span>{{ progress }} %</span>
+      </div>
+    </section>
+
+    <section v-if="task.events?.length" class="aufgabe-detail__section" data-testid="task-history">
+      <h4>{{ t('grossanlass.aufgaben.review.history') }}</h4>
+      <ul class="aufgabe-history">
+        <li v-for="event in task.events" :key="event.id">
+          <strong>{{ t(`grossanlass.aufgaben.review.event.${event.type}`) }}</strong>
+          · {{ event.byName ?? '?' }} · {{ eventTime(event.at) }}
+          <span v-if="event.note" class="aufgabe-history__note">— {{ event.note }}</span>
         </li>
       </ul>
     </section>
 
-    <div v-if="!readOnly && !(task.kind === 'logistik' && task.route)" class="aufgabe-detail__actions">
-      <EButton v-if="task.status === 'open'" variant="primary" size="large" @click="startTask(task)">
+    <p v-if="error" class="aufgabe-detail__error" role="alert">{{ error === 'error' ? t('grossanlass.aufgaben.actionError') : error }}</p>
+
+    <div v-if="blocking" class="aufgabe-detail__section">
+      <ETextField v-model="blockReason" :label="t('grossanlass.aufgaben.blocked.reason')" density="compact" hide-details />
+      <div class="aufgabe-detail__actions">
+        <EButton variant="primary" size="small" :disabled="!blockReason.trim()" @click="submitBlock">{{ t('grossanlass.aufgaben.blocked.submit') }}</EButton>
+        <EButton variant="secondary" size="small" @click="blocking = false">{{ t('common.cancel') }}</EButton>
+      </div>
+    </div>
+
+    <div v-if="!readOnly && (task.permissions?.report ?? true)" class="aufgabe-detail__actions">
+      <EButton v-if="task.status === 'open'" variant="primary" size="large" :disabled="!!task.blocked || task.waiting" @click="emit('status', 'progress')">
         {{ t('grossanlass.aufgaben.start') }}
       </EButton>
-      <EButton v-if="task.status !== 'done'" variant="secondary" size="large" @click="completeTask(task)">
-        {{ t('grossanlass.aufgaben.complete') }}
+      <EButton v-if="task.status === 'open' || task.status === 'progress'" variant="secondary" size="large" :disabled="!!task.blocked || task.waiting" @click="emit('report', '')">
+        {{ t('grossanlass.aufgaben.review.report') }}
+      </EButton>
+      <EButton v-if="task.permissions?.report && (task.status === 'open' || task.status === 'progress') && !task.blocked && !blocking" variant="secondary" size="large" @click="blocking = true">
+        {{ t('grossanlass.aufgaben.blocked.report') }}
       </EButton>
     </div>
   </div>
@@ -127,39 +194,189 @@
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { EButton, ECheckbox, ESelect } from '@/components/form/base'
-import GrossanlassFahrauftragSteps from './GrossanlassFahrauftragSteps.vue'
-import {
-  GA_DEMO_PEOPLE,
-  assignPerson,
-  blockedBy,
-  completeTask,
-  startTask,
-  taskProgress,
-  toggleStep,
-  unassignPerson,
-  type GaAufgabe,
-} from './gaAufgabenMock'
-import { KIND_ICON, STATUS_COLOR, dayLabel, statusKey, whenLabel } from './gaAufgabenUi'
+import { EButton, ESelect, ETextField } from '@/components/form/base'
+import type { GaDependency, GaDependencyMode, GaTaskStatus } from '@/api/grossanlassBauprojekt'
+import GaDependencyList from '@/components/grossanlass/GaDependencyList.vue'
+import { taskProgress, type GaAufgabe } from './gaAufgabenMock'
+import { KIND_ICON, STATUS_COLOR, dayLabel, statusKey, useGaNow, whenLabel } from './gaAufgabenUi'
 
-const props = defineProps<{ task: GaAufgabe; canAssign?: boolean; readOnly?: boolean }>()
+const now = useGaNow()
+const props = defineProps<{
+  task: GaAufgabe
+  canAssign?: boolean
+  readOnly?: boolean
+  assignees?: { value: string; title: string }[]
+  /** Serverfehler der letzten Aktion */
+  error?: string
+  /** Mögliche Vorgänger-Aufgaben für neue Abhängigkeiten */
+  dependencyCandidates?: { value: string; title: string }[]
+}>()
+const emit = defineEmits<{
+  status: [status: GaTaskStatus]
+  assign: [userId: string | null]
+  stepAdd: [label: string]
+  stepDone: [stepId: string, done: boolean]
+  stepMove: [stepId: string, delta: -1 | 1]
+  stepRemove: [stepId: string]
+  block: [reason: string]
+  unblock: []
+  report: [note: string]
+  accept: []
+  giveBack: [reason: string]
+  dependencyAdd: [predecessorTaskId: string, mode: GaDependencyMode]
+  dependencyMode: [dependency: GaDependency, mode: GaDependencyMode]
+  dependencyRemove: [dependency: GaDependency]
+  dependencyRelease: [dependency: GaDependency, reason: string]
+}>()
 const { t, locale } = useI18n()
 const route = useRoute()
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
 const assignee = ref<string | null>(null)
-const blockers = computed(() => blockedBy(props.task))
 const progress = computed(() => taskProgress(props.task))
-const assignableItems = computed(() => GA_DEMO_PEOPLE.filter((name) => !props.task.people.includes(name)))
+const assignableItems = computed(() => (props.assignees ?? []).filter((person) => person.value !== props.task.assigneeId))
+
+const waitingText = computed(() => {
+  const parts = [...(props.task.waitingOn ?? [])]
+  const hidden = props.task.waitingHidden ?? 0
+  if (hidden > 0) parts.push(t('grossanlass.aufgaben.deps.waitingHidden', { n: hidden }))
+  return t('grossanlass.aufgaben.deps.waitingOn', { names: parts.join(', ') })
+})
+const newStep = ref('')
+const blocking = ref(false)
+const blockReason = ref('')
+const returning = ref(false)
+const returnReason = ref('')
+
+function submitReturn() {
+  const reason = returnReason.value.trim()
+  if (!reason) return
+  emit('giveBack', reason)
+  returnReason.value = ''
+  returning.value = false
+}
+
+function eventTime(iso: string): string {
+  return new Date(iso).toLocaleString(locale.value, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+function addStep() {
+  const label = newStep.value.trim()
+  if (!label) return
+  emit('stepAdd', label)
+  newStep.value = ''
+}
+
+function submitBlock() {
+  const reason = blockReason.value.trim()
+  if (!reason) return
+  emit('block', reason)
+  blockReason.value = ''
+  blocking.value = false
+}
 
 function addAssignee() {
   if (!assignee.value) return
-  assignPerson(props.task, assignee.value)
+  emit('assign', assignee.value)
   assignee.value = null
 }
 </script>
 
 <style scoped>
+.aufgabe-detail__blocked {
+  padding: 10px 12px;
+  border: 1px solid rgb(var(--v-theme-error));
+  border-radius: 8px;
+}
+.aufgabe-detail__blocked h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgb(var(--v-theme-error));
+}
+.aufgabe-detail__rework {
+  padding: 8px 12px;
+  border: 1px solid rgb(var(--v-theme-info));
+  border-radius: 8px;
+}
+.aufgabe-detail__rework h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+}
+.aufgabe-detail__rework p {
+  margin: 0;
+}
+.aufgabe-detail__order {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+.aufgabe-detail__waiting {
+  padding: 8px 12px;
+  border: 1px solid rgb(var(--v-theme-warning));
+  border-radius: 8px;
+}
+.aufgabe-detail__waiting h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+.aufgabe-detail__review {
+  padding: 10px 12px;
+  border: 1px solid rgb(var(--v-theme-info));
+  border-radius: 8px;
+}
+.aufgabe-history {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}
+.aufgabe-history__note {
+  color: #64748b;
+}
+.aufgabe-detail__error {
+  color: rgb(var(--v-theme-error));
+  font-size: 0.85rem;
+}
+.aufgabe-checklist {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.aufgabe-checklist li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.aufgabe-checklist :deep(.v-selection-control) {
+  flex: 0 0 auto;
+}
+.aufgabe-checklist li > span:not(.aufgabe-checklist__tools) {
+  flex: 1;
+}
+.aufgabe-checklist__done {
+  color: #64748b;
+  text-decoration: line-through;
+}
+.aufgabe-checklist__tools {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.aufgabe-checklist__add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
 .aufgabe-detail {
   display: flex;
   flex-direction: column;

@@ -1,3 +1,5 @@
+import { computed, type ComputedRef } from 'vue'
+import { useBusinessClockStore } from '@/stores/businessClock'
 import type { GaAufgabe, GaAufgabeKind, GaAufgabeStatus } from './gaAufgabenMock'
 import { isOverdue, isSameDay } from './gaAufgabenMock'
 
@@ -13,8 +15,18 @@ export const KIND_ORDER: GaAufgabeKind[] = ['arbeit', 'material', 'logistik', 'w
 export const STATUS_COLOR: Record<GaAufgabeStatus | 'overdue', string> = {
   open: 'warning',
   progress: 'primary',
+  review: 'info',
   done: 'success',
   overdue: 'error',
+}
+
+/**
+ * Effektive GA-Zeit für «Heute», «Überfällig» & Co.: Fachzeit der BusinessClock (Demo-/Dev-Offset),
+ * ohne Zeitreise-Modus die normale aktuelle Zeit. Keine eigene Uhr.
+ */
+export function useGaNow(): ComputedRef<Date> {
+  const businessClock = useBusinessClockStore()
+  return computed(() => (businessClock.clock && businessClock.mode !== 'real' ? businessClock.displayNow : new Date()))
 }
 
 export function statusKey(task: GaAufgabe, now = new Date()): GaAufgabeStatus | 'overdue' {

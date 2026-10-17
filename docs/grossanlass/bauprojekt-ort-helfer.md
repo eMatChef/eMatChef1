@@ -228,4 +228,50 @@ Aufträge und Bauaufträge erfassen zuerst nur die **benötigte Anzahl Helfer**;
 
 **Gemeinsamer Dialog (`/ga/my-unit`).** «Bearbeiten» und «Aufgaben & Material» öffnen denselben Dialog mit den Reitern «Grunddaten» und «Aufgaben & Material» (`GrossanlassBauprojektPanel` mit `scope="tasks-material"`). Wer die Gruppe nicht bearbeiten darf, sieht nur den zweiten Reiter. Beide Reiter bleiben gemountet; beim Schliessen warnt der Dialog bei ungespeicherten Grunddaten oder Aufgaben/Material.
 
+### 3.1d Helferpool V1: Personalbedarf, Zuteilung, Deckung (Migration `Version20261018090000`)
+
+Stand: Datenmodell, Services, REST-API und Oberfläche ([§3.1e](#31e-helferpool-v1-rest-api-und-oberfläche)).
+
+**Eine Datenquelle.** Der Personalbedarf liegt in `department_grossanlass_staffing_need` (Aufgabe, Funktionswunsch `label`, `required_count`, Zeitfenster `[starts_at, ends_at)`). `department_grossanlass_task_helper_need` und `department_grossanlass_group_helper_need` bleiben als Legacy bestehen (Tabellenkommentar), werden nicht mehr gelesen oder geschrieben. Die Migration übernahm sie wiederholbar und ohne Verdopplung: je Aufgabe eine Zeile je Funktion plus der Rest (`Gesamt − Σ Funktionen`) ohne `label`, Summe = `max(Gesamt, Σ Funktionen)`. Der alte Gruppenbedarf wurde nur übernommen, wenn keine Aufgabe der Gruppe Bedarf hatte (Standardaufgabe «Allgemein»). `membership.is_helper` wurde zu `department_grossanlass_helper` (mit `user_id`); `membership.role = h` wird nicht migriert.
+
+**Bedarf.** Gehört immer zu einer Aufgabe. Bedarf am Bauprojekt selbst hängt an der lazy angelegten Standardaufgabe «Allgemein» (`task.is_default`, höchstens eine je Gruppe), die in der Aufgabenübersicht und über die Aufgaben-API nicht erscheint. Fenster = Aufgabenzeit, sonst Bauprojekt-Fenster (`window_end` inklusiv, intern exklusives Ende), sonst undatiert: ein undatierter Bedarf ist nicht zuteilbar. Die bisherige Eingabe «Gesamtzahl + Funktionen» (`helper_need` an Aufgabe und Gruppe) ist das *Bündel* der Bedarfe mit dem Fenster der Aufgabe; weitere Bedarfe mit eigenem Fenster bleiben davon unberührt. Ändern sich Aufgabenzeit oder Bauprojekt-Fenster, folgt das Bündel. Eine Änderung, die Zuteilungen aus dem Fenster schiebt, wird mit 409 `outside_need_window` abgelehnt.
+
+**Helfer und Verfügbarkeit** (`GrossanlassHelperPoolService`). Helfer gehören zum GA-Host (`department_id`, optional `origin_department_id`), brauchen kein Login, V1 erfasst nur Name, E-Mail, Telefon, Notiz. Archivieren statt löschen. Verfügbarkeit sind explizite Fenster pro Helfer, die sich nicht überschneiden dürfen (direkt anschliessende sind erlaubt). Eine Änderung, die eine aktive Zuteilung ungedeckt liesse, ergibt 409 `in_use`.
+
+**Zuteilung** (`GrossanlassStaffingAssignmentService`). Ganz oder teilweise (eigenes Fenster im Bedarfsfenster, z. B. 08–10 und 10–12). Jeder Schreibweg läuft in einer Transaktion unter `SELECT … FOR UPDATE` auf dem Helfer (`GrossanlassStaffingLocks`) und prüft alle aktiven Zuteilungen des Helfers:
+
+| Fall | Ergebnis |
+| --- | --- |
+| Keine Verfügbarkeit deckt das Fenster | 409 `no_availability`, nicht überschreibbar |
+| Überschneidung mit anderer aktiver Zuteilung | 409 `double_booking`; mit `override_reason` (Begründung) zulässig, an der Zuteilung gespeichert (`override_*`) und im Protokoll `department_grossanlass_staffing_log` |
+| Bedarf undatiert / Fenster ausserhalb | 409 `need_undated` / `outside_need_window` |
+| Helfer archiviert | 409 `helper_archived` |
+| Mehr Zuteilungen als Bedarf | erlaubt, Warnung `overbooked` |
+
+Bewusst kein Exclusion Constraint und kein `btree_gist`: Ausnahmen müssen möglich bleiben, die Sperre pro Helfer serialisiert gleichzeitige Zuteilungen. `assignee_user_id` (Aufgabenverantwortliche) zählt nicht als Zuteilung. Fremdbelegung durch externe Quellen und API-Synchronisation sind nicht Teil von V1.
+
+**Berechtigung.** Helferpool, Zuteilungen, Overrides, Konfliktliste und Zeitplan: `hv` (GA-HV) und `subhv` (GA-SUBHV) immer; `mw` (GA-MW) und `dc` (GA-OK = OK-Leitung) standardmässig, je abschaltbar über die zwei unabhängigen GA-Einstellungen `staffing_mw_allowed` / `staffing_ok_allowed` (`department_grossanlass_config`, Standard `true`, im Tab Stammdaten der Planung von MW/Co-MW änderbar). Zentral geprüft in `GrossanlassAccessService::canManageStaffing()` (Matrix `GrossanlassAccessRoles::canManageStaffing()`); alle anderen Rollen unverändert (`cmw` verwaltet nicht). Die Rollen vergibt die GA-Leitung im jeweiligen GA. `GET /staffing/overview` liefert `can_manage` für die UI. Personalbedarf anlegen und ändern folgt dem Bearbeitungsrecht am Bauprojekt; die Übersicht ohne Namen lesen zusätzlich `mw`/`cmw`/`dc` (`canSeeStaffingOverview()`).
+
+**Deckung** (`GrossanlassStaffingCoverageService`, `GrossanlassStaffingTime`). Immer aus den tatsächlichen Zuteilungen berechnet, nie gespeichert: Abschnitte mit gleicher Besetzung, Lücken (`missing`), `fill_ratio` (gedeckte / benötigte Personenminuten), Überbesetzung. `overview()` liefert Bedarf, Deckung und Gruppensummen ohne Helfernamen (zwei Abfragen, keine Helfertabelle); Namen gibt es nur in `needDetail()` und `schedule()`. `conflicts()` meldet Doppelbuchung (`excused` bei begründeter Ausnahme), Zuteilung ausserhalb der Verfügbarkeit oder des Bedarfsfensters, Überbesetzung und undatierten Bedarf. Die Auftragskarten (`staffing.need`/`assigned`) nutzen den Spitzenbedarf der Bedarfe und die Zahl zugeteilter Helfer.
+
+Tests: `tests/Service/Grossanlass/GrossanlassStaffingTimeTest.php` (rein) und `tests/Integration/GrossanlassStaffingIntegrationTest.php` (Datenbank mit `EMATCHEF_TEST_DB_URL`, braucht `php -d memory_limit=2G`).
+
+### 3.1e Helferpool V1: REST-API und Oberfläche
+
+Alle Endpunkte unter `/api/departments/{id}/grossanlass/` (`GrossanlassStaffingController`, nur Grossanlass-Departments, Mitgliedschaft nötig, nach der Ersteinrichtung wie alle GA-Endpunkte). Fehler: 400 ungültige Eingabe, 403 keine Berechtigung, 404 unbekannt, **409** fachlicher Konflikt mit `{"error", "code": "staffing_conflict", "conflict": {"kind", …}}`.
+
+| Endpunkt | Wer | Zweck |
+| --- | --- | --- |
+| `GET/POST helpers`, `GET/PATCH helpers/{id}`, `POST helpers/{id}/archive`, `…/restore` | hv/subhv | Helfer (Query: `status` active/archived/all, `q`) |
+| `GET/POST helpers/{id}/availability`, `PATCH/DELETE helper-availability/{id}` | hv/subhv | Verfügbarkeitsfenster `starts_at`/`ends_at` |
+| `GET staffing/overview?group_ids=&from=&to=` | hv/subhv, mw/cmw/dc | Bedarf, Deckung, Gruppensummen **ohne Helfernamen** |
+| `GET staffing/needs/{id}` | hv/subhv | Bedarf mit zugeteilten Helfern (Namen) |
+| `GET/POST groups/{gid}/staffing-needs`, `PATCH/DELETE …/{needId}` | Bearbeitungsrecht am Bauprojekt (Lesen: Sichtrecht) | Personalbedarf anlegen/ändern; ohne `task_id` an der Standardaufgabe «Allgemein» |
+| `POST staffing/assignments`, `PATCH/DELETE staffing/assignments/{id}` | hv/subhv | Zuteilen (`need_id`, `helper_id`, optional `starts_at`/`ends_at`, `override_reason`), Fenster ändern (`version` optional), stornieren |
+| `GET staffing/schedule?from=&to=`, `GET staffing/conflicts` | hv/subhv | Zeitplan mit Namen, Konfliktliste |
+
+Konflikt-`kind`: `double_booking` (mit `override_possible`; Wiederholung mit `override_reason` speichert eine protokollierte Ausnahme), `no_availability`, `outside_need_window`, `need_undated`, `helper_archived`, `in_use`, `stale`. Antworten von Zuteilen/Ändern: `{assignment, warnings[]}` mit Warnungen `overbooked` und `double_booking_override`.
+
+**Ablauf.** (1) GA-HV/GA-SUBHV (oder GA-MW/GA-OK, sofern freigegeben) erfasst Helfer und deren Verfügbarkeit im Drawer. (2) Der Personalbedarf entsteht bei den Aufgaben und Bauprojekten (Zeitfenster der Aufgabe oder des Bauprojekts). (3) Im Tab «Personalbedarf» «Helfer zuteilen»: Helfer wählen, Fenster bei Teilzeit kürzen. (4) Bei Doppelbuchung zeigt der Dialog die Überschneidung und verlangt eine Begründung, fehlende Verfügbarkeit lässt sich nicht übergehen. (5) Die Deckung rechnet der Server aus den Zuteilungen; Lücken stehen je Zeitabschnitt am Bedarf. Das Frontend nutzt `api/grossanlassStaffing.ts` (Axios-`apiClient`), Rollenprüfung `gaCanManageStaffing()`/`gaCanSeeStaffing()` in `utils/grossanlassAccess.ts` (Tabs und Aktionen der Helferpool-Ansicht folgen `can_manage` aus der Übersicht); Router und Sidebar zeigen den Helferpool für `hv`, `subhv`, `mw`, `cmw`, `dc` (Bereichsleitung nicht mehr). Tests: `backend/tests/Integration/GrossanlassStaffingApiTest.php`, `frontend/src/api/grossanlassStaffing.spec.ts`, `…/helferpool/gaHelferUi.spec.ts`.
+
 **Lokaler Migrationsstatus:** «Executed Unavailable» (3) betrifft die in `mvdb` angewendeten Versionen `20260805120000`, `20260813190000` und `20260813210000`, deren Dateien in diesem Branch fehlen (von einem anderen Stand ausgeführt). Sie sind für diese Arbeit ohne Wirkung.

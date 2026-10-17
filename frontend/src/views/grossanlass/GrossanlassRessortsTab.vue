@@ -150,7 +150,7 @@
             <td v-if="showManagementActions" class="col-actions">
               <div class="action-buttons">
                 <button
-                  v-if="canOpenDetail(group)"
+                  v-if="canOpenDetail(group) && !isGrossanlassLeafNodeType(group.node_type)"
                   class="action-btn"
                   :title="t('grossanlass.planung.ressorts.openProject')"
                   @click="openProjectPanel(group)"

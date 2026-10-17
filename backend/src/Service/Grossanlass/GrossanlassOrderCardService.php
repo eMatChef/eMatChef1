@@ -5,22 +5,18 @@ declare(strict_types=1);
 namespace App\Service\Grossanlass;
 
 use App\Entity\Department;
-use App\Entity\DepartmentGrossanlassGroupHelperNeed;
-use App\Entity\DepartmentGrossanlassTaskHelperNeed;
 use App\Entity\DepartmentGrossanlassTask;
 use App\Entity\Group;
-use App\Entity\GroupMembership;
-use App\Entity\Membership;
 use App\Entity\User;
 use App\Service\Clock\BusinessClock;
-use Doctrine\DBAL\Exception\TableNotFoundException;
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
  * Kennzahlen für die Auftragskarten der Planung (Aufträge und Bauaufträge).
  * Nur berechnet, nichts gespeichert: Material aus dem Materialfortschritt, Aufgaben aus den Aufgaben der
- * Gruppe. Besetzung = eingeteilte Helfer (Helferpool-Mitglieder der Gruppe und Aufgabenzuweisungen) gegen den
- * erfassten Helferbedarf; ohne erfassten Bedarf steht null statt eines geschätzten Werts.
+ * Gruppe. Besetzung = zugeteilte Helfer (aktive Zuteilungen des Helferpools) gegen den
+ * erfassten Personalbedarf; ohne erfassten Bedarf steht null statt eines geschätzten Werts.
  */
 final class GrossanlassOrderCardService
 {
@@ -29,12 +25,13 @@ final class GrossanlassOrderCardService
         private GrossanlassAccessService $access,
         private GrossanlassMaterialProgressService $materialProgress,
         private BusinessClock $clock,
+        private GrossanlassStaffingNeedService $staffingNeeds,
     ) {}
 
     /**
      * @return list<array<string, mixed>>
      */
-    public function cards(Department $department, User $user): array
+    public function cards(Department $department, User $user, bool $includeArchived = false): array
     {
         $this->access->assertGrossanlassDepartment($department);
 
@@ -43,6 +40,9 @@ final class GrossanlassOrderCardService
         $groups = [];
         foreach ($this->entityManager->getRepository(Group::class)->findBy(['departmentId' => $department->getId()]) as $group) {
             if (!$group instanceof Group || !in_array($group->getGrossanlassKind(), [Group::GROSSANLASS_KIND_TEILBEREICH, Group::GROSSANLASS_KIND_AUFTRAG], true)) {
+                continue;
+            }
+            if (!$includeArchived && $group->isArchived()) {
                 continue;
             }
             if ($seeAll || $this->access->userIsMemberInRessortBranch($user, $department->getId(), $group)) {
@@ -55,90 +55,64 @@ final class GrossanlassOrderCardService
 
         $items = $this->materialProgress->forDepartment($department)['items'];
         $tasks = [];
-        foreach ($this->entityManager->getRepository(DepartmentGrossanlassTask::class)->findBy(['departmentId' => $department->getId()]) as $task) {
+        foreach ($this->entityManager->getRepository(DepartmentGrossanlassTask::class)->findBy(['departmentId' => $department->getId(), 'isDefault' => false]) as $task) {
             if ($task instanceof DepartmentGrossanlassTask) {
                 $tasks[] = [
                     'group_id' => $task->getGroupId(),
-                    'assignee' => $task->getAssigneeUserId(),
+                    'assignee' => null, // Aufgabenverantwortliche zählen nicht als Helferzuteilung
                     'starts_at' => $task->getStartsAt(),
                     'duration' => $task->getDurationMinutes(),
+                    'status' => $task->getStatus(),
                 ];
             }
         }
 
         $needs = $this->helperNeeds(array_keys($groups));
-        $members = [];
-        foreach ($this->entityManager->getRepository(GroupMembership::class)->findBy(['groupId' => array_keys($groups), 'role' => 'member']) as $membership) {
-            if ($membership instanceof GroupMembership) {
-                $members[$membership->getGroupId()][] = $membership->getUserId();
-            }
-        }
+        $members = $this->assignedHelpers(array_keys($groups));
 
         return self::summarize(array_keys($groups), $items, $tasks, $this->clock->now($department->getId()), $needs, $members);
     }
 
     /**
-     * Gesamtbedarf je Gruppe (Zeile mit leerem Label); null, wenn nichts erfasst ist.
+     * Spitzenbedarf an Helfern je Gruppe aus dem Personalbedarf aller Aufgaben (zeitlich getrennte Bedarfe addieren sich nicht);
+     * Gruppen ohne Bedarf fehlen (dann steht `null` statt eines geschätzten Werts).
      *
      * @param list<string> $groupIds
      * @return array<string, int>
      */
     private function helperNeeds(array $groupIds): array
     {
-        try {
-            $rows = $this->entityManager->getRepository(DepartmentGrossanlassGroupHelperNeed::class)
-                ->findBy(['groupId' => $groupIds, 'label' => DepartmentGrossanlassGroupHelperNeed::TOTAL_LABEL]);
-        } catch (TableNotFoundException) {
-            return []; // Migration noch nicht angewendet
-        }
         $out = [];
-        foreach ($rows as $row) {
-            if ($row instanceof DepartmentGrossanlassGroupHelperNeed && $row->getRequiredCount() > 0) {
-                $out[$row->getGroupId()] = $row->getRequiredCount();
+        foreach ($this->staffingNeeds->demandRows($groupIds) as $groupId => $rows) {
+            $peak = GrossanlassBauprojektService::helperDemandOverTime($rows)['peak'];
+            if ($peak > 0) {
+                $out[$groupId] = $peak;
             }
-        }
-
-        // Aufgabenbezogener Bedarf geht vor: Spitzenbedarf zeitlich getrennter Aufgaben, nicht ihre Summe.
-        foreach ($this->taskPeakNeeds($groupIds) as $groupId => $peak) {
-            $out[$groupId] = $peak;
         }
 
         return $out;
     }
 
     /**
-     * Höchster gleichzeitiger Helferbedarf aus den Aufgaben je Gruppe (nur Gruppen mit Aufgabenbedarf).
+     * Zugeteilte Helfer je Gruppe (je Person einmal) aus den aktiven Zuteilungen; keine Namen.
      *
      * @param list<string> $groupIds
-     * @return array<string, int>
+     * @return array<string, list<string>>
      */
-    private function taskPeakNeeds(array $groupIds): array
+    private function assignedHelpers(array $groupIds): array
     {
-        try {
-            $needRows = $this->entityManager->getRepository(DepartmentGrossanlassTaskHelperNeed::class)
-                ->findBy(['label' => DepartmentGrossanlassTaskHelperNeed::TOTAL_LABEL]);
-        } catch (TableNotFoundException) {
-            return []; // Migration noch nicht angewendet
-        }
-        $totals = [];
-        foreach ($needRows as $row) {
-            if ($row instanceof DepartmentGrossanlassTaskHelperNeed) {
-                $totals[$row->getTaskId()] = $row->getRequiredCount();
-            }
-        }
-        $byGroup = [];
-        foreach ($this->entityManager->getRepository(DepartmentGrossanlassTask::class)->findBy(['groupId' => $groupIds]) as $task) {
-            if ($task instanceof DepartmentGrossanlassTask && ($totals[$task->getId()] ?? 0) > 0) {
-                $byGroup[$task->getGroupId()][] = [
-                    'starts_at' => $task->getStartsAt(),
-                    'duration' => $task->getDurationMinutes(),
-                    'total' => $totals[$task->getId()],
-                ];
-            }
-        }
+        $rows = $this->entityManager->getConnection()->fetchAllAssociative(
+            "SELECT DISTINCT t.group_id, a.helper_id
+             FROM department_grossanlass_staffing_assignment a
+             JOIN department_grossanlass_staffing_need n ON n.id = a.need_id
+             JOIN department_grossanlass_task t ON t.id = n.task_id
+             WHERE t.group_id IN (?) AND a.status <> 'cancelled'",
+            [$groupIds],
+            [ArrayParameterType::STRING],
+        );
         $out = [];
-        foreach ($byGroup as $groupId => $rows) {
-            $out[$groupId] = GrossanlassBauprojektService::helperDemandOverTime($rows)['peak'];
+        foreach ($rows as $row) {
+            $out[trim((string) $row['group_id'])][] = trim((string) $row['helper_id']);
         }
 
         return $out;
@@ -147,9 +121,9 @@ final class GrossanlassOrderCardService
     /**
      * @param list<string> $groupIds
      * @param list<array<string, mixed>> $items Zeilen des Materialfortschritts
-     * @param list<array{group_id: string, assignee: ?string, starts_at: ?\DateTimeInterface, duration: ?int}> $tasks
+     * @param list<array{group_id: string, assignee: ?string, starts_at: ?\DateTimeInterface, duration: ?int, status?: string}> $tasks
      * @param array<string, int> $needs Gesamtbedarf an Helfern je Gruppe
-     * @param array<string, list<string>> $members Helfer-Mitglieder (Nicht-Leitung) je Gruppe
+     * @param array<string, list<string>> $members zugeteilte Helfer je Gruppe
      * @return list<array<string, mixed>>
      */
     public static function summarize(array $groupIds, array $items, array $tasks, \DateTimeInterface $now, array $needs = [], array $members = []): array
@@ -194,10 +168,9 @@ final class GrossanlassOrderCardService
             }
             if ($task['starts_at'] !== null && $task['duration'] !== null) {
                 ++$out[$id]['tasks']['scheduled'];
-                $end = \DateTime::createFromInterface($task['starts_at'])->modify('+' . $task['duration'] . ' minutes');
-                if ($end <= $now) {
-                    ++$out[$id]['tasks']['done'];
-                }
+            }
+            if (($task['status'] ?? null) === DepartmentGrossanlassTask::STATUS_DONE) {
+                ++$out[$id]['tasks']['done'];
             }
         }
         foreach ($assignees as $id => $users) {

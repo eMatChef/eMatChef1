@@ -19,7 +19,7 @@ final class GrossanlassOrderCardServiceTest extends TestCase
             ['group_id' => 'other', 'required' => 1, 'open' => 0, 'at_place' => 1],
         ];
         $tasks = [
-            ['group_id' => 'g1', 'assignee' => 'u1', 'starts_at' => new \DateTime('2027-06-10 08:00'), 'duration' => 60],
+            ['group_id' => 'g1', 'assignee' => 'u1', 'starts_at' => new \DateTime('2027-06-10 08:00'), 'duration' => 60, 'status' => 'done'],
             ['group_id' => 'g1', 'assignee' => 'u1', 'starts_at' => new \DateTime('2027-06-11 08:00'), 'duration' => 60],
             ['group_id' => 'g1', 'assignee' => null, 'starts_at' => null, 'duration' => null],
         ];

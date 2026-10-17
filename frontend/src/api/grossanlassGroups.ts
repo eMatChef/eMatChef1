@@ -15,6 +15,12 @@ export type GrossanlassGroupShare = {
 
 export interface GrossanlassGroup {
   id: string
+  /** Archivierter Bauauftrag (Soft-Delete): nicht mehr bearbeitbar, mit Historie erhalten. */
+  archived?: boolean
+  archived_at?: string | null
+  archive_reason?: string | null
+  /** Arbeit oder Protokoll vorhanden: nur noch archivieren, nicht mehr physisch löschen. */
+  has_history?: boolean
   name: string
   department_id: string
   parent_id: string | null
@@ -42,11 +48,33 @@ export interface GrossanlassGroup {
   updated_at: string
 }
 
-export async function getGrossanlassGroups(departmentId: string): Promise<GrossanlassGroup[]> {
+/** Archivierte Bauaufträge sind standardmässig ausgeblendet; `includeArchived` nimmt sie für den Filter «archivierte anzeigen» mit. */
+export async function getGrossanlassGroups(departmentId: string, options: { includeArchived?: boolean } = {}): Promise<GrossanlassGroup[]> {
   const response = await apiClient.get<GrossanlassGroup[]>(
     `/api/departments/${departmentId}/grossanlass/groups`,
+    options.includeArchived ? { params: { include_archived: 1 } } : undefined,
   )
   return response.data
+}
+
+export type GrossanlassGroupArchive = {
+  archived: boolean
+  archived_at: string | null
+  archive_reason: string | null
+  has_history: boolean
+  history_reasons: string[]
+  log: { id: string; type: 'archived' | 'restored'; by_user_id: string; by_name: string | null; note: string | null; at: string }[]
+}
+
+/** Bauauftrag mit Begründung archivieren (Soft-Delete; Aufgaben, Abnahmen und Historie bleiben erhalten). */
+export async function archiveGrossanlassGroup(departmentId: string, groupId: string, reason: string): Promise<GrossanlassGroupArchive> {
+  const { data } = await apiClient.post<GrossanlassGroupArchive>(`/api/departments/${departmentId}/grossanlass/groups/${groupId}/archive`, { reason })
+  return data
+}
+
+export async function restoreGrossanlassGroup(departmentId: string, groupId: string, note?: string): Promise<GrossanlassGroupArchive> {
+  const { data } = await apiClient.post<GrossanlassGroupArchive>(`/api/departments/${departmentId}/grossanlass/groups/${groupId}/restore`, { note: note ?? '' })
+  return data
 }
 
 /** Echte Kennzahlen einer Auftragskarte (Backend berechnet, nichts geschätzt). */
@@ -58,9 +86,10 @@ export type GrossanlassOrderCard = {
   staffing: { need: number | null; assigned: number }
 }
 
-export async function getGrossanlassOrderCards(departmentId: string): Promise<GrossanlassOrderCard[]> {
+export async function getGrossanlassOrderCards(departmentId: string, options: { includeArchived?: boolean } = {}): Promise<GrossanlassOrderCard[]> {
   const response = await apiClient.get<GrossanlassOrderCard[]>(
     `/api/departments/${departmentId}/grossanlass/groups/order-cards`,
+    options.includeArchived ? { params: { include_archived: 1 } } : undefined,
   )
   return response.data
 }

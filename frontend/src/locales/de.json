@@ -11439,7 +11439,7 @@
   },
   "grossanlass": {
     "helperNeed": {
-      "taskTotal": "Helfer für diese Aufgabe",
+      "taskTotal": "Helfer insgesamt (inkl. Funktionen)",
       "peak": "Spitzenbedarf: {n} Helfer gleichzeitig.",
       "peakHint": "Zeitlich getrennte Aufgaben werden nicht addiert.",
       "legacy": "Bisheriger Gesamtbedarf des Auftrags: {n} Helfer. Neu wird der Bedarf je Aufgabe erfasst.",
@@ -11448,6 +11448,8 @@
       "total": "Benötigte Helfer",
       "function": "Funktion",
       "count": "Anzahl",
+      "overflow": "Die Funktionen ({sum}) übersteigen den Gesamtbedarf ({total}). Bitte Gesamtzahl erhöhen oder Funktionen reduzieren – nicht gespeichert.",
+      "rest": "Ohne spezielle Funktion: {n}",
       "addFunction": "Funktion hinzufügen",
       "remove": "Entfernen",
       "split": "Funktionen: {sum} von {total} Helfern",
@@ -11455,7 +11457,7 @@
       "saved": "Helferbedarf gespeichert",
       "failed": "Der Helferbedarf konnte nicht gespeichert werden."
     },
-      "setup": {
+    "setup": {
         "title": "Ersteinrichtung",
         "lead": "Bevor der Grossanlass startet, brauchen wir noch ein paar wichtige Angaben. Danach schaltest du ihn für alle Rollen frei.",
         "leadOther": "Dieser Grossanlass wird gerade eingerichtet. Sobald MW oder OK-Leitung ihn freigeben, steht dir dein Bereich zur Verfügung.",
@@ -11667,6 +11669,7 @@
       "res": {"title": "Ressourcenbedarfe", "summary": "{need} Bedarf · {proposal} Vorschlag · {planned} eingeplant", "empty": "Keine Ressourcenbedarfe erfasst.", "add": "Ressourcenbedarf hinzufügen", "typeLabel": "Ressourcentyp", "labelField": "Bezeichnung / Kategorie", "duration": "Dauer (h)", "earliest": "Frühestens ab", "latest": "Spätestens bis", "wishFrom": "Wunsch von", "wishTo": "Wunsch bis", "flexible": "flexibel", "fixed": "nicht flexibel", "note": "Bemerkung", "possible": "Möglich", "wish": "Wunsch", "proposal": "Vorschlag", "plannedAt": "Eingeplant", "demoNote": "Demo-Vorschlag, keine automatische Optimierung.", "accept": "Vorschlag übernehmen", "otherTime": "Andere Zeit", "leaveOpen": "Noch offen lassen", "reopen": "Wieder offen", "planTime": "Zeit festlegen", "start": "Start", "apply": "Übernehmen", "toHelferpool": "Zum Helferpool", "after": "Erst möglich nach: {task}", "afterDone": "Nach «{task}» (erledigt)", "type": {"crane": "Kran", "forklift": "Stapler", "machine": "Maschine", "vehicle": "Fahrzeug", "trailer": "Anhänger", "tool": "Spezialwerkzeug", "helper": "Helfer / Fähigkeit"}, "status": {"need": "Bedarf", "proposal": "Vorschlag", "planned": "Eingeplant"}, "issue": {"outsideWindow": "Liegt ausserhalb des möglichen Fensters.", "tooShort": "Fenster kürzer als die benötigte Dauer.", "conflict": "Bereits belegt: {where}.", "beforeDependency": "Beginnt vor Abschluss der vorherigen Aufgabe."}},
       "dep": {"title": "Abhängigkeiten", "waits": "wartet auf: {task}", "finished": "fertig"},
       "filterType": "Typ",
+      "mineOnly": "Mein Ressort/Bereich",
       "type": {
         "order": "Auftrag",
         "build": "Bauauftrag"
@@ -11836,71 +11839,139 @@
     },
     "helferpool": {
       "title": "Helferpool",
-      "subtitle": "Wer ist wann verfügbar, was kann die Person und wo ist sie eingeteilt?",
-      "intro": "Zeigt Verfügbarkeit, Fähigkeiten und Zuteilungen. Es gibt keine automatische Optimierung, nur den Überblick, wer fachlich und zeitlich passt.",
-      "prototype": "Prototyp · Demo-Daten",
+      "subtitle": "Wer ist wann verfügbar, wer ist wo eingeteilt und wo fehlt noch Personal?",
+      "intro": "Helfer erfassen, Verfügbarkeit pflegen und dem Personalbedarf zuteilen. Berufe und Fähigkeiten sind Wünsche, keine Pflicht. Es gibt keine automatische Optimierung.",
+      "introReadonly": "Personalbedarf und Deckung der Aufgaben. Helfer verwalten und zuteilen dürfen GA-HV, GA-SUBHV sowie GA-MW und GA-OK, sofern in den GA-Einstellungen freigegeben.",
       "tab": {
         "helpers": "Helfer",
         "timeline": "Zeitplan",
-        "skills": "Fähigkeiten"
+        "skills": "Fähigkeiten",
+        "needs": "Personalbedarf"
       },
-      "status": {
-        "free": "Frei",
-        "partial": "Teilweise belegt",
-        "busy": "Belegt",
-        "unavailable": "Nicht verfügbar"
+      "kpi": {
+        "required": "Personen benötigt",
+        "open": "Bedarfe mit Lücke",
+        "fill": "Deckung",
+        "helpers": "Aktive Helfer",
+        "conflicts": "Konflikte"
       },
+      "helperStatus": {
+        "active": "Aktiv",
+        "archived": "Archiviert"
+      },
+      "add": "Helfer erfassen",
+      "archive": "Archivieren",
+      "restore": "Wiederherstellen",
+      "saved": "Gespeichert",
+      "details": "Details",
       "contact": "Kontakt",
-      "skills": "Fähigkeiten",
-      "licenses": "Führerausweise",
-      "noLicense": "kein Führerausweis",
+      "noContact": "Keine Kontaktdaten",
       "availability": "Verfügbarkeit",
+      "availabilityHint": "Ohne erfasste Verfügbarkeit ist keine verbindliche Zuteilung möglich.",
+      "noAvailability": "Keine Verfügbarkeit erfasst",
+      "noAvailabilityInRange": "Keine Verfügbarkeit im Zeitraum",
+      "addAvailability": "Verfügbarkeit hinzufügen",
       "assignments": "Zuteilungen",
       "noAssignments": "Keine Zuteilungen",
-      "freeWindows": "Freie Zeitfenster",
-      "noFree": "Keine freien Zeitfenster im Zeitraum",
-      "hours": "{free} h frei von {total} h",
-      "details": "Details",
-      "assign": "Helfer zuteilen",
+      "assignmentCount": "{n} Zuteilungen im Zeitraum",
+      "override": "Ausnahme",
+      "assigned": "Helfer zugeteilt",
       "unassign": "Zuteilung aufheben",
-      "assigned": "{name} für «{task}» eingeteilt",
-      "assignedMany": "{n} Helfer eingeteilt",
-      "emptyTitle": "Keine passenden Helfer",
-      "emptyText": "Passe Zeitraum oder Filter an.",
-      "period": {
-        "anlass": "Anlass-Woche (2.–8.11.)",
-        "day": "04.11.",
-        "next14": "Nächste 14 Tage"
-      },
+      "unassigned": "Zuteilung aufgehoben",
+      "emptyTitle": "Keine Helfer",
+      "emptyText": "Erfasse Helfer oder passe den Filter an.",
       "filter": {
         "search": "Suchen",
-        "period": "Zeitraum",
-        "ressort": "Ressort / Bereich",
-        "skill": "Fähigkeit",
-        "license": "Führerausweis",
-        "availability": "Verfügbarkeit",
-        "org": "Abteilung",
-        "all": "Alle",
-        "free": "Nur frei",
-        "availableAny": "Frei oder teilweise"
+        "status": "Status"
+      },
+      "field": {
+        "firstName": "Vorname",
+        "lastName": "Nachname",
+        "email": "E-Mail",
+        "phone": "Telefon",
+        "note": "Notiz",
+        "from": "Von",
+        "to": "Bis",
+        "time": "Uhrzeit"
+      },
+      "form": {
+        "createTitle": "Helfer erfassen",
+        "editTitle": "Helfer bearbeiten",
+        "hint": "Helfer brauchen kein eMatChef-Konto. Es werden nur die nötigen Angaben gespeichert."
+      },
+      "assign": {
+        "button": "Helfer zuteilen",
+        "title": "Helfer zuteilen",
+        "editTitle": "Zuteilung ändern",
+        "helper": "Helfer",
+        "undated": "Dieser Bedarf hat noch kein Zeitfenster. Erst mit konkretem Zeitfenster ist eine Zuteilung möglich.",
+        "partTimeHint": "Teilzeit möglich: Das Fenster darf kürzer sein als der Bedarf (z. B. 08:00–10:00).",
+        "overrideReason": "Begründung für die Ausnahme",
+        "overrideHint": "Eine Ausnahme wird mit Begründung und Person protokolliert.",
+        "withOverride": "Als Ausnahme zuteilen"
+      },
+      "needs": {
+        "group": "Auftrag / Bauprojekt",
+        "onlyOpen": "Nur offene",
+        "emptyTitle": "Kein Personalbedarf",
+        "emptyText": "Der Personalbedarf wird bei den Aufgaben und Bauprojekten erfasst.",
+        "projectNeed": "Bedarf am Bauprojekt",
+        "undatedHint": "Ohne Zeitfenster – noch nicht zuteilbar",
+        "count": "{assigned} von {required}",
+        "groupSum": "{required} Personen · Spitze {peak}",
+        "gap": "{from}–{to}: {missing} fehlen",
+        "showAssignments": "Zuteilungen",
+        "hideAssignments": "Schliessen",
+        "state": {
+          "undated": "Ohne Zeit",
+          "open": "Offen",
+          "partial": "Teilweise",
+          "covered": "Gedeckt",
+          "over": "Überbesetzt"
+        }
+      },
+      "timeline": {
+        "start": "Start",
+        "days": "Zeitraum",
+        "nDays": "{n} Tage",
+        "emptyTitle": "Keine Einträge",
+        "emptyText": "Im Zeitraum gibt es weder Verfügbarkeit noch Zuteilungen."
       },
       "legend": {
         "available": "Verfügbar",
-        "assigned": "Zugeteilt"
+        "assigned": "Zugeteilt",
+        "override": "Zugeteilt mit Ausnahme"
       },
-      "need": {
-        "title": "Bedarf aus Aufgabe",
-        "task": "Aufgabe / Bauauftrag",
-        "requirement": "Benötigt: {count} Helfer {skill}",
-        "staffed": "{assigned} von {need} eingeteilt",
-        "assignFits": "Passende zuteilen ({n})",
-        "noOptimization": "Nur Vorschlag, keine automatische Optimierung.",
-        "busy": "Passt fachlich, aber belegt: {task}",
-        "match": {
-          "fit": "Passt fachlich und zeitlich",
-          "unavailable": "Passt fachlich, zeitlich nicht verfügbar",
-          "assigned": "Bereits eingeteilt"
-        }
+      "skillsNote": "Berufe und Fähigkeiten sind Wünsche: Funktionswünsche des Personalbedarfs, zusammengefasst über alle Aufgaben. Sie teilen den Gesamtbedarf auf und werden nicht zusätzlich gezählt.",
+      "skillsFunction": "Funktion",
+      "skillsNoFunction": "Ohne Funktion",
+      "skillsRequired": "Benötigt",
+      "skillsAssigned": "Zugeteilt",
+      "conflict": {
+        "double_booking": "Der Helfer ist in diesem Zeitfenster bereits zugeteilt. Mit Begründung kann das als Ausnahme gespeichert werden:",
+        "no_availability": "Für dieses Zeitfenster ist keine Verfügbarkeit erfasst. Bitte zuerst die Verfügbarkeit des Helfers ergänzen.",
+        "outside_need_window": "Die Zuteilung muss im Zeitfenster des Personalbedarfs liegen.",
+        "need_undated": "Der Personalbedarf hat noch kein Zeitfenster.",
+        "helper_archived": "Der Helfer ist archiviert.",
+        "in_use": "Es bestehen noch Zuteilungen.",
+        "stale": "Die Zuteilung wurde zwischenzeitlich geändert. Bitte neu laden."
+      },
+      "conflictItem": {
+        "none": "Keine Konflikte.",
+        "double_booking": "{name}: doppelt zugeteilt ({when})",
+        "outside_availability": "{name}: Zuteilung ausserhalb der Verfügbarkeit ({when})",
+        "outside_need_window": "{name}: Zuteilung ausserhalb des Bedarfsfensters ({when})",
+        "overbooked": "Überbesetzt: {peak} Zuteilungen für {required} benötigte Personen",
+        "need_undated": "Personalbedarf ohne Zeitfenster – nicht zuteilbar"
+      },
+      "warning": {
+        "overbooked": "Der Bedarf ist überbesetzt.",
+        "double_booking_override": "Doppelbuchung als Ausnahme gespeichert."
+      },
+      "error": {
+        "load": "Helferpool konnte nicht geladen werden.",
+        "save": "Speichern fehlgeschlagen.",
+        "assign": "Zuteilung fehlgeschlagen."
       }
     },
     "verkauf": {
@@ -12479,11 +12550,13 @@
         "all": "Alle",
         "open": "Offen",
         "progress": "In Arbeit",
+        "review": "Fertig gemeldet",
         "overdue": "Überfällig",
         "done": "Erledigt"
       },
       "bucket": {
         "overdue": "Überfällig",
+        "review": "Zur Abnahme",
         "today": "Heute",
         "tomorrow": "Morgen",
         "later": "Später",
@@ -12541,6 +12614,144 @@
         "emptyTitle": "Heute nichts offen",
         "emptyText": "Du hast heute keine Arbeiten oder Fahraufträge.",
         "back": "Zurück"
+      },
+      "create": {
+        "open": "Neue Aufgabe",
+        "title": "Neue Aufgabe",
+        "project": "Bauprojekt / Auftrag",
+        "name": "Aufgabe",
+        "start": "Beginn",
+        "minutes": "Dauer (Minuten)",
+        "error": "Die Aufgabe konnte nicht gespeichert werden."
+      },
+      "actionError": "Aktion fehlgeschlagen oder nicht erlaubt.",
+      "blocked": {
+        "chip": "Blockiert",
+        "title": "Blockiert",
+        "report": "Problem melden",
+        "reason": "Was blockiert die Aufgabe?",
+        "submit": "Blockieren",
+        "release": "Blockierung aufheben"
+      },
+      "review": {
+        "title": "Fertig gemeldet",
+        "waiting": "Die Aufgabe wartet auf die Abnahme.",
+        "report": "Fertig melden",
+        "accept": "Abnehmen",
+        "giveBack": "Zur Nachbearbeitung zurückgeben",
+        "giveBackSubmit": "Zurückgeben",
+        "reason": "Was muss nachgebessert werden?",
+        "history": "Verlauf",
+        "event": {
+          "reported": "Fertig gemeldet",
+          "accepted": "Abgenommen",
+          "returned": "Zurückgegeben"
+        }
+      },
+      "deps": {
+        "addAction": "Abhängigkeit hinzufügen",
+        "addSimultaneous": "Gleichzeitig mit …",
+        "stateSimultaneous": "zeitlich koordiniert, keine Startsperre",
+        "switchToSimultaneous": "Auf «Gleichzeitig» ändern",
+        "switchToSequential": "Auf «Nacheinander» ändern",
+        "mode": {
+          "label": "Art",
+          "sequential": "Nacheinander (Vorgänger muss abgenommen sein)",
+          "simultaneous": "Gleichzeitig"
+        },
+        "schedule": {
+          "noTime": "keine Zeit",
+          "none": "Zeitfenster überschneiden sich (diese Aufgabe: {own}, verknüpfte Aufgabe: {partner}).",
+          "no_overlap": "Zeitkonflikt: Die Zeitfenster überschneiden sich nicht (diese Aufgabe: {own}, verknüpfte Aufgabe: {partner}). Es wird nichts automatisch angepasst.",
+          "unscheduled": "Zeit nicht koordinierbar: Mindestens eine Aufgabe hat keine Startzeit (diese Aufgabe: {own}, verknüpfte Aufgabe: {partner})."
+        },
+        "trace": {
+          "created": "Angelegt von {name} am {at}",
+          "incoming": "von der verknüpften Aufgabe aus angelegt",
+          "modeChanged": "Art geändert von {name} am {at}"
+        },
+        "title": "Abhängigkeiten",
+        "none": "Keine Abhängigkeiten.",
+        "chip": "Wartet",
+        "waitingOn": "Wartet auf: {names}",
+        "viaOrder": "Bauauftrag",
+        "hidden": "Nicht sichtbare Abhängigkeit",
+        "waitingHidden": "{n} nicht sichtbare Abhängigkeit(en)",
+        "stateWaitingGroup": "Gesamtabnahme steht aus",
+        "stateDoneGroup": "Gesamtabnahme erfolgt",
+        "stateWaiting": "noch nicht abgenommen",
+        "stateDone": "abgenommen",
+        "stateReleased": "vorzeitig freigegeben",
+        "releasedBy": "Freigegeben von {name}",
+        "release": "Vorzeitig freigeben",
+        "releaseSubmit": "Freigeben",
+        "reason": "Begründung der Freigabe",
+        "remove": "Entfernen",
+        "add": "Wartet auf …",
+        "addButton": "Hinzufügen",
+        "groupTitle": "Wartet auf (Bauaufträge)",
+        "groupWaiting": "Dieser Bauauftrag wartet noch auf einen Vorgänger; seine Aufgaben können nicht gestartet werden."
+      },
+      "acceptance": {
+        "title": "Gesamtabnahme",
+        "progress": "{done} von {total} Aufgaben abgenommen",
+        "notEligible": "Die Gesamtabnahme ist erst möglich, wenn der Bauauftrag Aufgaben hat und alle abgenommen (erledigt) sind.",
+        "report": "Zur Abnahme melden",
+        "withdraw": "Meldung zurückziehen",
+        "accept": "Bauauftrag abnehmen",
+        "return": "Zurückweisen",
+        "reopen": "Abnahme widerrufen",
+        "confirm": "Bestätigen",
+        "status": { "open": "Offen", "review": "Zur Abnahme gemeldet", "accepted": "Abgenommen" },
+        "reason": {
+          "return": "Begründung der Rückweisung",
+          "reopen": "Begründung des Widerrufs"
+        },
+        "event": {
+          "reported": "Zur Abnahme gemeldet",
+          "accepted": "Abgenommen",
+          "returned": "Zurückgewiesen",
+          "withdrawn": "Meldung zurückgezogen",
+          "reopened": "Abnahme widerrufen"
+        },
+        "taskNote": {
+          "review": "Der Bauauftrag ist zur Abnahme gemeldet; Aufgaben können nicht angelegt, gelöscht oder wieder geöffnet werden.",
+          "accepted": "Der Bauauftrag ist abgenommen; Aufgaben können nicht angelegt, gelöscht oder wieder geöffnet werden."
+        }
+      },
+      "rework": {
+        "chip": "Nachbesserung",
+        "reasonLine": "Rückweisungsgrund: {reason}",
+        "title": "Nachbesserungen",
+        "none": "Noch keine Nachbesserungsaufgaben angelegt.",
+        "create": "Nachbesserungsaufgabe anlegen",
+        "createSubmit": "Anlegen",
+        "titleLabel": "Aufgabe",
+        "assignee": "Verantwortliche/r (optional)",
+        "suggested": "Vorschlag",
+        "suggestion": "Vorschlag, nichts wird automatisch zugewiesen – Ressort: {ressort}; bisherige Verantwortliche: {people}",
+        "open": "{n} Nachbesserungsaufgabe(n) noch nicht abgenommen; erst danach ist die erneute Gesamtabnahme möglich."
+      },
+      "archive": {
+        "showArchived": "Archivierte anzeigen",
+        "chip": "Archiviert",
+        "banner": "Dieser Bauauftrag ist archiviert und kann nicht mehr bearbeitet oder ausgeführt werden.",
+        "action": "Archivieren",
+        "restore": "Wiederherstellen",
+        "title": "Bauauftrag archivieren",
+        "explain": "Der Bauauftrag wird nicht gelöscht: Aufgaben, Abnahmen, Rückweisungen, Nachbesserungen und der Verlauf bleiben erhalten. Er verschwindet aus den aktiven Listen und ist über «Archivierte anzeigen» auffindbar.",
+        "hasHistory": "Es wurde bereits gearbeitet oder protokolliert; ein physisches Löschen ist deshalb nicht möglich.",
+        "reason": "Begründung",
+        "confirm": "Archivieren",
+        "archived": "Bauauftrag archiviert",
+        "restored": "Bauauftrag wiederhergestellt"
+      },
+      "checklist": {
+        "title": "Checkliste",
+        "add": "Neuer Punkt",
+        "addButton": "Hinzufügen",
+        "up": "Nach oben",
+        "down": "Nach unten"
       }
     },
     "logistik": {
@@ -13294,6 +13505,15 @@
         "buildStatusLabel": "Status des Bauvorhabens",
         "orderStatusLabel": "Status des Auftrags",
         "buildStatusHint": "Geplant / Offerten, sobald nur offeriert oder bestellt ist. Aufbau erst, wenn Material am Standort ist oder jemand den Auftrag abarbeitet. In Nutzung erst während des Events.",
+        "statusSuggest": {
+          "text": "Vorschlag: «{status}» – {reason}",
+          "apply": "Übernehmen",
+          "reason": {
+            "quoted": "Offerten sind erfasst.",
+            "build": "Das Zeitfenster hat begonnen und es gibt erledigte Aufgaben oder Material am Platz.",
+            "teardown": "Eine Abbau-Phase läuft."
+          }
+        },
         "buildStatus": {
           "auto": "Automatisch",
           "planned": "Geplant",
@@ -13697,6 +13917,10 @@
         "guestLead": "Nach Zusage erscheint bei ihnen unter Aktivitäten ein Lager oder ein Event — wie ein normales Pfadi-Lager.",
         "hasGuests": "Teilnehmer-Abteilungen einladen",
         "hasGuestsHelp": "Andere Pfadi-Abteilungen nehmen teil. Einladen machst du im Tab Teilnehmer.",
+        "staffingTitle": "Helferpool-Verwaltung",
+        "staffingHint": "GA-HV und GA-SUBHV verwalten den Helferpool immer. Hier legst du fest, ob auch GA-MW und GA-OK Helfer verwalten und zuteilen dürfen.",
+        "staffingMw": "GA-MW darf Helferpool verwalten",
+        "staffingOk": "GA-OK darf Helferpool verwalten",
         "hasGuestsNo": "Nur OK intern, ohne Gast-Abteilungen",
         "logisticsNode": "Anlass-Topf",
         "logisticsNodeHint": "Das Infrastruktur-/Material-Budget sitzt auf einem Ressort oder Unterressort / Bereich. Setzen tust du das in der Ressort-Übersicht.",

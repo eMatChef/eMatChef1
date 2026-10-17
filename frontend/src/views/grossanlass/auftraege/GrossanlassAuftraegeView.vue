@@ -8,6 +8,21 @@
     </header>
 
     <section class="orders__bar">
+      <ESwitch
+        v-model="showArchived"
+        class="orders__mine"
+        :label="t('grossanlass.aufgaben.archive.showArchived')"
+        hide-details
+        density="compact"
+        data-testid="show-archived"
+      />
+      <ESwitch
+        v-model="mineOnly"
+        class="orders__mine"
+        :label="t('grossanlass.auftraege.mineOnly')"
+        hide-details
+        density="compact"
+      />
       <div class="orders__types" role="group" :aria-label="t('grossanlass.auftraege.filterType')">
         <EButton
           v-for="option in typeOptions"
@@ -40,7 +55,7 @@
     </EEmptyState>
 
     <div v-else class="orders__grid">
-      <article v-for="order in shown" :key="order.id" class="order" :class="`order--${order.type}`">
+      <article v-for="order in shown" :key="order.id" class="order" :class="`order--${order.type}`" @dblclick="openOrder(order.group)">
         <header class="order__head">
           <v-chip size="small" variant="flat" :color="TYPE_COLOR[order.type]" :prepend-icon="TYPE_ICON[order.type]">
             {{ t(`grossanlass.auftraege.type.${order.type}`) }}
@@ -49,6 +64,9 @@
             {{ t(gaBuildStatusI18nKey(order.status)) }}
           </v-chip>
         </header>
+        <v-chip v-if="order.group.archived" size="x-small" variant="tonal" color="warning" prepend-icon="mdi-archive-outline" data-testid="order-archived-chip">
+          {{ t('grossanlass.aufgaben.archive.chip') }}
+        </v-chip>
         <h4 class="order__title">{{ order.title }}</h4>
         <p v-if="order.path" class="order__crumb">{{ order.path }}</p>
         <p class="order__meta">
@@ -91,7 +109,7 @@
               : t('grossanlass.planung.auftraege.tasksNone') }}
           </small>
         </div>
-        <EButton size="small" variant="secondary" @click="openOrder(order.group)">
+        <EButton size="small" variant="secondary" @click="openOrder(order.group)" @dblclick.stop>
           {{ t('grossanlass.aufgaben.open') }}
         </EButton>
       </article>
@@ -103,6 +121,7 @@
       :groups="groups"
       :initial-group="dialogGroup"
       :initial-type="dialogType"
+      :initial-tab="dialogTab"
       @saved="refreshSoft"
       @changed="refreshSoft"
       @deleted="refreshSoft"
@@ -111,10 +130,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { EButton, ESearchField, ESelect } from '@/components/form/base'
+import { EButton, ESearchField, ESelect, ESwitch } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import GrossanlassOrderDialog from '@/components/grossanlass/GrossanlassOrderDialog.vue'
@@ -152,12 +171,22 @@ const filters = reactive(emptyOrderFilters())
 const dialogOpen = ref(false)
 const dialogGroup = ref<GrossanlassGroup | null>(null)
 const dialogType = ref<GaOrderType>('order')
+// Bestehende Aufträge öffnen direkt in «Aufgaben & Material», neue starten mit «Grunddaten».
+const dialogTab = ref<'basics' | 'tasks'>('basics')
 
-const { canCreateChild, isInAssignedRessortBranch } = useGrossanlassRessortScope(groups)
+const { canCreateChild, isInAssignedRessortBranch, isInOwnAssignedBranch } = useGrossanlassRessortScope(groups)
 
 /** Alles, was die Rolle sehen darf (MW/CMW: alle Ressorts). */
 const visibleGroups = computed(() => groups.value.filter((group) => isInAssignedRessortBranch(group)))
-const rows = computed(() => buildOrderRows(visibleGroups.value, groups.value, cards.value))
+/** Reiner Ansichtsfilter: nur Zweige meiner tatsächlichen Mitgliedschaften (inkl. Mehrfachzugehörigkeit), keine Rechteänderung. */
+const mineOnly = ref(false)
+/** Archivierte Bauaufträge sind standardmässig ausgeblendet; der Schalter nimmt sie mit. */
+const showArchived = ref(false)
+watch(showArchived, () => { void refreshSoft() })
+const scopedGroups = computed(() =>
+  mineOnly.value ? visibleGroups.value.filter((group) => isInOwnAssignedBranch(group)) : visibleGroups.value,
+)
+const rows = computed(() => buildOrderRows(scopedGroups.value, groups.value, cards.value))
 const typeCounts = computed(() => orderCounts(rows.value))
 const shown = computed(() => rows.value.filter((row) => matchesOrder(row, filters, groups.value)))
 const ressortItems = computed(() => [...new Set(rows.value.map((row) => ressortNameOf(row, groups.value)))].filter(Boolean).sort())
@@ -169,18 +198,20 @@ const canAdd = computed(() => visibleGroups.value.some((group) => canCreateChild
 
 function openCreate() {
   dialogGroup.value = null
+  dialogTab.value = 'basics'
   dialogType.value = filters.type === 'build' ? 'build' : 'order'
   dialogOpen.value = true
 }
 function openOrder(group: GrossanlassGroup) {
   dialogGroup.value = group
+  dialogTab.value = 'tasks'
   dialogOpen.value = true
 }
 async function refresh() {
   if (!departmentId.value) return
-  groups.value = await getGrossanlassGroups(departmentId.value)
+  groups.value = await getGrossanlassGroups(departmentId.value, { includeArchived: showArchived.value })
   // Kennzahlen sind ergänzend: ohne sie bleiben die Karten ohne Fortschritt statt falscher Werte.
-  cards.value = await getGrossanlassOrderCards(departmentId.value).catch(() => [])
+  cards.value = await getGrossanlassOrderCards(departmentId.value, { includeArchived: showArchived.value }).catch(() => [])
 }
 /** Soft-Reload nach Speichern/Löschen: Liste neu laden, ohne Seite oder Dialog zu schliessen. */
 async function refreshSoft() {
@@ -237,6 +268,9 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+.orders__mine {
+  align-self: flex-start;
 }
 .orders__types {
   display: flex;

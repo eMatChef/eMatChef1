@@ -121,6 +121,26 @@
             </button>
           </div>
         </section>
+        <section class="card staffing-card">
+          <h3>{{ t('grossanlass.planung.stammdaten.staffingTitle') }}</h3>
+          <p class="hint">{{ t('grossanlass.planung.stammdaten.staffingHint') }}</p>
+          <v-switch
+            v-model="staffingMwAllowed"
+            color="primary"
+            density="compact"
+            hide-details
+            :disabled="!canManage || saving"
+            :label="t('grossanlass.planung.stammdaten.staffingMw')"
+          />
+          <v-switch
+            v-model="staffingOkAllowed"
+            color="primary"
+            density="compact"
+            hide-details
+            :disabled="!canManage || saving"
+            :label="t('grossanlass.planung.stammdaten.staffingOk')"
+          />
+        </section>
         <section class="card logistics-card">
           <h3>{{ t('grossanlass.planung.stammdaten.logisticsNode') }}</h3>
           <p class="hint">{{ t('grossanlass.planung.stammdaten.logisticsNodeHint') }}</p>
@@ -235,6 +255,8 @@ const notes = ref('')
 const deptNameDraft = ref('')
 const guestType = ref<GrossanlassGuestActivityType>('camp')
 const hasGuestDepartments = ref(false)
+const staffingMwAllowed = ref(true)
+const staffingOkAllowed = ref(true)
 const logisticsGroupId = ref<string | null>(null)
 const { setHasGuestDepartments } = useGrossanlassGuestDepartments(() => departmentId.value)
 const canManage = computed(() => pack.value?.can_manage !== false)
@@ -281,6 +303,8 @@ function apply(next: GrossanlassPlanungOverview) {
   guestType.value = next.config.guest_activity_type === 'event' ? 'event' : 'camp'
   hasGuestDepartments.value = next.config.has_guest_departments === true
   logisticsGroupId.value = next.config.logistics_group_id || null
+  staffingMwAllowed.value = next.config.staffing_mw_allowed !== false
+  staffingOkAllowed.value = next.config.staffing_ok_allowed !== false
   setHasGuestDepartments(hasGuestDepartments.value)
   void nextTick(() => {
     isHydrating.value = false
@@ -326,6 +350,8 @@ async function persistStammdaten(immediate = false) {
           planned_event_end: periodEnd.value ? wallClock(periodEnd.value, periodEndTime.value) : null,
           guest_activity_type: guestType.value,
           has_guest_departments: hasGuestDepartments.value,
+          staffing_mw_allowed: staffingMwAllowed.value,
+          staffing_ok_allowed: staffingOkAllowed.value,
         }),
       )
       if (token !== autoSaveToken) return
@@ -356,7 +382,7 @@ watch([deptNameDraft, periodStart, periodEnd, periodStartTime, periodEndTime, no
   void persistStammdaten()
 })
 
-watch([guestType, hasGuestDepartments], () => {
+watch([guestType, hasGuestDepartments, staffingMwAllowed, staffingOkAllowed], () => {
   void persistStammdaten(true)
 })
 
@@ -498,7 +524,7 @@ onBeforeUnmount(() => {
   padding: 14px 16px;
   margin-top: 16px;
 }
-.guest-card h3, .logistics-card h3 { margin: 0 0 8px; font-size: 0.95rem; }
+.guest-card h3, .logistics-card h3, .staffing-card h3 { margin: 0 0 8px; font-size: 0.95rem; }
 .logistics-set { margin: 0 0 8px; color: #166534; font-weight: 600; }
 .logistics-link { color: #166534; font-size: 0.9rem; }
 .modus-grid { display: grid; gap: 10px; }

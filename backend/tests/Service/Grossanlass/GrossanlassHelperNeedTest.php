@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Service\Grossanlass;
 
 use App\Service\Grossanlass\GrossanlassBauprojektService;
+use App\Service\Grossanlass\HelperNeedValidationException;
 use PHPUnit\Framework\TestCase;
 
 final class GrossanlassHelperNeedTest extends TestCase
@@ -59,5 +60,27 @@ final class GrossanlassHelperNeedTest extends TestCase
 
         self::assertSame(11, $demand['peak']);
         self::assertSame(2, $demand['undated']);
+    }
+
+    public function testInputWithFunctionsAboveTotalIsRejected(): void
+    {
+        $this->expectException(HelperNeedValidationException::class);
+        $this->expectExceptionMessage('übersteigen den Gesamtbedarf');
+        $this->normalize(['total' => 3, 'functions' => [['label' => 'Elektriker', 'count' => 2], ['label' => 'Koch', 'count' => 2]]]);
+    }
+
+    public function testInputWithFunctionsWithinTotalIsKept(): void
+    {
+        $out = $this->normalize(['total' => 5, 'functions' => [['label' => 'Koch', 'count' => 5]]]);
+        self::assertSame(5, $out['total']);
+        self::assertSame([['label' => 'Koch', 'count' => 5]], $out['functions']);
+    }
+
+    /** @param array<string, mixed> $data */
+    private function normalize(array $data): array
+    {
+        $m = new \ReflectionMethod(GrossanlassBauprojektService::class, 'normalizeHelperNeedInput');
+
+        return $m->invoke(null, $data);
     }
 }

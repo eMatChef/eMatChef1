@@ -51,6 +51,8 @@ final class GrossanlassDepartmentSerializer
             'has_guest_departments' => $config->hasGuestDepartments(),
             'invite_group_ids' => $config->getInviteGroupIds(),
             'logistics_group_id' => $config->getLogisticsGroupId(),
+            'staffing_mw_allowed' => $config->isStaffingMwAllowed(),
+            'staffing_ok_allowed' => $config->isStaffingOkAllowed(),
         ];
     }
 

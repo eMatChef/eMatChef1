@@ -42,6 +42,16 @@ final class GrossanlassIdGenerator
     public const VEHICLE_NEED = 'vehicle_need';
     public const GROUP_SHARE = 'group_share';
     public const CHARGE_MOVEMENT = 'charge_movement';
+    public const HELPER = 'helper';
+    public const HELPER_AVAILABILITY = 'helper_availability';
+    public const STAFFING_NEED = 'staffing_need';
+    public const STAFFING_ASSIGNMENT = 'staffing_assignment';
+    public const STAFFING_LOG = 'staffing_log';
+    public const TASK_STEP = 'task_step';
+    public const TASK_EVENT = 'task_event';
+    public const DEPENDENCY = 'dependency';
+    public const ORDER_EVENT = 'order_event';
+    public const ARCHIVE_LOG = 'archive_log';
 
     /** @var array<string, string> */
     public const PREFIXES = [
@@ -74,6 +84,16 @@ final class GrossanlassIdGenerator
         self::VEHICLE_NEED => 'gv',
         self::GROUP_SHARE => 'gl',
         self::CHARGE_MOVEMENT => 'cm',
+        self::HELPER => 'gh',
+        self::HELPER_AVAILABILITY => 'gi',
+        self::STAFFING_NEED => 'sn',
+        self::STAFFING_ASSIGNMENT => 'sz',
+        self::STAFFING_LOG => 'sl',
+        self::TASK_STEP => 'gk',
+        self::TASK_EVENT => 'ge',
+        self::DEPENDENCY => 'gy',
+        self::ORDER_EVENT => 'gz',
+        self::ARCHIVE_LOG => 'gx',
     ];
 
     public static function prefix(string $kind): string

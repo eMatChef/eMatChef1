@@ -140,6 +140,27 @@ export function gaDeptStageBadge(role: string | null | undefined): GaDeptStageBa
   }
 }
 
+/**
+ * Helferpool: Helfer, Verfügbarkeit, Zuteilungen und Ausnahmen.
+ * GA-HV/GA-SUBHV immer; GA-MW und GA-OK (`dc`) standardmässig, je per GA-Einstellung abschaltbar.
+ * Nur Vorabschätzung der UI — massgeblich ist `can_manage` der Backend-Antwort.
+ */
+export function gaCanManageStaffing(
+  role: string | null | undefined,
+  allowed: { mw?: boolean; ok?: boolean } = {},
+): boolean {
+  const r = gaRole(role)
+  if (r === 'hv' || r === 'subhv') return true
+  if (r === 'mw') return allowed.mw !== false
+  if (r === 'dc') return allowed.ok !== false
+  return false
+}
+
+/** Personalbedarf und Deckung lesen (ohne Helfernamen): GA-HV/GA-SUBHV und die GA-Leitung. */
+export function gaCanSeeStaffing(role: string | null | undefined): boolean {
+  return gaCanManageStaffing(role) || ['mw', 'cmw', 'dc'].includes(gaRole(role))
+}
+
 export function gaCanApproveEinsatz(role: string | null | undefined): boolean {
   return ['mw', 'cmw', 'dc'].includes(gaRole(role))
 }
@@ -172,6 +193,9 @@ export const GA_MATERIALS_ROUTE_ROLES = [...GA_MATERIAL_ROUTE_ROLES] as const
 
 /** Router: Planung / Struktur / Freigabe. */
 export const GA_PLANUNG_ROUTE_ROLES = [...GA_UEBERSICHT_ROUTE_ROLES] as const
+
+/** Router: Helferpool (Verwaltung hv/subhv, Personalbedarf lesen auch MW/CMW/OK-Leitung). */
+export const GA_HELFERPOOL_ROUTE_ROLES = ['matwart', 'mw', 'cmw', 'depchef', 'dc', 'hv', 'subhv'] as const
 
 /** Router: Meine Einsätze (Helfer). */
 export const GA_HELPER_ROUTE_ROLES = ['user', 'u', 'h'] as const

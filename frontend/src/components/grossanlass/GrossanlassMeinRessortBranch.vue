@@ -80,14 +80,6 @@
           </div>
           <div class="bauprojekt-row__actions">
             <EButton
-              v-if="project.node_type !== 'auftrag'"
-              variant="secondary"
-              size="small"
-              @click="openProject(project)"
-            >
-              {{ t('grossanlass.planung.ressorts.openProject') }}
-            </EButton>
-            <EButton
               v-if="canEditGroup(project)"
               variant="secondary"
               size="small"

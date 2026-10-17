@@ -29,7 +29,7 @@ Eine einzige Sidebar (`components/layout/SidebarNavigation.vue`). MW/CMW sehen d
 | Anlass | Ressorts / Mein Ressort | `/{deptId}/ga/my-unit` | `mdi-home-group` |
 | Anlass | Planung | `/{deptId}/ga/planning` → `requests` | `mdi-calendar-clock` |
 | Anlass | Helferpool | `/{deptId}/ga/helper-pool` | `mdi-account-group-outline` |
-| Anlass | Aufgaben | `/{deptId}/dept/tasks` | `mdi-clipboard-list` |
+| Anlass | Aufgaben | `/{deptId}/ga/tasks` | `mdi-clipboard-list` |
 | Material | Beschaffung | `/{deptId}/ga/procurement` | `mdi-cart-outline` |
 | Material | Material | `/{deptId}/ga/material` → `stock` | `mdi-package-variant` |
 | Logistik | Logistik | `/{deptId}/ga/logistics` → `dispatch` | `mdi-truck-fast-outline` |
@@ -111,22 +111,22 @@ Kurzformen: *Route* = unter `/{deptId}/`; *Komp.* = Vue-Datei unter `frontend/sr
 | Feld | Inhalt |
 | --- | --- |
 | Mockup-Quelle | #298 `helferpool/` |
-| Route / Komp. | `ga/helper-pool` · `helferpool/GrossanlassHelferpoolView.vue`, `GrossanlassHelferDrawer.vue` |
-| Backend | – (Demo-Daten `gaHelferMock.ts`) |
-| UI-Stand | **Prototyp** |
-| Abweichungen | Persönliche Einsätze (`ga/my-assignments`, `GrossanlassMeineEinsaetzeView`) sind angebunden, der Pool nicht |
-| Fachfragen | Datenquelle der Helfer (Teilnehmer? Benutzerkarten?), Verfügbarkeit |
+| Route / Komp. | `ga/helper-pool` · `helferpool/GrossanlassHelferpoolView.vue` mit `GrossanlassHelferDrawer`, `GrossanlassHelferFormDialog`, `GrossanlassStaffingAssignDialog`, `GrossanlassStaffingNeedsPanel`, `GrossanlassStaffingTimeline` |
+| Backend | `GrossanlassStaffingController` (`/api/departments/{id}/grossanlass/helpers`, `…/staffing/…`), Modell und Regeln in [bauprojekt-ort-helfer.md §3.1d](./bauprojekt-ort-helfer.md#31d-helferpool-v1-personalbedarf-zuteilung-deckung-migration-version20261018090000) |
+| UI-Stand | **vorhanden (V1)**, in einem Browser noch nicht abgenommen |
+| Abweichungen | Tab «Fähigkeiten» zeigt die Funktionswünsche des Personalbedarfs (Berufe/Qualifikationen sind nicht Teil von V1). Persönliche Einsätze (`ga/my-assignments`) sind getrennt und nicht an den Pool angebunden |
+| Fachfragen | Detaillierte Rechte der Rollen GA-HV/GA-SUBHV, Aufbewahrung und Löschung der Helferdaten |
 | Abhängigkeiten | Aufgaben, Aufträge, Ressorts |
-| Nächster Schritt | Datenmodell klären, dann anbinden |
+| Nächster Schritt | Abnahme im Browser; danach Erweiterungen (Import, Fremdbelegung, Anwesenheit) separat entscheiden |
 
 #### Aufgaben
 | Feld | Inhalt |
 | --- | --- |
 | Mockup-Quelle | #298 `aufgaben/` |
-| Route / Komp. | `dept/tasks/{aufgaben,meine}` (Tabs Allgemein/Inventur/Drucken bestehen) · `aufgaben/GrossanlassAufgabenMasterView.vue`, `GrossanlassMeineAufgabenView.vue`, `views/TasksShellView.vue` |
+| Route / Komp. | `ga/tasks`, `ga/tasks/mine` (Tabs Allgemein/Inventur/Drucken bleiben unter `dept/tasks`) · `aufgaben/GrossanlassAufgabenMasterView.vue`, `GrossanlassMeineAufgabenView.vue`, `views/TasksShellView.vue` |
 | Backend | – (Demo-Daten `gaAufgabenMock.ts`) |
 | UI-Stand | **Prototyp** |
-| Abweichungen | Route liegt unter `dept/tasks`, nicht `ga/` (bewusst: gemeinsame Aufgaben-Shell aller Departments) |
+| Abweichungen | Keine; GA-Aufgaben liegen unter `ga/tasks`, die gemeinsame Shell `TasksShellView` wird von `dept/tasks` und `ga/tasks` genutzt |
 | Fachfragen | Aufgabe vs. Auftrag vs. Fahrauftrag; Rollen-Sichten |
 | Abhängigkeiten | Aufträge, Helferpool, Packen, Logistik |
 | Nächster Schritt | Nach Planung/Aufträge |

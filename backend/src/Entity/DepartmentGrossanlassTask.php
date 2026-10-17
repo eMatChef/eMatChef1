@@ -11,8 +11,16 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'department_grossanlass_task')]
 #[ORM\Index(name: 'idx_ga_task_dept', columns: ['department_id'])]
 #[ORM\Index(name: 'idx_ga_task_group', columns: ['group_id'])]
+#[ORM\Index(name: 'idx_ga_task_rework_event', columns: ['rework_event_id'])]
 class DepartmentGrossanlassTask
 {
+    public const STATUS_OPEN = 'open';
+    public const STATUS_PROGRESS = 'progress';
+    /** Fertig gemeldet, wartet auf Abnahme (noch nicht abgeschlossen). */
+    public const STATUS_REVIEW = 'review';
+    public const STATUS_DONE = 'done';
+    public const STATUSES = [self::STATUS_OPEN, self::STATUS_PROGRESS, self::STATUS_REVIEW, self::STATUS_DONE];
+
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
     private string $id;
@@ -49,12 +57,49 @@ class DepartmentGrossanlassTask
     #[ORM\Column(name: 'assignee_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $assigneeUserId = null;
 
+    /** Automatisch angelegte Standardaufgabe «Allgemein» für Personalbedarf direkt am Bauprojekt; nicht in der Aufgabenübersicht. */
+    #[ORM\Column(name: 'is_default', type: 'boolean', options: ['default' => false])]
+    private bool $isDefault = false;
+
+    /** open | progress | review | done (done nur nach Abnahme) */
+    #[ORM\Column(type: 'string', length: 16, options: ['default' => 'open'])]
+    private string $status = self::STATUS_OPEN;
+
+    /** Blockierung (Problem-Meldung): gesetzt = blockiert, bis eine berechtigte Person sie aufhebt. Unabhängig von `status`. */
+    #[ORM\Column(name: 'blocked_reason', type: 'text', nullable: true)]
+    private ?string $blockedReason = null;
+
+    #[ORM\Column(name: 'blocked_by_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $blockedByUserId = null;
+
+    #[ORM\Column(name: 'blocked_at', type: 'datetime', nullable: true)]
+    private ?\DateTime $blockedAt = null;
+
+    /**
+     * Nachbesserungsaufgabe: Verknüpfung mit dem Rückweisungsereignis der Gesamtabnahme (`department_grossanlass_order_event.id`,
+     * Typ `returned`). NULL = normale Aufgabe. Wird nur beim Anlegen gesetzt.
+     */
+    #[ORM\Column(name: 'rework_event_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $reworkEventId = null;
+
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
 
     public function __construct()
     {
         $this->createdAt = new \DateTime();
+    }
+
+    public function isDefault(): bool
+    {
+        return $this->isDefault;
+    }
+
+    public function setIsDefault(bool $isDefault): self
+    {
+        $this->isDefault = $isDefault;
+
+        return $this;
     }
 
     public function getId(): string
@@ -174,6 +219,71 @@ class DepartmentGrossanlassTask
     public function setAssigneeUserId(?string $assigneeUserId): self
     {
         $this->assigneeUserId = $assigneeUserId !== null && $assigneeUserId !== '' ? $assigneeUserId : null;
+
+        return $this;
+    }
+
+    public function getStatus(): string
+    {
+        return $this->status;
+    }
+
+    public function setStatus(string $status): self
+    {
+        if (!in_array($status, self::STATUSES, true)) {
+            throw new \InvalidArgumentException('Ungültiger Aufgabenstatus');
+        }
+        $this->status = $status;
+
+        return $this;
+    }
+
+    public function getReworkEventId(): ?string
+    {
+        return $this->reworkEventId;
+    }
+
+    public function setReworkEventId(?string $reworkEventId): self
+    {
+        $this->reworkEventId = $reworkEventId !== null && $reworkEventId !== '' ? $reworkEventId : null;
+
+        return $this;
+    }
+
+    public function isBlocked(): bool
+    {
+        return $this->blockedReason !== null;
+    }
+
+    public function getBlockedReason(): ?string
+    {
+        return $this->blockedReason;
+    }
+
+    public function getBlockedByUserId(): ?string
+    {
+        return $this->blockedByUserId;
+    }
+
+    public function getBlockedAt(): ?\DateTime
+    {
+        return $this->blockedAt;
+    }
+
+    public function block(string $reason, string $userId): self
+    {
+        $this->blockedReason = $reason;
+        $this->blockedByUserId = $userId;
+        $this->blockedAt = new \DateTime();
+
+        return $this;
+    }
+
+    public function unblock(): self
+    {
+        $this->blockedReason = null;
+        $this->blockedByUserId = null;
+        $this->blockedAt = null;
 
         return $this;
     }

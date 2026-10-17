@@ -26,12 +26,15 @@ class GrossanlassGroupService
         private GroupHierarchyService $hierarchy,
         private GrossanlassPlaceService $places,
         private GrossanlassProcurementProgress $procurementProgress,
+        private GrossanlassDependencyService $dependencies,
+        private GrossanlassOrderAcceptanceService $orderAcceptance,
+        private GrossanlassOrderArchiveService $orderArchive,
     ) {}
 
     /**
      * @return list<array<string, mixed>>
      */
-    public function listGroups(Department $department): array
+    public function listGroups(Department $department, bool $includeArchived = false): array
     {
         $this->access->assertGrossanlassDepartment($department);
 
@@ -43,6 +46,10 @@ class GrossanlassGroupService
             ->addOrderBy('g.name', 'ASC')
             ->getQuery()
             ->getResult();
+        if (!$includeArchived) {
+            // Archivierte Bauaufträge sind aus aktiven Listen ausgeblendet; nur über den Filter «archivierte anzeigen» auffindbar.
+            $groups = array_values(array_filter($groups, static fn (Group $g) => !$g->isArchived()));
+        }
 
         $groupIds = array_map(static fn (Group $g) => $g->getId(), $groups);
         $membershipsByGroup = $this->loadMembershipsByGroup($groupIds);
@@ -55,9 +62,13 @@ class GrossanlassGroupService
             $namesById[$group->getId()] = $group->getName();
         }
 
+        $history = $this->orderArchive->historyReasons($department->getId());
         $result = [];
         foreach ($groups as $group) {
-            $result[] = $this->serializeGroup(
+            $result[] = [
+                // Bauauftrag mit Arbeit/Protokoll darf nicht physisch gelöscht, sondern nur archiviert werden
+                'has_history' => isset($history[trim($group->getId())]),
+            ] + $this->serializeGroup(
                 $department,
                 $group,
                 $membershipsByGroup[$group->getId()] ?? [],
@@ -137,6 +148,7 @@ class GrossanlassGroupService
         if (!$this->access->canEditGroup($user, $department, $group)) {
             throw new \RuntimeException('Keine Berechtigung, Ressort zu bearbeiten');
         }
+        $this->orderArchive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar
 
         if (isset($data['name'])) {
             $name = trim((string) $data['name']);
@@ -174,6 +186,48 @@ class GrossanlassGroupService
         return $this->serializeGroup($department, $group, $members, $place, places: $this->serializedPlacesOf($department, $group));
     }
 
+    /**
+     * Bauauftrag mit Begründung archivieren (Soft-Delete). Berechtigung wie beim Löschen (`canDeleteGroup`).
+     *
+     * @return array<string, mixed>
+     */
+    public function archiveGroup(Department $department, User $user, Group $group, string $reason): array
+    {
+        $this->assertMayArchive($department, $user, $group);
+        $this->orderArchive->archive($department, $group, $user, $reason);
+        $this->entityManager->flush();
+
+        return $this->orderArchive->summary($group);
+    }
+
+    /** @return array<string, mixed> */
+    public function restoreGroup(Department $department, User $user, Group $group, ?string $note): array
+    {
+        $this->assertMayArchive($department, $user, $group);
+        $this->orderArchive->restore($department, $group, $user, $note);
+        $this->entityManager->flush();
+
+        return $this->orderArchive->summary($group);
+    }
+
+    /** @return array<string, mixed> */
+    public function archiveState(Department $department, Group $group): array
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        $this->assertGroupBelongsToDepartment($group, $department);
+
+        return $this->orderArchive->summary($group);
+    }
+
+    private function assertMayArchive(Department $department, User $user, Group $group): void
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        $this->assertGroupBelongsToDepartment($group, $department);
+        if (!$this->access->canDeleteGroup($user, $department, $group)) {
+            throw new \RuntimeException('Keine Berechtigung, Bauaufträge zu archivieren oder wiederherzustellen');
+        }
+    }
+
     public function deleteGroup(Department $department, User $user, Group $group): void
     {
         $this->access->assertGrossanlassDepartment($department);
@@ -187,6 +241,17 @@ class GrossanlassGroupService
         if ($this->countMembershipsInGroups($subtreeIds) > 0) {
             throw new \RuntimeException('Löschen nicht möglich: Im Subtree sind noch Mitglieder zugewiesen');
         }
+
+        // Abhängigkeiten verschwinden nie stillschweigend: erst ausdrücklich entfernen.
+        $this->orderAcceptance->assertDeletable($subtreeIds); // gemeldete/abgenommene Bauaufträge nicht still löschen
+        // Bauaufträge mit Arbeit oder Protokoll (auch archivierte im Unterbaum) werden nie physisch gelöscht, sondern archiviert
+        foreach ($subtreeIds as $subtreeId) {
+            $node = $this->entityManager->getRepository(Group::class)->find($subtreeId);
+            if ($node instanceof Group) {
+                $this->orderArchive->assertPhysicallyDeletable($node);
+            }
+        }
+        $this->dependencies->assertDeletable($department->getId(), $this->dependencies->taskIdsOfGroups($subtreeIds), $subtreeIds);
 
         $isBauprojekt = $this->isLeafKind($this->resolveStoredKind($group));
         if (!$isBauprojekt && $this->hasWishReferences($subtreeIds)) {
@@ -203,6 +268,7 @@ class GrossanlassGroupService
      */
     public function shareGroup(Department $department, User $user, Group $group, array $data): array
     {
+        $this->orderArchive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar
         $this->access->assertGrossanlassDepartment($department);
         $this->assertGroupBelongsToDepartment($group, $department);
         if (!$this->access->canShareGroup($user, $department, $group)) {
@@ -252,6 +318,7 @@ class GrossanlassGroupService
 
     public function unshareGroup(Department $department, User $user, Group $group, string $shareId): void
     {
+        $this->orderArchive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar
         $this->access->assertGrossanlassDepartment($department);
         $this->assertGroupBelongsToDepartment($group, $department);
 
@@ -278,6 +345,7 @@ class GrossanlassGroupService
      */
     public function addMember(Department $department, User $user, Group $group, array $data): array
     {
+        $this->orderArchive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar
         $this->access->assertGrossanlassDepartment($department);
         $this->assertGroupBelongsToDepartment($group, $department);
 
@@ -339,6 +407,7 @@ class GrossanlassGroupService
      */
     public function updateMember(Department $department, User $user, Group $group, string $userId, array $data): array
     {
+        $this->orderArchive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar
         $this->access->assertGrossanlassDepartment($department);
         $this->assertGroupBelongsToDepartment($group, $department);
 
@@ -379,6 +448,7 @@ class GrossanlassGroupService
 
     public function removeMember(Department $department, User $user, Group $group, string $userId): void
     {
+        $this->orderArchive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar
         $this->access->assertGrossanlassDepartment($department);
         $this->assertGroupBelongsToDepartment($group, $department);
 
@@ -523,6 +593,9 @@ class GrossanlassGroupService
             'leaders' => $leaders,
             'shared_with' => $sharedWith,
             'shared_from' => $sharedFrom,
+            'archived' => $group->isArchived(),
+            'archived_at' => $group->getArchivedAt()?->format('c'),
+            'archive_reason' => $group->getArchiveReason(),
             'created_at' => $group->getCreatedAt()->format('c'),
             'updated_at' => $group->getUpdatedAt()->format('c'),
         ];
@@ -762,6 +835,7 @@ class GrossanlassGroupService
      */
     public function addGroupPlace(Department $department, User $user, Group $group, array $data): array
     {
+        $this->orderArchive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar
         $this->assertMayEditGroupPlaces($department, $user, $group);
         $placeId = trim((string) ($data['place_id'] ?? ''));
         if ($placeId !== '') {
@@ -784,6 +858,7 @@ class GrossanlassGroupService
      */
     public function updateGroupPlace(Department $department, User $user, Group $group, string $placeId, array $data): array
     {
+        $this->orderArchive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar
         $this->assertMayEditGroupPlaces($department, $user, $group);
         $row = $this->places->getPlace($department, $placeId);
         $this->assertMayChangeSharedPlace($department, $user, $row);
@@ -799,6 +874,7 @@ class GrossanlassGroupService
      */
     public function removeGroupPlace(Department $department, User $user, Group $group, string $placeId): array
     {
+        $this->orderArchive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar
         $this->assertMayEditGroupPlaces($department, $user, $group);
         $row = $this->places->getPlace($department, $placeId);
         $this->places->unlinkGroup($row, $group->getId());

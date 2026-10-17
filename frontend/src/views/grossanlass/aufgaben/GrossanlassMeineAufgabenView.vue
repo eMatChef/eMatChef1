@@ -4,13 +4,13 @@
       <header class="meine__head">
         <div>
           <h2>{{ t('grossanlass.aufgaben.mine.title') }}</h2>
-          <p>{{ dayLabel(new Date(), locale) }} · {{ t('grossanlass.aufgaben.mine.subtitle', { name: GA_DEMO_ME }) }}</p>
+          <p>{{ dayLabel(now, locale) }} · {{ t('grossanlass.aufgaben.mine.subtitle', { name: authStore.userDisplayName }) }}</p>
         </div>
-        <v-chip size="x-small" variant="tonal" color="warning">{{ t('grossanlass.aufgaben.prototype') }}</v-chip>
       </header>
 
+      <ELoadingState v-if="loading && !tasks.length" />
       <EEmptyState
-        v-if="!mine.length"
+        v-else-if="!mine.length"
         variant="generic"
         icon="mdi-check-all"
         :title="t('grossanlass.aufgaben.mine.emptyTitle')"
@@ -19,7 +19,7 @@
 
       <ul v-else class="meine__list">
         <li v-for="task in mine" :key="task.id">
-          <button type="button" class="meine-card" :class="`meine-card--${statusKey(task)}`" @click="selectedId = task.id">
+          <button type="button" class="meine-card" :class="`meine-card--${statusKey(task, now)}`" @click="selectedId = task.id">
             <span class="meine-card__icon"><v-icon :icon="KIND_ICON[task.kind]" size="22" /></span>
             <span class="meine-card__body">
               <span class="meine-card__kind">{{ t(`grossanlass.aufgaben.kind.${task.kind}`) }}</span>
@@ -34,8 +34,17 @@
                 class="mt-2"
               />
             </span>
-            <v-chip size="x-small" variant="flat" :color="STATUS_COLOR[statusKey(task)]">
-              {{ t(`grossanlass.aufgaben.status.${statusKey(task)}`) }}
+            <v-chip v-if="task.rework" size="x-small" variant="tonal" color="info" prepend-icon="mdi-wrench-outline" class="mr-1">
+              {{ t('grossanlass.aufgaben.rework.chip') }}
+            </v-chip>
+            <v-chip v-if="task.waiting" size="x-small" variant="flat" color="warning" prepend-icon="mdi-timer-sand" class="mr-1">
+              {{ t('grossanlass.aufgaben.deps.chip') }}
+            </v-chip>
+            <v-chip v-if="task.blocked" size="x-small" variant="flat" color="error" prepend-icon="mdi-alert-octagon-outline" class="mr-1">
+              {{ t('grossanlass.aufgaben.blocked.chip') }}
+            </v-chip>
+            <v-chip size="x-small" variant="flat" :color="STATUS_COLOR[statusKey(task, now)]">
+              {{ t(`grossanlass.aufgaben.status.${statusKey(task, now)}`) }}
             </v-chip>
           </button>
         </li>
@@ -48,26 +57,61 @@
         {{ t('grossanlass.aufgaben.mine.back') }}
       </EButton>
       <h2 class="meine__title">{{ selected.title }}</h2>
-      <GrossanlassAufgabeDetail :task="selected" />
+      <GrossanlassAufgabeDetail
+        :task="selected"
+        :error="actionError"
+        @status="(status) => setStatus(selected!, status)"
+        @step-add="(label) => addStep(selected!, label)"
+        @step-done="(id, done) => setStepDone(selected!, id, done)"
+        @step-move="(id, delta) => moveStep(selected!, id, delta)"
+        @step-remove="(id) => removeStep(selected!, id)"
+        @block="(reason) => block(selected!, reason)"
+        @unblock="unblock(selected!)"
+        @report="(note) => reportDone(selected!, note)"
+        @accept="accept(selected!)"
+        @give-back="(reason) => giveBack(selected!, reason)"
+        :dependency-candidates="dependencyCandidates"
+        @dependency-add="(id, mode) => addDependency(selected!, id, mode)"
+        @dependency-mode="(dep, mode) => changeDependencyMode(selected!, dep, mode)"
+        @dependency-remove="(dep) => removeDependency(selected!, dep)"
+        @dependency-release="(dep, reason) => releaseDependency(selected!, dep, reason)"
+      />
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { EButton } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import { useAuthStore } from '@/stores/auth'
 import GrossanlassAufgabeDetail from './GrossanlassAufgabeDetail.vue'
-import { GA_DEMO_ME, myTodayTasks, taskProgress, useGaAufgabenMock } from './gaAufgabenMock'
-import { KIND_ICON, STATUS_COLOR, dayLabel, statusKey, whenLabel } from './gaAufgabenUi'
+import { taskProgress } from './gaAufgabenMock'
+import { useGaAufgaben } from './useGaAufgaben'
+import { KIND_ICON, STATUS_COLOR, dayLabel, statusKey, useGaNow, whenLabel } from './gaAufgabenUi'
 
 const { t, locale } = useI18n()
-const { tasks } = useGaAufgabenMock()
+const route = useRoute()
+const authStore = useAuthStore()
+const { tasks, loading, load, actionError, addStep, setStepDone, moveStep, removeStep, block, unblock, reportDone, accept, giveBack, addDependency, changeDependencyMode, removeDependency, releaseDependency, setStatus } = useGaAufgaben(() => String(route.params.departmentId || ''))
+onMounted(load)
+const now = useGaNow()
 
-const mine = computed(() => myTodayTasks(tasks.value))
+/** Eigene Aufgaben von heute (Termin oder Projektfenster überlappt den heutigen Tag). */
+const mine = computed(() => {
+  const dayStart = new Date(now.value).setHours(0, 0, 0, 0)
+  const dayEnd = new Date(now.value).setHours(23, 59, 59, 999)
+  return tasks.value
+    .filter((task) => !!authStore.userId && task.assigneeId === authStore.userId)
+    .filter((task) => task.startsAt.getTime() <= dayEnd && task.endsAt.getTime() >= dayStart)
+    .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
+})
 const selectedId = ref<string | null>(null)
 const selected = computed(() => tasks.value.find((task) => task.id === selectedId.value) ?? null)
+const dependencyCandidates: { value: string; title: string }[] = []
 </script>
 
 <style scoped>

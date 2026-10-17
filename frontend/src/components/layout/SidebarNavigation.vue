@@ -178,7 +178,7 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.planung') }}</span>
       </router-link>
       <router-link
-        v-if="showGrossanlassUebersichtMenu"
+        v-if="showGrossanlassHelferpoolMenu"
         :to="getLink('/ga/helper-pool')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('helferpool') }"
@@ -623,6 +623,7 @@ import {
   gaCanManageProcurement,
   gaCanSeeAnlassOverview,
   gaCanSeeMaterial,
+  gaCanSeeStaffing,
   gaCanWorkMailbox,
   gaIsBereichsleitung,
   gaIsGrossanlassHelper,
@@ -1150,6 +1151,11 @@ const showGrossanlassMaterialsMenu = computed(
 const showGrossanlassUebersichtMenu = computed(() => {
   if (isSuperAdmin.value || !isGrossanlassDept.value) return false
   return gaCanSeeMaterial(authStore.currentDepartmentRole, isBereichsleitung.value)
+})
+
+const showGrossanlassHelferpoolMenu = computed(() => {
+  if (isSuperAdmin.value || !isGrossanlassDept.value) return false
+  return gaCanSeeStaffing(authStore.currentDepartmentRole)
 })
 
 const showGrossanlassAnfragenSidebarLink = computed(

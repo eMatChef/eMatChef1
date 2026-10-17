@@ -103,6 +103,12 @@ final class GrossanlassPlanungService
         if (array_key_exists('has_guest_departments', $data)) {
             $config->setHasGuestDepartments((bool) $data['has_guest_departments']);
         }
+        if (array_key_exists('staffing_mw_allowed', $data)) {
+            $config->setStaffingMwAllowed((bool) $data['staffing_mw_allowed']);
+        }
+        if (array_key_exists('staffing_ok_allowed', $data)) {
+            $config->setStaffingOkAllowed((bool) $data['staffing_ok_allowed']);
+        }
         if (array_key_exists('logistics_group_id', $data)) {
             $this->applyLogisticsGroup($department, $config, $data['logistics_group_id']);
         }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  suggestBuildStatus,
   deriveBuildStatus,
   gaBuildStatusSelectItems,
   resolveBuildStatus,
@@ -116,5 +117,26 @@ describe('gaBuildStatusSelectItems', () => {
       'done',
       'aborted',
     ])
+  })
+})
+
+describe('suggestBuildStatus', () => {
+  const base = { nodeType: 'bauprojekt', current: 'planned' as const, today: '2027-05-10', windowStart: '2027-05-01', windowEnd: '2027-05-30' }
+  it('never suggests for normal orders', () => {
+    expect(suggestBuildStatus({ ...base, nodeType: 'auftrag', procurementProgress: 'build' })).toBeNull()
+  })
+  it('does not treat elapsed time alone as progress', () => {
+    expect(suggestBuildStatus({ ...base, card: { tasks: { total: 3, done: 0 }, material: { at_place_items: 0 } } })).toBeNull()
+  })
+  it('suggests build on real progress once the window started', () => {
+    expect(suggestBuildStatus({ ...base, card: { tasks: { total: 3, done: 1 }, material: { at_place_items: 0 } } })?.status).toBe('build')
+    expect(suggestBuildStatus({ ...base, today: '2027-04-01', procurementProgress: 'build' })).toBeNull()
+  })
+  it('suggests quoted from offers and teardown from an active abbau period, never use/done', () => {
+    expect(suggestBuildStatus({ ...base, today: '2027-04-01', procurementProgress: 'quoted' })?.status).toBe('quoted')
+    const periods = [{ label: 'abbau', start_date: '2027-05-09', end_date: '2027-05-20' }] as never
+    expect(suggestBuildStatus({ ...base, current: 'build', periods })?.status).toBe('teardown')
+    expect(suggestBuildStatus({ ...base, current: 'use', today: '2027-06-30' })).toBeNull()
+    expect(suggestBuildStatus({ ...base, current: 'teardown', today: '2027-06-30' })).toBeNull()
   })
 })

@@ -153,6 +153,8 @@
                       v-model="block.date"
                       :label="t('grossanlass.planung.ressorts.taskBlockDate')"
                       :department-id="departmentId"
+                      :parent-window="projectWindow"
+                      :own-window="block.date ? { start: block.date, end: block.date } : null"
                       allow-past
                       :disabled="!briefing.can_edit"
                     />
@@ -247,7 +249,7 @@
                       </span>
                     </template>
                   </EAutocomplete>
-                  <div class="ga-block__helpers">
+                  <div class="ga-block__helpers" data-testid="task-helper-need">
                     <ETextField
                       :model-value="block.helperTotal ? String(block.helperTotal) : ''"
                       type="number"
@@ -280,6 +282,7 @@
                         type="button"
                         class="action-btn"
                         :title="t('grossanlass.helperNeed.remove')"
+                        :aria-label="t('grossanlass.helperNeed.remove')"
                         @click="block.helperFunctions.splice(fnIndex, 1)"
                       >
                         <v-icon icon="mdi-close" size="18" />
@@ -293,7 +296,29 @@
                     >
                       {{ t('grossanlass.helperNeed.addFunction') }}
                     </button>
+                    <p
+                      v-if="helperOverflow(block) > 0"
+                      class="ga-block__helper-note is-error"
+                      role="alert"
+                      data-testid="task-helper-overflow"
+                    >
+                      {{ t('grossanlass.helperNeed.overflow', { sum: helperFunctionSum(block), total: block.helperTotal }) }}
+                    </p>
+                    <p
+                      v-else-if="block.helperTotal > 0"
+                      class="ga-block__helper-note"
+                      data-testid="task-helper-rest"
+                    >
+                      {{ t('grossanlass.helperNeed.rest', { n: block.helperTotal - helperFunctionSum(block) }) }}
+                    </p>
                   </div>
+                  <GaTaskDependencies
+                    v-if="block.id"
+                    :department-id="departmentId"
+                    :group-id="groupId"
+                    :task-id="block.id"
+                    :can-edit="briefing.can_edit"
+                  />
                   <div class="ga-block__tools">
                     <span
                       v-if="taskSaveHint[block.key]"
@@ -347,6 +372,7 @@
                   v-model="block.date"
                   :label="t('grossanlass.planung.ressorts.taskBlockDate')"
                   :department-id="departmentId"
+                  :parent-window="projectWindow"
                   allow-past
                   :disabled="!briefing.can_edit"
                 />
@@ -646,6 +672,7 @@ import { useI18n } from 'vue-i18n'
 import { RouterLink, useRouter } from 'vue-router'
 import { EAutocomplete, EButton, EDateField, ESelect, ETextarea, ETextField, ETimeField } from '@/components/form/base'
 import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
+import GaTaskDependencies from '@/components/grossanlass/GaTaskDependencies.vue'
 import GaBuildMetaFields from '@/components/grossanlass/GaBuildMetaFields.vue'
 import GrossanlassVehicleCategoryField from '@/components/grossanlass/GrossanlassVehicleCategoryField.vue'
 import GrossanlassPlacePreviewMap from '@/components/grossanlass/GrossanlassPlacePreviewMap.vue'
@@ -702,6 +729,8 @@ const props = defineProps<{
   initialOpen?: string[]
   /** `tasks-material`: Zeitfenster, Beschrieb und Standort stehen im Reiter Grunddaten des gemeinsamen Dialogs. */
   scope?: 'full' | 'tasks-material'
+  /** Live-Zeitfenster aus dem Dialog (Grunddaten); überschreibt das geladene Fenster für die Kalender-Markierung. */
+  liveWindow?: { start?: string | null; end?: string | null } | null
 }>()
 const showBasics = computed(() => props.scope !== 'tasks-material')
 watchGrossanlassBuildPeriods(toRef(props, 'departmentId'))
@@ -860,6 +889,9 @@ const materialRows = computed(() => {
   return [...wishes, ...direct]
 })
 
+const projectWindow = computed(() =>
+  props.liveWindow ?? { start: windowStart.value, end: windowEnd.value },
+)
 const hasProjectWindow = computed(() => Boolean(windowStart.value && windowEnd.value))
 
 const projectFromIso = computed(() => (windowStart.value ? `${windowStart.value}T00:00:00` : ''))
@@ -980,14 +1012,19 @@ const einsatzTitleMeta = computed(() => {
   return `· ${t('grossanlass.meinRessort.einsatzCount', { n: count })}`
 })
 
+let loadSeq = 0
 async function load(opts?: { silent?: boolean }) {
   if (!props.departmentId || !props.groupId) return
+  const seq = ++loadSeq
+  const groupId = props.groupId
   if (!opts?.silent) {
     loading.value = true
     error.value = null
   }
   try {
-    briefing.value = await getGrossanlassBauprojekt(props.departmentId, props.groupId)
+    const next = await getGrossanlassBauprojekt(props.departmentId, groupId)
+    if (seq !== loadSeq) return // veraltete Antwort eines früheren Auftrags verwerfen
+    briefing.value = next
     briefing.value.einsaetze ??= []
     briefing.value.direct_material ??= []
     applyMetaFromBriefing(briefing.value)
@@ -996,6 +1033,7 @@ async function load(opts?: { silent?: boolean }) {
       organizerGroupId.value = briefing.value.group?.parent_id || briefing.value.group?.id || ''
     }
   } catch (e: unknown) {
+    if (seq !== loadSeq) return
     const err = e as { response?: { data?: { error?: string } } }
     if (!opts?.silent) {
       error.value = err.response?.data?.error || t('grossanlass.planung.ressorts.errorLoad')
@@ -1003,7 +1041,7 @@ async function load(opts?: { silent?: boolean }) {
       toast.error(err.response?.data?.error || t('grossanlass.planung.ressorts.errorLoad'))
     }
   } finally {
-    if (!opts?.silent) loading.value = false
+    if (!opts?.silent && seq === loadSeq) loading.value = false
   }
 }
 
@@ -1507,12 +1545,21 @@ function taskPayload(block: TaskBlock) {
   }
 }
 
-/** Funktionen ohne Namen entfallen; die Gesamtzahl umfasst mindestens ihre Summe. */
+/** Funktionen ohne Namen entfallen; sie sind Teilmenge der Gesamtzahl (Rest = «ohne spezielle Funktion»). */
 function taskHelperNeedPayload(block: TaskBlock) {
   const functions = block.helperFunctions
     .map((f) => ({ label: f.label.trim(), count: f.count }))
     .filter((f) => f.label && f.count > 0)
-  return { total: Math.max(block.helperTotal, functions.reduce((sum, f) => sum + f.count, 0)), functions }
+  return { total: block.helperTotal, functions }
+}
+
+function helperFunctionSum(block: TaskBlock) {
+  return taskHelperNeedPayload(block).functions.reduce((sum, f) => sum + f.count, 0)
+}
+
+/** Anzahl Personen, um die die Funktionen den Gesamtbedarf übersteigen (0 = gültig). */
+function helperOverflow(block: TaskBlock) {
+  return Math.max(0, helperFunctionSum(block) - block.helperTotal)
 }
 
 const helperDemand = computed(() => helperDemandPeak(taskBlocks.value.map((block) => {
@@ -1530,6 +1577,7 @@ const legacyHelperTotal = computed(() => helperDemand.value.peak > 0 ? 0 : brief
 
 async function saveTaskBlock(block: TaskBlock, silent = false) {
   if (!block.title.trim() && !block.description.trim()) return
+  if (helperOverflow(block) > 0) return
   const fp = taskFingerprint(block)
   if (taskSavedFingerprint.get(block.key) === fp) return
   if (block.saving) {
@@ -2186,6 +2234,16 @@ onMounted(() => {
   padding: 8px 0;
   border-bottom: 1px solid #eef2f6;
 }
+@media (max-width: 640px) {
+  .ga-block {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+  }
+  .ga-block.ga-block > * {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
 .ga-block__drag {
   grid-row: 1 / span 2;
   align-self: center;
@@ -2214,16 +2272,22 @@ onMounted(() => {
   grid-column: 2 / -1;
   grid-row: 3;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
   align-items: flex-start;
+  min-width: 0;
 }
-.ga-block__helper-total { max-width: 140px; }
+.ga-block__helpers > .e-form-field:first-child { width: 320px; max-width: 100%; }
 .ga-block__helper-fn {
   display: flex;
+  width: 100%;
   gap: 6px;
   align-items: center;
 }
+.ga-block__helper-fn > .e-form-field:first-child { flex: 1 1 auto; min-width: 0; }
+.ga-block__helper-fn > .e-form-field:nth-child(2) { flex: 0 0 110px; width: 110px; }
+.ga-block__helper-note { margin: 0; font-size: 0.82rem; color: #64748b; }
+.ga-block__helper-note.is-error { color: #b91c1c; font-weight: 600; }
 .ga-block__helper-add {
   border: 0;
   background: none;

@@ -8,14 +8,12 @@
     :before-close="confirmClose"
     scrollable
   >
-    <v-tabs v-model="tab" class="order-dialog__tabs" color="primary" align-tabs="start">
-      <v-tab v-if="canEdit" value="basics" data-testid="order-tab-basics">
-        {{ t('grossanlass.planung.ressorts.tabBasics') }}
-      </v-tab>
-      <v-tab value="tasks" :disabled="!group" data-testid="order-tab-tasks">
-        {{ t('grossanlass.planung.ressorts.tabTasks') }}
-      </v-tab>
-    </v-tabs>
+    <v-alert v-if="group?.archived" type="warning" variant="tonal" density="compact" class="mb-2" data-testid="order-archived-banner">
+      <strong>{{ t('grossanlass.aufgaben.archive.banner') }}</strong>
+      <span v-if="group.archive_reason"> — {{ group.archive_reason }}</span>
+    </v-alert>
+
+    <ESubTabs v-model="tab" class="order-dialog__tabs" :items="subTabs" :aria-label="dialogTitle" />
 
     <div v-if="canEdit && basicsMounted" v-show="tab === 'basics'" class="order-dialog__pane">
       <div class="order-dialog__types" role="radiogroup" :aria-label="t('grossanlass.auftraege.create.type')">
@@ -59,6 +57,18 @@
         :save-window="saveWindowAutosave"
         :save-status="saveStatusAutosave"
       />
+      <p v-if="statusSuggestion" class="order-dialog__suggest" data-testid="order-status-suggestion">
+        <v-icon icon="mdi-lightbulb-outline" size="16" />
+        <span>
+          {{ t('grossanlass.planung.ressorts.statusSuggest.text', {
+            status: t(gaBuildStatusI18nKey(statusSuggestion.status)),
+            reason: t(`grossanlass.planung.ressorts.statusSuggest.reason.${statusSuggestion.reason}`),
+          }) }}
+        </span>
+        <EButton size="small" variant="secondary" @click="applyStatusSuggestion">
+          {{ t('grossanlass.planung.ressorts.statusSuggest.apply') }}
+        </EButton>
+      </p>
       <ETextarea
         v-model="form.description"
         :label="t('grossanlass.planung.ressorts.descriptionHeading')"
@@ -93,7 +103,24 @@
         :department-id="departmentId"
         :group-id="group.id"
         scope="tasks-material"
+        :live-window="{ start: form.window_start, end: form.window_end }"
         @meta-saved="onMetaSaved"
+      />
+      <GaOrderAcceptance
+        v-if="isGrossanlassLeafNodeType(group.node_type)"
+        :department-id="departmentId"
+        :group-id="group.id"
+        :groups="groups"
+        :refresh-key="tab"
+        @changed="emit('changed')"
+      />
+      <GaGroupDependencies
+        v-if="isGrossanlassLeafNodeType(group.node_type)"
+        :department-id="departmentId"
+        :group-id="group.id"
+        :groups="groups"
+        :can-edit="canEdit"
+        @changed="emit('changed')"
       />
     </div>
 
@@ -101,7 +128,13 @@
       <EButton v-if="group && showShare && canShareGroup(group)" variant="secondary" size="small" @click="emit('share', group)">
         {{ t('grossanlass.planung.ressorts.shareWith') }}
       </EButton>
-      <EButton v-if="group && canDeleteGroup(group)" variant="danger" size="small" :loading="deleting" @click="remove">
+      <EButton v-if="group && isOrderNode && canDeleteGroup(group) && !group.archived" variant="secondary" size="small" data-testid="order-archive" @click="archiveOpen = true">
+        {{ t('grossanlass.aufgaben.archive.action') }}
+      </EButton>
+      <EButton v-if="group && group.archived && canDeleteGroup(group)" variant="secondary" size="small" :loading="archiving" data-testid="order-restore" @click="restore">
+        {{ t('grossanlass.aufgaben.archive.restore') }}
+      </EButton>
+      <EButton v-if="group && canDeleteGroup(group) && !group.has_history && !group.archived" variant="danger" size="small" :loading="deleting" @click="remove">
         {{ t('common.delete') }}
       </EButton>
       <EButton variant="secondary" size="small" @click="requestClose">
@@ -111,25 +144,47 @@
         {{ t('common.save') }}
       </EButton>
     </template>
+
+    <EDialog v-model="archiveOpen" :title="t('grossanlass.aufgaben.archive.title')" max-width="520" :retain-focus="false">
+      <p>{{ t('grossanlass.aufgaben.archive.explain') }}</p>
+      <p v-if="group?.has_history" class="order-dialog__suggest">{{ t('grossanlass.aufgaben.archive.hasHistory') }}</p>
+      <ETextField v-model="archiveReason" :label="t('grossanlass.aufgaben.archive.reason')" hide-details="auto" data-testid="order-archive-reason" />
+      <p v-if="archiveError" class="order-dialog__suggest" role="alert">{{ archiveError }}</p>
+      <template #actions>
+        <EButton variant="secondary" @click="archiveOpen = false">{{ t('common.cancel') }}</EButton>
+        <EButton variant="primary" :disabled="!archiveReason.trim() || archiving" :loading="archiving" data-testid="order-archive-confirm" @click="archive">
+          {{ t('grossanlass.aufgaben.archive.confirm') }}
+        </EButton>
+      </template>
+    </EDialog>
   </EDialog>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { EButton, EDialog, ESwitch, ETextField, ETextarea } from '@/components/form/base'
+import { EButton, EDialog, ESubTabs, ESwitch, ETextField, ETextarea } from '@/components/form/base'
 import GaBuildMetaFields from '@/components/grossanlass/GaBuildMetaFields.vue'
+import GaOrderAcceptance from '@/components/grossanlass/GaOrderAcceptance.vue'
+import GaGroupDependencies from '@/components/grossanlass/GaGroupDependencies.vue'
 import GrossanlassBauprojektPanel from '@/components/grossanlass/GrossanlassBauprojektPanel.vue'
 import GrossanlassGroupMapEditor from '@/components/grossanlass/GrossanlassGroupMapEditor.vue'
 import GrossanlassParentTreeSelect from '@/components/grossanlass/GrossanlassParentTreeSelect.vue'
 import {
   createGrossanlassGroup,
+  archiveGrossanlassGroup,
   deleteGrossanlassGroup,
+  restoreGrossanlassGroup,
+  getGrossanlassOrderCards,
   updateGrossanlassGroup,
   type GrossanlassGroup,
+  type GrossanlassOrderCard,
 } from '@/api/grossanlassGroups'
 import { updateGrossanlassPlace } from '@/api/grossanlassLogistics'
 import { getGrossanlassPlanung } from '@/api/grossanlassPlanung'
+import { formatWallClock, useBusinessClockStore } from '@/stores/businessClock'
+import { closeAllExclusiveOverlays } from '@/composables/useExclusiveOverlay'
+import { gaBuildStatusI18nKey, isGaBuildStatus, resolveBuildStatus, suggestBuildStatus } from '@/utils/grossanlassBuildStatus'
 import type { AutoSaveFieldValue } from '@/components/common/autoSave/types'
 import { useAuthStore } from '@/stores/auth'
 import { useConfirm } from '@/composables/useConfirm'
@@ -201,10 +256,18 @@ const current = ref<GrossanlassGroup | null>(null)
 const group = computed(() => current.value)
 const form = ref<GaOrderForm>(emptyOrderForm())
 const tab = ref<'basics' | 'tasks'>('basics')
+const subTabs = computed(() => [
+  ...(canEdit.value ? [{ value: 'basics', label: t('grossanlass.planung.ressorts.tabBasics'), icon: 'mdi-pencil-outline', testid: 'order-tab-basics' }] : []),
+  { value: 'tasks', label: t('grossanlass.planung.ressorts.tabTasks'), icon: 'mdi-clipboard-list-outline', disabled: !group.value, testid: 'order-tab-tasks' },
+])
 const basicsMounted = ref(false)
 const tasksMounted = ref(false)
 const saving = ref(false)
 const deleting = ref(false)
+const archiveOpen = ref(false)
+const archiveReason = ref('')
+const archiving = ref(false)
+const archiveError = ref('')
 const baseline = ref('')
 const windowBaseline = ref('|')
 const statusBaseline = ref('')
@@ -215,7 +278,9 @@ const existingPlaceId = ref<string | null>(null)
 const placeKind = ref<'area' | 'bauprojekt'>('bauprojekt')
 const placeName = ref('')
 
-const canEdit = computed(() => !group.value || canEditGroup(group.value))
+const canEdit = computed(() => !group.value || (canEditGroup(group.value) && !group.value.archived))
+/** Archivieren gibt es nur für Bauaufträge (Bauprojekt/Auftrag), nicht für Strukturgruppen. */
+const isOrderNode = computed(() => isGrossanlassLeafNodeType(group.value?.node_type))
 const errors = computed(() => validateOrderForm(form.value))
 const hasPlace = computed(() => orderHasPlace(form.value))
 const nodeType = computed(() => (form.value.type === 'build' ? 'bauprojekt' : 'auftrag'))
@@ -298,10 +363,13 @@ async function init() {
   resetPlaceState()
   const wantsTasks = !!source && (props.initialTab === 'tasks' || !canEdit.value)
   tab.value = wantsTasks ? 'tasks' : 'basics'
-  tasksMounted.value = tab.value === 'tasks'
+  // Aufgaben, Helferbedarf, Material und Standorte laden im Hintergrund parallel zu den Grunddaten;
+  // der Reiterwechsel schaltet nur noch um (v-show), ohne neue Anfragen.
+  tasksMounted.value = !!source
   // Die Karte wird erst im sichtbaren Reiter gemountet (Leaflet misst die Grösse beim Start).
   basicsMounted.value = tab.value === 'basics'
   void loadVenueAddress().then(syncPlacement)
+  void loadCard()
   await markBaseline()
 }
 
@@ -321,6 +389,8 @@ watch(() => props.modelValue, (isOpen) => {
 }, { immediate: true })
 
 watch(tab, async (value) => {
+  // Offene Dropdowns/Kalender gehören zum verlassenen Reiter; Formularwerte liegen im Dialog und bleiben erhalten.
+  closeAllExclusiveOverlays()
   if (value === 'tasks') {
     tasksMounted.value = true
     return
@@ -343,6 +413,46 @@ watch(hasPlace, async (on) => {
     await syncPlacement()
   }
 })
+
+const clock = useBusinessClockStore()
+const businessToday = computed(() => formatWallClock(clock.displayNow).slice(0, 10))
+const card = ref<GrossanlassOrderCard | null>(null)
+async function loadCard() {
+  card.value = null
+  const id = props.initialGroup?.id
+  if (!id) return
+  const cards = await getGrossanlassOrderCards(props.departmentId).catch(() => [])
+  if (props.initialGroup?.id === id) card.value = cards.find((row) => row.group_id === id) ?? null
+}
+const statusSuggestion = computed(() => {
+  if (!group.value || !canSetStatus.value) return null
+  const current = isGaBuildStatus(form.value.build_status)
+    ? form.value.build_status
+    : resolveBuildStatus({
+      node_type: nodeType.value,
+      window_start: form.value.window_start,
+      window_end: form.value.window_end,
+      procurement_progress: group.value.procurement_progress,
+    }, businessToday.value)
+  return suggestBuildStatus({
+    nodeType: nodeType.value,
+    current,
+    windowStart: form.value.window_start,
+    windowEnd: form.value.window_end,
+    procurementProgress: group.value.procurement_progress,
+    card: card.value,
+    today: businessToday.value,
+  })
+})
+async function applyStatusSuggestion() {
+  if (!statusSuggestion.value) return
+  const status = statusSuggestion.value.status
+  try {
+    await saveStatusAutosave(status)
+  } catch {
+    toast.error(t('grossanlass.planung.ressorts.errorSave'))
+  }
+}
 
 async function patchAutosaved(extra: Partial<GaOrderForm>) {
   if (!group.value) return
@@ -434,11 +544,61 @@ async function remove() {
     deleting.value = false
   }
 }
+
+function archiveMessage(e: unknown): string {
+  return (e as { response?: { data?: { error?: string } } }).response?.data?.error || t('grossanlass.aufgaben.actionError')
+}
+
+/** Bauauftrag mit Begründung archivieren: Aufgaben, Abnahmen und Historie bleiben erhalten. */
+async function archive() {
+  const target = group.value
+  const reason = archiveReason.value.trim()
+  if (!target || !reason || archiving.value) return
+  archiving.value = true
+  archiveError.value = ''
+  try {
+    await archiveGrossanlassGroup(props.departmentId, target.id, reason)
+    toast.success(t('grossanlass.aufgaben.archive.archived'))
+    archiveOpen.value = false
+    archiveReason.value = ''
+    emit('changed')
+    open.value = false
+  } catch (e) {
+    archiveError.value = archiveMessage(e)
+  } finally {
+    archiving.value = false
+  }
+}
+
+async function restore() {
+  const target = group.value
+  if (!target || archiving.value) return
+  archiving.value = true
+  try {
+    await restoreGrossanlassGroup(props.departmentId, target.id)
+    toast.success(t('grossanlass.aufgaben.archive.restored'))
+    emit('changed')
+    open.value = false
+  } catch (e) {
+    toast.error(archiveMessage(e))
+  } finally {
+    archiving.value = false
+  }
+}
 </script>
 
 <style scoped>
 .order-dialog__tabs {
   margin-bottom: 8px;
+}
+.order-dialog__suggest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #64748b;
+  font-size: 0.85rem;
 }
 .order-dialog__pane {
   display: flex;
