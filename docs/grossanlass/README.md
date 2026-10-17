@@ -214,6 +214,8 @@ Beschaffung ist implementiert, keine leere Shell: Bedarf bündeln, Kategorien, O
 
 **Geänderte Wünsche (IST):** Im Bedarf zeigt eine Position mit geänderter Wunschsumme einen Hinweis mit «Neu übernehmen» (nur unverbindliche Positionen) oder «Menge beibehalten»; Bestellung und Zusagen ändern sich nie automatisch.
 
+**Demo (`grossanlass-event`):** Der Beschaffungsablauf vom Wunsch bis zur Bestellung ist als Seed ergänzt (Ticket-Häuschen Eingang, Schlüssel `…:beschaffung:<ablauf>:<schritt>`): OSB-Platten (24) aus einem gebündelten Wunsch mit zwei Lieferanten (Offerte 14, telefonische Absprache 10); Bitumenschindeln (8) mit Leihe 3, einer stornierten und einer ersetzten Bestellung (5). Alle Bestellungen liegen vor dem Ausgangsstand der Demo-Uhr (04.04.2027). Wie überall im Seed gibt es **keine Warenbewegung**: Wareneingang, Teillieferung und Gegenbuchung bucht man nach einem Zeitsprung selbst im Wareneingang (OSB-Lieferungen sind seit 25.03./01.04. fällig, Bitumenschindeln ab 11.05.). Zeitsprünge allein buchen nichts.
+
 Direkt-Beschaffung: `source=direct`, `self_organized` an der Position, Freigabe `group_membership.can_procure` im Ressort-Zweig. Delegierte pflegen Direkt-Bedarf und eigene Offerten; wählen, budgetieren und bestellen bleibt MW/CMW.
 
 Anfrage (`department_grossanlass_inquiry`):

@@ -49,7 +49,7 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             } finally {
                 $conn->rollBack();
             }
-        }, $url, [DemoScenarioRunner::class, DemoScenarioRegistry::class, DemoOrganisationCatalog::class, \App\Service\Demo\Legacy\LegacyDemoRename::class, \App\Service\Bootstrap\DemoGrossanlassSeedService::class, \App\Service\Grossanlass\GrossanlassBudgetAreaService::class, \App\Service\Grossanlass\GrossanlassChargeMovementService::class, \App\Service\Grossanlass\GrossanlassPackService::class, \App\Service\Clock\BusinessClock::class, \App\Service\Grossanlass\GrossanlassPlaceService::class]);
+        }, $url, [DemoScenarioRunner::class, DemoScenarioRegistry::class, DemoOrganisationCatalog::class, \App\Service\Demo\Legacy\LegacyDemoRename::class, \App\Service\Bootstrap\DemoGrossanlassSeedService::class, \App\Service\Grossanlass\GrossanlassBudgetAreaService::class, \App\Service\Grossanlass\GrossanlassChargeMovementService::class, \App\Service\Grossanlass\GrossanlassPackService::class, \App\Service\Clock\BusinessClock::class, \App\Service\Grossanlass\GrossanlassPlaceService::class, \App\Service\Grossanlass\GrossanlassProcurementService::class]);
     }
 
     /** @return array<string, SeedResult> */
@@ -183,7 +183,7 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             // Materialwünsche, Orte, Aufgaben, Fahrzeugbedarfe, Beschaffung und Kosten (6 aus Beschaffung/Zusagen, 2 aus den Chargen Leihe und Spende)
             self::assertSame(60, (int) $conn->fetchOne('SELECT count(*) FROM activity_grossanlass_wish_line l JOIN "group" g ON g.id=l.group_id WHERE g.department_id=?', [$event]));
             self::assertSame(20, (int) $conn->fetchOne("SELECT count(*) FROM department_grossanlass_place WHERE department_id=? AND kind='bauprojekt'", [$event]));
-            self::assertSame([9, 6, 5, 8], [
+            self::assertSame([9, 6, 7, 11], [
                 (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_task WHERE department_id=?', [$event]),
                 (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_vehicle_need WHERE department_id=?', [$event]),
                 (int) $conn->fetchOne('SELECT count(*) FROM activity_grossanlass_procurement_line WHERE department_id=?', [$event]),
@@ -191,8 +191,9 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             ]);
             // Beschaffungsablauf: Bedarf → Anfrage → Offerte (PDF) → Budget → Bestellung → Zusage → Einsatz → Packauftrag
             $row = static fn (string $sql): array => $conn->fetchAllAssociative($sql, [$event]);
-            self::assertSame(['bestellt', 'bedarf', 'budgetiert', 'offerte_eingeholt', 'bedarf'], array_column($row("SELECT status FROM activity_grossanlass_procurement_line WHERE department_id=? ORDER BY CASE label WHEN 'Schwartenbretter' THEN 0 WHEN 'Festzelt 3x3 m' THEN 1 WHEN 'Teleskoplader' THEN 2 WHEN 'Nägel 5x80' THEN 3 ELSE 4 END"), 'status'));
-            self::assertSame([3, 2], [
+            self::assertSame(['bestellt', 'bedarf', 'budgetiert', 'offerte_eingeholt', 'bedarf', 'bestellt', 'bestellt'], array_column($row("SELECT status FROM activity_grossanlass_procurement_line WHERE department_id=? ORDER BY CASE label WHEN 'Schwartenbretter' THEN 0 WHEN 'Festzelt 3x3 m' THEN 1 WHEN 'Teleskoplader' THEN 2 WHEN 'Nägel 5x80' THEN 3 WHEN 'OSB 18 mm Platten' THEN 5 WHEN 'Bitumenschindeln anthrazit' THEN 6 ELSE 4 END"), 'status'));
+            // 3 Offerten des Ablaufs (2 mit PDF) plus die OSB-Offerte des Beschaffungsablaufs vom Wunsch
+            self::assertSame([4, 2], [
                 (int) $conn->fetchOne('SELECT count(*) FROM activity_grossanlass_procurement_quote q JOIN activity_grossanlass_procurement_line l ON l.id=q.procurement_line_id WHERE l.department_id=?', [$event]),
                 (int) $conn->fetchOne('SELECT count(*) FROM activity_grossanlass_procurement_quote q JOIN activity_grossanlass_procurement_line l ON l.id=q.procurement_line_id WHERE l.department_id=? AND q.pdf_filename IS NOT NULL', [$event]),
             ]);
@@ -203,8 +204,8 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
                 $origins[$r['origin']] = (int) $r['n'];
             }
             ksort($origins);
-            // Beschaffung: 1 Kauf (Bestellung) und 1 Miete (Zusage); Chargen: Eigenbestand, Leihe, Spende
-            self::assertSame(['buy' => 1, 'donation' => 1, 'loan' => 2, 'own' => 1], $origins);
+            // Beschaffung: Käufe je Bestellung (Schwartenbretter 1, OSB 2, Bitumenschindeln 2 inkl. storniert), Leihe: Miete, Festbänke, Bitumen-Leihe; Eigenbestand, Spende
+            self::assertSame(['buy' => 5, 'donation' => 1, 'loan' => 3, 'own' => 1], $origins);
             self::assertSame(['antwort', 'entwurf', 'gesendet', 'zusage'], $conn->fetchFirstColumn('SELECT status FROM department_grossanlass_inquiry WHERE department_id=? ORDER BY status', [$event]));
             self::assertSame([4, 4], [
                 (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_einsatz WHERE department_id=?', [$event]),
@@ -273,12 +274,13 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             self::assertSame(2900.0, $overview['total']['planned_chf']);
             self::assertSame(round($overview['material']['expected_chf'] + $overview['logistik']['expected_chf'], 2), $overview['total']['expected_chf']);
             self::assertSame(950.0, $overview['logistik']['stages']['zusage']);
-            self::assertSame(220.0, $overview['material']['stages']['bestellt']);
+            // Schwartenbretter 220 + OSB-Platten (zwei Bestellungen, 4 offen) 350 + Bitumenschindeln (ersetzte Bestellung) 175
+            self::assertSame(745.0, $overview['material']['stages']['bestellt']);
             self::assertTrue($overview['logistik']['over_budget']);
             self::assertSame(50.0, $overview['logistik']['overrun_committed_chf']);
             self::assertFalse($overview['material']['over_budget']);
-            // 5 Beschaffungspositionen und je eine Kostenzeile der Leihe (Festbänke) und der Spende (Holzschnitzel); die Zusage der Miete zählt nicht doppelt
-            self::assertSame(7, $overview['total']['position_count']);
+            // 7 Beschaffungspositionen und je eine Kostenzeile der Leihe (Festbänke) und der Spende (Holzschnitzel); die Zusagen der Miete und der Bitumen-Leihe zählen nicht doppelt
+            self::assertSame(9, $overview['total']['position_count']);
 
             // Lagerstandort mit Regalen und Fächern; Fahrzeuge, Fahrerkarten, Chargen mit Eigentümer
             $storage = (string) $conn->fetchOne("SELECT id FROM address WHERE department_id=? AND type='storage'", [$event]);
@@ -360,10 +362,12 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             ];
             $overview = fn (): array => $container->get(\App\Service\Grossanlass\GrossanlassBudgetAreaService::class)->overview($department, $user('ga-mw'));
 
-            // Ausgangslage der Demo-Uhr (04.04.2027): Bestellung ist aufgegeben, Ware noch nicht eingegangen
+            // Ausgangslage der Demo-Uhr (04.04.2027): Bestellungen sind aufgegeben (Schwartenbretter; OSB-Platten mit zwei Lieferanten;
+            // Bitumenschindeln mit stornierter und ersetzter Bestellung), Ware ist noch nirgends eingegangen
             $baseline = $state();
-            self::assertSame(1, $baseline['orders']);
-            self::assertSame(220.0, $overview()['material']['stages']['bestellt']);
+            self::assertSame(5, $baseline['orders']);
+            self::assertSame(0, $baseline['movements']);
+            self::assertSame(745.0, $overview()['material']['stages']['bestellt']);
 
             // Zeitsprünge allein buchen nichts: weder Bestellung noch Bestand noch Packstatus
             $clock = $container->get(\App\Service\Clock\BusinessClock::class);
@@ -381,7 +385,7 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             self::assertSame('complete', $booked['inbound']['state']);
             self::assertSame(1, $state()['movements']);
             $after = $overview();
-            self::assertSame([0.0, 220.0], [$after['material']['stages']['bestellt'], $after['material']['stages']['effektiv']]);
+            self::assertSame([525.0, 220.0], [$after['material']['stages']['bestellt'], $after['material']['stages']['effektiv']]);
             self::assertSame(220.0, $after['material']['actual_chf']);
             // Überlieferung und noch nicht buchbare Rückgaben werden abgelehnt (Rücknahme ist im Modell vorbereitet, aber nicht buchbar)
             try {
@@ -396,6 +400,76 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             } catch (\InvalidArgumentException $e) {
                 self::assertStringContainsString('noch nicht verfügbar', $e->getMessage());
             }
+        });
+    }
+
+    public function testProcurementFromWishToGoodsReceiptIsSeededAndCompletableAfterATimeJump(): void
+    {
+        $this->withDb(function (DemoScenarioRunner $runner, DemoScenarioRegistry $registry, EntityManagerInterface $em, Connection $conn, $container): void {
+            $this->syncAll($runner, $registry, $em);
+            $event = $this->eventId($conn);
+            $department = $em->find(\App\Entity\Department::class, $event);
+            $mw = $em->find(\App\Entity\User::class, $conn->fetchOne('SELECT u.id FROM "user" u JOIN profile p ON p.id=u.profile_id WHERE p.email=?', [DemoAccounts::email('ga-mw')]));
+            $procurement = $container->get(\App\Service\Grossanlass\GrossanlassProcurementService::class);
+            $lineOf = static function (string $label) use ($procurement, $department, $mw): array {
+                foreach ($procurement->listAllLines($department, $mw) as $line) {
+                    if ($line['label'] === $label) {
+                        return $line;
+                    }
+                }
+                self::fail('Position nicht gefunden: ' . $label);
+            };
+
+            // OSB: ein gebündelter Wunsch (24), zwei Lieferanten (Offerte 14, Absprache 10), noch nichts eingegangen
+            $osb = $lineOf('OSB 18 mm Platten');
+            self::assertSame(24, $osb['quantity']);
+            self::assertSame(1, $osb['wish_count']);
+            self::assertSame(['quote', 'phone'], array_column($osb['orders'], 'agreement_kind'));
+            self::assertSame([14, 10], array_column($osb['orders'], 'ordered_quantity'));
+            self::assertSame([0, 0], array_column($osb['orders'], 'received_quantity'));
+            self::assertSame(0, $osb['quantity_open']);
+            self::assertSame('bestellt', $osb['status']);
+
+            // Bitumenschindeln: Leihe 3 + ersetzte Bestellung 5, die erste Bestellung ist storniert und bleibt als Historie
+            $bitumen = $lineOf('Bitumenschindeln anthrazit');
+            self::assertSame(3, $bitumen['quantity_loaned']);
+            self::assertSame(5, $bitumen['quantity_ordered']);
+            self::assertSame(0, $bitumen['quantity_open']);
+            self::assertSame(0, $bitumen['quantity_over']);
+            self::assertSame(['cancelled', 'confirmed'], array_column($bitumen['orders'], 'status'));
+            self::assertSame('bestellt', $bitumen['status']);
+            self::assertSame(0, (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_charge_movement WHERE department_id=?', [$event]), 'Der Seed bucht keine Warenbewegung');
+
+            // Zeitsprung allein bucht nichts; die Lieferungen werden danach ausdrücklich im Wareneingang gebucht
+            $clock = $container->get(\App\Service\Clock\BusinessClock::class);
+            $clock->travelTo($department, new \DateTimeImmutable('2027-05-11 08:00:00', new \DateTimeZone('UTC')));
+            $em->flush();
+            self::assertSame('bestellt', $lineOf('Bitumenschindeln anthrazit')['status']);
+            self::assertSame(0, (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_charge_movement WHERE department_id=?', [$event]));
+
+            $movements = $container->get(\App\Service\Grossanlass\GrossanlassChargeMovementService::class);
+            $movements->record($department, $mw, $osb['orders'][0]['commitment_id'], ['kind' => 'received', 'quantity' => 14, 'occurred_at' => '2027-05-11T08:30:00']);
+            $movements->record($department, $mw, $osb['orders'][1]['commitment_id'], ['kind' => 'received', 'quantity' => 8, 'occurred_at' => '2027-05-11T09:00:00', 'note' => 'Teillieferung']);
+            $movements->record($department, $mw, $osb['orders'][1]['commitment_id'], ['kind' => 'receipt_reversed', 'quantity' => 2, 'occurred_at' => '2027-05-11T09:30:00', 'note' => 'Falsch gezählt: nur 6 Platten geliefert']);
+            $movements->record($department, $mw, $bitumen['orders'][1]['commitment_id'], ['kind' => 'received', 'quantity' => 5, 'occurred_at' => '2027-05-11T09:00:00']);
+            $em->clear();
+            $department = $em->find(\App\Entity\Department::class, $event);
+            $mw = $em->find(\App\Entity\User::class, $mw->getId());
+            $osb = $lineOf('OSB 18 mm Platten');
+            self::assertSame([14, 6], array_column($osb['orders'], 'received_quantity'));
+            self::assertSame([0, 4], array_column($osb['orders'], 'missing_quantity'));
+            self::assertSame(20, $osb['quantity_received']);
+            self::assertSame('teilweise_erhalten', $osb['status']);
+            self::assertSame(0, $osb['received_quantity_sum'], 'Eingang wird nicht automatisch auf Wünsche verteilt');
+            self::assertSame('erhalten', $lineOf('Bitumenschindeln anthrazit')['status']);
+
+            // Rest der Absprache geliefert: die ganze Position ist da
+            $movements->record($department, $mw, $osb['orders'][1]['commitment_id'], ['kind' => 'received', 'quantity' => 4, 'occurred_at' => '2027-05-12T09:00:00']);
+            $em->clear();
+            $department = $em->find(\App\Entity\Department::class, $event);
+            $osb = $lineOf('OSB 18 mm Platten');
+            self::assertSame('erhalten', $osb['status']);
+            self::assertSame(24, $osb['quantity_received']);
         });
     }
 

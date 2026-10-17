@@ -6,6 +6,7 @@ namespace App\Service\Bootstrap;
 
 use App\Entity\ActivityGrossanlassProcurementCategory;
 use App\Entity\ActivityGrossanlassProcurementLine;
+use App\Entity\ActivityGrossanlassProcurementOrder;
 use App\Entity\ActivityGrossanlassProcurementQuote;
 use App\Entity\ActivityGrossanlassWishLine;
 use App\Entity\Department;
@@ -81,6 +82,11 @@ final class DemoGrossanlassEventProcessSeedService
                 if ($this->chainHasStep($chain, $step)) {
                     $keys[] = $scenarioKey . ':ablauf:' . $chain['key'] . ':' . $step;
                 }
+            }
+        }
+        foreach ($this->procurementFlows() as $flow) {
+            foreach ($flow['steps'] as $step) {
+                $keys[] = $scenarioKey . ':beschaffung:' . $flow['key'] . ':' . $step['key'];
             }
         }
         $keys[] = $scenarioKey . ':ablauf:entwurf:anfrage';
@@ -164,6 +170,7 @@ final class DemoGrossanlassEventProcessSeedService
         foreach ($this->chains() as $chain) {
             $this->syncChain($context, $report, $department, $actor, $chain, $version, $created);
         }
+        $this->syncProcurementFlows($context, $report, $department, $actor, $version);
         $this->syncDraftInquiry($context, $report, $department, $version);
         $this->mail->listTemplates($department); // legt die Standard-Mailvorlagen (Anfrage, Präzisieren) an, falls noch nicht vorhanden
 
@@ -711,6 +718,142 @@ final class DemoGrossanlassEventProcessSeedService
                 ],
             ],
         ];
+    }
+
+    /**
+     * Beschaffungsabläufe vom Materialwunsch bis zum Wareneingang. Die Schritte laufen über die Dienste der App
+     * (Bündeln, Offerte, Bestellung mit Teilmenge und Absprache, Storno). Wie überall im Seed bucht er keine Warenbewegung: den Wareneingang samt Gegenbuchung bucht man nach dem Zeitsprung selbst. Alle Bestellungen liegen vor dem
+     * Ausgangsstand der Demo-Uhr (04.04.2027); die Lieferungen (OSB ab 25.03., Bitumenschindeln am 11.05.) sind offen.
+     *
+     * @return list<array{key: string, wish: string, steps: list<array<string, mixed>>}>
+     */
+    private function procurementFlows(): array
+    {
+        return [
+            [
+                // Zwei Lieferanten (Offerte und telefonische Absprache ohne Offerte); die Lieferungen sind noch nicht gebucht.
+                'key' => 'osb',
+                'wish' => 'ticket-haeuschen-eingang:osb-18-mm-platten',
+                'steps' => [
+                    ['key' => 'buendel', 'type' => 'bundle', 'label' => 'OSB 18 mm Platten'],
+                    ['key' => 'offerte', 'type' => 'quote', 'supplier' => 'Holzwerkstoffe Sursee AG', 'amount' => 210, 'delivery_at' => '2027-03-25 08:00:00', 'inbound_mode' => 'delivery'],
+                    ['key' => 'bestellung-a', 'type' => 'order', 'quote' => 'offerte', 'quantity' => 14, 'cost' => '210.00', 'ref' => 'B-2027-021', 'delivery_at' => '2027-03-25 08:00:00', 'ordered_at' => '2027-03-15 12:00:00'],
+                    ['key' => 'bestellung-b', 'type' => 'order', 'supplier' => 'Zimmerei Muri (telefonisch)', 'quantity' => 10, 'cost' => '140.00', 'ref' => 'Telefon 18.03.', 'delivery_at' => '2027-04-01 08:00:00', 'ordered_at' => '2027-03-18 10:30:00', 'notes' => 'Telefonisch vereinbart, keine Offerte.'],
+                ],
+            ],
+            [
+                // Leihe plus Kauf ohne Doppeldeckung; ein Storno bleibt in der Historie; die Ersatzbestellung ist noch nicht geliefert.
+                'key' => 'bitumen',
+                'wish' => 'ticket-haeuschen-eingang:bitumenschindeln-anthrazit',
+                'steps' => [
+                    ['key' => 'buendel', 'type' => 'bundle', 'label' => 'Bitumenschindeln anthrazit'],
+                    ['key' => 'leihe', 'type' => 'loan', 'source' => 'Dachdecker Meier', 'quantity' => 3],
+                    ['key' => 'bestellung-storniert', 'type' => 'order', 'supplier' => 'Baumarkt Beispiel (telefonisch)', 'quantity' => 5, 'cost' => '160.00', 'ref' => 'Telefon 20.03.', 'delivery_at' => '2027-04-20 08:00:00', 'ordered_at' => '2027-03-20 09:00:00'],
+                    ['key' => 'storno', 'type' => 'cancel', 'order' => 'bestellung-storniert', 'reason' => 'Lieferant kann den Termin nicht halten'],
+                    ['key' => 'bestellung', 'type' => 'order', 'supplier' => 'Dachmaterial Rothenburg (telefonisch)', 'quantity' => 5, 'cost' => '175.00', 'ref' => 'Telefon 24.03.', 'delivery_at' => '2027-05-11 08:00:00', 'ordered_at' => '2027-03-24 11:00:00'],
+                ],
+            ],
+        ];
+    }
+
+    private function syncProcurementFlows(SeedContext $context, SyncReport $report, Department $department, User $actor, string $version): void
+    {
+        foreach ($this->procurementFlows() as $flow) {
+            $key = $context->scenarioKey() . ':beschaffung:' . $flow['key'] . ':';
+            /** @var array<string, string> $orderIds Schritt-Schlüssel → Bestellungs-ID */
+            $orderIds = [];
+            $line = null;
+            $quote = null;
+            foreach ($flow['steps'] as $step) {
+                $seedKey = $key . $step['key'];
+                $entity = null;
+                switch ($step['type']) {
+                    case 'bundle':
+                        $entity = $this->once($context, $report, $seedKey, $version, function () use ($context, $department, $actor, $flow, $step): ?ActivityGrossanlassProcurementLine {
+                            $record = $context->findRecord($context->scenarioKey() . ':wunsch:' . $flow['wish']);
+                            $wish = $record !== null ? $this->find(ActivityGrossanlassWishLine::class, $record->getEntityId()) : null;
+                            if (!$wish instanceof ActivityGrossanlassWishLine) {
+                                return null;
+                            }
+                            if ($wish->getProcurementResponsibility() === null) {
+                                $wish->setProcurementResponsibility(ActivityGrossanlassWishLine::RESPONSIBILITY_CENTRAL);
+                                $this->entityManager->flush();
+                            }
+                            $row = $this->procurement->createLineFromWishes($department, $actor, [$wish->getId()], ['label' => $step['label'], 'category_id' => $this->categoryId($department, self::CATEGORY_BAU), 'cost_kind' => 'purchase']);
+
+                            return $this->find(ActivityGrossanlassProcurementLine::class, (string) $row['id']);
+                        });
+                        $line = $entity instanceof ActivityGrossanlassProcurementLine ? $entity : null;
+                        break;
+                    case 'quote':
+                        $entity = $line === null ? null : $this->once($context, $report, $seedKey, $version, function () use ($department, $actor, $line, $step): ?ActivityGrossanlassProcurementQuote {
+                            $data = $this->procurement->createQuote($department, $actor, $line->getId(), [
+                                'supplier' => $step['supplier'],
+                                'amount_chf' => $step['amount'],
+                                'delivery_at' => $step['delivery_at'],
+                                'inbound_mode' => $step['inbound_mode'],
+                                'return_needed' => false,
+                            ]);
+
+                            return $this->find(ActivityGrossanlassProcurementQuote::class, (string) $data['id']);
+                        });
+                        $quote = $entity instanceof ActivityGrossanlassProcurementQuote ? $entity : null;
+                        break;
+                    case 'order':
+                        $entity = $line === null ? null : $this->once($context, $report, $seedKey, $version, function () use ($department, $actor, $line, $quote, $step): ?ActivityGrossanlassProcurementOrder {
+                            $payload = [
+                                'quantity' => $step['quantity'],
+                                'cost_chf' => $step['cost'],
+                                'order_ref' => $step['ref'],
+                                'ordered_at' => $step['ordered_at'],
+                                'delivery_at' => $step['delivery_at'],
+                                'notes' => $step['notes'] ?? null,
+                                'inbound_mode' => 'delivery',
+                            ];
+                            if (isset($step['quote']) && $quote instanceof ActivityGrossanlassProcurementQuote) {
+                                $payload['quote_id'] = $quote->getId();
+                            } else {
+                                $payload['supplier'] = $step['supplier'];
+                            }
+                            $before = array_map(static fn (array $o) => $o['id'], $this->procurement->createOrder($department, $actor, $line->getId(), $payload)['orders']);
+
+                            return $this->find(ActivityGrossanlassProcurementOrder::class, (string) end($before));
+                        });
+                        if ($entity instanceof ActivityGrossanlassProcurementOrder) {
+                            $orderIds[$step['key']] = $entity->getId();
+                        }
+                        break;
+                    case 'cancel':
+                        $orderId = $orderIds[$step['order']] ?? null;
+                        $entity = $line === null || $orderId === null ? null : $this->once($context, $report, $seedKey, $version, function () use ($department, $actor, $line, $orderId, $step): ?ActivityGrossanlassProcurementOrder {
+                            $this->procurement->cancelOrder($department, $actor, $line->getId(), $orderId, $step['reason']);
+
+                            return $this->find(ActivityGrossanlassProcurementOrder::class, $orderId);
+                        });
+                        break;
+                    case 'loan':
+                        $entity = $line === null ? null : $this->once($context, $report, $seedKey, $version, function () use ($department, $actor, $line, $step): ?DepartmentGrossanlassCommitment {
+                            $row = $this->commitments->create($department, $actor, [
+                                'name' => $line->getLabel(),
+                                'source' => $step['source'],
+                                'origin' => DepartmentGrossanlassCommitment::ORIGIN_LOAN,
+                                'quantity' => $step['quantity'],
+                                // Verknüpfung über item_details.from_line_id: die Kostenzeile der Zusage bleibt ohne eigene Position
+                                // (sonst zählt die Budgetübersicht die Position doppelt).
+                                'item_details' => ['from_line_id' => $line->getId()],
+                                'released' => true,
+                            ]);
+
+                            return $this->find(DepartmentGrossanlassCommitment::class, (string) $row['id']);
+                        });
+                        break;
+                }
+                if ($entity === null && $step['type'] !== 'bundle') {
+                    // Folgeschritte hängen am vorherigen; fehlt dieser (gelöscht), wird nichts nachgezogen.
+                    continue;
+                }
+            }
+        }
     }
 
     /**
