@@ -30,6 +30,14 @@ class ActivityGrossanlassProcurementQuote
     #[ORM\JoinColumn(name: 'supplier_address_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?Address $supplierAddress = null;
 
+    /** Anfrage, auf die diese Offerte antwortet (null bei unaufgeforderter Offerte). */
+    #[ORM\Column(name: 'inquiry_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $inquiryId = null;
+
+    #[ORM\ManyToOne(targetEntity: DepartmentGrossanlassInquiry::class)]
+    #[ORM\JoinColumn(name: 'inquiry_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?DepartmentGrossanlassInquiry $inquiry = null;
+
     #[ORM\Column(name: 'pdf_filename', type: 'string', length: 255, nullable: true)]
     private ?string $pdfFilename = null;
 
@@ -251,6 +259,24 @@ class ActivityGrossanlassProcurementQuote
     public function touchUpdatedAt(): self
     {
         $this->updatedAt = new \DateTime();
+
+        return $this;
+    }
+
+    public function getInquiryId(): ?string
+    {
+        return $this->inquiryId;
+    }
+
+    public function getInquiry(): ?DepartmentGrossanlassInquiry
+    {
+        return $this->inquiry;
+    }
+
+    public function setInquiry(?DepartmentGrossanlassInquiry $inquiry): self
+    {
+        $this->inquiry = $inquiry;
+        $this->inquiryId = $inquiry?->getId();
 
         return $this;
     }

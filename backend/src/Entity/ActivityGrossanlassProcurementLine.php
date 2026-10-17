@@ -69,6 +69,10 @@ class ActivityGrossanlassProcurementLine
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $notes = null;
 
+    /** Wunschsumme, deren Abweichung vom Bedarf bewusst entschieden wurde (null = nie abgewichen). */
+    #[ORM\Column(name: 'source_quantity_ack', type: 'integer', nullable: true)]
+    private ?int $sourceQuantityAck = null;
+
     #[ORM\Column(name: 'category_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $categoryId = null;
 
@@ -199,6 +203,18 @@ class ActivityGrossanlassProcurementLine
     public function setQuantity(int $quantity): self
     {
         $this->quantity = $quantity;
+
+        return $this;
+    }
+
+    public function getSourceQuantityAck(): ?int
+    {
+        return $this->sourceQuantityAck;
+    }
+
+    public function setSourceQuantityAck(?int $sourceQuantityAck): self
+    {
+        $this->sourceQuantityAck = $sourceQuantityAck;
 
         return $this;
     }

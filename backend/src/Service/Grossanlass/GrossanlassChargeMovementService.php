@@ -10,6 +10,9 @@ use App\Entity\ActivityGrossanlassProcurementOrder;
 use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassChargeMovement;
 use App\Entity\DepartmentGrossanlassCommitment;
+use App\Entity\DepartmentGrossanlassEinsatz;
+use App\Entity\DepartmentGrossanlassPackLine;
+use App\Entity\ActivityGrossanlassProcurementQuote;
 use App\Entity\DepartmentGrossanlassPlace;
 use App\Entity\User;
 use App\Util\GrossanlassIdGenerator;
@@ -91,17 +94,35 @@ final class GrossanlassChargeMovementService
             }
         }
         $note = trim((string) ($data['note'] ?? ''));
+        // Offensichtliche Fehler vor der Transaktion melden (eine Ausnahme in der Transaktion schliesst den EntityManager).
+        if ((int) ($data['quantity'] ?? 0) <= 0) {
+            throw new \InvalidArgumentException('Menge muss grösser als 0 sein');
+        }
+        if ($kind === DepartmentGrossanlassChargeMovement::KIND_RECEIPT_REVERSED && $note === '') {
+            throw new \InvalidArgumentException('Für eine Gegenbuchung ist ein Grund erforderlich');
+        }
 
-        $movement = $this->entityManager->wrapInTransaction(function () use ($commitment, $data, $user, $place, $note, $occurredAt) {
+        $movement = $this->entityManager->wrapInTransaction(function () use ($commitment, $data, $user, $place, $note, $occurredAt, $kind) {
             $this->lockCommitment($commitment);
-            $movement = $this->recordReceived(
-                $commitment,
-                (int) ($data['quantity'] ?? 0),
-                $user,
-                $place,
-                $note !== '' ? $note : null,
-                $occurredAt,
-            );
+            if ($kind === DepartmentGrossanlassChargeMovement::KIND_RECEIPT_REVERSED) {
+                $movement = $this->reverseReceived(
+                    $commitment,
+                    (int) ($data['quantity'] ?? 0),
+                    $user,
+                    $note,
+                    trim((string) ($data['reverses_id'] ?? '')) ?: null,
+                    $occurredAt,
+                );
+            } else {
+                $movement = $this->recordReceived(
+                    $commitment,
+                    (int) ($data['quantity'] ?? 0),
+                    $user,
+                    $place,
+                    $note !== '' ? $note : null,
+                    $occurredAt,
+                );
+            }
             $this->syncProcurementLine($commitment);
             $this->entityManager->flush();
 
@@ -157,6 +178,116 @@ final class GrossanlassChargeMovementService
         $this->syncInboundStatus($commitment);
 
         return $row;
+    }
+
+    /**
+     * Gegenbuchung zu einem Wareneingang. Die ursprüngliche Buchung bleibt unverändert in der Historie;
+     * die Gegenbuchung zieht die Menge ab und nennt den Grund. Aufrufer sperrt die Charge ({@see lockCommitment}).
+     * Nicht möglich, soweit die Ware bereits zugeteilt oder gepackt ist.
+     */
+    public function reverseReceived(
+        DepartmentGrossanlassCommitment $commitment,
+        int $quantity,
+        ?User $user,
+        string $reason,
+        ?string $reversesId = null,
+        ?\DateTime $occurredAt = null,
+    ): DepartmentGrossanlassChargeMovement {
+        if ($quantity <= 0) {
+            throw new \InvalidArgumentException('Menge muss grösser als 0 sein');
+        }
+        if (trim($reason) === '') {
+            throw new \InvalidArgumentException('Für eine Gegenbuchung ist ein Grund erforderlich');
+        }
+        $received = $this->receivedQuantity($commitment);
+        self::assertReversible($received, $quantity, $this->usedQuantity($commitment));
+
+        $original = null;
+        if ($reversesId !== null) {
+            $original = $this->entityManager->getRepository(DepartmentGrossanlassChargeMovement::class)->find($reversesId);
+            if (!$original instanceof DepartmentGrossanlassChargeMovement
+                || $original->getCommitmentId() !== $commitment->getId()
+                || $original->getKind() !== DepartmentGrossanlassChargeMovement::KIND_RECEIVED
+            ) {
+                throw new \InvalidArgumentException('Zu korrigierender Wareneingang nicht gefunden');
+            }
+            $already = 0;
+            foreach ($this->movementsOf($commitment) as $m) {
+                if ($m->getKind() === DepartmentGrossanlassChargeMovement::KIND_RECEIPT_REVERSED && $m->getReversesId() === $reversesId) {
+                    $already += $m->getQuantity();
+                }
+            }
+            if ($quantity > $original->getQuantity() - $already) {
+                throw new \InvalidArgumentException(sprintf('Dieser Wareneingang (%d) ist schon mit %d korrigiert', $original->getQuantity(), $already));
+            }
+        }
+
+        $row = new DepartmentGrossanlassChargeMovement();
+        $row->setId(GrossanlassIdGenerator::unique(
+            $this->entityManager,
+            GrossanlassIdGenerator::CHARGE_MOVEMENT,
+            DepartmentGrossanlassChargeMovement::class,
+        ));
+        $row->setCommitment($commitment);
+        $row->setKind(DepartmentGrossanlassChargeMovement::KIND_RECEIPT_REVERSED);
+        $row->setQuantity($quantity);
+        $row->setCreatedByUser($user);
+        $row->setNote(trim($reason));
+        $row->setReversesId($original?->getId());
+        if ($occurredAt !== null) {
+            $row->setOccurredAt($occurredAt);
+        }
+        $this->entityManager->persist($row);
+        $this->entityManager->flush();
+
+        $this->syncInboundStatus($commitment);
+
+        return $row;
+    }
+
+    /**
+     * Menge, die von der Charge bereits fest eingeplant ist: Zuteilungen (Einsätze) oder Packs, je nachdem was grösser ist.
+     */
+    public function usedQuantity(DepartmentGrossanlassCommitment $commitment): int
+    {
+        $allocated = 0;
+        foreach ($this->entityManager->getRepository(DepartmentGrossanlassEinsatz::class)->findBy([
+            'commitmentId' => $commitment->getId(),
+            'kind' => DepartmentGrossanlassEinsatz::KIND_EINSATZ,
+        ]) as $einsatz) {
+            if ($einsatz instanceof DepartmentGrossanlassEinsatz && in_array($einsatz->getStatus(), [
+                DepartmentGrossanlassEinsatz::STATUS_PLANNED,
+                DepartmentGrossanlassEinsatz::STATUS_PENDING,
+                DepartmentGrossanlassEinsatz::STATUS_ISSUED,
+            ], true)) {
+                $allocated += max(0, $einsatz->getQty());
+            }
+        }
+        $packed = 0;
+        foreach ($this->entityManager->getRepository(DepartmentGrossanlassPackLine::class)->findBy(['commitmentId' => $commitment->getId()]) as $line) {
+            if ($line instanceof DepartmentGrossanlassPackLine) {
+                $packed += max(0, $line->getQtyPacked());
+            }
+        }
+
+        return max($allocated, $packed);
+    }
+
+    /**
+     * @throws \InvalidArgumentException wenn mehr korrigiert würde als eingegangen oder bereits eingeplant ist
+     */
+    public static function assertReversible(int $received, int $quantity, int $used): void
+    {
+        if ($quantity > $received) {
+            throw new \InvalidArgumentException(sprintf('Nur %d eingegangen — %d lässt sich nicht zurückbuchen', $received, $quantity));
+        }
+        if ($received - $quantity < $used) {
+            throw new \InvalidArgumentException(sprintf(
+                'Von %d eingegangenen sind %d bereits zugeteilt oder gepackt. Zuteilung/Pack zuerst korrigieren.',
+                $received,
+                $used,
+            ));
+        }
     }
 
     /**
@@ -222,116 +353,130 @@ final class GrossanlassChargeMovementService
             return [];
         }
         $rows = $this->entityManager->createQueryBuilder()
-            ->select('m.commitmentId AS id', 'SUM(m.quantity) AS qty')
+            ->select('m.commitmentId AS id', 'SUM(CASE WHEN m.kind = :reversed THEN -m.quantity ELSE m.quantity END) AS qty')
             ->from(DepartmentGrossanlassChargeMovement::class, 'm')
             ->where('m.commitmentId IN (:ids)')
-            ->andWhere('m.kind = :kind')
+            ->andWhere('m.kind IN (:kinds)')
             ->setParameter('ids', $commitmentIds)
-            ->setParameter('kind', DepartmentGrossanlassChargeMovement::KIND_RECEIVED)
+            ->setParameter('reversed', DepartmentGrossanlassChargeMovement::KIND_RECEIPT_REVERSED)
+            ->setParameter('kinds', [DepartmentGrossanlassChargeMovement::KIND_RECEIVED, DepartmentGrossanlassChargeMovement::KIND_RECEIPT_REVERSED])
             ->groupBy('m.commitmentId')
             ->getQuery()
             ->getArrayResult();
         $out = [];
         foreach ($rows as $row) {
-            $out[trim((string) $row['id'])] = (int) $row['qty'];
+            $out[trim((string) $row['id'])] = max(0, (int) $row['qty']);
         }
 
         return $out;
     }
 
     /**
-     * Kauf-Charge, die aus der Bestellung dieser Bedarfsposition entstanden ist.
+     * Kauf-Charge einer Bestellung (eine Charge je Bestellung).
      */
-    public function buyChargeForLine(ActivityGrossanlassProcurementLine $line): ?DepartmentGrossanlassCommitment
+    public function buyChargeForOrder(ActivityGrossanlassProcurementOrder $order): ?DepartmentGrossanlassCommitment
     {
-        $row = $this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)->findOneBy([
-            'procurementLineId' => $line->getId(),
+        $row = $this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)->findOneBy(['orderId' => $order->getId()]);
+        if ($row instanceof DepartmentGrossanlassCommitment) {
+            return $row;
+        }
+        // Altbestand ohne Relation: Charge der Position, die die Bestellung in item_details nennt.
+        foreach ($this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)->findBy([
+            'procurementLineId' => $order->getProcurementLineId(),
             'origin' => DepartmentGrossanlassCommitment::ORIGIN_BUY,
-        ]);
+        ]) as $candidate) {
+            if ($candidate instanceof DepartmentGrossanlassCommitment
+                && $candidate->getOrderId() === null
+                && ($candidate->getItemDetails()['order_id'] ?? null) === $order->getId()
+            ) {
+                return $candidate;
+            }
+        }
 
-        return $row instanceof DepartmentGrossanlassCommitment ? $row : null;
+        return null;
     }
 
     /**
-     * Bedarfsposition aus den Bewegungen der Kauf-Charge nachführen:
-     * erhaltene Mengen je Wunsch und Status (bestellt / teilweise / erhalten).
+     * Aktive Bestellungen einer Position (ohne stornierte), älteste zuerst.
      *
-     * @param array<string, int>|null $allocations wish-id → Menge; null = bestehende Verteilung fortschreiben
+     * @return list<ActivityGrossanlassProcurementOrder>
+     */
+    public function activeOrders(ActivityGrossanlassProcurementLine $line): array
+    {
+        $rows = $this->entityManager->getRepository(ActivityGrossanlassProcurementOrder::class)
+            ->findBy(['procurementLineId' => $line->getId()], ['createdAt' => 'ASC']);
+
+        return array_values(array_filter(
+            $rows,
+            static fn ($o) => $o instanceof ActivityGrossanlassProcurementOrder && !$o->isCancelled(),
+        ));
+    }
+
+    /**
+     * Status der Bedarfsposition aus ihren aktiven Bestellungen und deren Wareneingängen nachführen:
+     * bestellt / teilweise erhalten / erhalten (alles Bestellte ist da). Ohne aktive Bestellung fällt sie auf den Stand
+     * vor der Bestellung zurück. Optionale `$allocations` (wish-id → Menge) halten eine bewusste Zuteilung des Eingangs
+     * an Wünsche fest; es gibt keine automatische Verteilung nach Wunschreihenfolge.
+     *
+     * @param array<string, int>|null $allocations
      */
     public function syncLineReceived(ActivityGrossanlassProcurementLine $line, ?array $allocations = null): void
     {
-        $charge = $this->buyChargeForLine($line);
-        $total = $charge instanceof DepartmentGrossanlassCommitment ? $this->receivedQuantity($charge) : 0;
+        $ordered = 0;
+        $received = 0;
+        $orders = $this->activeOrders($line);
+        foreach ($orders as $order) {
+            $charge = $this->buyChargeForOrder($order);
+            $ordered += $charge instanceof DepartmentGrossanlassCommitment ? $charge->getQuantity() : ($order->getQuantity() ?? $line->getQuantity());
+            $received += $charge instanceof DepartmentGrossanlassCommitment ? $this->receivedQuantity($charge) : 0;
+        }
 
         $links = $this->entityManager->getRepository(ActivityGrossanlassProcurementLineWish::class)
             ->findBy(['procurementLineId' => $line->getId()], ['createdAt' => 'ASC']);
-        $current = [];
-        $caps = [];
         $byWish = [];
         foreach ($links as $link) {
-            if (!$link instanceof ActivityGrossanlassProcurementLineWish) {
-                continue;
+            if ($link instanceof ActivityGrossanlassProcurementLineWish) {
+                $byWish[$link->getWishLineId()] = $link;
             }
-            $wishId = $link->getWishLineId();
-            $byWish[$wishId] = $link;
-            $current[$wishId] = $allocations[$wishId] ?? $link->getReceivedQuantity();
-            $caps[$wishId] = $link->getWishLine()->getQuantity();
         }
-        foreach (self::distributeReceived($current, $caps, $total) as $wishId => $qty) {
-            $byWish[$wishId]->setReceivedQuantity($qty);
+        if ($allocations !== null) {
+            foreach ($allocations as $wishId => $qty) {
+                if (isset($byWish[$wishId])) {
+                    $byWish[$wishId]->setReceivedQuantity(max(0, min((int) $qty, $byWish[$wishId]->getWishLine()->getQuantity())));
+                }
+            }
+        }
+        // Zuteilung nie über den tatsächlich eingegangenen Bestand hinaus; bei Rückbuchung wird sie bewusst neu gesetzt.
+        if (array_sum(array_map(static fn (ActivityGrossanlassProcurementLineWish $l) => $l->getReceivedQuantity(), $byWish)) > $received) {
+            foreach ($byWish as $link) {
+                $link->setReceivedQuantity(0);
+            }
         }
 
-        $order = $this->entityManager->getRepository(ActivityGrossanlassProcurementOrder::class)
-            ->findOneBy(['procurementLineId' => $line->getId()]);
-        if (!$order instanceof ActivityGrossanlassProcurementOrder) {
-            return;
-        }
         $status = $line->getStatus();
-        if ($total > 0 && $total >= $line->getQuantity()) {
+        if ($orders === []) {
+            if (in_array($status, [
+                ActivityGrossanlassProcurementLine::STATUS_BESTELLT,
+                ActivityGrossanlassProcurementLine::STATUS_TEILWEISE,
+                ActivityGrossanlassProcurementLine::STATUS_ERHALTEN,
+            ], true)) {
+                $quotes = $this->entityManager->getRepository(ActivityGrossanlassProcurementQuote::class)->findBy(['procurementLineId' => $line->getId()]);
+                $selected = array_filter($quotes, static fn ($q) => $q instanceof ActivityGrossanlassProcurementQuote && $q->isSelected());
+                $status = $selected !== []
+                    ? ActivityGrossanlassProcurementLine::STATUS_BUDGETIERT
+                    : ($quotes !== [] ? ActivityGrossanlassProcurementLine::STATUS_OFFERTE : ActivityGrossanlassProcurementLine::STATUS_BEDARF);
+            }
+        } elseif ($received > 0 && $received >= $ordered) {
             $status = ActivityGrossanlassProcurementLine::STATUS_ERHALTEN;
-        } elseif ($total > 0) {
+        } elseif ($received > 0) {
             $status = ActivityGrossanlassProcurementLine::STATUS_TEILWEISE;
-        } elseif (in_array($status, [
-            ActivityGrossanlassProcurementLine::STATUS_TEILWEISE,
-            ActivityGrossanlassProcurementLine::STATUS_ERHALTEN,
-        ], true)) {
+        } else {
             $status = ActivityGrossanlassProcurementLine::STATUS_BESTELLT;
         }
         if ($status !== $line->getStatus()) {
             $line->setStatus($status);
             $line->touchUpdatedAt();
         }
-    }
-
-    /**
-     * Gesamtmenge auf Wünsche verteilen. Bestehende Verteilung bleibt, solange sie
-     * nicht grösser als die Gesamtmenge ist; der Rest füllt Wünsche der Reihe nach bis zur Wunschmenge.
-     *
-     * @param array<string, int> $current wish-id → bisher verteilt
-     * @param array<string, int> $caps wish-id → Wunschmenge
-     * @return array<string, int>
-     */
-    public static function distributeReceived(array $current, array $caps, int $total): array
-    {
-        $out = [];
-        foreach ($current as $id => $qty) {
-            $out[$id] = max(0, min((int) $qty, (int) ($caps[$id] ?? 0)));
-        }
-        if (array_sum($out) > $total) {
-            $out = array_fill_keys(array_keys($current), 0);
-        }
-        $rest = $total - array_sum($out);
-        foreach ($out as $id => $qty) {
-            if ($rest <= 0) {
-                break;
-            }
-            $room = max(0, (int) ($caps[$id] ?? 0) - $qty);
-            $add = min($room, $rest);
-            $out[$id] = $qty + $add;
-            $rest -= $add;
-        }
-
-        return $out;
     }
 
     /**
@@ -348,6 +493,7 @@ final class GrossanlassChargeMovementService
             'place_id' => $row->getPlaceId(),
             'place_name' => $row->getPlace()?->getName(),
             'einsatz_id' => $row->getEinsatzId(),
+            'reverses_id' => $row->getReversesId(),
             'note' => $row->getNote(),
             'created_by_user_id' => $row->getCreatedByUserId(),
             'created_by_name' => $row->getCreatedByUser()?->getProfile()?->getDisplayName(),

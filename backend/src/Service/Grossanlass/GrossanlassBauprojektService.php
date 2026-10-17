@@ -7,6 +7,7 @@ namespace App\Service\Grossanlass;
 use App\Entity\ActivityGrossanlassProcurementLine;
 use App\Entity\ActivityGrossanlassWishLine;
 use App\Entity\Department;
+use App\Entity\DepartmentGrossanlassCommitment;
 use App\Entity\DepartmentGrossanlassDependency;
 use App\Entity\DepartmentGrossanlassEinsatz;
 use App\Entity\DepartmentGrossanlassGroupHelperNeed;
@@ -856,6 +857,14 @@ final class GrossanlassBauprojektService
         $this->assertBauprojekt($department, $group);
         $this->assertCanEdit($department, $user, $group);
         $row = $this->findVehicleNeed($department, $group, $needId);
+        // Ein Fahrzeugbedarf in einer Beschaffungsposition ab Offerte oder mit Zusage bleibt als Herkunft erhalten.
+        $line = $row->getProcurementLine();
+        if ($line instanceof ActivityGrossanlassProcurementLine
+            && ($line->getStatus() !== ActivityGrossanlassProcurementLine::STATUS_BEDARF
+                || $this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)->count(['procurementLineId' => $line->getId()]) > 0)
+        ) {
+            throw new \InvalidArgumentException('Fahrzeugbedarf gehört zu einer Beschaffungsposition in Offerte, Bestellung oder mit Zusagen und kann nicht gelöscht werden');
+        }
         $this->entityManager->remove($row);
         $this->entityManager->flush();
     }

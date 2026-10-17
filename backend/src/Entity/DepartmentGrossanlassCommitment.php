@@ -9,6 +9,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Index(name: 'idx_ga_commitment_dept', columns: ['department_id'])]
 #[ORM\Index(name: 'idx_ga_commitment_inquiry', columns: ['inquiry_id'])]
 #[ORM\Index(name: 'idx_ga_commitment_line', columns: ['procurement_line_id'])]
+#[ORM\UniqueConstraint(name: 'uniq_ga_commitment_order', columns: ['order_id'])]
 #[ORM\Index(name: 'idx_ga_commitment_owner_dept', columns: ['owner_department_id'])]
 class DepartmentGrossanlassCommitment
 {
@@ -66,6 +67,14 @@ class DepartmentGrossanlassCommitment
     #[ORM\ManyToOne(targetEntity: ActivityGrossanlassProcurementLine::class)]
     #[ORM\JoinColumn(name: 'procurement_line_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?ActivityGrossanlassProcurementLine $procurementLine = null;
+
+    /** Bestellung, aus der diese Kauf-Charge entstanden ist (eine Charge je Bestellung). */
+    #[ORM\Column(name: 'order_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $orderId = null;
+
+    #[ORM\ManyToOne(targetEntity: ActivityGrossanlassProcurementOrder::class)]
+    #[ORM\JoinColumn(name: 'order_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?ActivityGrossanlassProcurementOrder $order = null;
 
     #[ORM\Column(name: 'return_required', type: 'boolean', options: ['default' => false])]
     private bool $returnRequired = false;
@@ -597,6 +606,24 @@ class DepartmentGrossanlassCommitment
     }
 
     /** Rückgabepflicht, wenn nichts explizit gesetzt wurde. */
+    public function getOrderId(): ?string
+    {
+        return $this->orderId;
+    }
+
+    public function getOrder(): ?ActivityGrossanlassProcurementOrder
+    {
+        return $this->order;
+    }
+
+    public function setOrder(?ActivityGrossanlassProcurementOrder $order): self
+    {
+        $this->order = $order;
+        $this->orderId = $order?->getId();
+
+        return $this;
+    }
+
     public static function defaultReturnRequired(string $origin): bool
     {
         return $origin === self::ORIGIN_LOAN;

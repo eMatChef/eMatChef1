@@ -11,6 +11,7 @@ use App\Service\Grossanlass\GrossanlassCostService;
 use App\Service\Grossanlass\GrossanlassGmailAccountService;
 use App\Service\Grossanlass\GrossanlassInquiryService;
 use App\Service\Grossanlass\GrossanlassMailMergeService;
+use App\Service\Grossanlass\GrossanlassOvercoverageConfirmationRequiredException;
 use App\Service\Grossanlass\GrossanlassProcurementService;
 use App\Service\Grossanlass\GrossanlassQuantityConfirmationRequiredException;
 use App\Service\Grossanlass\GrossanlassCategoryInUseException;
@@ -596,6 +597,85 @@ class GrossanlassProcurementController extends AbstractController
 
         try {
             $line = $this->procurementService->upsertOrder($department, $currentUser, $lineId, $data);
+        } catch (GrossanlassOvercoverageConfirmationRequiredException $e) {
+            return new JsonResponse($e->toPayload(), 409);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+
+        return new JsonResponse($line);
+    }
+
+    /** Neue Bestellung (Teilmenge) zu einer Offerte oder Absprache ohne Offerte. */
+    #[Route('/lines/{lineId}/orders', name: 'orders_create', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function createOrder(string $departmentId, string $lineId, Request $request): JsonResponse
+    {
+        return $this->orderAction($departmentId, $request, fn ($department, $user, array $data) => $this->procurementService->createOrder($department, $user, $lineId, $data));
+    }
+
+    #[Route('/lines/{lineId}/orders/{orderId}', name: 'orders_update', methods: ['PUT'])]
+    #[IsGranted('ROLE_USER')]
+    public function updateOrder(string $departmentId, string $lineId, string $orderId, Request $request): JsonResponse
+    {
+        return $this->orderAction($departmentId, $request, fn ($department, $user, array $data) => $this->procurementService->updateOrder($department, $user, $lineId, $orderId, $data));
+    }
+
+    /** Storno mit Grund; nur ohne Wareneingang und Zuteilung. */
+    #[Route('/lines/{lineId}/orders/{orderId}/cancel', name: 'orders_cancel', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function cancelOrder(string $departmentId, string $lineId, string $orderId, Request $request): JsonResponse
+    {
+        return $this->orderAction($departmentId, $request, fn ($department, $user, array $data) => $this->procurementService->cancelOrder($department, $user, $lineId, $orderId, (string) ($data['reason'] ?? '')));
+    }
+
+    /**
+     * @param callable(\App\Entity\Department, \App\Entity\User, array<string, mixed>): array<string, mixed> $fn
+     */
+    private function orderAction(string $departmentId, Request $request, callable $fn): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        try {
+            return new JsonResponse($fn($department, $currentUser, is_array($data) ? $data : []));
+        } catch (GrossanlassOvercoverageConfirmationRequiredException $e) {
+            return new JsonResponse($e->toPayload(), 409);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+    }
+
+    /** Entscheidung zu geänderten Wünschen einer Position: `adopt` (Wunschsumme übernehmen) oder `keep` (Menge behalten). */
+    #[Route('/lines/{lineId}/source-change', name: 'source_change_decide', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function decideSourceChange(string $departmentId, string $lineId, Request $request): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        try {
+            $line = $this->procurementService->decideSourceChange($department, $currentUser, $lineId, (string) ($data['decision'] ?? ''));
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
         } catch (\RuntimeException $e) {

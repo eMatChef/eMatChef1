@@ -244,7 +244,14 @@ class GrossanlassCostService
             $cost->setCostKind(DepartmentGrossanlassCost::KIND_PURCHASE);
             $cost->setAssetTreatment(DepartmentGrossanlassCost::ASSET_EXPENSE);
         }
-        $cost->setCashOutChf(number_format((float) $order->getCostChf(), 2, '.', ''));
+        // Mehrere Bestellungen je Position: Ist-Kosten sind die Summe der aktiven Bestellungen (stornierte zählen nicht).
+        $total = 0.0;
+        foreach ($this->entityManager->getRepository(ActivityGrossanlassProcurementOrder::class)->findBy(['procurementLineId' => $line->getId()]) as $row) {
+            if ($row instanceof ActivityGrossanlassProcurementOrder && !$row->isCancelled()) {
+                $total += (float) $row->getCostChf();
+            }
+        }
+        $cost->setCashOutChf(number_format($total, 2, '.', ''));
         if ($cost->getSollChf() === null) {
             $cost->setSollChf($cost->getCashOutChf());
         }

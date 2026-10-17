@@ -697,6 +697,7 @@ class GrossanlassWishService
         if ($this->wishHasFrozenProcurement($line)) {
             throw new \InvalidArgumentException('Wunsch ist an eine eingefrorene Beschaffungsposition gebunden');
         }
+        $this->assertWishNotBoundToProcurement($line);
 
         $this->removeOpenDemandForWish($line);
 
@@ -1551,6 +1552,27 @@ class GrossanlassWishService
             $this->entityManager->remove($link);
             if ($onlyThisWish && $stillNeed) {
                 $this->entityManager->remove($procurement);
+            }
+        }
+    }
+
+    /**
+     * Ein Wunsch einer Position in Offerte/Bestellung oder mit Zusagen bleibt als Herkunft erhalten:
+     * Löschen würde Verknüpfung und Wareneingangs-Zuordnung zerstören, die Position aber bestehen lassen.
+     */
+    private function assertWishNotBoundToProcurement(ActivityGrossanlassWishLine $line): void
+    {
+        $links = $this->entityManager->getRepository(ActivityGrossanlassProcurementLineWish::class)
+            ->findBy(['wishLineId' => $line->getId()]);
+        foreach ($links as $link) {
+            if (!$link instanceof ActivityGrossanlassProcurementLineWish) {
+                continue;
+            }
+            $procurement = $link->getProcurementLine();
+            $hasCharge = $this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)
+                ->count(['procurementLineId' => $procurement->getId()]) > 0;
+            if ($hasCharge || $procurement->getStatus() !== ActivityGrossanlassProcurementLine::STATUS_BEDARF) {
+                throw new \InvalidArgumentException('Wunsch gehört zu einer Position in Offerte, Bestellung oder mit Zusagen und kann nicht gelöscht werden');
             }
         }
     }

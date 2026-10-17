@@ -70,37 +70,23 @@ class GrossanlassChargeMovementServiceTest extends TestCase
         self::assertSame(0, GrossanlassChargeMovementService::inboundSummary(20, 20)['missing']);
     }
 
-    public function testDistributeFillsWishesInOrderUpToWishQuantity(): void
+    public function testReversalIsLimitedToWhatWasReceived(): void
     {
-        $out = GrossanlassChargeMovementService::distributeReceived(
-            ['w1' => 0, 'w2' => 0, 'w3' => 0],
-            ['w1' => 40, 'w2' => 40, 'w3' => 20],
-            60,
-        );
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Nur 10 eingegangen');
 
-        self::assertSame(['w1' => 40, 'w2' => 20, 'w3' => 0], $out);
+        GrossanlassChargeMovementService::assertReversible(10, 12, 0);
     }
 
-    public function testDistributeKeepsExistingAllocationAndAddsRest(): void
+    public function testReversalIsBlockedForAllocatedOrPackedStock(): void
     {
-        $out = GrossanlassChargeMovementService::distributeReceived(
-            ['w1' => 0, 'w2' => 30],
-            ['w1' => 40, 'w2' => 40],
-            50,
-        );
+        // 10 eingegangen, 7 bereits zugeteilt: höchstens 3 lassen sich zurückbuchen.
+        GrossanlassChargeMovementService::assertReversible(10, 3, 7);
 
-        self::assertSame(['w1' => 20, 'w2' => 30], $out);
-    }
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('bereits zugeteilt oder gepackt');
 
-    public function testDistributeResetsWhenAllocationExceedsTotal(): void
-    {
-        $out = GrossanlassChargeMovementService::distributeReceived(
-            ['w1' => 40, 'w2' => 40],
-            ['w1' => 40, 'w2' => 40],
-            50,
-        );
-
-        self::assertSame(['w1' => 40, 'w2' => 10], $out);
+        GrossanlassChargeMovementService::assertReversible(10, 4, 7);
     }
 
     public function testOwnershipDefaultsFollowOrigin(): void
@@ -128,9 +114,9 @@ class GrossanlassChargeMovementServiceTest extends TestCase
         );
     }
 
-    public function testOnlyReceivedIsBookableForNow(): void
+    public function testOnlyReceiptAndItsReversalAreBookableForNow(): void
     {
-        self::assertSame(['received'], DepartmentGrossanlassChargeMovement::BOOKABLE_KINDS);
+        self::assertSame(['received', 'receipt_reversed'], DepartmentGrossanlassChargeMovement::BOOKABLE_KINDS);
         self::assertContains('sold_handover', DepartmentGrossanlassChargeMovement::KINDS);
     }
 

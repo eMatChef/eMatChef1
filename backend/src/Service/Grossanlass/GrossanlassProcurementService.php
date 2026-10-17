@@ -23,6 +23,8 @@ use App\Entity\DepartmentGrossanlassInquiry;
 use App\Entity\Group;
 use App\Entity\User;
 use App\Util\GrossanlassIdGenerator;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
@@ -239,7 +241,8 @@ class GrossanlassProcurementService
         $line->setSource(ActivityGrossanlassProcurementLine::SOURCE_FROM_WISH);
         $line->setSelfOrganized(false);
 
-        $this->entityManager->wrapInTransaction(function () use ($line, $wishes, $vehicles, $department, $user, $data): void {
+        $this->runBundling(function () use ($line, $wishes, $vehicles, $department, $user, $data): void {
+            $this->lockAndRecheckTargets($wishes, $vehicles);
             if ($wishes !== []) {
                 $this->applyWishAggregation($line, $wishes, $data);
                 $line->setQuantityUnit($wishes[0]->getQuantityUnit());
@@ -522,6 +525,51 @@ class GrossanlassProcurementService
     }
 
     /**
+     * Bündeln in einer Transaktion. Ein Wunsch gehört höchstens einer Position (Unique-Index `uniq_gplw_wish`):
+     * eine parallel gewonnene Zuordnung meldet sich hier als fachlicher Fehler, nicht als Serverfehler.
+     */
+    private function runBundling(\Closure $work): void
+    {
+        try {
+            $this->entityManager->wrapInTransaction($work);
+        } catch (UniqueConstraintViolationException) {
+            throw new \InvalidArgumentException('Wunsch ist bereits einer Beschaffungsposition zugeordnet');
+        }
+    }
+
+    /**
+     * Sperrt die zu bündelnden Wünsche und Fahrzeugbedarfe und prüft die Zuordnung in der Transaktion erneut,
+     * damit zwei parallele Anfragen denselben Bedarf nicht beide übernehmen.
+     *
+     * @param list<ActivityGrossanlassWishLine>        $wishes
+     * @param list<DepartmentGrossanlassVehicleNeed>   $vehicles
+     */
+    private function lockAndRecheckTargets(array $wishes, array $vehicles): void
+    {
+        foreach ($wishes as $wish) {
+            $this->entityManager->lock($wish, LockMode::PESSIMISTIC_WRITE);
+        }
+        if ($wishes !== []) {
+            $taken = (int) $this->entityManager->getRepository(ActivityGrossanlassProcurementLineWish::class)
+                ->createQueryBuilder('pw')
+                ->select('COUNT(pw.wishLineId)')
+                ->where('pw.wishLineId IN (:ids)')
+                ->setParameter('ids', array_map(static fn (ActivityGrossanlassWishLine $w) => $w->getId(), $wishes))
+                ->getQuery()
+                ->getSingleScalarResult();
+            if ($taken > 0) {
+                throw new \InvalidArgumentException('Wunsch ist bereits einer Beschaffungsposition zugeordnet');
+            }
+        }
+        foreach ($vehicles as $vehicle) {
+            $this->entityManager->refresh($vehicle, LockMode::PESSIMISTIC_WRITE);
+            if ($vehicle->getProcurementLineId() !== null) {
+                throw new \InvalidArgumentException('Fahrzeugbedarf ist bereits einer Beschaffungsposition zugeordnet');
+            }
+        }
+    }
+
+    /**
      * @param list<string> $wishLineIds
      *
      * @return array<string, mixed>
@@ -565,7 +613,8 @@ class GrossanlassProcurementService
         }
         $allWishes = array_merge($existingWishes, $newWishes);
 
-        $this->entityManager->wrapInTransaction(function () use ($line, $newWishes, $allWishes, $vehicles, $department, $user, $data): void {
+        $this->runBundling(function () use ($line, $newWishes, $allWishes, $vehicles, $department, $user, $data): void {
+            $this->lockAndRecheckTargets($newWishes, $vehicles);
             foreach ($newWishes as $wish) {
                 $link = new ActivityGrossanlassProcurementLineWish();
                 $link->setProcurementLine($line);
@@ -724,6 +773,7 @@ class GrossanlassProcurementService
             throw new \InvalidArgumentException('Position kann nur im Status «Bedarf» gelöscht werden');
         }
 
+        $this->assertLineHasNoCharges($line, 'Position hat Zusagen oder Bestellungen und kann nicht gelöscht werden');
         $links = $this->entityManager->getRepository(ActivityGrossanlassProcurementLineWish::class)
             ->findBy(['procurementLineId' => $line->getId()]);
         foreach ($links as $link) {
@@ -737,6 +787,18 @@ class GrossanlassProcurementService
         }
         $this->entityManager->remove($line);
         $this->entityManager->flush();
+    }
+
+    /**
+     * Zusagen/Chargen verweisen mit `ON DELETE SET NULL` auf die Position; ein Löschen würde ihre Herkunft kappen.
+     */
+    private function assertLineHasNoCharges(ActivityGrossanlassProcurementLine $line, string $message): void
+    {
+        $hasCharge = $this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)
+            ->count(['procurementLineId' => $line->getId()]) > 0;
+        if ($hasCharge || $this->entityManager->getRepository(ActivityGrossanlassProcurementOrder::class)->count(['procurementLineId' => $line->getId()]) > 0) {
+            throw new \InvalidArgumentException($message);
+        }
     }
 
     public function freezeAskedFromInquiry(Department $department, DepartmentGrossanlassInquiry $inquiry): void
@@ -1096,9 +1158,13 @@ class GrossanlassProcurementService
                 $byCategory[$categoryKey]['soll_chf'] += $amount;
             }
 
-            $order = $this->findOrderForLine($line);
-            if ($order !== null) {
-                $cost = (float) $order->getCostChf();
+            $cost = 0.0;
+            $activeOrders = $this->movements->activeOrders($line);
+            $order = $activeOrders[0] ?? null;
+            foreach ($activeOrders as $activeOrder) {
+                $cost += (float) $activeOrder->getCostChf();
+            }
+            if ($cost > 0.0) {
                 $istChf += $cost;
                 $byGroup[$groupId]['ist_chf'] += $cost;
                 $byCategory[$categoryKey]['ist_chf'] += $cost;
@@ -1267,6 +1333,7 @@ class GrossanlassProcurementService
         $notes = trim((string) ($data['notes'] ?? ''));
         $quote->setNotes($notes === '' ? null : $notes);
         $this->applyQuoteSchedule($quote, $data);
+        $this->applyQuoteInquiry($quote, $department, $data);
 
         $this->entityManager->persist($quote);
 
@@ -1320,6 +1387,7 @@ class GrossanlassProcurementService
             $quote->setNotes($notes === '' ? null : $notes);
         }
         $this->applyQuoteSchedule($quote, $data);
+        $this->applyQuoteInquiry($quote, $department, $data);
 
         $quote->touchUpdatedAt();
         $line->touchUpdatedAt();
@@ -1336,6 +1404,9 @@ class GrossanlassProcurementService
 
         if ($quote->isSelected()) {
             throw new \InvalidArgumentException('Gewählte Offerte kann nicht gelöscht werden');
+        }
+        if ($this->entityManager->getRepository(ActivityGrossanlassProcurementOrder::class)->count(['quoteId' => $quote->getId()]) > 0) {
+            throw new \InvalidArgumentException('Offerte ist Grundlage einer Bestellung und kann nicht gelöscht werden');
         }
 
         $pdfFilename = $quote->getPdfFilename();
@@ -1463,6 +1534,9 @@ class GrossanlassProcurementService
     }
 
     /**
+     * Kompatibilität: ändert die einzige aktive Bestellung der Position oder legt die erste an.
+     * Bei mehreren Bestellungen ist `order_id` erforderlich ({@see createOrder}, {@see updateOrder}).
+     *
      * @param array<string, mixed> $data
      *
      * @return array<string, mixed>
@@ -1471,71 +1545,237 @@ class GrossanlassProcurementService
     {
         $this->assertCanManageProcurement($department, $user);
         $line = $this->findLineInDepartment($department, $lineId);
-        if ($this->findSelectedQuote($line) === null) {
-            throw new \InvalidArgumentException('Bitte zuerst eine Offerte wählen (Budget)');
+        $active = $this->movements->activeOrders($line);
+        $orderId = trim((string) ($data['order_id'] ?? ''));
+        if ($orderId === '' && count($active) > 1) {
+            throw new \InvalidArgumentException('Die Position hat mehrere Bestellungen: bitte die Bestellung angeben');
         }
-        if (!in_array($line->getStatus(), [
-            ActivityGrossanlassProcurementLine::STATUS_BUDGETIERT,
-            ActivityGrossanlassProcurementLine::STATUS_BESTELLT,
-            ActivityGrossanlassProcurementLine::STATUS_TEILWEISE,
-        ], true)) {
-            throw new \InvalidArgumentException('Bestellung nur für budgetierte Positionen möglich');
+        if ($orderId === '' && count($active) === 1) {
+            $orderId = $active[0]->getId();
         }
 
-        $cost = $this->parseAmountChf($data['cost_chf'] ?? null);
-        $order = $this->findOrderForLine($line);
+        return $orderId === ''
+            ? $this->createOrder($department, $user, $lineId, $data)
+            : $this->updateOrder($department, $user, $lineId, $orderId, $data);
+    }
 
-        if ($order === null) {
-            $order = new ActivityGrossanlassProcurementOrder();
-            $order->setId(GrossanlassIdGenerator::unique(
-                $this->entityManager,
-                GrossanlassIdGenerator::PROCUREMENT_ORDER,
-                ActivityGrossanlassProcurementOrder::class,
-            ));
-            $order->setProcurementLine($line);
-            $this->entityManager->persist($order);
+    /**
+     * Neue Bestellung (Teilmenge) einer Bedarfsposition. Grundlage ist eine Offerte (`quote_id`) oder eine
+     * telefonische/mündliche Absprache ohne Offerte (`supplier`). Jede Bestellung erzeugt ihre eigene Kauf-Charge.
+     *
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>
+     */
+    public function createOrder(Department $department, User $user, string $lineId, array $data): array
+    {
+        $this->assertCanManageProcurement($department, $user);
+        $line = $this->findLineInDepartment($department, $lineId);
+
+        return $this->saveOrder($department, $user, $line, null, $data);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>
+     */
+    public function updateOrder(Department $department, User $user, string $lineId, string $orderId, array $data): array
+    {
+        $this->assertCanManageProcurement($department, $user);
+        $line = $this->findLineInDepartment($department, $lineId);
+        $order = $this->findOrderInLine($line, $orderId);
+        if ($order->isCancelled()) {
+            throw new \InvalidArgumentException('Stornierte Bestellung kann nicht geändert werden');
         }
 
-        if (!empty($data['ordered_at'])) {
-            $order->setOrderedAt(new \DateTime((string) $data['ordered_at']));
+        return $this->saveOrder($department, $user, $line, $order, $data);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>
+     */
+    private function saveOrder(
+        Department $department,
+        User $user,
+        ActivityGrossanlassProcurementLine $line,
+        ?ActivityGrossanlassProcurementOrder $order,
+        array $data,
+    ): array {
+        // Offerte decken keinen Bedarf: erst die Bestellung (oder Zusage) tut das.
+        $quote = null;
+        $quoteId = trim((string) ($data['quote_id'] ?? ''));
+        if ($quoteId !== '') {
+            $quote = $this->findQuoteInLine($line, $quoteId);
+        } elseif ($order === null && !array_key_exists('supplier', $data)) {
+            $quote = $this->findSelectedQuote($line);
+        } elseif ($order !== null) {
+            $quote = $order->getQuote();
         }
-        $order->setCostChf(number_format($cost, 2, '.', ''));
-        $orderRef = trim((string) ($data['order_ref'] ?? ''));
-        $order->setOrderRef($orderRef === '' ? null : $orderRef);
-        $notes = trim((string) ($data['notes'] ?? ''));
-        $order->setNotes($notes === '' ? null : $notes);
-        if (array_key_exists('delivery_at', $data)) {
-            $deliveryRaw = $data['delivery_at'];
-            if ($deliveryRaw === null || $deliveryRaw === '') {
-                $order->setDeliveryAt(null);
-            } else {
-                try {
-                    $order->setDeliveryAt(new \DateTime((string) $deliveryRaw));
-                } catch (\Exception) {
-                    throw new \InvalidArgumentException('Ungültiger Liefertermin');
-                }
+        $supplier = trim((string) ($data['supplier'] ?? ($order?->getSupplier() ?? '')));
+        if ($quote === null && $supplier === '') {
+            throw new \InvalidArgumentException('Bitte eine Offerte wählen oder den Lieferanten der Absprache angeben');
+        }
+        if ($order !== null && array_key_exists('quote_id', $data) && $order->getQuoteId() !== ($quote?->getId())) {
+            $received = ($charge = $this->movements->buyChargeForOrder($order)) !== null ? $this->movements->receivedQuantity($charge) : 0;
+            if ($received > 0) {
+                throw new \InvalidArgumentException('Die Grundlage einer Bestellung mit Wareneingang lässt sich nicht mehr wechseln');
             }
         }
-        $order->touchUpdatedAt();
 
-        if ($line->getStatus() === ActivityGrossanlassProcurementLine::STATUS_BUDGETIERT) {
-            $line->setStatus(ActivityGrossanlassProcurementLine::STATUS_BESTELLT);
+        $cost = $this->parseAmountChf($data['cost_chf'] ?? ($order?->getCostChf()));
+
+        // Bestellte Teilmenge: ohne Angabe der noch offene Bedarf, eine bestehende Bestellung behält ihre Menge.
+        // Deckt die Menge zusammen mit allen anderen Quellen mehr als den Bedarf, braucht es eine bewusste Bestätigung.
+        $ownCharge = $order !== null ? $this->movements->buyChargeForOrder($order) : null;
+        $others = array_values(array_filter(
+            $this->coverageTotalsByLineId($department)['charges'][$line->getId()] ?? [],
+            static fn (array $c) => $ownCharge === null || $c['id'] !== $ownCharge->getId(),
+        ));
+        if (array_key_exists('quantity', $data) && $data['quantity'] !== null && $data['quantity'] !== '') {
+            $orderQty = (int) $data['quantity'];
+            if ($orderQty < 1) {
+                throw new \InvalidArgumentException('Bestellmenge muss mindestens 1 sein');
+            }
+        } elseif ($order !== null) {
+            $orderQty = $order->getQuantity() ?? $line->getQuantity();
+        } else {
+            $orderQty = max(1, GrossanlassProcurementQuantities::orderableQuantity($line->getQuantity(), $others));
         }
-        $line->touchUpdatedAt();
-        $this->costService->syncFromOrder($line, $order);
-        $this->entityManager->flush();
-        $this->commitmentService->ensureBuyChargeFromOrder(
-            $department,
-            $user,
-            $line,
-            $order,
-            $this->findSelectedQuote($line),
-        );
+        // Nur neue oder geänderte Mengen prüfen: Kosten/Referenz einer bestehenden Bestellung bleiben immer änderbar.
+        if ($order === null || $orderQty !== ($order->getQuantity() ?? $line->getQuantity())) {
+            GrossanlassOvercoverageConfirmationRequiredException::assertWithin(
+                $line->getQuantity(),
+                GrossanlassProcurementQuantities::compute($line->getQuantity(), $others)['covered'],
+                $orderQty,
+                filter_var($data['confirm_overcoverage'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            );
+        }
+        if ($ownCharge !== null && $orderQty < $this->movements->receivedQuantity($ownCharge)) {
+            throw new \InvalidArgumentException(sprintf(
+                'Bestellmenge %d ist kleiner als die bereits erhaltene Menge %d',
+                $orderQty,
+                $this->movements->receivedQuantity($ownCharge),
+            ));
+        }
+
+        $inbound = array_key_exists('inbound_mode', $data) ? strtolower(trim((string) $data['inbound_mode'])) : null;
+        if ($inbound !== null && $inbound !== '' && !in_array($inbound, ['pickup', 'delivery'], true)) {
+            throw new \InvalidArgumentException('Ungültige Lieferart');
+        }
+
+        $this->entityManager->wrapInTransaction(function () use ($line, $order, $quote, $supplier, $cost, $orderQty, $data, $inbound, $user, $department): void {
+            $isNew = $order === null;
+            if ($isNew) {
+                $order = new ActivityGrossanlassProcurementOrder();
+                $order->setId(GrossanlassIdGenerator::unique(
+                    $this->entityManager,
+                    GrossanlassIdGenerator::PROCUREMENT_ORDER,
+                    ActivityGrossanlassProcurementOrder::class,
+                ));
+                $order->setProcurementLine($line);
+                $this->entityManager->persist($order);
+            }
+            $order->setQuote($quote);
+            $order->setAgreementKind($quote !== null ? ActivityGrossanlassProcurementOrder::AGREEMENT_QUOTE : ActivityGrossanlassProcurementOrder::AGREEMENT_PHONE);
+            $order->setSupplier($quote === null && $supplier !== '' ? $supplier : null);
+            if (!empty($data['ordered_at'])) {
+                $order->setOrderedAt(new \DateTime((string) $data['ordered_at']));
+            }
+            $order->setCostChf(number_format($cost, 2, '.', ''));
+            $order->setQuantity($orderQty);
+            $orderRef = trim((string) ($data['order_ref'] ?? ($isNew ? '' : (string) $order->getOrderRef())));
+            $order->setOrderRef($orderRef === '' ? null : $orderRef);
+            $notes = trim((string) ($data['notes'] ?? ($isNew ? '' : (string) $order->getNotes())));
+            $order->setNotes($notes === '' ? null : $notes);
+            if (array_key_exists('delivery_at', $data)) {
+                $deliveryRaw = $data['delivery_at'];
+                if ($deliveryRaw === null || $deliveryRaw === '') {
+                    $order->setDeliveryAt(null);
+                } else {
+                    try {
+                        $order->setDeliveryAt(new \DateTime((string) $deliveryRaw));
+                    } catch (\Exception) {
+                        throw new \InvalidArgumentException('Ungültiger Liefertermin');
+                    }
+                }
+            }
+            if ($inbound !== null) {
+                $order->setInboundMode($inbound === '' ? null : $inbound);
+            }
+            if (array_key_exists('return_needed', $data)) {
+                $order->setReturnNeeded($data['return_needed'] === null ? null : filter_var($data['return_needed'], FILTER_VALIDATE_BOOLEAN));
+            }
+            $order->touchUpdatedAt();
+
+            // Die Grundlage-Offerte gilt damit als gewählt, falls noch keine gewählt ist.
+            if ($quote !== null && $this->findSelectedQuote($line) === null) {
+                $quote->setSelected(true);
+                $quote->touchUpdatedAt();
+                $this->applyQuoteLogisticsToLine($line, $quote);
+            }
+            $line->touchUpdatedAt();
+            $this->entityManager->flush();
+            $this->costService->syncFromOrder($line, $order);
+            $this->entityManager->flush();
+            $this->commitmentService->ensureBuyChargeFromOrder($department, $user, $line, $order, $quote);
+            $this->movements->syncLineReceived($line);
+            $this->entityManager->flush();
+        });
 
         return $this->lineToArray($line);
     }
 
     /**
+     * Storno einer Bestellung. Nur ohne Wareneingang (erst per Gegenbuchung zurücknehmen) und ohne Zuteilung/Pack.
+     * Bestellung und Charge bleiben mit Grund und Zeitpunkt als Historie erhalten; der Bedarf gilt wieder als offen.
+     *
+     * @return array<string, mixed>
+     */
+    public function cancelOrder(Department $department, User $user, string $lineId, string $orderId, string $reason): array
+    {
+        $this->assertCanManageProcurement($department, $user);
+        $line = $this->findLineInDepartment($department, $lineId);
+        $order = $this->findOrderInLine($line, $orderId);
+        if ($order->isCancelled()) {
+            throw new \InvalidArgumentException('Bestellung ist bereits storniert');
+        }
+        $reason = trim($reason);
+        if ($reason === '') {
+            throw new \InvalidArgumentException('Für das Storno ist ein Grund erforderlich');
+        }
+        $charge = $this->movements->buyChargeForOrder($order);
+        if ($charge instanceof DepartmentGrossanlassCommitment) {
+            if ($this->movements->receivedQuantity($charge) > 0) {
+                throw new \InvalidArgumentException('Es sind Waren eingegangen: Wareneingang zuerst per Gegenbuchung korrigieren, dann stornieren');
+            }
+            if ($this->movements->usedQuantity($charge) > 0 || $charge->isPacked()) {
+                throw new \InvalidArgumentException('Die Charge ist bereits zugeteilt oder gepackt: erst die Zuteilung aufheben');
+            }
+        }
+
+        $this->entityManager->wrapInTransaction(function () use ($department, $user, $line, $order, $reason): void {
+            $order->cancel($reason);
+            $order->touchUpdatedAt();
+            $this->entityManager->flush();
+            $this->commitmentService->ensureBuyChargeFromOrder($department, $user, $line, $order, $order->getQuote());
+            $this->costService->syncFromOrder($line, $order);
+            $this->movements->syncLineReceived($line);
+            $line->touchUpdatedAt();
+            $this->entityManager->flush();
+        });
+
+        return $this->lineToArray($line);
+    }
+
+    /**
+     * Wareneingang zu einer Bestellung der Position. Gebucht wird immer an der Charge dieser Bestellung,
+     * also an der tatsächlichen Beschaffungsquelle. Varianten: `quantity` (diese Lieferung), `full` (Rest der
+     * Bestellung) oder `allocations` (Gesamtstand, als Zuteilung auf Wünsche). Eine Verteilung auf Wünsche
+     * geschieht nur bewusst über `allocations`.
+     *
      * @param array<string, mixed> $data
      *
      * @return array<string, mixed>
@@ -1544,23 +1784,36 @@ class GrossanlassProcurementService
     {
         $this->assertCanManageProcurement($department, $user);
         $line = $this->findLineInDepartment($department, $lineId);
-        if ($this->findOrderForLine($line) === null) {
+        $active = $this->movements->activeOrders($line);
+        if ($active === []) {
             throw new \InvalidArgumentException('Position muss zuerst bestellt sein');
         }
-        if ($line->getStatus() === ActivityGrossanlassProcurementLine::STATUS_ERHALTEN) {
-            throw new \InvalidArgumentException('Position ist bereits vollständig erhalten');
+        $orderId = trim((string) ($data['order_id'] ?? ''));
+        if ($orderId === '') {
+            if (count($active) > 1) {
+                throw new \InvalidArgumentException('Die Position hat mehrere Bestellungen: bitte die Bestellung angeben');
+            }
+            $order = $active[0];
+        } else {
+            $order = $this->findOrderInLine($line, $orderId);
+            if ($order->isCancelled()) {
+                throw new \InvalidArgumentException('Bestellung ist storniert');
+            }
         }
 
         // Physische Wahrheit ist die Bewegung an der Kauf-Charge der Bestellung.
-        $charge = $this->movements->buyChargeForLine($line);
+        $charge = $this->movements->buyChargeForOrder($order);
         if ($charge === null) {
             throw new \InvalidArgumentException('Zur Bestellung gibt es keine Charge');
         }
 
         $links = $this->loadWishLinksForLine($line);
         $allocations = null;
-        if (!empty($data['full'])) {
-            $target = $charge->getQuantity();
+        $delta = null;
+        if (isset($data['quantity'])) {
+            $delta = (int) $data['quantity'];
+        } elseif (!empty($data['full'])) {
+            $delta = max(0, $charge->getQuantity() - $this->movements->receivedQuantity($charge));
         } else {
             if ($links === []) {
                 throw new \InvalidArgumentException('Keine Grundeingaben verknüpft');
@@ -1589,20 +1842,35 @@ class GrossanlassProcurementService
                 }
                 $allocations[$wishId] = $qty;
             }
-            $target = array_sum($allocations);
+        }
+        $note = trim((string) ($data['note'] ?? ''));
+        // Vorabprüfung ohne Sperre (eine Ausnahme in der Transaktion schliesst den EntityManager); die Prüfung unter Sperre bleibt.
+        if ($delta !== null) {
+            GrossanlassChargeMovementService::assertReceivable(
+                $charge->getQuantity(),
+                $this->movements->receivedQuantity($charge),
+                $delta,
+            );
         }
 
-        $this->entityManager->wrapInTransaction(function () use ($line, $charge, $target, $allocations, $user): void {
+        $this->entityManager->wrapInTransaction(function () use ($line, $charge, $delta, $allocations, $user, $note): void {
             $this->movements->lockCommitment($charge);
             $received = $this->movements->receivedQuantity($charge);
-            if ($target < $received) {
-                throw new \InvalidArgumentException(sprintf(
-                    'Bereits %d erhalten — Wareneingang lässt sich nicht verringern',
-                    $received,
-                ));
+            if ($delta === null) {
+                // Gesamtstand-Variante: die Summe der Zuteilung ist der neue Eingangsstand und darf nicht sinken.
+                $target = array_sum($allocations);
+                if ($target < $received) {
+                    throw new \InvalidArgumentException(sprintf(
+                        'Bereits %d erhalten — Wareneingang lässt sich nicht verringern, bitte per Gegenbuchung korrigieren',
+                        $received,
+                    ));
+                }
+                $delta = $target - $received;
             }
-            if ($target > $received) {
-                $this->movements->recordReceived($charge, $target - $received, $user, null, 'Erfasst in der Beschaffung');
+            if ($delta > 0) {
+                $this->movements->recordReceived($charge, $delta, $user, null, $note !== '' ? $note : 'Erfasst in der Beschaffung');
+            } elseif ($delta < 0) {
+                throw new \InvalidArgumentException('Menge muss grösser als 0 sein');
             }
             $this->movements->syncLineReceived($line, $allocations);
             $line->touchUpdatedAt();
@@ -2052,6 +2320,7 @@ class GrossanlassProcurementService
         $line->setLabel($label);
         if ($line->getQuantityAsked() === null) {
             $line->setQuantity($quantity);
+            $line->setSourceQuantityAck($totalQty);
         }
         $line->setLocation($location);
         $line->setGroup($group);
@@ -2926,13 +3195,7 @@ class GrossanlassProcurementService
         $category = $line->getCategory();
         $parent = $category?->getParent();
         $totals = $coverage ?? $this->coverageTotalsByLineId($line->getDepartment());
-        $loaned = $totals['loaned'][$line->getId()] ?? 0;
-        $isOrdered = in_array($line->getStatus(), [
-            ActivityGrossanlassProcurementLine::STATUS_BESTELLT,
-            ActivityGrossanlassProcurementLine::STATUS_TEILWEISE,
-            ActivityGrossanlassProcurementLine::STATUS_ERHALTEN,
-        ], true);
-        $ordered = $isOrdered ? $line->getQuantity() : 0;
+        $q = GrossanlassProcurementQuantities::compute($line->getQuantity(), $totals['charges'][$line->getId()] ?? []);
 
         return [
             'id' => $line->getId(),
@@ -2969,53 +3232,144 @@ class GrossanlassProcurementService
             'source_vehicles' => $sourceVehicles,
             'source_quantity_sum' => $sourceQuantitySum,
             'received_quantity_sum' => $receivedQuantitySum,
-            'quantity_loaned' => $loaned,
-            'quantity_ordered' => $ordered,
-            'quantity_open' => $isOrdered ? 0 : max(0, $line->getQuantity() - $loaned),
+            'quantity_loaned' => $q['loaned'],
+            'quantity_ordered' => $q['ordered'],
+            'quantity_donated' => $q['donated'],
+            'quantity_covered' => $q['covered'],
+            'quantity_received' => $q['received'],
+            'quantity_awaiting' => $q['awaiting'],
+            'quantity_open' => $q['open'],
+            'quantity_over' => $q['over'],
+            'source_change' => self::sourceChange($line, $sourceQuantitySum, $links, $totals['charges'][$line->getId()] ?? []),
             'need_from' => $needFrom?->format(\DateTimeInterface::ATOM),
             'need_to' => $needTo?->format(\DateTimeInterface::ATOM),
             'quotes' => $quotes,
             'selected_quote_id' => $selectedQuote?->getId(),
             'budget_chf' => $selectedQuote !== null ? (float) $selectedQuote->getAmountChf() : null,
             'order' => $order !== null ? $this->orderToArray($order) : null,
+            'orders' => array_map(
+                fn (ActivityGrossanlassProcurementOrder $o) => $this->orderToArray($o),
+                $this->entityManager->getRepository(ActivityGrossanlassProcurementOrder::class)
+                    ->findBy(['procurementLineId' => $line->getId()], ['createdAt' => 'ASC']),
+            ),
             'created_at' => $line->getCreatedAt()->format(\DateTimeInterface::ATOM),
             'updated_at' => $line->getUpdatedAt()->format(\DateTimeInterface::ATOM),
         ];
     }
 
     /**
-     * Leihe- und Kauf-Mengen je Bedarfsposition (Charges mit from_line_id).
+     * Chargen (Zusagen/Bestellungen) je Bedarfsposition mit physisch eingegangener Menge.
+     * Grundlage der einheitlichen Mengenrechnung ({@see GrossanlassProcurementQuantities}).
      *
-     * @return array{loaned: array<string, int>, ordered: array<string, int>}
+     * @return array{charges: array<string, list<array{id: string, origin: string, quantity: int, received: int}>>}
      */
     private function coverageTotalsByLineId(Department $department): array
     {
         $rows = $this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)
             ->findBy(['departmentId' => $department->getId()]);
-        $loaned = [];
-        $ordered = [];
+        $linked = [];
         foreach ($rows as $row) {
-            if (!$row instanceof DepartmentGrossanlassCommitment) {
-                continue;
-            }
-            $from = (string) $row->getProcurementLineId();
-            if ($from === '') {
-                continue;
-            }
-            $qty = max(0, $row->getQuantity());
-            if ($row->getOrigin() === DepartmentGrossanlassCommitment::ORIGIN_LOAN) {
-                $loaned[$from] = ($loaned[$from] ?? 0) + $qty;
-                continue;
-            }
-            if (
-                $row->getOrigin() === DepartmentGrossanlassCommitment::ORIGIN_BUY
-                || $row->getOrigin() === DepartmentGrossanlassCommitment::ORIGIN_BUY_RESALE
-            ) {
-                $ordered[$from] = ($ordered[$from] ?? 0) + $qty;
+            if ($row instanceof DepartmentGrossanlassCommitment && (string) $row->getProcurementLineId() !== '') {
+                $linked[] = $row;
             }
         }
+        $received = $this->movements->receivedByCommitment(array_map(static fn (DepartmentGrossanlassCommitment $c) => $c->getId(), $linked));
 
-        return ['loaned' => $loaned, 'ordered' => $ordered];
+        $charges = [];
+        foreach ($linked as $row) {
+            $charges[(string) $row->getProcurementLineId()][] = [
+                'id' => $row->getId(),
+                'origin' => $row->getOrigin(),
+                'quantity' => max(0, $row->getQuantity()),
+                'received' => $received[$row->getId()] ?? 0,
+            ];
+        }
+
+        return ['charges' => $charges];
+    }
+
+    /**
+     * Auswirkung geänderter Wünsche auf die Position. Berechnet nur; verändert nie Menge, Bestellung oder Zusagen.
+     * `decision_required`: die Wunschsumme weicht von dem ab, was zuletzt bewusst übernommen wurde.
+     *
+     * @param list<ActivityGrossanlassProcurementLineWish>                    $links
+     * @param list<array{origin: string, quantity: int, received?: int}>      $charges
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function sourceChange(ActivityGrossanlassProcurementLine $line, int $sourceSum, array $links, array $charges): ?array
+    {
+        $baseline = $line->getSourceQuantityAck() ?? $line->getQuantity();
+        $unitMismatch = false;
+        foreach ($links as $link) {
+            if ($link->getWishLine()->getQuantityUnit() !== $line->getQuantityUnit()) {
+                $unitMismatch = true;
+            }
+        }
+        $quantityChanged = $sourceSum !== $baseline && $links !== [];
+        if (!$quantityChanged && !$unitMismatch) {
+            return null;
+        }
+        $binding = $charges !== [] || in_array($line->getStatus(), [
+            ActivityGrossanlassProcurementLine::STATUS_BESTELLT,
+            ActivityGrossanlassProcurementLine::STATUS_TEILWEISE,
+            ActivityGrossanlassProcurementLine::STATUS_ERHALTEN,
+        ], true);
+        $frozen = GrossanlassProcurementQuantityFreeze::isFrozen($line->getQuantityAsked());
+        $canAdopt = $quantityChanged && !$binding && !$frozen
+            && in_array($line->getStatus(), [
+                ActivityGrossanlassProcurementLine::STATUS_BEDARF,
+                ActivityGrossanlassProcurementLine::STATUS_OFFERTE,
+                ActivityGrossanlassProcurementLine::STATUS_BUDGETIERT,
+            ], true);
+
+        return [
+            'decision_required' => $quantityChanged,
+            'reasons' => array_values(array_filter([$quantityChanged ? 'quantity' : null, $unitMismatch ? 'unit' : null])),
+            'source_quantity' => $sourceSum,
+            'accepted_quantity' => $baseline,
+            'line_quantity' => $line->getQuantity(),
+            'delta' => $sourceSum - $baseline,
+            'binding' => $binding,
+            'frozen' => $frozen,
+            'can_adopt' => $canAdopt,
+        ];
+    }
+
+    /**
+     * Entscheidung zu geänderten Wünschen: `adopt` übernimmt die Wunschsumme als Bedarf (nur unverbindliche Positionen),
+     * `keep` behält Menge und Beschaffung und hält die Abweichung als bewusst fest.
+     *
+     * @return array<string, mixed>
+     */
+    public function decideSourceChange(Department $department, User $user, string $lineId, string $decision): array
+    {
+        $this->assertCanManageProcurement($department, $user);
+        $line = $this->findLineInDepartment($department, $lineId);
+        $links = $this->loadWishLinksForLine($line);
+        $sum = count($this->loadVehiclesForLine($line));
+        foreach ($links as $link) {
+            $sum += $link->getWishLine()->getQuantity();
+        }
+        $charges = $this->coverageTotalsByLineId($department)['charges'][$line->getId()] ?? [];
+        $change = self::sourceChange($line, $sum, $links, $charges);
+        if ($change === null || $change['decision_required'] !== true) {
+            throw new \InvalidArgumentException('Keine Änderung der Wünsche zu entscheiden');
+        }
+
+        if ($decision === 'adopt') {
+            if ($change['can_adopt'] !== true) {
+                throw new \InvalidArgumentException('Position ist verbindlich oder eingefroren: Menge zuerst an Bestellung/Zusage anpassen, dann «Beibehalten» wählen');
+            }
+            $line->setQuantity(max(1, $sum));
+        } elseif ($decision !== 'keep') {
+            throw new \InvalidArgumentException('Ungültige Entscheidung');
+        }
+        $line->setSourceQuantityAck($sum);
+        $line->touchUpdatedAt();
+        $this->entityManager->flush();
+
+        return $this->lineToArray($line);
     }
 
     /**
@@ -3062,12 +3416,22 @@ class GrossanlassProcurementService
         return null;
     }
 
+    /**
+     * Erste aktive Bestellung (Kompatibilität für Leser mit nur einer Bestellung).
+     */
     private function findOrderForLine(ActivityGrossanlassProcurementLine $line): ?ActivityGrossanlassProcurementOrder
     {
-        $order = $this->entityManager->getRepository(ActivityGrossanlassProcurementOrder::class)
-            ->findOneBy(['procurementLineId' => $line->getId()]);
+        return $this->movements->activeOrders($line)[0] ?? null;
+    }
 
-        return $order instanceof ActivityGrossanlassProcurementOrder ? $order : null;
+    private function findOrderInLine(ActivityGrossanlassProcurementLine $line, string $orderId): ActivityGrossanlassProcurementOrder
+    {
+        $order = $this->entityManager->getRepository(ActivityGrossanlassProcurementOrder::class)->find($orderId);
+        if (!$order instanceof ActivityGrossanlassProcurementOrder || $order->getProcurementLineId() !== $line->getId()) {
+            throw new \InvalidArgumentException('Bestellung nicht gefunden');
+        }
+
+        return $order;
     }
 
     private function findQuoteInLine(ActivityGrossanlassProcurementLine $line, string $quoteId): ActivityGrossanlassProcurementQuote
@@ -3216,6 +3580,29 @@ class GrossanlassProcurementService
     /**
      * @return array<string, mixed>
      */
+    /**
+     * Verknüpft die Offerte mit der Anfrage, auf die sie antwortet (`inquiry_id`, leer = keine).
+     *
+     * @param array<string, mixed> $data
+     */
+    private function applyQuoteInquiry(ActivityGrossanlassProcurementQuote $quote, Department $department, array $data): void
+    {
+        if (!array_key_exists('inquiry_id', $data)) {
+            return;
+        }
+        $inquiryId = trim((string) ($data['inquiry_id'] ?? ''));
+        if ($inquiryId === '') {
+            $quote->setInquiry(null);
+
+            return;
+        }
+        $inquiry = $this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)->find($inquiryId);
+        if (!$inquiry instanceof DepartmentGrossanlassInquiry || $inquiry->getDepartmentId() !== $department->getId()) {
+            throw new \InvalidArgumentException('Anfrage nicht gefunden');
+        }
+        $quote->setInquiry($inquiry);
+    }
+
     private function quoteToArray(ActivityGrossanlassProcurementQuote $quote, ?Department $department = null): array
     {
         $departmentId = $department?->getId() ?? $quote->getProcurementLine()->getDepartmentId();
@@ -3227,6 +3614,7 @@ class GrossanlassProcurementService
             'procurement_line_id' => $quote->getProcurementLineId(),
             'supplier' => $quote->getSupplier(),
             'supplier_address_id' => $quote->getSupplierAddressId(),
+            'inquiry_id' => $quote->getInquiryId(),
             'supplier_address' => $supplierAddress !== null ? $this->supplierAddressSummary($supplierAddress) : null,
             'amount_chf' => (float) $quote->getAmountChf(),
             'notes' => $quote->getNotes(),
@@ -3296,14 +3684,33 @@ class GrossanlassProcurementService
      */
     private function orderToArray(ActivityGrossanlassProcurementOrder $order): array
     {
+        $line = $order->getProcurementLine();
+        $quote = $order->getQuote();
+        $charge = $this->movements->buyChargeForOrder($order);
+        $ordered = $order->isCancelled() ? 0 : ($charge instanceof DepartmentGrossanlassCommitment ? $charge->getQuantity() : ($order->getQuantity() ?? $line->getQuantity()));
+        $received = $charge instanceof DepartmentGrossanlassCommitment ? $this->movements->receivedQuantity($charge) : 0;
+
         return [
             'id' => $order->getId(),
             'procurement_line_id' => $order->getProcurementLineId(),
+            'status' => $order->getStatus(),
+            'agreement_kind' => $order->getAgreementKind(),
+            'quote_id' => $order->getQuoteId(),
+            'supplier' => $quote?->getSupplier() ?? $order->getSupplier(),
             'ordered_at' => $order->getOrderedAt()->format(\DateTimeInterface::ATOM),
             'cost_chf' => (float) $order->getCostChf(),
             'order_ref' => $order->getOrderRef(),
+            'quantity' => $order->getQuantity(),
+            'ordered_quantity' => $ordered,
+            'received_quantity' => $received,
+            'missing_quantity' => max(0, $ordered - $received),
+            'commitment_id' => $charge?->getId(),
+            'inbound_mode' => $order->getInboundMode() ?? $quote?->getInboundMode(),
+            'return_needed' => $order->getReturnNeeded() ?? $quote?->isReturnNeeded() ?? false,
             'delivery_at' => $order->getDeliveryAt()?->format(\DateTimeInterface::ATOM),
             'notes' => $order->getNotes(),
+            'cancelled_at' => $order->getCancelledAt()?->format(\DateTimeInterface::ATOM),
+            'cancel_reason' => $order->getCancelReason(),
             'created_at' => $order->getCreatedAt()->format(\DateTimeInterface::ATOM),
             'updated_at' => $order->getUpdatedAt()->format(\DateTimeInterface::ATOM),
         ];

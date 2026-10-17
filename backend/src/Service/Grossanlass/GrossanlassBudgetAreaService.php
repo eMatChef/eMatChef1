@@ -195,12 +195,19 @@ class GrossanlassBudgetAreaService
     /** @return array{0: string, 1: float} */
     private function stageOf(DepartmentGrossanlassCost $cost, ActivityGrossanlassProcurementLine $line): array
     {
-        $order = $this->entityManager->getRepository(ActivityGrossanlassProcurementOrder::class)->findOneBy(['procurementLineId' => $line->getId()]);
-        if ($order instanceof ActivityGrossanlassProcurementOrder) {
-            $commitment = $this->movements->buyChargeForLine($line);
-            $received = $commitment !== null && $this->movements->receivedQuantity($commitment) >= $commitment->getQuantity();
+        $orders = $this->movements->activeOrders($line);
+        if ($orders !== []) {
+            $amount = 0.0;
+            $allReceived = true;
+            foreach ($orders as $order) {
+                $amount += (float) $order->getCostChf();
+                $commitment = $this->movements->buyChargeForOrder($order);
+                if ($commitment === null || $this->movements->receivedQuantity($commitment) < $commitment->getQuantity()) {
+                    $allReceived = false;
+                }
+            }
 
-            return [$received ? 'effektiv' : 'bestellt', round((float) $order->getCostChf(), 2)];
+            return [$allReceived ? 'effektiv' : 'bestellt', round($amount, 2)];
         }
         $quotes = array_filter(
             $this->entityManager->getRepository(ActivityGrossanlassProcurementQuote::class)->findBy(['procurementLineId' => $line->getId()]),
