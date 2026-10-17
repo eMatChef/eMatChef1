@@ -5,6 +5,7 @@
 // Live-Lagebild: Aktionen werden im Ereignislog protokolliert.
 import { logEvent, markTripStarted } from '@/views/grossanlass/live/gaLiveEvents'
 import { computed, reactive } from 'vue'
+import type { GaDependency } from '@/api/grossanlassBauprojekt'
 
 export type GaAufgabeKind = 'arbeit' | 'material' | 'logistik' | 'werkstatt'
 const ROUTE_STEP_TEXT: Record<string, string> = {
@@ -16,7 +17,7 @@ const ROUTE_STEP_TEXT: Record<string, string> = {
   unloaded: 'entladen',
 }
 
-export type GaAufgabeStatus = 'open' | 'progress' | 'done'
+export type GaAufgabeStatus = 'open' | 'progress' | 'review' | 'done'
 export type GaAufgabeStatusFilter = 'all' | GaAufgabeStatus | 'overdue'
 export type GaAufgabePeriod = 'all' | 'today' | 'week'
 
@@ -31,7 +32,7 @@ export const GA_FAHRAUFTRAG_STEPS = [
 export type GaFahrauftragStep = (typeof GA_FAHRAUFTRAG_STEPS)[number]
 
 export type GaAufgabeMaterial = { label: string; qty: number; pack?: string }
-export type GaAufgabeStep = { label: string; done: boolean }
+export type GaAufgabeStep = { label: string; done: boolean; /** nur API-Aufgaben */ id?: string }
 export type GaAufgabeRoute = {
   /** geschätzte Fahrzeit in Minuten (ETA-Simulation) */
   etaMin?: number
@@ -43,6 +44,24 @@ export type GaAufgabeRoute = {
 
 export type GaAufgabe = {
   id: string
+  /** Nur API-Aufgaben: Bauprojekt/Auftrag, Zuständiger (User-ID) und ob ein eigener Termin gesetzt ist. */
+  groupId?: string
+  assigneeId?: string | null
+  scheduled?: boolean
+  /** Nur API-Aufgaben: Blockierung (Begründung) und serverseitig berechnete Rechte des Benutzers. */
+  blocked?: { reason: string; at: string | null } | null
+  permissions?: { edit: boolean; check: boolean; report: boolean; unblock: boolean; approve: boolean } | null
+  /** Nur API-Aufgaben: Abhängigkeiten (eigene und die des Bauauftrags), «wartet auf …». */
+  dependencies?: GaDependency[]
+  waiting?: boolean
+  waitingOn?: string[]
+  waitingHidden?: number
+  /** Nur API-Aufgaben: Gesamtabnahme-Zustand des Bauauftrags. */
+  orderStatus?: 'open' | 'review' | 'accepted'
+  /** Nur API-Aufgaben: Nachbesserung mit Rückweisungsgrund. */
+  rework?: { eventId: string; reason: string | null; at: string | null } | null
+  /** Nur API-Aufgaben: Verlauf Fertigmeldung/Abnahme/Rückgabe, neueste zuerst. */
+  events?: { id: string; type: 'reported' | 'accepted' | 'returned'; byName: string | null; note: string | null; at: string }[]
   kind: GaAufgabeKind
   title: string
   /** Ursprung als Breadcrumb, z. B. Ressort › Bereich › Bauprojekt */
@@ -483,12 +502,12 @@ export function isSameDay(a: Date, b: Date): boolean {
 }
 
 export function isOverdue(task: Pick<GaAufgabe, 'status' | 'endsAt'>, now = new Date()): boolean {
-  return task.status !== 'done' && task.endsAt.getTime() < now.getTime()
+  return task.status !== 'done' && task.status !== 'review' && task.endsAt.getTime() < now.getTime()
 }
 
 /** Fortschritt 0–100: Fahrauftrag über Schritte, sonst über Checkliste, erledigt = 100. */
 export function taskProgress(task: GaAufgabe): number {
-  if (task.status === 'done') return 100
+  if (task.status === 'done' || task.status === 'review') return 100
   if (task.kind === 'logistik') {
     return Math.round(((task.routeStepIndex + 1) / GA_FAHRAUFTRAG_STEPS.length) * 100)
   }
@@ -501,6 +520,7 @@ export function statusCounts(list: GaAufgabe[], now = new Date()) {
     open: list.filter((task) => task.status === 'open').length,
     progress: list.filter((task) => task.status === 'progress').length,
     overdue: list.filter((task) => isOverdue(task, now)).length,
+    review: list.filter((task) => task.status === 'review').length,
     done: list.filter((task) => task.status === 'done').length,
   }
 }
@@ -568,10 +588,11 @@ export function matchesFilters(
   return true
 }
 
-export type GaAufgabeBucket = 'overdue' | 'today' | 'tomorrow' | 'later' | 'done'
+export type GaAufgabeBucket = 'overdue' | 'review' | 'today' | 'tomorrow' | 'later' | 'done'
 
 export function bucketOf(task: GaAufgabe, now = new Date()): GaAufgabeBucket {
   if (task.status === 'done') return 'done'
+  if (task.status === 'review') return 'review'
   if (isOverdue(task, now)) return 'overdue'
   if (task.startsAt.getTime() <= new Date(now).setHours(23, 59, 59, 999)) return 'today'
   const tomorrow = new Date(now)

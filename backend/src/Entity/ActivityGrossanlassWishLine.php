@@ -8,11 +8,15 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'activity_grossanlass_wish_line')]
 #[ORM\Index(name: 'idx_grossanlass_wish_round', columns: ['round_id'])]
 #[ORM\Index(name: 'idx_grossanlass_wish_group', columns: ['group_id'])]
+#[ORM\Index(name: 'idx_grossanlass_wish_category', columns: ['category_id'])]
 class ActivityGrossanlassWishLine
 {
     public const KIND_MATERIAL = 'material';
     public const KIND_FAHRZEUG = 'fahrzeug';
     public const KIND_BEIDES = 'beides';
+
+    public const RESPONSIBILITY_DEPARTMENT = 'department';
+    public const RESPONSIBILITY_CENTRAL = 'central';
 
     public const STATUS_REQUESTED = 'requested';
     public const STATUS_ACCEPTED = 'accepted';
@@ -80,6 +84,10 @@ class ActivityGrossanlassWishLine
     #[ORM\Column(name: 'self_organized', type: 'boolean', options: ['default' => false])]
     private bool $selfOrganized = false;
 
+    /** department | central | null (noch nicht festgelegt). Bei «department» ist self_organized synchron true. */
+    #[ORM\Column(name: 'procurement_responsibility', type: 'string', length: 12, nullable: true)]
+    private ?string $procurementResponsibility = null;
+
     #[ORM\Column(name: 'enough_on_hand', type: 'boolean', options: ['default' => false])]
     private bool $enoughOnHand = false;
 
@@ -92,6 +100,13 @@ class ActivityGrossanlassWishLine
 
     #[ORM\Column(name: 'enough_on_hand_ref_id', type: 'string', length: 12, nullable: true)]
     private ?string $enoughOnHandRefId = null;
+
+    #[ORM\Column(name: 'category_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $categoryId = null;
+
+    #[ORM\ManyToOne(targetEntity: ActivityGrossanlassProcurementCategory::class)]
+    #[ORM\JoinColumn(name: 'category_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?ActivityGrossanlassProcurementCategory $category = null;
 
     #[ORM\Column(type: 'string', length: 20)]
     private string $status = self::STATUS_REQUESTED;
@@ -334,6 +349,32 @@ class ActivityGrossanlassWishLine
     public function setSelfOrganized(bool $selfOrganized): self
     {
         $this->selfOrganized = $selfOrganized;
+        if ($selfOrganized) {
+            $this->procurementResponsibility = self::RESPONSIBILITY_DEPARTMENT;
+        } elseif ($this->procurementResponsibility === self::RESPONSIBILITY_DEPARTMENT) {
+            $this->procurementResponsibility = null;
+        }
+
+        return $this;
+    }
+
+    /** Wirksame Zuständigkeit; bestehende self_organized-Wünsche zählen als Ressortbeschaffung. */
+    public function getProcurementResponsibility(): ?string
+    {
+        if ($this->procurementResponsibility !== null) {
+            return $this->procurementResponsibility;
+        }
+
+        return $this->selfOrganized ? self::RESPONSIBILITY_DEPARTMENT : null;
+    }
+
+    public function setProcurementResponsibility(?string $responsibility): self
+    {
+        if ($responsibility !== null && !in_array($responsibility, [self::RESPONSIBILITY_DEPARTMENT, self::RESPONSIBILITY_CENTRAL], true)) {
+            throw new \InvalidArgumentException('Beschaffungszuständigkeit ist ungültig');
+        }
+        $this->procurementResponsibility = $responsibility;
+        $this->selfOrganized = $responsibility === self::RESPONSIBILITY_DEPARTMENT;
 
         return $this;
     }
@@ -397,6 +438,24 @@ class ActivityGrossanlassWishLine
             'enough_on_hand_detail' => $this->enoughOnHandDetail,
             'enough_on_hand_ref_id' => $this->enoughOnHandRefId,
         ];
+    }
+
+    public function getCategoryId(): ?string
+    {
+        return $this->categoryId;
+    }
+
+    public function getCategory(): ?ActivityGrossanlassProcurementCategory
+    {
+        return $this->category;
+    }
+
+    public function setCategory(?ActivityGrossanlassProcurementCategory $category): self
+    {
+        $this->category = $category;
+        $this->categoryId = $category?->getId();
+
+        return $this;
     }
 
     public function getStatus(): string

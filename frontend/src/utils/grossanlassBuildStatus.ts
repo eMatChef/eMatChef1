@@ -209,3 +209,52 @@ export function gaBuildStatusAutoSaveOptions(
 export function showsGaBuildStatus(group: { node_type?: string | null }): boolean {
   return group.node_type === 'unterressort' || group.node_type === 'bauprojekt'
 }
+
+export interface GaBuildStatusSuggestion {
+  status: GaBuildStatus
+  /** i18n-Schlüssel unter `grossanlass.planung.ressorts.statusSuggest.reason` */
+  reason: 'quoted' | 'build' | 'teardown'
+}
+
+/**
+ * Dezenter Statusvorschlag für Bauaufträge; ändert nie selbst etwas. «In Nutzung» und «Abgeschlossen» werden
+ * nie vorgeschlagen (nur manuell). Zeitablauf allein gilt nicht als Fortschritt: «Aufbau» braucht erledigte
+ * Aufgaben oder am Platz bereitstehendes Material.
+ */
+export function suggestBuildStatus(input: {
+  nodeType?: string | null
+  current: GaBuildStatus
+  windowStart?: string | null
+  procurementProgress?: string | null
+  card?: {
+    tasks: { total: number; done: number }
+    material: { at_place_items: number }
+  } | null
+  /** Fachtag (BusinessClock) als `YYYY-MM-DD`. */
+  today: string
+  windowEnd?: string | null
+  periods?: DepartmentCalendarPeriod[]
+}): GaBuildStatusSuggestion | null {
+  if (input.nodeType !== 'bauprojekt') return null
+  const { current } = input
+  if (current === 'aborted' || current === 'done') return null
+
+  const from = (input.windowStart || '').slice(0, 10)
+  const started = !from || input.today >= from
+  const progress = input.procurementProgress === 'build'
+    || (input.card?.tasks.done ?? 0) > 0
+    || (input.card?.material.at_place_items ?? 0) > 0
+
+  if ((current === 'build' || current === 'use')
+    && started
+    && deriveBuildStatus(input.windowStart, input.windowEnd, input.today, input.periods) === 'teardown') {
+    return { status: 'teardown', reason: 'teardown' }
+  }
+  if ((current === 'planned' || current === 'quoted') && started && progress) {
+    return { status: 'build', reason: 'build' }
+  }
+  if (current === 'planned' && input.procurementProgress === 'quoted') {
+    return { status: 'quoted', reason: 'quoted' }
+  }
+  return null
+}

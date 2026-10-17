@@ -1,5 +1,9 @@
 <template>
   <div v-if="venueAddressId" class="activity-venue-overview span-2">
+    <p v-if="moveSavingId" class="ga-move-status" role="status">
+      <v-progress-circular indeterminate size="14" width="2" />
+      {{ t('grossanlass.planung.ressorts.positionSaving') }}
+    </p>
     <EventVenueDetailLocations
       v-if="venueAddress"
       ref="locationsRef"
@@ -14,12 +18,15 @@
       :allow-poi-children="!gaDepartmentId"
       :extra-create-locked-hint="extraCreateLockedHint"
       :core-location-mode="Boolean(gaDepartmentId)"
+      :hover-pin-labels="hoverPinLabels"
+      :picker-mode="pickerMode"
       :lock-core-adds="gaMapMode === 'starred'"
       :has-storage-location="hasStorageLocation"
       :storage-summary="primaryStorageSummary"
       :storage-latitude="primaryStorageAddress?.latitude ?? null"
       :storage-longitude="primaryStorageAddress?.longitude ?? null"
       :show-location-search="false"
+      search-when-editing
       :extra-sites="extraSites"
       :extra-editable-pin-id="extraEditablePinId"
       :extra-focus-pin-id="gaEditingId"
@@ -53,7 +60,12 @@
       @redraw-polygon="resetInlinePolygon"
       @save-area="emit('save-area')"
       @open-linked-group="openLinkedGroupByPlaceId"
-    />
+      @map-site-click="onMapSiteClick"
+    >
+      <template v-if="$slots['sidebar-top']" #sidebar-top>
+        <slot name="sidebar-top" />
+      </template>
+    </EventVenueDetailLocations>
 
     <div
       v-if="showSitePlanControls"
@@ -189,10 +201,13 @@
         {{ gaDraftLat.toFixed(5) }}° N, {{ gaDraftLng?.toFixed(5) }}° E
       </p>
       <p v-else class="ga-place-field__hint">{{ t('activities.venueLocations.extraPlaceHint') }}</p>
+      <p v-if="gaPlaceGroupIds(gaEditingPlace).length > 1" class="ga-place-field__hint ga-place-field__hint--shared" role="status">
+        {{ t('grossanlass.planung.ressorts.placeShared', { count: gaPlaceGroupIds(gaEditingPlace).length }) }}
+      </p>
       <p v-if="gaEditingId && !gaCanDelete && gaEditingPlace?.kind === 'area'" class="ga-place-field__hint">
         {{ t('grossanlass.einstellungen.placesLinkedArea') }}
       </p>
-      <p v-else-if="gaEditingId && !gaCanDelete && gaEditingPlace?.group_id" class="ga-place-field__hint">
+      <p v-else-if="gaEditingId && !gaCanDelete && gaPlaceGroupIds(gaEditingPlace).length" class="ga-place-field__hint">
         {{ t('grossanlass.einstellungen.placesLinkedBauprojekt') }}
       </p>
       <template #actions>
@@ -339,6 +354,7 @@ import {
   gaMapOverlayBounds,
   gaPlaceColor,
   gaPlaceCreateKinds,
+  gaPlaceGroupIds,
   gaPlaceKind,
   gaPlaceKindLabelKey,
   normalizeGaPolygon,
@@ -364,6 +380,14 @@ const props = withDefaults(
     draftPlaceName?: string
     /** Inline-Entwurf als Bereichs-Polygon statt Pin. */
     draftPlaceKind?: GaPlaceKind
+    /** Pin-Namen nur beim Hover bzw. Antippen zeigen. */
+    hoverPinLabels?: boolean
+    /** Linke Spalte ohne Standortliste; Auswahl über Slot «sidebar-top». */
+    pickerMode?: boolean
+    /** Eigene Standorte der bearbeiteten Gruppe; sind sie gesetzt, werden fremde Standorte ausgeblendet bzw. gedämpft. */
+    ownPlaceIds?: string[] | null
+    /** Fremde Standorte (dezent, nicht verschiebbar) einblenden. */
+    showOtherPlaces?: boolean
   }>(),
   {
     readOnly: false,
@@ -374,6 +398,10 @@ const props = withDefaults(
     inlinePlaceDraft: false,
     draftPlaceName: '',
     draftPlaceKind: 'bauprojekt',
+    hoverPinLabels: false,
+    pickerMode: false,
+    ownPlaceIds: null,
+    showOtherPlaces: false,
   },
 )
 
@@ -554,29 +582,89 @@ const gaOverviewHint = computed(() => {
     : t('activities.venueLocations.gaOverviewHint')
 })
 
+function isHighlightedPlace(id: string): boolean {
+  return id === previewPlaceId.value || id === focusedAreaPlaceId.value || focusedChildPlaceIds.value.has(id)
+}
+
 function groupForPlace(place: GaPlace | null | undefined): GrossanlassGroup | null {
-  if (!place?.group_id) return null
-  return gaGroups.value.find((row) => row.id === place.group_id) ?? null
+  // Bei gemeinsam genutzten Standorten gibt es keine eindeutige Gruppe.
+  const ids = gaPlaceGroupIds(place)
+  if (ids.length !== 1) return null
+  return gaGroups.value.find((row) => row.id === ids[0]) ?? null
 }
 
 function groupLinkKindForPlace(place: GaPlace | null | undefined): 'bereich' | 'bauprojekt' | null {
-  if (!place?.group_id) return null
+  if (gaPlaceGroupIds(place).length !== 1) return null
   const group = groupForPlace(place)
   if (group) return group.node_type === 'bauprojekt' ? 'bauprojekt' : 'bereich'
-  return gaPlaceKind(place.kind) === 'bauprojekt' ? 'bauprojekt' : 'bereich'
+  return gaPlaceKind(place?.kind) === 'bauprojekt' ? 'bauprojekt' : 'bereich'
+}
+
+/** Gewählter Bereich (Polygon) auf der Karte und dessen Bauprojekt-Orte. */
+const focusedAreaPlaceId = ref<string | null>(null)
+/** Vorhandener Ort, der im Dialog zur Verwendung gewählt wurde. */
+const previewPlaceId = ref<string | null>(null)
+const focusedChildPlaceIds = ref<Set<string>>(new Set())
+
+function isDescendantGroup(groupId: string | null | undefined, ancestorId: string): boolean {
+  const seen = new Set<string>()
+  let current = groupId ? gaGroups.value.find((row) => row.id === groupId) : null
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id)
+    if (current.parent_id === ancestorId) return true
+    current = current.parent_id ? gaGroups.value.find((row) => row.id === current!.parent_id) : null
+  }
+  return false
+}
+
+async function onMapSiteClick(placeId: string) {
+  const place = gaPlaces.value.find((row) => row.id === placeId)
+  if (!place) return
+  // Im Gruppen-Dialog darf ein Klick auf fremde Standorte nichts auswählen oder verändern.
+  if (props.inlinePlaceDraft && placeId !== gaEditingId.value) return
+  if (gaPlaceKind(place.kind) !== 'area') {
+    // Bauprojekt/Ort: bestehende Details öffnen (verknüpftes Bauprojekt, sonst Ort bearbeiten).
+    if (gaPlaceGroupIds(place).length === 1) await openLinkedGroupByPlaceId(placeId)
+    else onEditExtra(placeId)
+    return
+  }
+  if (focusedAreaPlaceId.value === placeId) {
+    focusedAreaPlaceId.value = null
+    focusedChildPlaceIds.value = new Set()
+    return
+  }
+  await ensureGaGroups()
+  const areaGroupIds = gaPlaceGroupIds(place)
+  focusedAreaPlaceId.value = placeId
+  focusedChildPlaceIds.value = new Set(
+    areaGroupIds.length
+      ? gaPlaces.value
+          .filter((row) => row.id !== placeId && gaPlaceGroupIds(row).some((gid) => areaGroupIds.some((ancestor) => isDescendantGroup(gid, ancestor))))
+          .map((row) => row.id)
+      : [],
+  )
+}
+
+const ownPlaceSet = computed(() => (props.ownPlaceIds?.length ? new Set(props.ownPlaceIds) : null))
+
+function isOwnPlace(id: string): boolean {
+  return ownPlaceSet.value?.has(id) === true || id === gaEditingId.value
 }
 
 const extraSites = computed((): VenueExtraSite[] => {
-  const source =
+  let source =
     props.gaMapMode === 'starred'
       ? gaPlaces.value.filter((place) => place.starred)
       : gaPlaces.value
+  if (ownPlaceSet.value && !props.showOtherPlaces) source = source.filter((place) => isOwnPlace(place.id))
   const rows: VenueExtraSite[] = source.map((place) => {
     const kind = gaPlaceKind(place.kind)
     const color = gaPlaceColor(kind)
     const isEditing = extraEditablePinId.value === place.id
     const polygon = isEditing ? gaDraftPolygon.value : normalizeGaPolygon(place.polygon)
     const isArea = kind === 'area'
+    const own = ownPlaceSet.value ? isOwnPlace(place.id) : false
+    const muted = ownPlaceSet.value != null && !own && !isEditing
     const lat = isEditing && !isArea ? gaDraftLat.value : place.latitude
     const lng = isEditing && !isArea ? gaDraftLng.value : place.longitude
     return {
@@ -589,7 +677,9 @@ const extraSites = computed((): VenueExtraSite[] => {
       color,
       qrUrl: place.qr_url,
       starred: place.starred === true,
-      detailOnly: place.starred !== true,
+      detailOnly: !muted && !own && place.starred !== true && !isHighlightedPlace(place.id),
+      highlighted: own || isHighlightedPlace(place.id),
+      muted,
       canDelete: place.can_delete === true,
       groupLinkKind: groupLinkKindForPlace(place),
       polygon: isArea ? polygon : null,
@@ -602,7 +692,7 @@ const extraSites = computed((): VenueExtraSite[] => {
               longitude: lng,
               variant: 'poi',
               color,
-              detailOnly: place.starred !== true,
+              detailOnly: !muted && !own && place.starred !== true && !isHighlightedPlace(place.id),
             }
           : null,
     }
@@ -719,12 +809,13 @@ async function ensureGaGroups(): Promise<GrossanlassGroup[]> {
 
 async function openLinkedGroupByPlaceId(placeId: string) {
   const place = gaPlaces.value.find((row) => row.id === placeId)
-  if (!place?.group_id) return
+  const linkedIds = gaPlaceGroupIds(place)
+  if (!place || linkedIds.length !== 1) return
   await ensureGaGroups()
   const group = groupForPlace(place)
   const kind = groupLinkKindForPlace(place)
   if (kind === 'bauprojekt') {
-    linkedProjectGroup.value = group ?? ({ id: place.group_id, name: place.name } as GrossanlassGroup)
+    linkedProjectGroup.value = group ?? ({ id: linkedIds[0], name: place.name } as GrossanlassGroup)
     linkedProjectOpen.value = true
     return
   }
@@ -1073,6 +1164,8 @@ async function toggleGaStar(id: string) {
   }
 }
 
+const moveSavingId = ref<string | null>(null)
+
 async function savePlacePosition(id: string, latitude: number, longitude: number) {
   const departmentId = props.gaDepartmentId
   if (!departmentId || id === DRAFT_GA_PIN_ID) {
@@ -1080,15 +1173,27 @@ async function savePlacePosition(id: string, latitude: number, longitude: number
     gaDraftLng.value = longitude
     return
   }
+  const previous = gaPlaces.value.find((row) => row.id === id)
+  const editing = gaEditingId.value === id
+  if (editing) {
+    gaDraftLat.value = latitude
+    gaDraftLng.value = longitude
+  }
+  moveSavingId.value = id
   try {
     const saved = await updateGrossanlassPlace(departmentId, id, { latitude, longitude })
     gaPlaces.value = gaPlaces.value.map((row) => (row.id === saved.id ? saved : row))
-    if (gaEditingId.value === id) {
-      gaDraftLat.value = latitude
-      gaDraftLng.value = longitude
-    }
+    toast.success(t('grossanlass.planung.ressorts.positionSaved'))
   } catch {
+    if (editing) {
+      gaDraftLat.value = previous?.latitude ?? null
+      gaDraftLng.value = previous?.longitude ?? null
+    }
+    // Neu rendern, damit der Marker auf die gespeicherte Position zurückspringt.
+    gaPlaces.value = [...gaPlaces.value]
     toast.error(t('grossanlass.einstellungen.mapMoveError'))
+  } finally {
+    moveSavingId.value = null
   }
 }
 
@@ -1106,6 +1211,15 @@ function onExtraMapClick(payload: { id: string; latitude: number; longitude: num
       gaDraftKind.value = 'bauprojekt'
       gaEditingId.value = null
       gaDialogOpen.value = true
+    }
+    return
+  }
+  if (props.inlinePlaceDraft) {
+    // Kartenklick speichert nie; nur ein noch unplatzierter Ort übernimmt die Position ins Formular.
+    const place = gaPlaces.value.find((row) => row.id === payload.id)
+    if (place && place.latitude == null && gaEditingId.value === payload.id) {
+      gaDraftLat.value = payload.latitude
+      gaDraftLng.value = payload.longitude
     }
     return
   }
@@ -1146,7 +1260,8 @@ function beginInlineDraft(name = '', kind: GaPlaceKind = 'bauprojekt') {
 function beginEditPlace(placeId: string) {
   const place = gaPlaces.value.find((row) => row.id === placeId)
   if (!place) return
-  extraEditablePinId.value = placeId
+  // Eigener Standort ist nur markiert; verschieben/zeichnen erst nach Klick auf den Bleistift.
+  extraEditablePinId.value = null
   gaEditingId.value = placeId
   gaDraftName.value = place.name
   gaDraftKind.value = gaPlaceKind(place.kind)
@@ -1162,9 +1277,28 @@ function beginEditPlace(placeId: string) {
   }
 }
 
+/** Karte auf die angegebenen Standorte (Punkte/Polygone) zentrieren und passend zoomen. */
+function fitToPlaces(ids: string[]) {
+  const coords: Array<{ lat: number; lng: number }> = []
+  for (const place of gaPlaces.value.filter((row) => ids.includes(row.id))) {
+    const polygon = normalizeGaPolygon(place.polygon)
+    if (gaPlaceKind(place.kind) === 'area' && polygon.length > 0) coords.push(...polygon)
+    else if (place.latitude != null && place.longitude != null) coords.push({ lat: place.latitude, lng: place.longitude })
+  }
+  if (coords.length === 0) return
+  const lats = coords.map((c) => c.lat)
+  const lngs = coords.map((c) => c.lng)
+  const single = coords.length === 1
+  const bounds = single
+    ? boundsAroundPoint(coords[0].lat, coords[0].lng, 0.004)
+    : { north: Math.max(...lats), south: Math.min(...lats), east: Math.max(...lngs), west: Math.min(...lngs) }
+  void nextTick(() => locationsRef.value?.fitOverlayBounds?.(bounds))
+}
+
 function onEditExtra(id: string) {
   if (props.inlinePlaceDraft) {
-    beginEditPlace(id)
+    if (gaEditingId.value !== id) beginEditPlace(id)
+    extraEditablePinId.value = id
     return
   }
   openGaPlaceDialog(id)
@@ -1207,7 +1341,29 @@ function undoInlinePolygonPoint() {
   gaDraftPolygon.value = gaDraftPolygon.value.slice(0, -1)
 }
 
+function previewExistingPlace(placeId: string | null) {
+  previewPlaceId.value = placeId
+  const place = placeId ? gaPlaces.value.find((row) => row.id === placeId) : null
+  if (!place) return
+  const polygon = normalizeGaPolygon(place.polygon)
+  let bounds: { north: number; south: number; east: number; west: number } | null = null
+  if (gaPlaceKind(place.kind) === 'area' && polygon.length > 0) {
+    const lats = polygon.map((point) => point.lat)
+    const lngs = polygon.map((point) => point.lng)
+    bounds = {
+      north: Math.max(...lats),
+      south: Math.min(...lats),
+      east: Math.max(...lngs),
+      west: Math.min(...lngs),
+    }
+  } else if (place.latitude != null && place.longitude != null) {
+    bounds = boundsAroundPoint(place.latitude, place.longitude, 0.004)
+  }
+  if (bounds) void nextTick(() => locationsRef.value?.fitOverlayBounds?.(bounds))
+}
+
 function clearInlineDraft() {
+  previewPlaceId.value = null
   extraEditablePinId.value = null
   gaEditingId.value = null
   gaDraftLat.value = null
@@ -1499,6 +1655,9 @@ defineExpose({
   softReload: softReloadMapUi,
   beginInlineDraft,
   beginEditPlace,
+  previewExistingPlace,
+  fitToPlaces,
+  places: gaPlaces,
   finishInlineDraw,
   getInlineDraftCoords,
   getInlineDraftPolygon,
@@ -1516,6 +1675,15 @@ defineExpose({
 </script>
 
 <style scoped>
+.ga-move-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
 .activity-venue-overview {
   display: flex;
   flex-direction: column;

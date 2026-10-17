@@ -56,7 +56,7 @@ Ein Demo-Department ist ein `Department` mit `demo_mode = true` (**IST**, [BUSIN
 | Szenario | Dokument | Demo-Department heute | Stand |
 | --- | --- | --- | --- |
 | Materialverwaltung (`materialverwaltung`) | [DEPARTMENT.md](./scenarios/DEPARTMENT.md) | keines | **SOLL** |
-| Grossanlass Event (`grossanlass-event`) | [GROSSANLASS.md](./scenarios/GROSSANLASS.md) | `Demo Grossanlass`, zusätzlich `Demo-Grossanlass-Event` (heute zwei Departments, schmal) | **IST** (schmal) / Zusammenführung **SOLL** |
+| Grossanlass Event (`grossanlass-event`) | [GROSSANLASS.md](./scenarios/GROSSANLASS.md) | `Demo Grossanlass Event` in der gemeinsamen «Demo Organisation» ([SEED-KONZEPT.md §7.13](./SEED-KONZEPT.md#713-gemeinsame-demo-organisation-und-event-inhalt-ist-katalog-20261010)); die alten Departments sind `old-…` (Legacy, unverändert) | **IST** (Struktur, Bauprojekte, Materialwünsche, Zeitplan 2027, Beschaffungsablauf, Karte, Packaufträge); Wareneingang, Rückbau, Weiterverkauf **SOLL** |
 | Grossanlass Camp (`grossanlass-camp`) | [GROSSANLASS.md §8](./scenarios/GROSSANLASS.md#8-szenario-grossanlass-camp-soll) | keines | **SOLL** |
 
 **SOLL (beschlossen):** Es gibt **drei voneinander unabhängige** Demo-Departments, je mit eigener BusinessClock, eigenem Ausgangspunkt, mehreren Prozesszuständen und unabhängigem Reset. Sie verwenden dieselben bestehenden Domain-Strukturen und dieselbe Seed- und Zeit-Infrastruktur ([SEED-KONZEPT.md](./SEED-KONZEPT.md)), aber keine gemeinsamen Datensätze und keine Abhängigkeit zwischen Szenarien. Weitere Szenarien (z. B. Lieferant, Werkstatt-Schwerpunkt) sind denkbar, aber nicht geplant.

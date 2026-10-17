@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Service\Demo\Organisation;
 
+use App\Entity\Address;
 use App\Entity\DemoSeedRecord;
+use App\Entity\DepartmentCalendarPeriod;
+use App\Entity\DepartmentSetting;
 use App\Entity\DepartmentGrossanlassConfig;
 use App\Entity\DepartmentGrossanlassParticipant;
 use App\Entity\Department;
@@ -19,6 +22,7 @@ use App\Service\Auth\TotpService;
 use App\Service\Bootstrap\DemoGrossanlassSeedService;
 use App\Service\Bootstrap\DemoSupplierSeedService;
 use App\Service\Demo\Scenario\DemoScenarioInterface;
+use App\Service\Demo\Scenario\DemoScenarioKey;
 use App\Service\Demo\Scenario\DemoSeedLedger;
 use App\Service\Demo\Scenario\SeedContext;
 use App\Service\Demo\Scenario\SeedResult;
@@ -58,7 +62,8 @@ class DemoOrganisationSeeder
     ) {
     }
 
-    public function sync(DemoScenarioInterface $scenario, SeedContext $context): SeedResult
+    /** @param list<string> $contentSeedKeys Ledger-Schlüssel, die das Szenario ausserhalb der Organisationsstruktur führt (nicht als verwaist melden) */
+    public function sync(DemoScenarioInterface $scenario, SeedContext $context, array $contentSeedKeys = []): SeedResult
     {
         $key = $scenario->key();
         $cat = $this->catalog->scenario($key);
@@ -69,7 +74,7 @@ class DemoOrganisationSeeder
         }
 
         $report = new SyncReport();
-        $expected = [];
+        $expected = $contentSeedKeys;
 
         // Gemeinsame Demo-Benutzer: nur anlegen/ergänzen, nie einem Szenario zugeordnet, nie gelöscht.
         $shared = $context->sharedUsers();
@@ -85,6 +90,9 @@ class DemoOrganisationSeeder
             $users[$scope['account']] ??= $this->ensureUser($shared, $report, $scope['account'], $version);
         }
 
+        // Gemeinsame Demo-Organisation (ein Ledger-Eintrag ausserhalb der Szenarien): jedes Szenario verwendet dieselbe.
+        $organisation = $this->ensureSharedOrganisation($context, $report, $key, $version);
+
         $department = $context->department();
         if ($department === null) {
             $owner = null;
@@ -99,15 +107,16 @@ class DemoOrganisationSeeder
 
                 return SeedResult::ok('Department nicht angelegt', $report->created, $report->unchanged, $report->notes());
             }
-            $organisation = $this->ensureOrganisation($context, $report, $key, $cat['organisation']['name'], $version);
-            $expected[] = $key . ':organisation';
             $department = $this->createDepartment($scenario, $organisation, $owner, $cat['department']['name']);
             $department->setDemoScenarioKey($key);
             $this->entityManager->flush();
             $context = $context->withDepartment($department);
-        } elseif ($context->findRecord($key . ':organisation') !== null) {
-            $expected[] = $key . ':organisation';
         }
+        if ($context->findRecord($key . ':organisation') !== null) {
+            $expected[] = $key . ':organisation'; // früherer Ledger-Eintrag der Szenario-Organisation (nicht mehr geführt, nicht gelöscht)
+        }
+        $expected[] = $key . ':department-organisation';
+        $this->ensureDepartmentOrganisation($context, $report, $key . ':department-organisation', $department, $organisation, $version);
 
         $this->ensureDepartmentRecord($context, $report, $key, $department, $cat['department']['name'], $version);
         $expected[] = $key . ':department';
@@ -115,6 +124,26 @@ class DemoOrganisationSeeder
         if (isset($cat['grossanlass']) && $scenario->expectsGrossanlass()) {
             $expected[] = $key . ':config';
             $this->ensureGrossanlassConfig($context, $report, $key, $department, $cat['grossanlass'], $users, $version);
+            if (isset($cat['grossanlass']['locationText']) || isset($cat['grossanlass']['eventStart'])) {
+                $expected = array_merge($expected, [$key . ':venue-address', $key . ':stammdaten']);
+                foreach (['delivery', 'storage'] as $part) {
+                    if (isset($cat['grossanlass'][$part])) {
+                        $expected[] = $key . ':' . $part . '-address';
+                    }
+                }
+                if ($context->findRecord($key . ':master') !== null) {
+                    $expected[] = $key . ':master'; // frühere Fassung ohne Anlassbeginn (nicht mehr geführt, nicht gelöscht)
+                }
+                $this->ensureGrossanlassMaster($context, $report, $key, $department, $cat['grossanlass'], $version);
+                foreach ($cat['grossanlass']['phases'] ?? [] as $phase) {
+                    $expected[] = $key . ':phase:' . $phase['key'];
+                    $this->ensureGrossanlassPhase($context, $report, $key, $department, $phase, $version);
+                }
+                if (isset($cat['grossanlass']['clockPresets'])) {
+                    $expected[] = $key . ':clock-presets';
+                    $this->ensureClockPresets($context, $report, $key, $department, $cat['grossanlass']['clockPresets'], $version);
+                }
+            }
         }
 
         $departments = [DemoOrganisationCatalog::MAIN => $department];
@@ -123,11 +152,16 @@ class DemoOrganisationSeeder
             $extra = $this->ensureExtraDepartment($context, $report, $key, $department, $def, $departments, $version);
             if ($extra instanceof Department) {
                 $departments[$def['key']] = $extra;
+                $expected[] = $key . ':department-organisation:' . $def['key'];
+                $this->ensureDepartmentOrganisation($context, $report, $key . ':department-organisation:' . $def['key'], $extra, $organisation, $version);
             }
         }
         if (isset($cat['department']['parent'])) {
             $expected[] = $key . ':department-parent';
             $this->ensureMainParent($context, $report, $key, $department, $departments[$cat['department']['parent']] ?? null, $version);
+        } elseif (isset($cat['department']['parentRef'])) {
+            $expected[] = $key . ':department-parent';
+            $this->ensureMainParent($context, $report, $key, $department, $this->referencedParent($context, $cat['department']['parentRef']), $version);
         }
 
         $groups = [];
@@ -152,6 +186,9 @@ class DemoOrganisationSeeder
             }
             $membershipKey = self::membershipKey($key, $member['department'] ?? null, $member['account']);
             $expected[] = $membershipKey;
+            if (\array_key_exists('helper', $member)) {
+                $expected[] = $membershipKey . ':helper';
+            }
             $this->ensureMembership($context, $report, $membershipKey, $target, $user, $member, $version);
             foreach ($member['groups'] ?? [] as $gm) {
                 $group = $groups[$gm['group']] ?? null;
@@ -178,11 +215,16 @@ class DemoOrganisationSeeder
                     $rootIds[] = $departments[$rootKey]->getId();
                 }
             }
-            $organisationIds = ($scope['organisation'] ?? false) === true ? [$department->getOrganisationId()] : [];
             $expected[] = $key . ':adminscope:' . $scope['account'];
             if ($user instanceof User && \count($rootIds) === \count($scope['roots'] ?? [])) {
-                $universe = array_merge([$department->getOrganisationId()], array_map(static fn (Department $d): string => $d->getId(), array_values($departments)));
-                $this->ensureAdminScope($context, $report, $key, $scope['account'], $user, $rootIds, $organisationIds, $universe, $version);
+                // Eigener Bereich: die Departments des Szenarios und die frühere Szenario-Organisation (Ledger), nie die
+                // gemeinsame Organisation (sonst würde ein Szenario Einträge der anderen verwalten oder entziehen).
+                $universe = array_map(static fn (Department $d): string => $d->getId(), array_values($departments));
+                $legacyOrganisation = $context->findRecord($key . ':organisation');
+                if ($legacyOrganisation !== null && $legacyOrganisation->getEntityId() !== $organisation->getId()) {
+                    $universe[] = $legacyOrganisation->getEntityId();
+                }
+                $this->ensureAdminScope($context, $report, $key, $scope['account'], $user, $rootIds, [], $universe, $version);
             }
         }
 
@@ -224,12 +266,27 @@ class DemoOrganisationSeeder
             }
         }
 
-        $required = [$key . ':department'];
+        $required = [$key . ':department', $key . ':department-organisation'];
+        if ($context->sharedOrganisation()->findRecord(DemoSeedLedger::SHARED_ORGANISATION . ':organisation') === null) {
+            $violations[] = 'Gemeinsame Demo-Organisation fehlt im Ledger (Sync legt sie an oder übernimmt sie).';
+        }
         foreach ($cat['departments'] ?? [] as $d) {
+            $required[] = $key . ':department-organisation:' . $d['key'];
             $required[] = $key . ':department:' . $d['key'];
         }
         foreach ($cat['participants'] ?? [] as $participantKey) {
             $required[] = $key . ':participant:' . $participantKey;
+        }
+        foreach ($cat['grossanlass']['phases'] ?? [] as $phase) {
+            $required[] = $key . ':phase:' . $phase['key'];
+        }
+        if (isset($cat['grossanlass']['clockPresets'])) {
+            $required[] = $key . ':clock-presets';
+        }
+        foreach (['delivery', 'storage'] as $part) {
+            if (isset($cat['grossanlass'][$part])) {
+                $required[] = $key . ':' . $part . '-address';
+            }
         }
         foreach ($cat['adminScopes'] ?? [] as $scope) {
             $required[] = $key . ':adminscope:' . $scope['account'];
@@ -239,6 +296,9 @@ class DemoOrganisationSeeder
         }
         foreach ($cat['members'] as $m) {
             $required[] = self::membershipKey($key, $m['department'] ?? null, $m['account']);
+            if (\array_key_exists('helper', $m)) {
+                $required[] = self::membershipKey($key, $m['department'] ?? null, $m['account']) . ':helper';
+            }
             foreach ($m['groups'] ?? [] as $gm) {
                 $required[] = $key . ':groupmember:' . $m['account'] . ':' . $gm['group'];
             }
@@ -284,10 +344,14 @@ class DemoOrganisationSeeder
     /** @param array<string, mixed> $cat */
     private function plan(string $key, array $cat, SeedContext $context): SeedResult
     {
-        $seedKeys = [$key . ':organisation', $key . ':department'];
+        $seedKeys = [$key . ':department', $key . ':department-organisation'];
         $sharedKeys = [];
+        if ($context->sharedOrganisation()->findRecord(DemoSeedLedger::SHARED_ORGANISATION . ':organisation') === null) {
+            $missingShared = [DemoSeedLedger::SHARED_ORGANISATION . ':organisation'];
+        }
         foreach ($cat['departments'] ?? [] as $d) {
             $seedKeys[] = $key . ':department:' . $d['key'];
+            $seedKeys[] = $key . ':department-organisation:' . $d['key'];
         }
         foreach ($cat['participants'] ?? [] as $participantKey) {
             $seedKeys[] = $key . ':participant:' . $participantKey;
@@ -302,11 +366,16 @@ class DemoOrganisationSeeder
         foreach ($cat['members'] as $m) {
             $sharedKeys[] = DemoSeedLedger::SHARED_USERS . ':user:' . $m['account'];
             $seedKeys[] = self::membershipKey($key, $m['department'] ?? null, $m['account']);
+            if (\array_key_exists('helper', $m)) {
+                $seedKeys[] = self::membershipKey($key, $m['department'] ?? null, $m['account']) . ':helper';
+            }
             foreach ($m['groups'] ?? [] as $gm) {
                 $seedKeys[] = $key . ':groupmember:' . $m['account'] . ':' . $gm['group'];
             }
         }
         $missing = array_values(array_filter($seedKeys, fn (string $k): bool => $context->findRecord($k) === null));
+        $missing = array_merge($missing, $missingShared ?? []);
+        $seedKeys = array_merge($seedKeys, $missingShared ?? []);
         $shared = $context->sharedUsers();
         foreach (array_unique(array_merge($sharedKeys, array_map(static fn (string $a): string => DemoSeedLedger::SHARED_USERS . ':user:' . $a, $this->catalog->sharedAccounts()))) as $k) {
             $seedKeys[] = $k;
@@ -323,10 +392,17 @@ class DemoOrganisationSeeder
         );
     }
 
-    private function ensureOrganisation(SeedContext $context, SyncReport $report, string $key, string $name, string $version): Organisation
+    /**
+     * Die eine Demo-Organisation aller Szenarien. Der Ledger-Eintrag gehört keinem Szenario (Ledger-Bereich
+     * «demo-organisation»). Bestehende Szenario-Organisationen werden nicht neu angelegt, sondern einmalig übernommen:
+     * zuerst die der Materialverwaltung (Grundlage der gemeinsamen Organisation), sonst die des aufrufenden Szenarios.
+     * Ein manuell geänderter Name wird nicht überschrieben.
+     */
+    private function ensureSharedOrganisation(SeedContext $context, SyncReport $report, string $callingScenario, string $version): Organisation
     {
-        $entity = $this->applier->ensure($context, $report, new ManagedSpec(
-            seedKey: $key . ':organisation',
+        $shared = $context->sharedOrganisation();
+        $entity = $this->applier->ensure($shared, $report, new ManagedSpec(
+            seedKey: DemoSeedLedger::SHARED_ORGANISATION . ':organisation',
             create: function (): Organisation {
                 $o = new Organisation();
                 $o->setId(IdGenerator::generateUnique($this->entityManager, Organisation::class));
@@ -339,11 +415,277 @@ class DemoOrganisationSeeder
             write: static function (object $o, array $d): void {
                 $o->setName((string) $d['name']);
             },
-            desired: ['name' => $name],
+            desired: ['name' => $this->catalog->organisation()['name']],
             global: true,
+            adopt: function () use ($context, $callingScenario): ?object {
+                foreach ([DemoScenarioKey::MATERIALVERWALTUNG, $callingScenario] as $scenarioKey) {
+                    $legacy = $context->findRecordOfScenario($scenarioKey, $scenarioKey . ':organisation');
+                    $organisation = $legacy !== null ? $this->entityManager->find(Organisation::class, $legacy->getEntityId()) : null;
+                    if ($organisation instanceof Organisation) {
+                        return $organisation;
+                    }
+                }
+
+                return null;
+            },
         ), $version);
 
-        return $entity instanceof Organisation ? $entity : throw new \LogicException('Organisation konnte nicht angelegt werden');
+        return $entity instanceof Organisation ? $entity : throw new \LogicException('Gemeinsame Demo-Organisation konnte nicht angelegt werden');
+    }
+
+    /**
+     * Ordnet ein Demo-Department der gemeinsamen Organisation zu. Einmaliger Wechsel aus der früheren Szenario-Organisation
+     * (Eigentum durch den Ledger nachgewiesen); eine danach manuell geänderte Organisation wird nie überschrieben.
+     */
+    private function ensureDepartmentOrganisation(SeedContext $context, SyncReport $report, string $seedKey, Department $department, Organisation $organisation, string $version): void
+    {
+        $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $seedKey,
+            create: static fn (): object => throw new \LogicException('Das Department wird nie über die Organisationszuordnung angelegt'),
+            find: fn (string $id): ?object => $this->entityManager->find(Department::class, $id),
+            idOf: static fn (object $d): string => (string) $d->getId(),
+            read: static fn (object $d): array => ['organisation_id' => $d->getOrganisationId()],
+            write: function (object $d, array $v): void {
+                $d->setOrganisation($this->entityManager->find(Organisation::class, $v['organisation_id']));
+            },
+            desired: ['organisation_id' => $organisation->getId()],
+            adopt: static fn (): object => $department,
+        ), $version);
+    }
+
+    /** @param array{scenario: string, department: string} $ref */
+    private function referencedParent(SeedContext $context, array $ref): ?Department
+    {
+        $record = $context->findRecordOfScenario($ref['scenario'], $ref['scenario'] . ':department:' . $ref['department']);
+        $department = $record !== null ? $this->entityManager->find(Department::class, $record->getEntityId()) : null;
+
+        return $department instanceof Department ? $department : null;
+    }
+
+    /**
+     * Event-Stammdaten (Veranstaltungsort, Adresse, Beschreibung, Dauer) des Grossanlasses. Dreiwege-Vergleich wie alle
+     * verwalteten Daten; von Hand geänderte Werte bleiben und werden als Abweichung gemeldet. Die Dauer setzt nur das Ende
+     * des Anlasses (der Beginn bleibt der des Departments) und führt Kalenderperiode und Hauptaktivität nach.
+     *
+     * @param array<string, mixed> $def
+     */
+    private function ensureGrossanlassMaster(SeedContext $context, SyncReport $report, string $key, Department $department, array $def, string $version): void
+    {
+        $config = $department->getGrossanlassConfig();
+        if (!$config instanceof DepartmentGrossanlassConfig) {
+            return;
+        }
+        $address = null;
+        if (isset($def['venue'])) {
+            $address = $this->ensureAddress($context, $report, $key . ':venue-address', $department, Address::TYPE_EVENT, $def['venue'], null, false, $version);
+            // Zustellpunkt (Anlieferungen, Transporte) und Lager (Material, Packaufträge, Rücklieferungen) gehören zum Eventplatz.
+            if (isset($def['delivery'])) {
+                $this->ensureAddress($context, $report, $key . ':delivery-address', $department, Address::TYPE_EVENT_DELIVERY, $def['delivery'], $address?->getId(), false, $version);
+            }
+            if (isset($def['storage'])) {
+                $this->ensureAddress($context, $report, $key . ':storage-address', $department, 'storage', $def['storage'], null, true, $version);
+            }
+        }
+
+        $desired = [
+            'location_text' => (string) ($def['locationText'] ?? $config->getLocationText()),
+            'notes' => (string) ($def['notes'] ?? $config->getNotes()),
+            'venue_address_id' => $address instanceof Address ? $address->getId() : $config->getVenueAddressId(),
+        ];
+        // Feste Wandzeiten (lokale Veranstaltungszeit): nie aus dem heutigen Datum berechnet, auch nicht beim Reset oder
+        // beim Verstellen der Demo-Uhr.
+        $withPeriod = isset($def['eventStart'], $def['eventEnd']);
+        if ($withPeriod) {
+            $desired['event_start'] = str_replace('T', ' ', (string) $def['eventStart']);
+            $desired['event_end'] = str_replace('T', ' ', (string) $def['eventEnd']);
+        }
+
+        $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $key . ':stammdaten',
+            create: static fn (): object => throw new \LogicException('Die Grossanlass-Konfiguration wird mit dem Department angelegt.'),
+            find: fn (string $id): ?object => $this->entityManager->find(DepartmentGrossanlassConfig::class, $id),
+            idOf: static fn (object $c): string => (string) $c->getDepartmentId(),
+            read: static fn (object $c): array => [
+                'location_text' => $c->getLocationText(),
+                'notes' => $c->getNotes(),
+                'venue_address_id' => $c->getVenueAddressId(),
+            ] + ($withPeriod ? [
+                'event_start' => $c->getPlannedEventStart()->format('Y-m-d H:i:s'),
+                'event_end' => $c->getPlannedEventEnd()?->format('Y-m-d H:i:s'),
+            ] : []),
+            write: function (object $c, array $d): void {
+                $c->setLocationText($d['location_text'])->setNotes($d['notes']);
+                $c->setVenueAddress($d['venue_address_id'] !== null ? $this->entityManager->find(Address::class, $d['venue_address_id']) : null);
+                if (isset($d['event_start'], $d['event_end'])) {
+                    $this->applyEventPeriod($c, new \DateTime($d['event_start']), new \DateTime($d['event_end']));
+                }
+            },
+            desired: $desired,
+            adopt: static fn (): object => $config,
+            resettable: true,
+        ), $version);
+    }
+
+    /**
+     * Verwaltete Adresse des Departments (Eventplatz, Zustellpunkt, Lager). Dreiwege-Vergleich; von Hand geänderte Werte bleiben.
+     *
+     * @param array<string, mixed> $def
+     */
+    private function ensureAddress(SeedContext $context, SyncReport $report, string $seedKey, Department $department, string $type, array $def, ?string $parentId, bool $primary, string $version): ?Address
+    {
+        $desired = [
+            'name' => (string) $def['name'],
+            'street' => (string) ($def['street'] ?? ''),
+            'street_number' => (string) ($def['streetNumber'] ?? ''),
+            'postal_code' => (string) ($def['postalCode'] ?? ''),
+            'city' => (string) ($def['city'] ?? ''),
+            'canton' => (string) ($def['canton'] ?? ''),
+            'latitude' => (float) $def['latitude'],
+            'longitude' => (float) $def['longitude'],
+        ];
+        $address = $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $seedKey,
+            create: function () use ($department, $type, $parentId, $primary): Address {
+                $a = new Address();
+                $a->setId(IdGenerator::generateUnique($this->entityManager, Address::class));
+                $a->setScope(Address::SCOPE_DEPARTMENT);
+                $a->setDepartment($department);
+                $a->setType($type);
+                $a->setCountry('Schweiz');
+                $a->setParent($parentId !== null ? $this->entityManager->find(Address::class, $parentId) : null);
+                $a->setIsPrimary($primary);
+
+                return $a;
+            },
+            find: fn (string $id): ?object => $this->entityManager->find(Address::class, $id),
+            idOf: static fn (object $a): string => (string) $a->getId(),
+            read: static fn (object $a): array => [
+                'name' => $a->getName(),
+                'street' => $a->getStreet(),
+                'street_number' => $a->getStreetNumber(),
+                'postal_code' => $a->getPostalCode(),
+                'city' => $a->getCity(),
+                'canton' => $a->getCanton(),
+                'latitude' => $a->getLatitude() !== null ? (float) $a->getLatitude() : null,
+                'longitude' => $a->getLongitude() !== null ? (float) $a->getLongitude() : null,
+            ],
+            write: static function (object $a, array $d): void {
+                $a->setName($d['name'])->setStreet($d['street'])->setStreetNumber($d['street_number'])->setPostalCode($d['postal_code'])
+                    ->setCity($d['city'])->setCanton($d['canton'])->setLatitude($d['latitude'])->setLongitude($d['longitude']);
+            },
+            desired: $desired,
+            resettable: true,
+        ), $version);
+
+        return $address instanceof Address ? $address : null;
+    }
+
+    /**
+     * Anlasszeitraum (Beginn des Aufbaus bis Ende des Abbaus) in Konfiguration und Hauptaktivität (Wandzeit, naive Datumswerte).
+     * Die Kalenderperiode «grossanlass» ist die Durchführung und folgt dem Anlasszeitraum nicht; sie wird als Phase geführt.
+     */
+    private function applyEventPeriod(DepartmentGrossanlassConfig $config, \DateTime $start, \DateTime $end): void
+    {
+        $config->setPlannedEventStart($start);
+        $config->setPlannedEventEnd($end);
+        $activity = $config->getMainActivity();
+        if ($activity !== null) {
+            $activity->setUsageStart($start);
+            $activity->setUsageEnd($end);
+        }
+    }
+
+    private function setPeriodTimes(DepartmentCalendarPeriod $period, \DateTime $start, \DateTime $end): void
+    {
+        $period->setStartDate((clone $start)->setTime(0, 0, 0));
+        $period->setEndDate((clone $end)->setTime(0, 0, 0));
+        $period->setStartTime(\DateTime::createFromFormat('H:i:s', $start->format('H:i:s')) ?: clone $start);
+        $period->setEndTime(\DateTime::createFromFormat('H:i:s', $end->format('H:i:s')) ?: clone $end);
+    }
+
+    /**
+     * Fixe Daten des Anlasses (Aufbau, Durchführung, Abbau) als Kalenderperioden. Dreiwege-Vergleich; eine vorhandene gleich beschriftete
+     * Periode des Szenario-Departments wird einmalig übernommen.
+     *
+     * @param array<string, mixed> $phase
+     */
+    private function ensureGrossanlassPhase(SeedContext $context, SyncReport $report, string $key, Department $department, array $phase, string $version): void
+    {
+        $label = match ($phase['key']) {
+            'abbau' => DepartmentCalendarPeriod::LABEL_ABBAU,
+            'durchfuehrung' => DepartmentCalendarPeriod::LABEL_GROSSANLASS,
+            default => DepartmentCalendarPeriod::LABEL_AUFBAU,
+        };
+        $start = new \DateTime(str_replace('T', ' ', (string) $phase['start']));
+        $end = new \DateTime(str_replace('T', ' ', (string) $phase['end']));
+        $desired = ['name' => (string) $phase['name'], 'start' => $start->format('Y-m-d H:i:s'), 'end' => $end->format('Y-m-d H:i:s')];
+
+        $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $key . ':phase:' . $phase['key'],
+            create: function () use ($department, $label): DepartmentCalendarPeriod {
+                $p = new DepartmentCalendarPeriod();
+                $p->setId(IdGenerator::generateUnique($this->entityManager, DepartmentCalendarPeriod::class));
+                $p->setDepartmentId($department->getId());
+                $p->setLabel($label);
+
+                return $p;
+            },
+            find: fn (string $id): ?object => $this->entityManager->find(DepartmentCalendarPeriod::class, $id),
+            idOf: static fn (object $p): string => (string) $p->getId(),
+            read: static fn (object $p): array => [
+                'name' => $p->getName(),
+                'start' => (new \DateTime($p->getStartDate()->format('Y-m-d') . ' ' . $p->getStartTime()->format('H:i:s')))->format('Y-m-d H:i:s'),
+                'end' => (new \DateTime($p->getEndDate()->format('Y-m-d') . ' ' . $p->getEndTime()->format('H:i:s')))->format('Y-m-d H:i:s'),
+            ],
+            write: function (object $p, array $d): void {
+                $p->setName($d['name']);
+                $this->setPeriodTimes($p, new \DateTime($d['start']), new \DateTime($d['end']));
+            },
+            desired: $desired,
+            adopt: fn (): ?object => $this->adoptPeriod($department, $label),
+        ), $version);
+    }
+
+    /**
+     * Schnellwahl der Demo-Uhr (feste Wandzeiten aus dem Katalog) als Department-Einstellung `demo_clock_presets`; die Uhr-Steuerung
+     * liest sie dort. Die Einstellung verändert nie die Veranstaltungsdaten und nie die Uhr selbst. Dreiwege-Vergleich: eine von Hand
+     * geänderte Schnellwahl bleibt.
+     *
+     * @param list<array{key: string, at: string}> $presets
+     */
+    private function ensureClockPresets(SeedContext $context, SyncReport $report, string $key, Department $department, array $presets, string $version): void
+    {
+        $desired = ['presets' => json_encode(array_values(array_map(static fn (array $p): array => ['key' => (string) $p['key'], 'at' => (string) $p['at']], $presets)), JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)];
+        $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $key . ':clock-presets',
+            create: function () use ($department): DepartmentSetting {
+                $row = new DepartmentSetting();
+                $row->setId(IdGenerator::generateUnique($this->entityManager, DepartmentSetting::class));
+                $row->setDepartment($department);
+                $row->setSettingKey(DepartmentSetting::KEY_DEMO_CLOCK_PRESETS);
+
+                return $row;
+            },
+            find: fn (string $id): ?object => $this->entityManager->find(DepartmentSetting::class, $id),
+            idOf: static fn (object $r): string => (string) $r->getId(),
+            read: static fn (object $r): array => ['presets' => $r->getSettingValue()],
+            write: static function (object $r, array $d): void {
+                $r->setSettingValue($d['presets']);
+            },
+            desired: $desired,
+            adopt: fn (): ?object => $this->entityManager->getRepository(DepartmentSetting::class)->findOneBy(['departmentId' => $department->getId(), 'settingKey' => DepartmentSetting::KEY_DEMO_CLOCK_PRESETS]),
+        ), $version);
+    }
+
+    private function adoptPeriod(Department $department, string $label): ?DepartmentCalendarPeriod
+    {
+        $period = $this->entityManager->getRepository(DepartmentCalendarPeriod::class)->findOneBy(['departmentId' => $department->getId(), 'label' => $label]);
+        if (!$period instanceof DepartmentCalendarPeriod) {
+            return null;
+        }
+        $taken = $this->entityManager->getRepository(DemoSeedRecord::class)->findOneBy(['entityClass' => DepartmentCalendarPeriod::class, 'entityId' => $period->getId()]);
+
+        return $taken === null ? $period : null;
     }
 
     private function createDepartment(DemoScenarioInterface $scenario, Organisation $organisation, User $owner, string $name): Department
@@ -670,6 +1012,23 @@ class DemoOrganisationSeeder
             adopt: fn (): ?object => $find($user->getId() . ':'),
             resettable: true,
         ), $version);
+
+        // Helfer-Flag als eigener verwalteter Wert: der Hash der Rolle bleibt unverändert, andere Mitgliedschaften unberührt.
+        if (\array_key_exists('helper', $member)) {
+            $this->applier->ensure($context, $report, new ManagedSpec(
+                seedKey: $seedKey . ':helper',
+                create: static fn (): Membership => throw new \LogicException('Helfer-Flag setzt eine vorhandene Mitgliedschaft voraus.'),
+                find: $find,
+                idOf: static fn (object $m): string => $m->getUserId() . ':' . $m->getDepartmentId(),
+                read: static fn (object $m): array => ['is_helper' => $m->getIsHelper()],
+                write: static function (object $m, array $d): void {
+                    $m->setIsHelper((bool) $d['is_helper']);
+                },
+                desired: ['is_helper' => (bool) $member['helper']],
+                adopt: fn (): ?object => $find($user->getId() . ':'),
+                resettable: true,
+            ), $version);
+        }
     }
 
     /**

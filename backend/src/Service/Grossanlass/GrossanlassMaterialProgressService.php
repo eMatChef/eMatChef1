@@ -204,17 +204,30 @@ final class GrossanlassMaterialProgressService
             $claims[$chargeId][] = ['item' => $itemId, 'qty' => max(0, $einsatz['qty'])];
         }
 
-        // 2. Gedeckt und eingegangen: eingegangene Menge einer Charge der Reihe nach auf ihre Ansprüche.
+        // 2. Gedeckt: Ansprüche auf Chargen (Zusage/Bestellung) decken den Bedarf der Wünsche.
+        //    Eingegangen: nur Ware, die bewusst zugeteilt wurde (Einsatz auf eine Charge mit Wareneingang).
+        //    Eingegangene Ware wird nie automatisch nach Wunschreihenfolge auf Bauprojekte verteilt;
+        //    Zuteilung, Packung und Ausgabe sind eigene Vorgänge.
         $covered = [];
-        $received = [];
-        foreach ($claims as $chargeId => $rows) {
-            $left = max(0, $chargeById[$chargeId]['received']);
+        foreach ($claims as $rows) {
             foreach ($rows as $claim) {
                 $covered[$claim['item']] = ($covered[$claim['item']] ?? 0) + $claim['qty'];
-                $got = min($left, $claim['qty']);
-                $received[$claim['item']] = ($received[$claim['item']] ?? 0) + $got;
-                $left -= $got;
             }
+        }
+        $received = [];
+        $stock = [];
+        foreach ($chargeById as $chargeId => $charge) {
+            $stock[$chargeId] = max(0, $charge['received']);
+        }
+        foreach ($sortedEinsaetze as $einsatz) {
+            $itemId = $einsatz['item_id'];
+            $chargeId = $einsatz['commitment_id'];
+            if ($itemId === null || !isset($byItem[$itemId]) || $chargeId === null || !isset($stock[$chargeId])) {
+                continue;
+            }
+            $take = min($stock[$chargeId], max(0, $einsatz['qty']));
+            $received[$itemId] = ($received[$itemId] ?? 0) + $take;
+            $stock[$chargeId] -= $take;
         }
 
         // 3. Einsätze und Packs.

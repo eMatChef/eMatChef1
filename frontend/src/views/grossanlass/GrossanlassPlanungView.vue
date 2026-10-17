@@ -46,10 +46,6 @@ import {
   type GaEinsatzComposer,
 } from '@/views/grossanlass/gaEinsatzComposer'
 import {
-  gaBauauftragComposerKey,
-  type GaBauauftragComposer,
-} from '@/views/grossanlass/gaBauauftragComposer'
-import {
   gaFahrauftragComposerKey,
   type GaFahrauftragComposer,
 } from '@/views/grossanlass/gaFahrauftragComposer'
@@ -68,12 +64,6 @@ const einsatzComposer = reactive<GaEinsatzComposer>({
 })
 provide(gaEinsatzComposerKey, einsatzComposer)
 
-const bauauftragComposer = reactive<GaBauauftragComposer>({
-  open: () => {},
-  canAdd: false,
-})
-provide(gaBauauftragComposerKey, bauauftragComposer)
-
 const fahrauftragComposer = reactive<GaFahrauftragComposer>({
   open: () => {},
   canAdd: false,
@@ -85,15 +75,14 @@ const departmentId = computed(() => {
 })
 
 const tabItems = computed(() => [
-  { id: 'requests', label: t('grossanlass.planung.tabWishes'), icon: 'mdi-lightbulb-on-outline' },
   { id: 'jobs', label: t('grossanlass.planung.tabAuftraege'), icon: 'mdi-clipboard-text-outline' },
-  { id: 'build-jobs', label: t('grossanlass.planung.tabBauauftraege'), icon: 'mdi-hammer-wrench' },
   { id: 'transports', label: t('grossanlass.planung.tabTransporte'), icon: 'mdi-truck-fast-outline' },
   { id: 'occupancy', label: t('grossanlass.planung.tabBelegung'), icon: 'mdi-calendar-range' },
   { id: 'conflicts', label: t('grossanlass.planung.tabKonflikte'), icon: 'mdi-alert-outline' },
+  { id: 'requests', label: t('grossanlass.planung.tabWishes'), icon: 'mdi-lightbulb-on-outline' },
 ])
 
-const activeTab = computed(() => (route.meta.planungTab as string) || 'requests')
+const activeTab = computed(() => (route.meta.planungTab as string) || 'jobs')
 const showAddTransport = computed(() =>
   activeTab.value === 'transports' && fahrauftragComposer.canAdd,
 )

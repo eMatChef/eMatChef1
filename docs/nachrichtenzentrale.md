@@ -45,12 +45,52 @@ Die Nachrichtenzentrale (`NotificationsCenterView`) führt alle Typen in **einem
 | QR-Kontakt | `InboxMessageService` | `qr_found` | `…/public-found-messages` | Status open/in_progress/done |
 | Buchhaltung | `InboxMessageService` + `accounting_acquisition_follow_up` | `accounting_followup` (Spiegel) | `…/acquisition-followups` | Inbox-Zeile weg bei „erfasst“ |
 | Einladung angenommen (für Einladende) | `InboxMessageService` | `invite_accepted` | `…/invite/notifications` | dauerhaft, nur gelesen markieren |
-| Grossanlass: MW ernannt | `InboxMessageService` | `grossanlass_mw_assigned` | Inbox des Users | dauerhaft, nur gelesen markieren |
-| Grossanlass: Planungsrunde geöffnet | `InboxMessageService` | `grossanlass_round_opened` | Inbox des Users | dauerhaft, nur gelesen markieren |
-| Grossanlass: Gast-Einladung | `InboxMessageService` | `grossanlass_department_invite` | Inbox des Users | löschen, wenn die Teilnehmer-Einladung entfernt wird |
+| Grossanlass: MW ernannt | `InboxMessageService` | `grossanlass_mw_assigned` | `…/invite/received` (userbezogen, departmentübergreifend) | dauerhaft, nur gelesen markieren |
+| Grossanlass: Planungsrunde geöffnet | `InboxMessageService` | `grossanlass_round_opened` | `…/invite/received` (userbezogen, departmentübergreifend) | dauerhaft, nur gelesen markieren |
+| Grossanlass: Gast-Einladung | `InboxMessageService` | `grossanlass_department_invite` | `…/department-invites/pending` (zusammen mit Camp/Anlass-Einladungen) | löschen, wenn die Teilnehmer-Einladung entfernt wird |
 | Werkstatt: Bestell-Erinnerung | `InboxMessageService` | `workshop_order_reminder` | Inbox des Departments | löschen mit `removeWorkshopOrderReminderInbox` |
 
 **Hinweis:** `join.pending_invites` bleibt die fachliche Quelle für Einladungs-Workflow (Annahme/Ablehnung). Die Inbox zeigt nur die Benachrichtigung. Buchhaltungs-Fachdaten bleiben in `accounting_acquisition_follow_up`, die Glocke liest zusätzlich `inbox_message`.
+
+### Gemeinsame Abfragelogik (Stand heute)
+
+**Backend:** Alle Kategorien laden, zählen und markieren über dieselben drei Bausteine in
+`Service/InboxMessageQueryTrait.php` (von `InboxMessageService` verwendet):
+`findInboxMessages()`, `countUnreadInboxMessages()`, `markInboxMessageRead()`.
+Ein Filter legt Kategorie und Empfänger fest:
+
+| Filter | Bedeutung |
+| --- | --- |
+| `departmentId` | nur Zeilen dieses Departments (Department-Isolation) |
+| `userId` | nur Zeilen, die an diese Person adressiert sind |
+| `recipientScope` | z. B. `department_mw` (departmentweit für Materialwart-Rollen) |
+| `workflowStatus` | z. B. offene Einladungen |
+
+Eine neue Kategorie braucht nur noch ihren Filter und eine `to…Array()`-Funktion. Die öffentlichen Methoden
+(`listActivityMw`, `markGrossanlassRoundOpenedRead`, …) und alle REST-Endpunkte sind unverändert.
+Spezialfälle bleiben eigen: QR-Kontakt (Status-Buckets statt gelesen), Buchhaltung und Werkstatt-Erinnerungen
+(Spiegel-Sync) sowie das Bereinigen veralteter Einladungen.
+
+**Berechtigung:** Die Controller prüfen weiterhin serverseitig (`requireMember` bzw. User-Bezug). Der Filter ist
+der letzte Riegel: Zeilen anderer Departments oder anderer Empfänger werden nie geladen oder markiert.
+
+**Frontend:** `utils/inboxSources.ts` (`loadInboxSources`) lädt alle Quellen für `NotificationsCenterView` (Bucket
+`all`) und die Glocke in `TopHeader` (Bucket `unread`, Limit 5) mit denselben Fehler-Fallbacks. Rollenbeschränkte
+Quellen werden nur abgefragt, wenn die Optionen es erlauben. Der Spezialfall «Gesendet» und die Mitgliederliste
+bleiben in der Zentrale; die Buchhaltungs-Aufgaben in der Glocke.
+
+**Grossanlass:** Die Zentrale hat zwei kanonische URLs mit derselben View (`NotificationsCenterView`): Department `/{departmentId}/dept/notifications`, Grossanlass `/{departmentId}/ga/notifications` (Pfadwahl über `utils/notificationsRoute.ts`, Router-Name `GrossanlassNotificationsCenter`). GA nutzt dieselbe Tabelle und dieselben
+Endpunkte wie jedes Department. Die Bauprojekt-Aufgabenmeldungen sind normale Direktnachrichten
+(`GrossanlassBauprojektService::notifyTask`). MW-Ernennung und Planungsrunde sind userbezogen
+(`departmentübergreifend`), weil die Person die Meldung auch ohne aktives Department erhalten muss.
+
+**Zeit (BusinessClock):** `inbox_message.created_at` und `read_at` sind bewusst reale Systemzeit (Audit-Zeitstempel,
+siehe `Service/Clock/BusinessClock.php`). Fachliche Zeiten der GA-Meldungen (`closes_at`, `planned_event_start`) stehen
+im `payload` und stammen aus den Planungsdaten. In der Zeitreise-Demo erscheinen Meldungen daher mit dem realen
+Eingangszeitpunkt; die GA-Seeds erzeugen keine Inbox-Zeilen. `InboxDemoSeedService` wird nirgends verwendet.
+
+**PLANNED (noch nicht umgesetzt):** Löschen/Archivieren durch den User, Empfänger-Gruppen (Ressort, Rolle),
+strukturierter Objektbezug (`ref_type`/`ref_id`), Gruppen-/Threadnachrichten, E-Mail als Inbox-Kanal.
 
 ### Nachricht vs. Aufgabe (UI)
 
@@ -302,6 +342,8 @@ Markieren als gelesen: jeweilige `PATCH …/read`-Endpoints; danach `headerNotif
 | Datei | Rolle |
 | --- | --- |
 | `Service/ActivityMwNotificationService.php` | Aktivitäten-Meldungen MW/DC |
+| `Service/InboxMessageService.php` + `InboxMessageKindsTrait.php` | Erzeugen je Kategorie, Zeilen → API-Arrays |
+| `Service/InboxMessageQueryTrait.php` | gemeinsames Laden/Zählen/Lesen mit Empfänger-Filter |
 | `Service/UserDirectMessageService.php` | Direktnachrichten |
 | `Service/UserDepartmentInviteNotificationService.php` | Dept-Einladungen (User-Inbox) |
 | `Controller/DepartmentInboxController.php` | REST Inbox / Nachrichten senden |
@@ -313,6 +355,7 @@ Markieren als gelesen: jeweilige `PATCH …/read`-Endpoints; danach `headerNotif
 
 | Datei | Rolle |
 | --- | --- |
+| `utils/inboxSources.ts` | gemeinsames Laden aller Quellen (Zentrale + Glocke) |
 | `views/NotificationsCenterView.vue` | Posteingang, Sektionen, Formatierung Aktivität |
 | `components/layout/TopHeader.vue` | Glocke, Kurzliste |
 | `components/notifications/*` | Sender-Block, Compose-, Detail-Modal |

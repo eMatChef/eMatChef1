@@ -18,6 +18,8 @@ use Doctrine\ORM\Mapping as ORM;
 class DepartmentGrossanlassChargeMovement
 {
     public const KIND_RECEIVED = 'received';
+    /** Gegenbuchung zu einem Wareneingang (Fehlbuchung); die Menge wird vom Eingang abgezogen, die Historie bleibt. */
+    public const KIND_RECEIPT_REVERSED = 'receipt_reversed';
     public const KIND_RETURNED_TO_STORE = 'returned_to_store';
     public const KIND_TO_WORKSHOP = 'to_workshop';
     public const KIND_RETURNED_TO_OWNER = 'returned_to_owner';
@@ -29,6 +31,7 @@ class DepartmentGrossanlassChargeMovement
     /** @var list<string> */
     public const KINDS = [
         self::KIND_RECEIVED,
+        self::KIND_RECEIPT_REVERSED,
         self::KIND_RETURNED_TO_STORE,
         self::KIND_TO_WORKSHOP,
         self::KIND_RETURNED_TO_OWNER,
@@ -39,7 +42,7 @@ class DepartmentGrossanlassChargeMovement
     ];
 
     /** Arten mit fertigem Ablauf. Die übrigen sind vorbereitet, aber noch nicht buchbar. */
-    public const BOOKABLE_KINDS = [self::KIND_RECEIVED];
+    public const BOOKABLE_KINDS = [self::KIND_RECEIVED, self::KIND_RECEIPT_REVERSED];
 
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
@@ -81,6 +84,10 @@ class DepartmentGrossanlassChargeMovement
     #[ORM\ManyToOne(targetEntity: DepartmentGrossanlassEinsatz::class)]
     #[ORM\JoinColumn(name: 'einsatz_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?DepartmentGrossanlassEinsatz $einsatz = null;
+
+    /** Bei Gegenbuchungen der korrigierte Wareneingang. */
+    #[ORM\Column(name: 'reverses_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $reversesId = null;
 
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $note = null;
@@ -148,6 +155,18 @@ class DepartmentGrossanlassChargeMovement
     {
         $this->einsatz = $einsatz;
         $this->einsatzId = $einsatz?->getId();
+
+        return $this;
+    }
+
+    public function getReversesId(): ?string
+    {
+        return $this->reversesId;
+    }
+
+    public function setReversesId(?string $reversesId): self
+    {
+        $this->reversesId = $reversesId;
 
         return $this;
     }

@@ -55,6 +55,10 @@ Berechtigung serverseitig: Mitglied des Departments (kleinste Demo-/Dev-Berechti
 
 **Bekannte Einschränkung (bewusst):** Eine Zeitreise remountet die aktuelle Route und kann ungespeicherte Formulareingaben verwerfen. Ein eigener Refresh-/Event-Mechanismus ist nicht gebaut.
 
+## Aufgabenverwaltung (Frontend)
+
+Aufgaben-Ansichten (`views/grossanlass/aufgaben`) nehmen «Heute», «Später», «Überfällig», «Meine Aufgaben», Zeitraum-/Status-Filter und KPI-Zählung aus `useGaNow()` (`gaAufgabenUi.ts`): im Demo-/Dev-Modus `businessClock.displayNow` (Offset des Departments), sonst die normale aktuelle Zeit. Keine eigene Uhr.
+
 ## Migrierte Zeitstellen
 
 `GrossanlassPlanningRoundService` (Auto-Schedule, Runde öffnen/schliessen), `GrossanlassProcurementProgress` (laufende Aufgaben/Schichten), `GrossanlassUebersichtService` (heute/morgen-Buckets, Fahrt-Freigabe), `GrossanlassUserCardService` (Karte gedruckt, Fahrausweis verifiziert), `GrossanlassWishService` (Standard-Zeitraum), `GrossanlassPackService` (Fahrt-Freigabe). Alles andere (inkl. `GmailOAuthState`, Auth, Token) ist bewusst unverändert.

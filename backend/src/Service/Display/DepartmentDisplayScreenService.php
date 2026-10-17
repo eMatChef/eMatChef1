@@ -307,6 +307,7 @@ final class DepartmentDisplayScreenService
                 [$now, $deletedBy?->getId(), $screen->getId()],
             );
             $connection->executeStatement('DELETE FROM department_display_device WHERE screen_id = ?', [$screen->getId()]);
+            $connection->executeStatement('DELETE FROM department_display_layout_revision WHERE screen_id = ?', [$screen->getId()]);
             $this->entityManager->remove($screen);
             $this->entityManager->flush();
             $connection->commit();
@@ -482,6 +483,11 @@ final class DepartmentDisplayScreenService
             'activity_statuses' => $this->normalizeActivityStatuses($screen->getActivityStatuses()),
             'workshop_statuses' => $this->normalizeWorkshopStatuses($screen->getWorkshopStatuses()),
             'show_statistics' => $screen->isShowStatistics(),
+            'layout' => [
+                'has_draft' => $screen->getLayoutDraft() !== null,
+                'draft_version' => $screen->getLayoutDraftVersion(),
+                'published_number' => $screen->getLayoutPublishedNumber(),
+            ],
             'access_code_hint' => $screen->getAccessCodeHint(),
             'code_version' => $screen->getCodeVersion(),
             'revoked_at' => $screen->getRevokedAt()?->format('c'),

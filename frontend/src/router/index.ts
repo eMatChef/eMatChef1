@@ -40,6 +40,7 @@ import {
   GA_HELPER_ROUTE_ROLES,
   GA_MAILBOX_ROUTE_ROLES,
   GA_MAIL_SETTINGS_ROUTE_ROLES,
+  GA_HELFERPOOL_ROUTE_ROLES,
   GA_MATERIAL_ROUTE_ROLES,
   GA_MATERIALS_ROUTE_ROLES,
   GA_PLANUNG_ROUTE_ROLES,
@@ -401,6 +402,16 @@ function buildSettingsChildren(prefix: string): RouteRecordRaw[] {
 }
 
 const routes: RouteRecordRaw[] = [
+  {
+    // Entwicklungsansicht: offizielle Infoscreen-Vorlage mit dem echten Renderer (Grundlage der Vorschaubilder).
+    path: '/dev/display-template/:templateId',
+    name: 'DevDisplayTemplate',
+    component: () => import('@/views/dev/DisplayTemplateRenderView.vue'),
+    meta: {
+      requiresAuth: false,
+      ...routeHead('displayLayoutEditor'),
+    },
+  },
   {
     path: '/display-demo/:screenId',
     name: 'GrossanlassDisplayDemo',
@@ -1202,6 +1213,48 @@ const routes: RouteRecordRaw[] = [
             },
           },
           {
+            path: 'notifications',
+            name: 'GrossanlassNotificationsCenter',
+            component: () => import('@/views/NotificationsCenterView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              ...routeHead('notificationsCenter'),
+            },
+          },
+          {
+            path: 'tasks',
+            component: () => import('@/views/TasksShellView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              ...routeHead('tasks'),
+            },
+            children: [
+              {
+                path: '',
+                name: 'TasksGaMaster',
+                component: () => import('@/views/grossanlass/aufgaben/GrossanlassAufgabenMasterView.vue'),
+                beforeEnter: () => {
+                  const authStore = useAuthStore()
+                  if (gaIsGrossanlassHelper(authStore.currentDepartmentRole)) return { name: 'TasksGaMine', replace: true }
+                  return true
+                },
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  ...routeHead('tasksGaMaster'),
+                },
+              },
+              {
+                path: 'mine',
+                name: 'TasksGaMine',
+                component: () => import('@/views/grossanlass/aufgaben/GrossanlassMeineAufgabenView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  ...routeHead('tasksGaMine'),
+                },
+              },
+            ],
+          },
+          {
             path: 'department-material',
             name: 'GrossanlassAbteilungsmat',
             component: () => import('@/views/grossanlass/GrossanlassAbteilungsmatView.vue'),
@@ -1288,7 +1341,7 @@ const routes: RouteRecordRaw[] = [
               {
                 path: '',
                 name: 'GrossanlassPlanung',
-                redirect: (to) => ({ path: `/${to.params.departmentId}/ga/planning/requests` }),
+                redirect: (to) => ({ path: `/${to.params.departmentId}/ga/planning/jobs` }),
               },
               {
                 path: 'requests',
@@ -1310,17 +1363,6 @@ const routes: RouteRecordRaw[] = [
                   requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
                   planungTab: 'jobs',
                   ...routeHead('grossanlassPlanungAuftraege'),
-                },
-              },
-              {
-                path: 'build-jobs',
-                name: 'GrossanlassPlanungBauauftraege',
-                component: () => import('@/views/grossanlass/GrossanlassBauauftraegeView.vue'),
-                meta: {
-                  requiresGrossanlassDepartment: true,
-                  requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
-                  planungTab: 'build-jobs',
-                  ...routeHead('grossanlassPlanungBauauftraege'),
                 },
               },
               {
@@ -1457,7 +1499,7 @@ const routes: RouteRecordRaw[] = [
               {
                 path: 'users',
                 name: 'GrossanlassEinstellungenBenutzer',
-                component: () => import('@/views/settings/UsersSettingsView.vue'),
+                component: () => import('@/views/grossanlass/GrossanlassEinstellungenBenutzerView.vue'),
                 meta: {
                   requiresGrossanlassDepartment: true,
                   requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
@@ -1554,6 +1596,17 @@ const routes: RouteRecordRaw[] = [
                   requiredRoles: [...GA_PROCUREMENT_ROUTE_ROLES],
                   beschaffungTab: 'orders',
                   ...routeHead('grossanlassBeschaffungBestellungen'),
+                },
+              },
+              {
+                path: 'budget',
+                name: 'GrossanlassBeschaffungBudget',
+                component: () => import('@/views/grossanlass/GrossanlassBeschaffungBudgetView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_PROCUREMENT_ROUTE_ROLES],
+                  beschaffungTab: 'budget',
+                  ...routeHead('grossanlassBeschaffungBudget'),
                 },
               },
             ],
@@ -1777,6 +1830,17 @@ const routes: RouteRecordRaw[] = [
             },
           },
           {
+            // WYSIWYG-Editor für das Layout eines Infoscreens (Entwurf, Vorschau, Veröffentlichung).
+            path: 'displays/:screenId/layout',
+            name: 'GrossanlassDisplayLayoutEditor',
+            component: () => import('@/views/settings/DisplayLayoutEditorView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+              ...routeHead('displayLayoutEditor'),
+            },
+          },
+          {
             // Bisherige GA-Demo-Displays (Mock-Daten), bis die Live-Anbindung in Phase 5.2 folgt.
             path: 'displays/demo',
             name: 'GrossanlassDisplaysDemo',
@@ -1793,7 +1857,7 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/grossanlass/helferpool/GrossanlassHelferpoolView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+              requiredRoles: [...GA_HELFERPOOL_ROUTE_ROLES],
               ...routeHead('grossanlassHelferpool'),
             },
           },
@@ -2195,36 +2259,11 @@ const routes: RouteRecordRaw[] = [
             path: 'tasks',
             name: 'Tasks',
             component: () => import('@/views/TasksShellView.vue'),
-            redirect: (to) => {
-              const authStore = useAuthStore()
-              const deptId = String(to.params.departmentId || '')
-              if (deptId && authStore.isDepartmentGrossanlass(deptId)) {
-                return { name: gaIsGrossanlassHelper(authStore.currentDepartmentRole) ? 'TasksGaMine' : 'TasksGaMaster' }
-              }
-              return { name: 'TasksGeneral' }
-            },
+            redirect: { name: 'TasksGeneral' },
             meta: {
               ...routeHead('tasks'),
             },
             children: [
-              {
-                path: 'aufgaben',
-                name: 'TasksGaMaster',
-                component: () => import('@/views/grossanlass/aufgaben/GrossanlassAufgabenMasterView.vue'),
-                meta: {
-                  requiresGrossanlassDepartment: true,
-                  ...routeHead('tasksGaMaster'),
-                },
-              },
-              {
-                path: 'meine',
-                name: 'TasksGaMine',
-                component: () => import('@/views/grossanlass/aufgaben/GrossanlassMeineAufgabenView.vue'),
-                meta: {
-                  requiresGrossanlassDepartment: true,
-                  ...routeHead('tasksGaMine'),
-                },
-              },
               {
                 path: 'allgemein',
                 name: 'TasksGeneral',
@@ -2334,6 +2373,7 @@ const routes: RouteRecordRaw[] = [
                     'l3',
                     'u',
                     'user',
+                    'h',
                   ],
                   denyRedirectTo: { name: 'HelpDokumentation' },
                   ...routeHead('helpTours'),
@@ -3002,7 +3042,7 @@ router.beforeEach(async (to, from, nextRaw) => {
       leader1: ['l1'],
       leader2: ['l2'],
       leader3: ['l3'],
-      user: ['u'],
+      user: ['u', 'h'],
       bl: ['bereichsleitung'],
     }
     

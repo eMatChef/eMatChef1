@@ -93,6 +93,22 @@ class GrossanlassAccessService
         return GrossanlassAccessRoles::canConnectGmail($this->gaRole($user, $department));
     }
 
+    public function canManageStaffing(User $user, Department $department): bool
+    {
+        $config = $department->getGrossanlassConfig();
+
+        return GrossanlassAccessRoles::canManageStaffing(
+            $this->gaRole($user, $department),
+            $config?->isStaffingMwAllowed() ?? true,
+            $config?->isStaffingOkAllowed() ?? true,
+        );
+    }
+
+    public function canSeeStaffingOverview(User $user, Department $department): bool
+    {
+        return GrossanlassAccessRoles::canSeeStaffingOverview($this->gaRole($user, $department));
+    }
+
     public function canApproveEinsatz(User $user, Department $department): bool
     {
         return GrossanlassAccessRoles::canApproveEinsatz($this->gaRole($user, $department));
@@ -160,7 +176,7 @@ class GrossanlassAccessService
 
     public function isGrossanlassHelper(User $user, Department $department): bool
     {
-        return ($this->membershipRole($user, $department) ?? '') === 'u';
+        return \in_array($this->membershipRole($user, $department) ?? '', ['u', 'h'], true);
     }
 
     public function canSeeOwnEinsaetze(User $user, Department $department): bool
@@ -305,7 +321,7 @@ class GrossanlassAccessService
     {
         if ($group->getParentId() !== null && $group->getParentId() !== '') {
             $kind = $group->getGrossanlassKind();
-            if ($kind === null || $kind === '' || $kind === Group::GROSSANLASS_KIND_TEILBEREICH) {
+            if ($kind === null || $kind === '' || $kind === Group::GROSSANLASS_KIND_TEILBEREICH || $kind === Group::GROSSANLASS_KIND_AUFTRAG) {
                 return false;
             }
         }

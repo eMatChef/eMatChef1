@@ -153,6 +153,7 @@ export interface DepartmentMember {
   role: string
   is_primary: boolean
   is_js_coach?: boolean
+  is_helper?: boolean
   state: string
 }
 
@@ -199,6 +200,7 @@ export async function updateDepartmentMember(departmentId: string, userId: strin
   role?: string
   is_primary?: boolean
   is_js_coach?: boolean
+  is_helper?: boolean
 }): Promise<DepartmentMember> {
   const response = await apiClient.patch<DepartmentMember>(`/api/departments/${departmentId}/members/${userId}`, data)
   return response.data

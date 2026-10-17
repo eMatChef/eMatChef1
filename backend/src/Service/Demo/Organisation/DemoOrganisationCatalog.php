@@ -17,7 +17,7 @@ class DemoOrganisationCatalog
 {
     public const FILE = __DIR__ . '/../../../../data/seeds/dev-demo/organisations.json';
 
-    private const MEMBERSHIP_ROLES = ['mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'l1', 'l2', 'l3', 'u'];
+    private const MEMBERSHIP_ROLES = ['mw', 'cmw', 'dc', 'bl', 'hv', 'subhv', 'komm', 'spon', 'lw', 'clw', 'l1', 'l2', 'l3', 'u', 'h'];
     private const GROUP_ROLES = ['leader', 'member'];
     private const KINDS = ['ressort', 'bereich', 'teilbereich'];
     /** Schlüssel des Szenario-Departments in members[].department, adminScopes[].roots usw. */
@@ -25,7 +25,7 @@ class DemoOrganisationCatalog
     private const GLOBAL_ROLES = ['sa', 'org', 'sub'];
     private const FORBIDDEN_FOR_GLOBAL = ['mw', 'cmw'];
 
-    /** @var array{catalogVersion: string, sharedAccounts?: list<string>, scenarios: array<string, array<string, mixed>>}|null */
+    /** @var array{catalogVersion: string, organisation: array{name: string}, sharedAccounts?: list<string>, scenarios: array<string, array<string, mixed>>}|null */
     private ?array $data = null;
 
     public function __construct(private string $file = self::FILE)
@@ -35,6 +35,12 @@ class DemoOrganisationCatalog
     public function version(): string
     {
         return $this->data()['catalogVersion'];
+    }
+
+    /** @return array{name: string} die gemeinsame Demo-Organisation aller Szenarien */
+    public function organisation(): array
+    {
+        return $this->data()['organisation'];
     }
 
     /** @return list<string> Konten ohne Department-Mitgliedschaft, die jeder Sync mit anlegt (z. B. Lieferant) */
@@ -52,7 +58,7 @@ class DemoOrganisationCatalog
         return $this->data()['scenarios'][$key] ?? throw new DemoScenarioException(sprintf('Katalog kennt das Szenario «%s» nicht.', $key));
     }
 
-    /** @return array{catalogVersion: string, scenarios: array<string, array<string, mixed>>} */
+    /** @return array{catalogVersion: string, organisation: array{name: string}, scenarios: array<string, array<string, mixed>>} */
     private function data(): array
     {
         if ($this->data === null) {
@@ -72,6 +78,9 @@ class DemoOrganisationCatalog
         if (!preg_match('/^\d{4}\.\d{1,2}\.\d{1,3}$/', (string) ($d['catalogVersion'] ?? ''))) {
             $fail('catalogVersion fehlt oder hat falsches Format (JJJJ.M.N).');
         }
+        if (trim((string) ($d['organisation']['name'] ?? '')) === '') {
+            $fail('organisation.name fehlt (gemeinsame Demo-Organisation).');
+        }
         $scenarios = $d['scenarios'] ?? [];
         if (array_keys($scenarios) !== array_values(array_intersect(array_keys($scenarios), DemoScenarioKey::all())) || \count($scenarios) !== \count(DemoScenarioKey::all())) {
             $fail('genau die Szenarien ' . implode(', ', DemoScenarioKey::all()) . ' erwartet.');
@@ -87,11 +96,14 @@ class DemoOrganisationCatalog
 
         foreach ($scenarios as $key => $scenario) {
             $accountsInScenario = [];
-            foreach (['organisation', 'department'] as $part) {
-                if (trim((string) ($scenario[$part]['name'] ?? '')) === '') {
-                    $fail(sprintf('%s: %s.name fehlt.', $key, $part));
-                }
+            if (isset($scenario['organisation'])) {
+                $fail(sprintf('%s: eine eigene Organisation je Szenario ist nicht vorgesehen (gemeinsame Organisation auf oberster Ebene).', $key));
             }
+            if (trim((string) ($scenario['department']['name'] ?? '')) === '') {
+                $fail(sprintf('%s: department.name fehlt.', $key));
+            }
+            $this->validateParentRef($key, $scenario, $scenarios, $fail);
+            $this->validateGrossanlassTimes($key, $scenario['grossanlass'] ?? [], $fail);
             $departmentKeys = $this->validateDepartments($key, $scenario, $fail);
             $groupKeys = [];
             foreach ($scenario['groups'] ?? [] as $group) {
@@ -178,8 +190,11 @@ class DemoOrganisationCatalog
                 if (!\in_array($role, ['org', 'sub'], true)) {
                     $fail(sprintf('%s: adminScopes: «%s» ist weder Orgchef noch Suborgchef.', $key, $account));
                 }
-                if (($scope['roots'] ?? []) === [] && ($scope['organisation'] ?? false) !== true) {
-                    $fail(sprintf('%s: adminScopes: «%s» ohne roots oder organisation.', $key, $account));
+                if (($scope['organisation'] ?? false) === true) {
+                    $fail(sprintf('%s: adminScopes: «%s» darf keinen Organisations-Scope erhalten (gemeinsame Organisation würde alle Szenarien umfassen); roots verwenden.', $key, $account));
+                }
+                if (($scope['roots'] ?? []) === []) {
+                    $fail(sprintf('%s: adminScopes: «%s» ohne roots.', $key, $account));
                 }
                 foreach ($scope['roots'] ?? [] as $root) {
                     if (!isset($departmentKeys[$root])) {
@@ -187,6 +202,135 @@ class DemoOrganisationCatalog
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Feste Grossanlass-Zeiten (Wandzeit `YYYY-MM-DDTHH:MM:SS`): Anlassbeginn/-ende, Phasen (Aufbau/Abbau) und Uhr-Ausgangspunkt.
+     * Sie werden nie aus dem heutigen Datum berechnet.
+     *
+     * @param array<string, mixed> $ga
+     */
+    private function validateGrossanlassTimes(string $key, array $ga, callable $fail): void
+    {
+        $time = static function (mixed $value): ?\DateTimeImmutable {
+            if (!\is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/', $value)) {
+                return null;
+            }
+
+            return \DateTimeImmutable::createFromFormat('!Y-m-d\TH:i:s', $value) ?: null;
+        };
+        foreach (['eventStart', 'eventEnd', 'clockOrigin'] as $field) {
+            if (isset($ga[$field]) && $time($ga[$field]) === null) {
+                $fail(sprintf('%s: grossanlass.%s muss die Wandzeit «JJJJ-MM-TTTHH:MM:SS» sein.', $key, $field));
+            }
+        }
+        if (isset($ga['eventStart']) !== isset($ga['eventEnd'])) {
+            $fail(sprintf('%s: grossanlass.eventStart und eventEnd gehören zusammen.', $key));
+        }
+        if (isset($ga['eventStart'], $ga['eventEnd']) && $time($ga['eventEnd']) <= $time($ga['eventStart'])) {
+            $fail(sprintf('%s: grossanlass.eventEnd muss nach eventStart liegen.', $key));
+        }
+        foreach (['venue', 'delivery', 'storage'] as $part) {
+            if (!isset($ga[$part])) {
+                continue;
+            }
+            $lat = $ga[$part]['latitude'] ?? null;
+            $lon = $ga[$part]['longitude'] ?? null;
+            if (trim((string) ($ga[$part]['name'] ?? '')) === '' || !\is_numeric($lat) || !\is_numeric($lon) || abs((float) $lat) > 90 || abs((float) $lon) > 180) {
+                $fail(sprintf('%s: grossanlass.%s braucht einen Namen und gültige Koordinaten (latitude, longitude).', $key, $part));
+            }
+        }
+        $this->validateLogistics($key, $ga['logistics'] ?? [], $fail);
+        $allowed = ['months_before_5', 'months_before_2', 'build', 'during_event', 'teardown', 'months_after_2'];
+        $presetKeys = [];
+        foreach ($ga['clockPresets'] ?? [] as $preset) {
+            $presetKey = (string) ($preset['key'] ?? '');
+            if (!\in_array($presetKey, $allowed, true) || isset($presetKeys[$presetKey]) || $time($preset['at'] ?? null) === null) {
+                $fail(sprintf('%s: grossanlass.clockPresets «%s»: Schlüssel (%s, je einmal) und Wandzeit «JJJJ-MM-TTTHH:MM:SS» erforderlich.', $key, $presetKey, implode('|', $allowed)));
+            }
+            $presetKeys[$presetKey] = true;
+        }
+        $seen = [];
+        foreach ($ga['phases'] ?? [] as $phase) {
+            $phaseKey = (string) ($phase['key'] ?? '');
+            if (!\in_array($phaseKey, ['aufbau', 'durchfuehrung', 'abbau'], true) || isset($seen[$phaseKey])) {
+                $fail(sprintf('%s: grossanlass.phases: Schlüssel «%s» ungültig oder doppelt (aufbau|durchfuehrung|abbau).', $key, $phaseKey));
+            }
+            $seen[$phaseKey] = true;
+            if (trim((string) ($phase['name'] ?? '')) === '' || $time($phase['start'] ?? null) === null || $time($phase['end'] ?? null) === null || $time($phase['end']) <= $time($phase['start'])) {
+                $fail(sprintf('%s: grossanlass.phases «%s»: name, start und end (Ende nach Start) erforderlich.', $key, $phaseKey));
+            }
+            if (isset($ga['eventStart'], $ga['eventEnd']) && $time($ga['eventEnd']) > $time($ga['eventStart']) && $time($phase['start'] ?? null) !== null && $time($phase['end'] ?? null) !== null
+                && ($time($phase['start']) < $time($ga['eventStart']) || $time($phase['end']) > $time($ga['eventEnd']))) {
+                $fail(sprintf('%s: grossanlass.phases «%s» liegt ausserhalb des Anlasszeitraums (eventStart bis eventEnd).', $key, $phaseKey));
+            }
+        }
+    }
+
+    /**
+     * Logistik-Stammdaten des Katalogs (Budget-Limits, Regale, Fahrzeuge, Fahrerkarten, Chargen): Pflichtfelder und eindeutige Schlüssel.
+     *
+     * @param array<string, mixed> $logistics
+     * @param callable(string): void $fail
+     */
+    private function validateLogistics(string $key, array $logistics, callable $fail): void
+    {
+        foreach ($logistics['budget'] ?? [] as $area => $limit) {
+            if (!\in_array($area, ['material', 'logistik'], true) || !\is_numeric($limit) || (float) $limit < 0) {
+                $fail(sprintf('%s: grossanlass.logistics.budget «%s»: Bereich (material|logistik) und Limit ≥ 0 erforderlich.', $key, $area));
+            }
+        }
+        $unique = static function (array $rows, string $field) use ($key, $fail): void {
+            $seen = [];
+            foreach ($rows as $row) {
+                $value = (string) ($row[$field] ?? '');
+                if ($value === '' || isset($seen[$value])) {
+                    $fail(sprintf('%s: grossanlass.logistics: «%s» fehlt oder ist doppelt (%s).', $key, $field, $value));
+                }
+                $seen[$value] = true;
+            }
+        };
+        foreach (['racks' => 'key', 'vehicles' => 'key', 'cards' => 'account', 'charges' => 'key'] as $part => $field) {
+            $unique($logistics[$part] ?? [], $field);
+        }
+        foreach ($logistics['racks'] ?? [] as $rack) {
+            if (trim((string) ($rack['name'] ?? '')) === '' || ($rack['slots'] ?? []) === []) {
+                $fail(sprintf('%s: grossanlass.logistics.racks «%s»: name und mindestens ein Fach erforderlich.', $key, $rack['key'] ?? ''));
+            }
+        }
+        foreach ($logistics['charges'] ?? [] as $charge) {
+            if (trim((string) ($charge['name'] ?? '')) === '' || trim((string) ($charge['source'] ?? '')) === '' || (int) ($charge['quantity'] ?? 0) < 1
+                || !\in_array($charge['origin'] ?? null, ['own', 'loan', 'buy', 'buy_resale', 'donation'], true)) {
+                $fail(sprintf('%s: grossanlass.logistics.charges «%s»: name, source, quantity ≥ 1 und gültige origin erforderlich.', $key, $charge['key'] ?? ''));
+            }
+        }
+    }
+
+    /**
+     * Eltern-Department in einem anderen Szenario (department.parentRef {scenario, department}); das Szenario-Department
+     * selbst hängt dann unter einem zusätzlichen Department des anderen Szenarios (z. B. Einrichtung unter dem Demo-Department).
+     *
+     * @param array<string, mixed>                $scenario
+     * @param array<string, array<string, mixed>> $scenarios
+     */
+    private function validateParentRef(string $key, array $scenario, array $scenarios, callable $fail): void
+    {
+        $ref = $scenario['department']['parentRef'] ?? null;
+        if ($ref === null) {
+            return;
+        }
+        if (isset($scenario['department']['parent'])) {
+            $fail(sprintf('%s: department.parent und department.parentRef schliessen sich aus.', $key));
+        }
+        $target = (string) ($ref['scenario'] ?? '');
+        if ($target === $key || !isset($scenarios[$target])) {
+            $fail(sprintf('%s: parentRef.scenario «%s» unbekannt oder identisch.', $key, $target));
+        }
+        $department = (string) ($ref['department'] ?? '');
+        $known = array_map(static fn (array $d): string => (string) ($d['key'] ?? ''), (array) ($scenarios[$target]['departments'] ?? []));
+        if (!\in_array($department, $known, true)) {
+            $fail(sprintf('%s: parentRef.department «%s» ist kein zusätzliches Department von «%s».', $key, $department, $target));
         }
     }
 

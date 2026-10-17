@@ -41,6 +41,7 @@
 </template>
 
 <script setup lang="ts">
+import { useExclusiveOverlay } from '@/composables/useExclusiveOverlay'
 import { computed, ref, watch, type ComponentPublicInstance } from 'vue'
 import { VMenu, VTextField, VTimePicker } from 'vuetify/components'
 import { ACTIVITY_PICKER_MENU_Z_INDEX } from '@/composables/useActivityDateMenuProps'
@@ -59,9 +60,11 @@ const props = withDefaults(
     ariaLabel?: string
     disabled?: boolean
     locked?: boolean
+    /** Zeigt die gespeicherte Uhrzeit unverändert an (z. B. 23:59), statt sie auf das 15-Minuten-Raster zu runden. */
+    exactDisplay?: boolean
     blockedUsageRange?: { start: Date; end: Date } | null
   }>(),
-  { density: 'compact', disabled: false, locked: false },
+  { density: 'compact', disabled: false, locked: false, exactDisplay: false },
 )
 
 const emit = defineEmits<{
@@ -69,6 +72,7 @@ const emit = defineEmits<{
 }>()
 
 const menuOpen = ref(false)
+useExclusiveOverlay(menuOpen)
 const activatorRef = ref<ComponentPublicInstance | null>(null)
 const { closeOnOutside } = useActivityPickerOutsideClose({
   open: menuOpen,
@@ -111,6 +115,9 @@ function isBlockedInstant(hour: number, minute: number): boolean {
 }
 
 const displayValue = computed(() => {
+  if (props.exactDisplay && props.modelValue && Number.isFinite(props.modelValue.getTime())) {
+    return `${pad2(props.modelValue.getHours())}:${pad2(props.modelValue.getMinutes())}`
+  }
   const d = safeSnap(props.modelValue)
   if (!d) return ''
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
@@ -153,7 +160,7 @@ function onFieldClick(e: MouseEvent) {
 }
 
 function applyHourMinute(hour: number, minute: number) {
-  const base = safeSnap(props.modelValue)
+  const base = props.exactDisplay && props.modelValue && Number.isFinite(props.modelValue.getTime()) ? props.modelValue : safeSnap(props.modelValue)
   if (!base) return
   let out = new Date(base.getFullYear(), base.getMonth(), base.getDate(), hour, minute, 0, 0)
   out = snapDateToQuarterHour(out)

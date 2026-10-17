@@ -42,6 +42,7 @@ class DemoSetupResetter
     /** Tabellen, die zum Seed-Ausgangszustand gehören und nie gelöscht werden (nur gezählt und gemeldet). */
     private const KEEP = [
         'membership' => 'Mitgliedschaften (Seed-Mitglieder werden auf die Katalog-Rolle gesetzt; weitere bleiben unverändert)',
+        'department_grossanlass_budget_area' => 'Budget-Limits Material und Logistik (Beschaffungseinstellung, kein Einrichtungsdatum)',
         'department_grossanlass_user_card' => 'Benutzerkarten (aus den Mitgliedschaften abgeleitet)',
         'department_grossanlass_config' => 'GA-Konfiguration (wird auf Seed-Werte zurückgesetzt)',
         'department_calendar_period' => 'Kalenderperiode des Anlasses (Datum wird auf den Seed-Zeitraum gesetzt)',
@@ -63,9 +64,9 @@ class DemoSetupResetter
 
     /** Zulässige Fremdbezüge auf zu löschende Zeilen: Tabelle.Spalte → wird vom Reset ebenfalls bereinigt. */
     private const ALLOWED_REFERENCES = [
-        'group' => ['group.parent_id', 'group_membership.group_id', 'department_grossanlass_group_share.group_id', 'department_grossanlass_group_share.target_group_id', 'department_grossanlass_config.logistics_group_id', 'department_grossanlass_place.group_id'],
+        'group' => ['group.parent_id', 'group_membership.group_id', 'department_grossanlass_group_share.group_id', 'department_grossanlass_group_share.target_group_id', 'department_grossanlass_config.logistics_group_id', 'department_grossanlass_place.group_id', 'department_grossanlass_place_group.group_id'],
         'address' => ['address.parent_id', 'department_grossanlass_config.venue_address_id', 'activity.venue_address_id'],
-        'department_grossanlass_place' => [],
+        'department_grossanlass_place' => ['department_grossanlass_place_group.place_id'],
         'join_request' => [],
     ];
 
@@ -258,9 +259,11 @@ class DemoSetupResetter
         $c->executeStatement('UPDATE activity SET venue_address_id = NULL WHERE department_id = ? AND venue_address_id IS NOT NULL', [$departmentId]);
         $c->executeStatement('DELETE FROM department_grossanlass_group_share WHERE department_id = ?', [$departmentId]);
         if ($ids['places'] !== []) {
+            $c->executeStatement('DELETE FROM department_grossanlass_place_group WHERE place_id IN (SELECT id FROM department_grossanlass_place WHERE department_id = ?)', [$departmentId]);
             $c->executeStatement('DELETE FROM department_grossanlass_place WHERE department_id = ?', [$departmentId]);
         }
         if ($ids['groups'] !== []) {
+            $c->executeStatement('DELETE FROM department_grossanlass_place_group WHERE group_id IN (' . $this->placeholders($ids['groups']) . ')', $ids['groups']);
             $c->executeStatement('DELETE FROM group_membership WHERE group_id IN (' . $this->placeholders($ids['groups']) . ')', $ids['groups']);
             $c->executeStatement('UPDATE "group" SET parent_id = NULL WHERE department_id = ?', [$departmentId]);
             $c->executeStatement('DELETE FROM "group" WHERE department_id = ?', [$departmentId]);

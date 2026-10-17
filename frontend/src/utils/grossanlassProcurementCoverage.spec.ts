@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { GrossanlassProcurementLine } from '@/api/grossanlassProcurement'
 import {
   procurementCoverageOpen,
+  procurementCoveredQty,
   procurementOrderedQty,
 } from '@/utils/grossanlassProcurementCoverage'
 
@@ -45,60 +46,58 @@ function line(partial: Partial<GrossanlassProcurementLine>): GrossanlassProcurem
   }
 }
 
+const order = {
+  id: 'o1',
+  procurement_line_id: 'l1',
+  ordered_at: '',
+  delivery_at: null,
+  cost_chf: 450,
+  order_ref: null,
+  notes: null,
+  created_at: '',
+  updated_at: '',
+}
+
 describe('grossanlassProcurementCoverage', () => {
-  it('counts the full demand as ordered, not the remainder after loans', () => {
+  it('adds ordered and loaned quantities instead of letting an order cover the full demand', () => {
     const hose = line({
       status: 'bestellt',
       quantity_loaned: 150,
       quantity_ordered: 265,
-      order: {
-        id: 'o1',
-        procurement_line_id: 'l1',
-        ordered_at: '',
-        delivery_at: null,
-        cost_chf: 450,
-        order_ref: null,
-        notes: null,
-        created_at: '',
-        updated_at: '',
-      },
+      order,
     })
-    expect(procurementOrderedQty(hose)).toBe(415)
-    expect(procurementCoverageOpen(hose, 0, 150)).toBe(0)
-  })
-
-  it('falls back to the line quantity when the line is ordered without a charge qty', () => {
-    const hose = line({ status: 'bestellt', quantity_loaned: 150 })
-    expect(procurementOrderedQty(hose)).toBe(415)
+    expect(procurementOrderedQty(hose)).toBe(265)
+    expect(procurementCoveredQty(hose, 150, 0)).toBe(415)
     expect(procurementCoverageOpen(hose, 150, 0)).toBe(0)
   })
 
-  it('does not treat a selected quote as ordered', () => {
+  it('shows an over-coverage as a negative remainder when a purchase repeats the loaned quantity', () => {
+    const hose = line({ status: 'bestellt', quantity_loaned: 150, quantity_ordered: 415, order })
+    expect(procurementCoverageOpen(hose, 150, 0)).toBe(-150)
+  })
+
+  it('covers the remainder across several partial orders', () => {
+    const hose = line({ status: 'teilweise_erhalten', quantity_ordered: 300 })
+    expect(procurementOrderedQty(hose)).toBe(300)
+    expect(procurementCoverageOpen(hose, 0, 0)).toBe(115)
+  })
+
+  it('does not count a quote as cover: only confirmed orders and commitments do', () => {
     const hose = line({
       status: 'budgetiert',
-      quantity_ordered: 265,
+      quantity_ordered: 0,
       selected_quote_id: 'q1',
     })
     expect(procurementOrderedQty(hose)).toBe(0)
     expect(procurementCoverageOpen(hose, 0, 150)).toBe(265)
   })
 
-  it('does not count a buy charge while the line is still only a quote', () => {
-    const hose = line({
-      status: 'offerte_eingeholt',
-      quantity_ordered: 265,
-      order: {
-        id: 'o1',
-        procurement_line_id: 'l1',
-        ordered_at: '',
-        delivery_at: null,
-        cost_chf: 450,
-        order_ref: null,
-        notes: null,
-        created_at: '',
-        updated_at: '',
-      },
-    })
-    expect(procurementOrderedQty(hose)).toBe(0)
+  it('falls back to the line quantity for older payloads without a charge quantity', () => {
+    const hose = line({ status: 'bestellt', quantity_loaned: 150 })
+    expect(procurementOrderedQty(hose)).toBe(415)
+  })
+
+  it('does not treat an unordered line without charge quantity as ordered', () => {
+    expect(procurementOrderedQty(line({ status: 'offerte_eingeholt' }))).toBe(0)
   })
 })

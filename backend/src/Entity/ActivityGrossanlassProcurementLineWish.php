@@ -6,6 +6,7 @@ use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity]
 #[ORM\Table(name: 'activity_grossanlass_procurement_line_wish')]
+#[ORM\UniqueConstraint(name: 'uq_grossanlass_procurement_wish', columns: ['wish_line_id'])]
 class ActivityGrossanlassProcurementLineWish
 {
     #[ORM\Id]

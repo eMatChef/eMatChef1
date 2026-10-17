@@ -63,7 +63,7 @@ Eine Charge hat heute unter anderem:
 | `item_details` (JSON) | u. a. `from_line_id` (bleibt für bestehende Leser; die Relation ist `procurement_line_id`), `quote_id`, `order_id`, `order_ref`, `inbound_status` (vom Server aus den Bewegungen abgeleitet), `inbound_mode` (`pickup` \| `delivery`), `pickup_einsatz_id`, `delivery_einsatz_id`, `qty_checked`, `parts` |
 | `packed`, `returned_to_firm` | Booleans für Pack und Retour an Firma, jeweils für die ganze Charge |
 
-Chargen entstehen aus einer Anfrage (`…/zusagen/from-inquiry/{id}`, `origin=loan`), aus einer Bestellung (Kauf-Charge mit `origin=buy`, eine pro Bedarfsposition, Rückgabepflicht aus der Offerte), manuell oder aus einer übernommenen Department-Freigabe ([§9](#9-department--camp--grossanlass), Eigentümer = Department).
+Chargen entstehen aus einer Anfrage (`…/zusagen/from-inquiry/{id}`, `origin=loan`), aus einer Bestellung (Kauf-Charge mit `origin=buy`, genau eine je Bestellung über `commitment.order_id`, Rückgabepflicht aus der Bestellung bzw. Offerte), manuell oder aus einer übernommenen Department-Freigabe ([§9](#9-department--camp--grossanlass), Eigentümer = Department).
 
 Die Charge-Menge ist die erwartete Menge. Sie lässt sich nicht unter die bereits erhaltene Menge senken. Eingang, Fehlmenge und Eingangsstand kommen aus den Charge-Bewegungen ([§14](#14-charge-bewegungen)).
 
@@ -130,6 +130,12 @@ Materialwunsch (`activity_grossanlass_wish_line`): Menge, Einheit (`quantity_uni
 - Ressort / Bauprojekt selbst: `self_organized` am Wunsch oder Direkt-Bedarf mit `can_procure`
 - Material & Logistik: Bedarfsposition (`activity_grossanlass_procurement_line`), Bündelung mehrerer Wünsche
 
+**Beschaffungszuständigkeit (IST):** `activity_grossanlass_wish_line.procurement_responsibility` = `department` (Ressort beschafft selbst), `central` (Zentrale Beschaffung) oder `NULL` (noch nicht festgelegt, kein Backfill). `self_organized` bleibt bestehen und ist bei `department` synchron `true`; ein Wunsch mit `self_organized = true` ohne Wert zählt als `department`. Bearbeitbar in «Grundeingabe bearbeiten» und im Batch-Dialog «Kategorisieren» (`POST …/beschaffung/wishes/categorize` mit `category_id` und/oder `procurement_responsibility`, alles-oder-nichts, abweichende Werte nur mit `overwrite`). Kategorisieren erzeugt nie eine Position. `department`-Wünsche verlassen den zentralen Pool und stehen im Bedarf-View unter «Vom Ressort selbst beschafft» (`department_wishes`).
+
+**Übernahme in die zentrale Beschaffung (IST):** `POST …/beschaffung/lines` (neue Position) und `POST …/lines/{id}/wishes` (zu bestehender Position) akzeptieren nur Wünsche mit `central`, nie bereits zugeordnete, in einer Transaktion. Mehrere Wünsche brauchen einen bewusst gesetzten Positionsnamen. Wunschdaten (Name, Menge, Einheit, Ressort, Zeitraum) bleiben unverändert, die Position hält sie als `source_wishes`. Verschiedene Einheiten werden nicht summiert (keine Umrechnung definiert). Weicht die Positionsmenge von der Summe der Wünsche ab (manuell) oder ist sie eingefroren (`quantity_asked`), antwortet der Server `409 quantity_confirmation_required`; die Antwort enthält `current_quantity` (manuell), `source_quantity` (Wunschsumme), `added_quantity`, `frozen` und `proposed_quantity` (= manuell + zusätzlich, `null` bei eingefrorener Position). Erst `confirm_quantity_change: true` führt zu; die UI (`GrossanlassProcurementQuantityConfirmDialog`) zeigt die vier Zahlen und lässt den Vorschlag bestätigen oder mit `quantity` bewusst eine andere Gesamtmenge (≥ 1) setzen. Eine eingefrorene Menge bleibt immer (auch eine mitgesendete `quantity` wird ignoriert) und zeigt die Abweichung (`quantity_delta`). Hinzufügen ändert den Positionsnamen nicht. Statusregeln: nur `bedarf`, `offerte_eingeholt`, `budgetiert` nehmen Wünsche auf.
+
+**Ähnliche Positionen (IST):** `POST …/beschaffung/wishes/similar-lines` liefert je Wunsch bestehende, aufnahmefähige Positionen (`GrossanlassProcurementLineMatcher`, deterministisch, ohne KI): Stufen `exact` (gleicher Name), `similar` (normalisiert gleich/ähnlich, z. B. «Dachlatten 30x50» ↔ «Dachlatten 30 × 50 mm»), `possible` (nur gemeinsame Begriffe oder gleiche Masse bei gleicher Kategorie, z. B. «Festzelt 4x4» ↔ «Wetterdach 4 × 4 m»). Unterschiedliche Masse schliessen einen Treffer aus; Kategorie und Einheit verschieben nur die Sortierung. Verglichen werden Positionsname, Originalwunsch-Namen, Kategorie, Einheit und Beschreibung. Ressort-Direktpositionen (`self_organized`) erscheinen nie als Vorschlag. Es gibt nur Vorschläge, nie eine automatische Zusammenführung; die UI (`GrossanlassProcurementSimilarLinesDialog`) öffnet nach «Kategorisieren → Zentrale Beschaffung» und beim «Wünsche bündeln».
+
 ### 4.3 Deckung und offene Menge (IST)
 
 **IST:** «gedeckt» und «offen» pro Wunsch berechnet der Materialfortschritt ([§7.3](#73-mengenbasierter-materialfortschritt-ist)) aus den Chargen der Bedarfsposition (auf die gebündelten Wünsche verteilt) und den Einsätzen auf andere Chargen, ohne Doppelzählung. Zusätzlich setzt der Server, solange die Bedarfsposition im Status `bedarf` ist, ihre Menge auf «Wunschmenge − gebuchte Einsatzmengen», und die Beschaffung summiert Leih- und Kauf-Chargen je Bedarfsposition.
@@ -149,9 +155,17 @@ Beispiel:
 Darstellbar als je eine Charge pro Quelle und je ein Einsatz pro Deckung; die offenen 10 m ergeben sich. Einschränkungen heute:
 
 - Eigenbestand als Charge mit Herkunft `own` erfassen ([§11](#11-herkunft-und-eigentum)); der Wunsch selbst kennt Eigenbestand nur als Ganzes (`enough_on_hand`).
-- Eine Bedarfsposition hat genau eine gewählte Offerte und eine Bestellung, also höchstens **eine Kaufquelle**. Mehrere Kaufquellen brauchen mehrere Bedarfspositionen.
+- Eine Bedarfsposition kann mehrere Quellen mit eigenen Teilmengen haben: mehrere Bestellungen (Kauf, je eigener Lieferant) sowie Leihe, Spende und Eigenbestand als Zusagen. Jede Quelle ist eine Charge mit `procurement_line_id`; die Summe aller Chargen deckt den Bedarf.
 - Department-Material kommt nur über die Department-Freigabe als Leih-Charge ([§9](#9-department--camp--grossanlass)).
 - Nach Status `bedarf` wird die offene Menge nicht mehr automatisch nachgeführt.
+
+**Einheitliche Mengenrechnung (IST):** `GrossanlassProcurementQuantities` rechnet je Bedarfsposition aus deren Chargen (`commitment.procurement_line_id`) und Wareneingangs-Bewegungen: gedeckt (`quantity_loaned`, `quantity_ordered` = Kauf-Chargen, `quantity_donated` = Eigenbestand/Spende), `quantity_covered`, eingegangen (`quantity_received`), erwartet (`quantity_awaiting`), offen (`quantity_open`) und Überdeckung (`quantity_over`). Der Status der Position wird nicht mehr für die Menge herangezogen.
+
+**Keine stille Doppeldeckung (IST):** Die Kauf-Charge übernimmt die Menge ihrer Bestellung (`activity_grossanlass_procurement_order.quantity`). Ohne Angabe bestellt `POST …/lines/{id}/orders` den noch offenen Bedarf (Bedarf minus alle anderen Quellen), nicht die ganze Position. Eine Bestellung oder eine Zusage (`POST/PATCH …/zusagen`), die den Bedarf überdeckt, antwortet `409 overcoverage_confirmation_required` (`need`, `already_covered`, `requested`, `open`, `over`) und wird erst mit `confirm_overcoverage: true` gebucht. Bestellungen ohne Mengenangabe aus der Zeit davor decken weiter die ganze Position und werden nicht verändert.
+
+**Änderung gebündelter Wünsche (IST):** Wünsche bleiben nach dem Bündeln änderbar; Menge, Bestellung und Zusagen der Position ändern sich dadurch nie. Die Position meldet die Auswirkung als `source_change` (`source_quantity`, `accepted_quantity`, `delta`, `binding`, `can_adopt`, `reasons`). `POST …/lines/{id}/source-change` mit `decision`: `adopt` übernimmt die Wunschsumme (nur unverbindliche, nicht eingefrorene Positionen), `keep` behält die Menge und hält die Abweichung als bewusst fest (`source_quantity_ack`). Verbindliche Positionen (Bestellung oder Zusage) werden über Bestellmenge/Zusage angepasst, danach «Beibehalten».
+
+**Löschschutz (IST):** Eine Zusage mit Wareneingang, Einsatz, Pack oder Bestellung ist nicht löschbar (die Bewegungen hängen per Kaskade an der Charge). Eine Position mit Zusage oder Bestellung ist nicht löschbar, ebenso ein Wunsch einer Position ab Offerte oder mit Zusagen. Ein Wunsch ist höchstens einer Position zugeordnet (Unique-Index `uq_grossanlass_procurement_wish`); beim Bündeln werden Wünsche und Fahrzeugbedarfe in der Transaktion gesperrt und neu geprüft, die parallel unterlegene Anfrage erhält einen fachlichen Fehler (400).
 
 **SOLL:** Deckung und offene Menge berechnen, nicht als Status speichern.
 
@@ -162,10 +176,10 @@ Darstellbar als je eine Charge pro Quelle und je ein Einsatz pro Deckung; die of
 | Anfrage | `department_grossanlass_inquiry`: Kanal, Positionen, Status, Gmail-Thread, Ort |
 | Offerte | `activity_grossanlass_procurement_quote`: Betrag, Liefertermin, Lieferzeit, `inbound_mode` (`pickup` \| `delivery`), `return_needed`, `return_at`, Lieferantenadresse |
 | Zusage | Charge ([§2.1](#21-charge-ist)) |
-| Bestellung | `activity_grossanlass_procurement_order`: Kosten, Referenz, Liefertermin; eine pro Bedarfsposition; erzeugt die Kauf-Charge |
+| Bestellung | `activity_grossanlass_procurement_order`: Kosten, Referenz, Liefertermin, bestellte Menge (`quantity`), Grundlage (`quote_id` = Offerte oder `agreement_kind=phone` + `supplier` = telefonische/mündliche Absprache ohne Offerte), `status` (`confirmed` / `cancelled` mit `cancel_reason`), optional eigene Lieferart (`inbound_mode`) und Rückgabepflicht (`return_needed`). **Mehrere je Bedarfsposition**; jede erzeugt ihre eigene Kauf-Charge |
 | Kosten | `department_grossanlass_cost`: `purchase`, `rental`, `loan` (Sachleistung, 0 CHF), `buy_resale`, `ancillary` — [kosten.md](./kosten.md) |
 
-**SOLL:** angebotene Menge an der Offerte; bestellte Menge an der Bestellung (die Kauf-Charge übernimmt heute die Menge der Bedarfsposition); Rückgabepflicht an der Charge statt nur an der Offerte.
+**SOLL:** angebotene Menge an der Offerte; Rückgabepflicht an der Charge statt nur an der Offerte.
 
 ---
 
@@ -196,11 +210,15 @@ Der Wareneingang ist die physische Annahme, nicht die Bestellung oder die Zusage
 - Materialübersicht → Wareneingang bucht pro Charge eine Teil- oder Restmenge mit optionalem Annahmeort (Matplatz / Unterlager) und Notiz: `POST …/beschaffung/zusagen/{commitmentId}/movements` (`kind=received`). Person und Zeitpunkt werden gespeichert.
 - Erhaltene Menge, Fehlmenge und Stand (`none` \| `partial` \| `complete`) werden berechnet und mit der Charge ausgeliefert (`received_quantity`, `missing_quantity`, `inbound_state`).
 - Menge muss > 0 sein. Überlieferung über die Charge-Menge wird abgelehnt (keine stille Mengenkorrektur). Parallele Buchungen sperren die Charge.
-- Beschaffung: `POST …/beschaffung/lines/{id}/received` schreibt keine eigene Menge mehr, sondern bucht die Differenz als Bewegung an der Kauf-Charge der Bestellung. Eine Verringerung wird abgelehnt.
-- Abgeleitet (Übergangsregel, nicht unabhängig editierbar): `procurement_line_wish.received_quantity` (Verteilung auf die Wünsche), Status der Bedarfsposition `teilweise_erhalten` / `erhalten`, `item_details.inbound_status`.
+- Beschaffung: `POST …/beschaffung/lines/{id}/received` bucht als Bewegung an der Kauf-Charge **einer Bestellung** (`order_id`, bei mehreren Bestellungen Pflicht): `quantity` (diese Lieferung), `full` (Rest der Bestellung) oder `allocations` (Gesamtstand mit bewusster Zuteilung auf Wünsche). Eingänge gehören so immer der tatsächlichen Beschaffungsquelle.
+- Teillieferungen: jede Bestellung hat ihren eigenen Eingangsstand (`received_quantity`, `missing_quantity`). Der Status der Bedarfsposition (`bestellt` / `teilweise_erhalten` / `erhalten`) folgt allen aktiven Bestellungen; «erhalten» heisst, die bestellte Menge ist da (offener Bedarf steht in `quantity_open`).
+- **Keine automatische Verteilung:** Eingegangene Ware wird nicht nach Wunschreihenfolge auf Bauprojekte verteilt. `procurement_line_wish.received_quantity` entsteht nur aus einer bewussten Zuteilung (`allocations`) und wird bei einer Rückbuchung unter diesen Stand auf 0 gesetzt. Zuteilung (Einsatz), Packung und Ausgabe bleiben eigene Vorgänge.
+- Abgeleitet (nicht unabhängig editierbar): Status der Bedarfsposition, `item_details.inbound_status`.
+- **Gegenbuchung (IST):** `POST …/zusagen/{id}/movements` mit `kind=receipt_reversed`, `quantity`, Pflichtfeld `note` (Grund) und optional `reverses_id` (korrigierte Buchung). Die ursprüngliche Bewegung bleibt unverändert; der Eingangsstand ist Eingänge minus Gegenbuchungen. Nicht möglich, soweit die Ware bereits zugeteilt (aktive Einsätze) oder gepackt ist.
+- **Storno (IST):** `POST …/lines/{id}/orders/{orderId}/cancel` mit Grund. Nur ohne Eingang (erst per Gegenbuchung zurücknehmen) und ohne Zuteilung/Pack. Bestellung (`status=cancelled`) und Charge (Menge 0) bleiben als Historie, der Bedarf gilt wieder als offen, die Ist-Kosten zählen nur aktive Bestellungen.
 - Bisherige Eingänge wurden bei der Migration als Bewegungen übernommen (Charge «da» = ganze Menge; Kauf-Charge = erhaltene Menge der Position).
 
-**Offen:** Ankunft einer Inbound-Fahrt bucht noch keinen Eingang ([§5](#5-abholung-bei-firma--lieferung-partial)). Korrektur einer Fehlbuchung gibt es noch nicht (keine negative Bewegung).
+**Offen:** Ankunft einer Inbound-Fahrt bucht noch keinen Eingang ([§5](#5-abholung-bei-firma--lieferung-partial)). Eine Korrektur von Zuteilung oder Pack nach einer Gegenbuchung läuft im bestehenden Materialfluss.
 
 Fachliche Regeln:
 
@@ -245,7 +263,7 @@ Pack 2: 8 Stück → Fahrt 2
 | Bedarf | `required` | Wunschmenge (bei Bündelung je Wunsch, nicht die ganze Bedarfsposition) bzw. Direkt-Bedarf |
 | gedeckt | `covered` | Chargen der Bedarfsposition, der Reihe nach auf ihre Wünsche verteilt (gebuchte und eingegangene Chargen zuerst) + Einsätze auf andere Chargen; Einsatz auf eine Charge der eigenen Position zählt nicht nochmals. «Selbst organisiert» / «genug vorhanden» = ganz gedeckt |
 | offen | `open` | Bedarf − gedeckt |
-| eingegangen | `received` | Charge-Bewegungen `received`, je Charge auf die Deckungen verteilt (keine Doppelzählung), höchstens gedeckt |
+| eingegangen | `received` | nur bewusst zugeteilte Ware: Einsätze auf eine Charge, soweit diese eingegangen ist (Eingang minus Gegenbuchungen), höchstens gedeckt. Eingegangener, nicht zugeteilter Bestand zählt bei keinem Wunsch als eingegangen |
 | zugewiesen | `allocated` | Einsätze `planned` / `pending_approval` / `issued` |
 | gepackt | `packed` | Summe `qty_packed` aller Packs dieser Einsätze |
 | transportbereit | `ready_for_transport` | gepackte Menge in Packs `trip_released`; Selbstabholung: gepackt + Einsatz frei |

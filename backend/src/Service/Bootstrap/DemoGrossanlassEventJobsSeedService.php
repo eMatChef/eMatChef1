@@ -4,15 +4,28 @@ declare(strict_types=1);
 
 namespace App\Service\Bootstrap;
 
+use App\Entity\ActivityGrossanlassProcurementCategory;
+use App\Entity\ActivityGrossanlassProcurementLine;
 use App\Entity\ActivityGrossanlassRound;
 use App\Entity\ActivityGrossanlassRoundForm;
 use App\Entity\ActivityGrossanlassWishLine;
 use App\Entity\ActivityGrossanlassWishResponse;
 use App\Entity\Department;
+use App\Entity\DepartmentGrossanlassCost;
+use App\Entity\DepartmentGrossanlassPlace;
+use App\Entity\DepartmentGrossanlassTask;
+use App\Entity\DepartmentGrossanlassVehicleNeed;
 use App\Entity\Group;
 use App\Entity\Profile;
 use App\Entity\User;
+use App\Service\Demo\DemoStableCodes;
+use App\Service\Demo\Organisation\ManagedSeedApplier;
+use App\Service\Demo\Organisation\ManagedSpec;
+use App\Service\Demo\Organisation\SyncReport;
+use App\Service\Demo\Scenario\SeedContext;
 use App\Service\Grossanlass\GrossanlassMaterialStage;
+use App\Service\Grossanlass\GrossanlassPlaceService;
+use App\Service\Grossanlass\GrossanlassPlanningRoundService;
 use App\Service\Grossanlass\GrossanlassRoundFormService;
 use App\Util\GrossanlassIdGenerator;
 use App\Util\DemoAccounts;
@@ -29,6 +42,9 @@ final class DemoGrossanlassEventJobsSeedService
     public function __construct(
         private EntityManagerInterface $entityManager,
         private GrossanlassRoundFormService $formService,
+        private ?ManagedSeedApplier $applier = null,
+        private ?GrossanlassPlanningRoundService $planningRounds = null,
+        private ?GrossanlassPlaceService $places = null,
     ) {
     }
 
@@ -49,6 +65,10 @@ final class DemoGrossanlassEventJobsSeedService
                 'Grossanlass «%s» nicht gefunden.',
                 $departmentName,
             ));
+        }
+
+        if ($department->getDemoScenarioKey() !== null) {
+            throw new \InvalidArgumentException(sprintf('«%s» gehört zum Demo-Szenario «%s»; die Event-Daten werden mit app:demo:sync --scenario=%s angelegt.', $departmentName, $department->getDemoScenarioKey(), $department->getDemoScenarioKey()));
         }
 
         if (!$department->isDemoMode()) {
@@ -112,8 +132,9 @@ final class DemoGrossanlassEventJobsSeedService
                     ++$createdJobs;
                 }
 
-                $validFrom = $this->dateFromOffset($eventStart, (int) $jobDef['from'])->setTime(8, 0);
-                $validTo = $this->dateFromOffset($eventStart, (int) $jobDef['to'])->setTime(18, 0);
+                [$from, $to] = $this->windowFor((string) $jobDef['name']);
+                $validFrom = new \DateTime($from . ' 08:00:00');
+                $validTo = new \DateTime($to . ' 18:00:00');
 
                 foreach ($jobDef['materials'] as $material) {
                     /** @var array<string, mixed> $material */
@@ -143,6 +164,660 @@ final class DemoGrossanlassEventJobsSeedService
             'wishes' => $wishCount,
             'created_jobs' => $createdJobs,
             'created_wishes' => $createdWishes,
+        ];
+    }
+
+    // ---------------------------------------------------------------------------------------------------------------
+    // Szenario-Sync (grossanlass-event): dieselben Kataloge, aber über den Seed-Ledger verwaltet. Fehlendes wird ergänzt,
+    // manuell Geändertes bleibt (Abweichung), nichts wird gelöscht. Zeitfenster relativ zum Beginn des Anlasses.
+    // ---------------------------------------------------------------------------------------------------------------
+
+    /** Ressort (Seed-Schlüssel der Szenario-Gruppe), unter dem die Gewerke (Bereiche) liegen. */
+    public const SCENARIO_PARENT_GROUP = 'bauten';
+
+    /** @return list<string> alle Ledger-Schlüssel, die {@see syncScenario()} für das Szenario führt */
+    public function expectedSeedKeys(string $scenarioKey): array
+    {
+        $keys = [];
+        foreach ($this->catalog() as $cluster) {
+            $keys[] = $scenarioKey . ':bauprojekt:bereich:' . self::slug((string) $cluster['bereich']);
+            $sub = $this->subBereiche()[(string) $cluster['bereich']] ?? null;
+            if ($sub !== null) {
+                $keys[] = $scenarioKey . ':bauprojekt:bereich:' . self::slug($sub['name']);
+                $keys[] = $scenarioKey . ':ort:bereich:' . self::slug($sub['name']);
+            }
+            foreach ($cluster['jobs'] as $job) {
+                $jobSlug = self::slug((string) $job['name']);
+                $keys[] = $scenarioKey . ':bauprojekt:' . $jobSlug;
+                $keys[] = $scenarioKey . ':ort:' . $jobSlug;
+                foreach ($job['materials'] as $material) {
+                    $keys[] = $scenarioKey . ':wunsch:' . $jobSlug . ':' . self::slug((string) $material['label']);
+                }
+            }
+        }
+        foreach ($this->taskCatalog() as $task) {
+            $keys[] = $scenarioKey . ':aufgabe:' . $task['key'];
+        }
+        foreach ($this->vehicleNeedCatalog() as $need) {
+            $keys[] = $scenarioKey . ':fahrzeugbedarf:' . $need['key'];
+        }
+        foreach ($this->procurementCatalog() as $line) {
+            $keys[] = $scenarioKey . ':beschaffung:' . $line['key'];
+            $keys[] = $scenarioKey . ':kosten:' . $line['key'];
+        }
+
+        return $keys;
+    }
+
+    /** @return list<string> Verstösse: fehlende Seed-Einträge oder gelöschte Datensätze */
+    public function verifyScenario(SeedContext $context): array
+    {
+        $violations = [];
+        $records = [];
+        foreach ($context->records() as $record) {
+            $records[$record->getSeedKey()] = $record;
+        }
+        foreach ($this->expectedSeedKeys($context->scenarioKey()) as $seedKey) {
+            $record = $records[$seedKey] ?? null;
+            if ($record === null) {
+                $violations[] = sprintf('Seed-Eintrag «%s» fehlt (Sync ergänzt ihn).', $seedKey);
+            } elseif ($this->entityManager->find($record->getEntityClass(), $record->getEntityId()) === null) {
+                $violations[] = sprintf('Datensatz zu «%s» existiert nicht mehr (Sync legt ihn neu an).', $seedKey);
+            }
+        }
+
+        return $violations;
+    }
+
+    public function syncScenario(SeedContext $context, SyncReport $report, string $version): void
+    {
+        if ($this->applier === null || $this->planningRounds === null || $this->places === null) {
+            throw new \LogicException('Der Szenario-Sync braucht ManagedSeedApplier, Planungsrunden und Ortsdienst.');
+        }
+        $department = $context->requireDepartment();
+        $key = $context->scenarioKey();
+        $parentRecord = $context->findRecord($key . ':group:' . self::SCENARIO_PARENT_GROUP);
+        $aufbau = $parentRecord !== null ? $this->entityManager->find(Group::class, $parentRecord->getEntityId()) : null;
+        if (!$aufbau instanceof Group) {
+            $report->warnings[] = 'Event-Inhalt übersprungen: Ressort «Aufbau» fehlt (Organisationsstruktur zuerst synchronisieren).';
+
+            return;
+        }
+        $actor = $this->resolveActor();
+        $round = $this->planningRounds->ensureOpenMaterialWishRound($department, $actor);
+        $form = $this->formService->findOrCreateFormForRound($round);
+        $jobs = [];
+        foreach ($this->catalog() as $cluster) {
+            $bereich = $this->managedGroup($context, $report, $key . ':bauprojekt:bereich:' . self::slug((string) $cluster['bereich']), $department, $aufbau, [
+                'name' => (string) $cluster['bereich'],
+                'kind' => Group::GROSSANLASS_KIND_BEREICH,
+                'sort' => (int) $cluster['sort'],
+                'description' => (string) ($cluster['bereich_desc'] ?? ''),
+                'window' => $this->windowFor((string) $cluster['bereich']),
+            ], $version);
+            if (!$bereich instanceof Group) {
+                continue;
+            }
+            $sub = $this->subBereiche()[(string) $cluster['bereich']] ?? null;
+            $subGroup = null;
+            if ($sub !== null) {
+                $subGroup = $this->managedGroup($context, $report, $key . ':bauprojekt:bereich:' . self::slug($sub['name']), $department, $bereich, [
+                    'name' => $sub['name'],
+                    'kind' => Group::GROSSANLASS_KIND_BEREICH,
+                    'sort' => $sub['sort'],
+                    'description' => $sub['description'],
+                    'window' => $this->windowFor($sub['name']),
+                ], $version);
+                if ($subGroup instanceof Group) {
+                    $this->managedAreaPlace($context, $report, $key . ':ort:bereich:' . self::slug($sub['name']), $department, $subGroup, $version);
+                }
+            }
+            foreach ($cluster['jobs'] as $jobDef) {
+                $jobSlug = self::slug((string) $jobDef['name']);
+                $jobParent = $subGroup instanceof Group && \in_array($jobDef['name'], $sub['jobs'] ?? [], true) ? $subGroup : $bereich;
+                $job = $this->managedGroup($context, $report, $key . ':bauprojekt:' . $jobSlug, $department, $jobParent, [
+                    'name' => (string) $jobDef['name'],
+                    'kind' => Group::GROSSANLASS_KIND_TEILBEREICH,
+                    'sort' => (int) $jobDef['sort'],
+                    'description' => (string) $jobDef['description'],
+                    'window' => $this->windowFor((string) $jobDef['name']),
+                ], $version);
+                if (!$job instanceof Group) {
+                    continue;
+                }
+                $jobs[(string) $jobDef['name']] = $job;
+                $this->managedPlace($context, $report, $key . ':ort:' . $jobSlug, $department, $job, $version);
+                [$from, $to] = $this->windowFor((string) $jobDef['name']);
+                $validFrom = new \DateTime($from . ' 08:00:00');
+                $validTo = new \DateTime($to . ' 18:00:00');
+                foreach ($jobDef['materials'] as $material) {
+                    $this->managedWish($context, $report, $key . ':wunsch:' . $jobSlug . ':' . self::slug((string) $material['label']), $round, $form, $job, $actor, $material, $validFrom, $validTo, (string) $cluster['firma'], $version);
+                }
+            }
+        }
+
+        foreach ($this->taskCatalog() as $def) {
+            $group = $jobs[$def['job']] ?? null;
+            if ($group instanceof Group) {
+                $this->managedTask($context, $report, $key . ':aufgabe:' . $def['key'], $department, $group, $def, $version);
+            }
+        }
+        foreach ($this->vehicleNeedCatalog() as $def) {
+            $group = $jobs[$def['job']] ?? null;
+            if ($group instanceof Group) {
+                $this->managedVehicleNeed($context, $report, $key . ':fahrzeugbedarf:' . $def['key'], $department, $group, $def, $version);
+            }
+        }
+        foreach ($this->procurementCatalog() as $def) {
+            $group = $jobs[$def['job']] ?? null;
+            if ($group instanceof Group) {
+                $line = $this->managedProcurementLine($context, $report, $key . ':beschaffung:' . $def['key'], $department, $group, $actor, $def, $version);
+                if ($line instanceof ActivityGrossanlassProcurementLine) {
+                    $this->managedCost($context, $report, $key . ':kosten:' . $def['key'], $department, $group, $line, $def, $version);
+                }
+            }
+        }
+        $this->entityManager->flush();
+    }
+
+    /**
+     * Feste Zeitfenster der Gewerke und Bauprojekte im Event-Zeitplan 2027 (Aufbau 19.05.–04.06., Durchführung 04.–06.06.,
+     * Abbau 06.–23.06.): Beginn der Aufbauarbeiten bis Ende des Rückbaus bzw. der Rücklieferung. Absolute Tage, einmalig
+     * fachlich festgelegt; nichts wird aus dem heutigen Datum oder dem Anlassbeginn abgeleitet. Gewerke umfassen ihre Bauprojekte.
+     *
+     * @return array<string, array{0: string, 1: string}> Name → [von, bis] (Y-m-d)
+     */
+    private function scenarioWindows(): array
+    {
+        return [
+            // Holzbau: früher Aufbau, Rückbau gleich nach dem Anlass
+            'Ticket-Häuschen Eingang' => ['2027-05-19', '2027-06-09'],
+            'Bar-Tresen West' => ['2027-05-21', '2027-06-09'],
+            'Crew-Hütte Backstage' => ['2027-05-20', '2027-06-09'],
+            'Rollstuhlrampe Haupteingang' => ['2027-05-24', '2027-06-08'],
+            'Holzbau' => ['2027-05-19', '2027-06-09'],
+            // Bühne & Gerüst: Aufbau in der letzten Woche, Rückbau mit dem Gerüstbauer
+            'Hauptbühnen-Podest' => ['2027-05-31', '2027-06-09'],
+            'Delay-Tower Ost' => ['2027-05-31', '2027-06-08'],
+            'FOH-Erweiterung' => ['2027-05-31', '2027-06-08'],
+            'Lichtbrücke Traversen' => ['2027-06-01', '2027-06-09'],
+            'Bühne & Gerüst' => ['2027-05-31', '2027-06-09'],
+            // Untergruppe «Hauptbühne»: umfasst Podest und FOH-Erweiterung
+            'Hauptbühne' => ['2027-05-31', '2027-06-09'],
+            // Sanitär- und Wasserbau: bis zur Rücklieferung der Anlagen
+            'WC-Park West' => ['2027-06-01', '2027-06-14'],
+            'Crew-Duschen' => ['2027-06-01', '2027-06-14'],
+            'Grauwasser Hauptbühne' => ['2027-06-01', '2027-06-11'],
+            'Sanitär- & Wasserbau' => ['2027-06-01', '2027-06-14'],
+            // Energie & Strom
+            'Hauptverteiler CEE' => ['2027-05-28', '2027-06-11'],
+            'Notstromaggregat' => ['2027-05-30', '2027-06-14'],
+            'Wegeleuchten Gelände' => ['2027-06-01', '2027-06-14'],
+            'Energie & Strom' => ['2027-05-28', '2027-06-14'],
+            // Zelte & Wetterschutz
+            'Catering-Zelt 20×30' => ['2027-06-01', '2027-06-15'],
+            'Crew-Zelt Backstage' => ['2027-06-01', '2027-06-15'],
+            'Info-Pagode Eingang' => ['2027-06-02', '2027-06-12'],
+            'Zelte & Wetterschutz' => ['2027-06-01', '2027-06-15'],
+            // Sicherheit & Zaun
+            'Bauzaun Perimeter' => ['2027-05-31', '2027-06-16'],
+            'Dränggitter Front of Stage' => ['2027-06-01', '2027-06-12'],
+            'Fluchtweg-Markierung' => ['2027-06-02', '2027-06-14'],
+            'Sicherheit & Zaun' => ['2027-05-31', '2027-06-16'],
+        ];
+    }
+
+    /** @return array{0: string, 1: string} */
+    private function windowFor(string $name): array
+    {
+        return $this->scenarioWindows()[$name] ?? throw new \LogicException(sprintf('Kein Zeitfenster für «%s» im Event-Zeitplan 2027.', $name));
+    }
+
+    /** Stabiler Schlüsselteil aus einem Anzeigenamen (Umlaute und Sonderzeichen ersetzt). */
+    public static function slug(string $name): string
+    {
+        $ascii = strtr(mb_strtolower($name), ['ä' => 'ae', 'ö' => 'oe', 'ü' => 'ue', 'ß' => 'ss', '×' => 'x', '&' => 'und']);
+
+        return trim((string) preg_replace('/[^a-z0-9]+/', '-', $ascii), '-');
+    }
+
+    /** @param array<string, mixed> $def */
+    private function managedGroup(SeedContext $context, SyncReport $report, string $seedKey, Department $department, Group $parent, array $def, string $version): ?Group
+    {
+        $desired = [
+            'name' => $def['name'],
+            'parent_id' => $parent->getId(),
+            'kind' => $def['kind'],
+            'sort' => $def['sort'],
+            'description' => $def['description'],
+            'window_start' => $def['window'][0],
+            'window_end' => $def['window'][1],
+            'build_status' => Group::BUILD_STATUS_PLANNED,
+        ];
+        $entity = $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $seedKey,
+            create: function () use ($department): Group {
+                $g = new Group();
+                $g->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::GROUP, Group::class));
+                $g->setDepartment($department);
+
+                return $g;
+            },
+            find: fn (string $id): ?object => $this->entityManager->find(Group::class, $id),
+            idOf: static fn (object $g): string => (string) $g->getId(),
+            read: static fn (object $g): array => [
+                'name' => $g->getName(),
+                'parent_id' => $g->getParentId(),
+                'kind' => $g->getGrossanlassKind(),
+                'sort' => $g->getSortOrder(),
+                'description' => (string) $g->getDescription(),
+                'window_start' => $g->getWindowStart()?->format('Y-m-d'),
+                'window_end' => $g->getWindowEnd()?->format('Y-m-d'),
+                'build_status' => $g->getBuildStatus(),
+            ],
+            write: function (object $g, array $d): void {
+                $g->setName($d['name']);
+                $g->setParent($this->entityManager->find(Group::class, $d['parent_id']));
+                $g->setGrossanlassKind($d['kind']);
+                $g->setSortOrder($d['sort']);
+                $g->setDescription($d['description']);
+                $g->setWindowStart(new \DateTime($d['window_start']));
+                $g->setWindowEnd(new \DateTime($d['window_end']));
+                $g->setBuildStatus($d['build_status']);
+            },
+            desired: $desired,
+            adopt: fn (): ?object => $this->adoptUnrecorded(Group::class, ['departmentId' => $department->getId(), 'name' => $def['name'], 'parentId' => $parent->getId()]),
+            resettable: true,
+        ), $version);
+
+        return $entity instanceof Group ? $entity : null;
+    }
+
+    private function managedPlace(SeedContext $context, SyncReport $report, string $seedKey, Department $department, Group $job, string $version): void
+    {
+        $ensure = fn (): DepartmentGrossanlassPlace => $this->places->ensureForBauprojekt($department, $job);
+        $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $seedKey,
+            create: $ensure,
+            find: fn (string $id): ?object => $this->entityManager->find(DepartmentGrossanlassPlace::class, $id),
+            idOf: static fn (object $p): string => (string) $p->getId(),
+            read: fn (object $p): array => ['group_id' => $p instanceof DepartmentGrossanlassPlace ? $this->places->soleGroupId($p) : null, 'kind' => $p->getKind()],
+            write: static function (object $p, array $d): void {
+            },
+            desired: ['group_id' => $job->getId(), 'kind' => 'bauprojekt'],
+            adopt: fn (): ?object => $this->adoptUnrecordedPlace($department, $job),
+            afterCreate: function (object $p) use ($context, $seedKey): void {
+                // Neu angelegter Ort: QR-Code reproduzierbar aus dem Seed-Schlüssel, damit er nach einem Reset derselbe bleibt.
+                $code = DemoStableCodes::prefixed(GrossanlassIdGenerator::prefix(GrossanlassIdGenerator::PLACE_PUBLIC), $context->scenarioKey(), $seedKey);
+                if ($p instanceof DepartmentGrossanlassPlace && $this->entityManager->getRepository(DepartmentGrossanlassPlace::class)->findOneBy(['publicCode' => $code]) === null) {
+                    $p->setPublicCode($code);
+                }
+            },
+            resettable: true,
+        ), $version);
+    }
+
+    /** Karten-Ort vom Typ «Fläche» für einen Bereich; ohne Polygon, das Polygon wird in der Oberfläche gezeichnet und nie vom Seed überschrieben. */
+    private function managedAreaPlace(SeedContext $context, SyncReport $report, string $seedKey, Department $department, Group $bereich, string $version): void
+    {
+        $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $seedKey,
+            create: fn (): DepartmentGrossanlassPlace => $this->places->ensureForArea($department, $bereich),
+            find: fn (string $id): ?object => $this->entityManager->find(DepartmentGrossanlassPlace::class, $id),
+            idOf: static fn (object $p): string => (string) $p->getId(),
+            read: fn (object $p): array => ['group_id' => $p instanceof DepartmentGrossanlassPlace ? $this->places->soleGroupId($p) : null, 'kind' => $p->getKind()],
+            write: static function (object $p, array $d): void {
+            },
+            desired: ['group_id' => $bereich->getId(), 'kind' => 'area'],
+            adopt: fn (): ?object => $this->adoptUnrecordedPlace($department, $bereich),
+            afterCreate: function (object $p) use ($context, $seedKey): void {
+                $code = DemoStableCodes::prefixed(GrossanlassIdGenerator::prefix(GrossanlassIdGenerator::PLACE_PUBLIC), $context->scenarioKey(), $seedKey);
+                if ($p instanceof DepartmentGrossanlassPlace && $this->entityManager->getRepository(DepartmentGrossanlassPlace::class)->findOneBy(['publicCode' => $code]) === null) {
+                    $p->setPublicCode($code);
+                }
+            },
+            resettable: true,
+        ), $version);
+    }
+
+    /** @param array<string, mixed> $material */
+    private function managedWish(SeedContext $context, SyncReport $report, string $seedKey, ActivityGrossanlassRound $round, ActivityGrossanlassRoundForm $form, Group $job, User $actor, array $material, \DateTime $validFrom, \DateTime $validTo, string $firmaTyp, string $version): void
+    {
+        $label = (string) $material['label'];
+        $desired = [
+            'label' => $label,
+            'quantity' => max(1, (int) ($material['qty'] ?? 1)),
+            'unit' => (string) ($material['unit'] ?? 'Stk'),
+            'location' => (string) ($material['location'] ?? $job->getName()),
+            'valid_from' => $validFrom->format('Y-m-d H:i:s'),
+            'valid_to' => $validTo->format('Y-m-d H:i:s'),
+            'timeframe' => (string) ($material['timeframe'] ?? ''),
+            'notes' => sprintf("Firma-Typ: %s\n%s", $firmaTyp, (string) ($material['notes'] ?? '')),
+            'pickup_need' => isset($material['pickup']) ? (string) $material['pickup'] : null,
+            'pickup_place' => isset($material['pickup_place']) ? (string) $material['pickup_place'] : null,
+            'return_needed' => (bool) ($material['return'] ?? false),
+        ];
+        $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $seedKey,
+            create: function () use ($round, $form, $job, $actor): ActivityGrossanlassWishLine {
+                $response = new ActivityGrossanlassWishResponse();
+                $response->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::WISH_RESPONSE, ActivityGrossanlassWishResponse::class));
+                $response->setRound($round);
+                $response->setForm($form);
+                $response->setGroup($job);
+                $response->setCreatedByUser($actor);
+                $response->setStatus(ActivityGrossanlassWishResponse::STATUS_REQUESTED);
+                $this->entityManager->persist($response);
+
+                $line = new ActivityGrossanlassWishLine();
+                $line->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::WISH_LINE, ActivityGrossanlassWishLine::class));
+                $line->setRound($round);
+                $line->setGroup($job);
+                $line->setCreatedByUser($actor);
+                $line->setResponse($response);
+                $line->setStatus(ActivityGrossanlassWishLine::STATUS_REQUESTED);
+                $line->setWishKind(ActivityGrossanlassWishLine::KIND_MATERIAL);
+                $line->setLastStage(GrossanlassMaterialStage::GROB);
+                $line->setSelfOrganized(false);
+
+                return $line;
+            },
+            find: fn (string $id): ?object => $this->entityManager->find(ActivityGrossanlassWishLine::class, $id),
+            idOf: static fn (object $l): string => (string) $l->getId(),
+            read: static fn (object $l): array => [
+                'label' => $l->getLabel(),
+                'quantity' => $l->getQuantity(),
+                'unit' => $l->getQuantityUnit(),
+                'location' => $l->getLocation(),
+                'valid_from' => $l->getValidFrom()->format('Y-m-d H:i:s'),
+                'valid_to' => $l->getValidTo()->format('Y-m-d H:i:s'),
+                'timeframe' => (string) $l->getTimeframeNotes(),
+                'notes' => (string) $l->getNotes(),
+                'pickup_need' => $l->getPickupNeed(),
+                'pickup_place' => $l->getPickupPlace(),
+                'return_needed' => $l->isReturnNeeded(),
+            ],
+            write: static function (object $l, array $d): void {
+                $l->setLabel($d['label']);
+                $l->setQuantity($d['quantity']);
+                $l->setQuantityUnit($d['unit']);
+                $l->setLocation($d['location']);
+                $l->setValidFrom(new \DateTime($d['valid_from']));
+                $l->setValidTo(new \DateTime($d['valid_to']));
+                $l->setTimeframeNotes($d['timeframe']);
+                $l->setNotes($d['notes']);
+                $l->setPickupNeed($d['pickup_need']);
+                $l->setPickupPlace($d['pickup_place']);
+                $l->setReturnNeeded($d['return_needed']);
+                $l->touchUpdatedAt();
+            },
+            desired: $desired,
+            adopt: function () use ($job, $label): ?object {
+                $line = $this->entityManager->getRepository(ActivityGrossanlassWishLine::class)->findOneBy(['group' => $job, 'label' => $label]);
+
+                return $line instanceof ActivityGrossanlassWishLine && !$this->isRecorded($line::class, (string) $line->getId()) ? $line : null;
+            },
+            resettable: true,
+        ), $version);
+    }
+
+    /** @param array<string, mixed> $def */
+    private function managedTask(SeedContext $context, SyncReport $report, string $seedKey, Department $department, Group $group, array $def, string $version): void
+    {
+        $desired = [
+            'group_id' => $group->getId(),
+            'title' => (string) $def['title'],
+            'description' => (string) $def['description'],
+            'sort' => (int) $def['sort'],
+            'starts_at' => sprintf('%s %02d:%02d:00', $def['date'], (int) $def['hour'], (int) ($def['minute'] ?? 0)),
+            'duration' => (int) $def['duration'],
+        ];
+        $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $seedKey,
+            create: function () use ($department, $group): DepartmentGrossanlassTask {
+                $t = new DepartmentGrossanlassTask();
+                $t->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::TASK, DepartmentGrossanlassTask::class));
+                $t->setDepartment($department);
+                $t->setGroup($group);
+
+                return $t;
+            },
+            find: fn (string $id): ?object => $this->entityManager->find(DepartmentGrossanlassTask::class, $id),
+            idOf: static fn (object $t): string => (string) $t->getId(),
+            read: static fn (object $t): array => [
+                'group_id' => $t->getGroupId(),
+                'title' => $t->getTitle(),
+                'description' => (string) $t->getDescription(),
+                'sort' => $t->getSortOrder(),
+                'starts_at' => $t->getStartsAt()?->format('Y-m-d H:i:s'),
+                'duration' => $t->getDurationMinutes(),
+            ],
+            write: static function (object $t, array $d): void {
+                $t->setTitle($d['title'])->setDescription($d['description'])->setSortOrder($d['sort'])
+                    ->setStartsAt(new \DateTime($d['starts_at']))->setDurationMinutes($d['duration']);
+            },
+            desired: $desired,
+            resettable: true,
+        ), $version);
+    }
+
+    /** @param array<string, mixed> $def */
+    private function managedVehicleNeed(SeedContext $context, SyncReport $report, string $seedKey, Department $department, Group $group, array $def, string $version): void
+    {
+        $desired = [
+            'group_id' => $group->getId(),
+            'vehicle' => (string) $def['vehicle'],
+            'task' => (string) $def['task'],
+            'sort' => (int) $def['sort'],
+            'starts_at' => sprintf('%s %02d:%02d:00', $def['date'], (int) $def['hour'], (int) ($def['minute'] ?? 0)),
+            'duration' => (int) $def['duration'],
+        ];
+        $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $seedKey,
+            create: function () use ($department, $group): DepartmentGrossanlassVehicleNeed {
+                $n = new DepartmentGrossanlassVehicleNeed();
+                $n->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::VEHICLE_NEED, DepartmentGrossanlassVehicleNeed::class));
+                $n->setDepartment($department);
+                $n->setGroup($group);
+
+                return $n;
+            },
+            find: fn (string $id): ?object => $this->entityManager->find(DepartmentGrossanlassVehicleNeed::class, $id),
+            idOf: static fn (object $n): string => (string) $n->getId(),
+            read: static fn (object $n): array => [
+                'group_id' => $n->getGroupId(),
+                'vehicle' => $n->getVehicleLabel(),
+                'task' => $n->getTaskLabel(),
+                'sort' => $n->getSortOrder(),
+                'starts_at' => $n->getStartsAt()?->format('Y-m-d H:i:s'),
+                'duration' => $n->getDurationMinutes(),
+            ],
+            write: static function (object $n, array $d): void {
+                $n->setVehicleLabel($d['vehicle'])->setTaskLabel($d['task'])->setSortOrder($d['sort'])
+                    ->setStartsAt(new \DateTime($d['starts_at']))->setDurationMinutes($d['duration']);
+            },
+            desired: $desired,
+            resettable: true,
+        ), $version);
+    }
+
+    /** @param array<string, mixed> $def */
+    private function managedProcurementLine(SeedContext $context, SyncReport $report, string $seedKey, Department $department, Group $group, User $actor, array $def, string $version): ?ActivityGrossanlassProcurementLine
+    {
+        $category = $this->entityManager->getRepository(ActivityGrossanlassProcurementCategory::class)->findOneBy(['departmentId' => $department->getId(), 'name' => $def['category']]);
+        $desired = [
+            'group_id' => $group->getId(),
+            'wish_kind' => (string) $def['kind'],
+            'label' => (string) $def['label'],
+            'quantity' => (int) $def['qty'],
+            'location' => $group->getName(),
+            'notes' => (string) $def['notes'],
+            'status' => ActivityGrossanlassProcurementLine::STATUS_BEDARF,
+            'category_id' => $category?->getId(),
+        ];
+        $entity = $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $seedKey,
+            create: function () use ($department, $group, $actor): ActivityGrossanlassProcurementLine {
+                $l = new ActivityGrossanlassProcurementLine();
+                $l->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::PROCUREMENT_LINE, ActivityGrossanlassProcurementLine::class));
+                $l->setDepartment($department);
+                $l->setGroup($group);
+                $l->setCreatedByUser($actor);
+                $l->setSource(ActivityGrossanlassProcurementLine::SOURCE_DIRECT);
+                $l->setSupplyMode(ActivityGrossanlassProcurementLine::SUPPLY_OPEN);
+                $l->setSelfOrganized(false);
+
+                return $l;
+            },
+            find: fn (string $id): ?object => $this->entityManager->find(ActivityGrossanlassProcurementLine::class, $id),
+            idOf: static fn (object $l): string => (string) $l->getId(),
+            read: static fn (object $l): array => [
+                'group_id' => $l->getGroupId(),
+                'wish_kind' => $l->getWishKind(),
+                'label' => $l->getLabel(),
+                'quantity' => $l->getQuantity(),
+                'location' => $l->getLocation(),
+                'notes' => (string) $l->getNotes(),
+                'status' => $l->getStatus(),
+                'category_id' => $l->getCategoryId(),
+            ],
+            write: function (object $l, array $d): void {
+                $l->setWishKind($d['wish_kind'])->setLabel($d['label'])->setQuantity($d['quantity'])->setLocation($d['location'])
+                    ->setNotes($d['notes'])->setStatus($d['status']);
+                $l->setCategory($d['category_id'] !== null ? $this->entityManager->find(ActivityGrossanlassProcurementCategory::class, $d['category_id']) : null);
+            },
+            desired: $desired,
+            resettable: true,
+        ), $version);
+
+        return $entity instanceof ActivityGrossanlassProcurementLine ? $entity : null;
+    }
+
+    /** @param array<string, mixed> $def */
+    private function managedCost(SeedContext $context, SyncReport $report, string $seedKey, Department $department, Group $group, ActivityGrossanlassProcurementLine $line, array $def, string $version): void
+    {
+        $desired = [
+            'line_id' => $line->getId(),
+            'kind' => (string) $def['cost_kind'],
+            'label' => (string) $def['label'],
+            'soll_chf' => number_format((float) $def['soll_chf'], 2, '.', ''),
+            'status' => DepartmentGrossanlassCost::STATUS_PLANNED,
+            'group_id' => $group->getId(),
+        ];
+        $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $seedKey,
+            create: function () use ($department): DepartmentGrossanlassCost {
+                $c = new DepartmentGrossanlassCost();
+                $c->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::COST, DepartmentGrossanlassCost::class));
+                $c->setDepartment($department);
+
+                return $c;
+            },
+            find: fn (string $id): ?object => $this->entityManager->find(DepartmentGrossanlassCost::class, $id),
+            idOf: static fn (object $c): string => (string) $c->getId(),
+            read: static fn (object $c): array => [
+                'line_id' => $c->getProcurementLineId(),
+                'kind' => $c->getCostKind(),
+                'label' => $c->getLabel(),
+                'soll_chf' => $c->getSollChf() !== null ? number_format((float) $c->getSollChf(), 2, '.', '') : null,
+                'status' => $c->getStatus(),
+                'group_id' => $c->getRequestingGroupId(),
+            ],
+            write: function (object $c, array $d): void {
+                $group = $this->entityManager->find(Group::class, $d['group_id']);
+                $c->setProcurementLine($this->entityManager->find(ActivityGrossanlassProcurementLine::class, $d['line_id']))
+                    ->setCostKind($d['kind'])->setLabel($d['label'])->setSollChf($d['soll_chf'])->setStatus($d['status'])
+                    ->setRequestingGroup($group)->setPayerGroup($group);
+            },
+            desired: $desired,
+            resettable: true,
+        ), $version);
+    }
+
+    /** @param array<string, mixed> $criteria */
+    private function adoptUnrecorded(string $class, array $criteria): ?object
+    {
+        $entity = $this->entityManager->getRepository($class)->findOneBy($criteria);
+
+        return $entity !== null && !$this->isRecorded($class, (string) $entity->getId()) ? $entity : null;
+    }
+
+    /** Standort der Gruppe (über die Zuordnungstabelle), sofern er noch nicht vom Seed verwaltet wird. */
+    private function adoptUnrecordedPlace(Department $department, Group $group): ?object
+    {
+        $place = $this->places->findForGroup($department, $group->getId());
+
+        return $place !== null && !$this->isRecorded(DepartmentGrossanlassPlace::class, $place->getId()) ? $place : null;
+    }
+
+    private function isRecorded(string $class, string $id): bool
+    {
+        return $this->entityManager->getRepository(\App\Entity\DemoSeedRecord::class)->findOneBy(['entityClass' => $class, 'entityId' => $id]) !== null;
+    }
+
+    /**
+     * Aufgaben der Bauprojekte im Aufbau und Abbau (feste Tage, siehe {@see scenarioWindows()}).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function taskCatalog(): array
+    {
+        return [
+            ['key' => 'ticket-staenderwerk', 'job' => 'Ticket-Häuschen Eingang', 'title' => 'Ständerwerk aufstellen', 'description' => 'Rahmen nach Bauplan zusammenbauen und ausrichten.', 'sort' => 1, 'date' => '2027-05-20', 'hour' => 8, 'duration' => 120],
+            ['key' => 'ticket-dach', 'job' => 'Ticket-Häuschen Eingang', 'title' => 'Dach eindecken', 'description' => 'OSB-Beplankung verlegen und Schindeln aufbringen.', 'sort' => 2, 'date' => '2027-05-26', 'hour' => 8, 'duration' => 180],
+            ['key' => 'podest-montage', 'job' => 'Hauptbühnen-Podest', 'title' => 'Podest montieren', 'description' => 'Podest-Elemente verschrauben, Höhe und Waage prüfen.', 'sort' => 1, 'date' => '2027-06-01', 'hour' => 8, 'duration' => 480],
+            ['key' => 'podest-demontage', 'job' => 'Hauptbühnen-Podest', 'title' => 'Podest demontieren', 'description' => 'Elemente lösen, zählen und für die Rücklieferung verladen.', 'sort' => 2, 'date' => '2027-06-07', 'hour' => 8, 'duration' => 360],
+            ['key' => 'zaun-felder', 'job' => 'Bauzaun Perimeter', 'title' => 'Zaunfelder stellen', 'description' => 'Zaunfelder entlang des Perimeters stellen und verklammern.', 'sort' => 1, 'date' => '2027-06-01', 'hour' => 7, 'minute' => 30, 'duration' => 240],
+            ['key' => 'zaun-abbau', 'job' => 'Bauzaun Perimeter', 'title' => 'Zaunfelder abbauen', 'description' => 'Felder und Klammern einsammeln, Vollständigkeit prüfen.', 'sort' => 2, 'date' => '2027-06-08', 'hour' => 8, 'duration' => 300],
+            ['key' => 'foh-dach', 'job' => 'FOH-Erweiterung', 'title' => 'Dach', 'description' => 'Dach zusammenschrauben und für den Kran vorbereiten.', 'sort' => 1, 'date' => '2027-05-31', 'hour' => 8, 'duration' => 120],
+            ['key' => 'foh-seiten', 'job' => 'FOH-Erweiterung', 'title' => 'Seiten zusammenbauen', 'description' => '', 'sort' => 2, 'date' => '2027-05-31', 'hour' => 8, 'duration' => 240],
+            ['key' => 'zelt-aufbau', 'job' => 'Catering-Zelt 20×30', 'title' => 'Zelt aufstellen', 'description' => 'Zelthülle aufrichten, abspannen und Böden verlegen.', 'sort' => 1, 'date' => '2027-06-02', 'hour' => 8, 'duration' => 360],
+        ];
+    }
+
+    /**
+     * Fahrzeugbedarfe der Bauprojekte (feste Tage).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function vehicleNeedCatalog(): array
+    {
+        return [
+            ['key' => 'tresen-liefern', 'job' => 'Bar-Tresen West', 'vehicle' => 'Lieferwagen', 'task' => 'Tresen-Elemente liefern', 'sort' => 1, 'date' => '2027-05-21', 'hour' => 9, 'duration' => 45],
+            ['key' => 'aggregat-anliefern', 'job' => 'Notstromaggregat', 'vehicle' => 'Lieferwagen mit Hebebühne', 'task' => 'Dieselaggregat anliefern', 'sort' => 1, 'date' => '2027-05-30', 'hour' => 8, 'duration' => 60],
+            ['key' => 'podest-entladen', 'job' => 'Hauptbühnen-Podest', 'vehicle' => 'Teleskoplader', 'task' => 'Podest-Elemente entladen', 'sort' => 1, 'date' => '2027-05-31', 'hour' => 7, 'minute' => 30, 'duration' => 90],
+            ['key' => 'zelt-abholen', 'job' => 'Catering-Zelt 20×30', 'vehicle' => '7,5-t-Lastwagen', 'task' => 'Zeltmaterial abholen', 'sort' => 1, 'date' => '2027-06-01', 'hour' => 13, 'duration' => 60],
+            ['key' => 'aggregat-retour', 'job' => 'Notstromaggregat', 'vehicle' => 'Lieferwagen mit Hebebühne', 'task' => 'Dieselaggregat zurückbringen', 'sort' => 2, 'date' => '2027-06-14', 'hour' => 8, 'duration' => 60],
+            ['key' => 'zelt-retour', 'job' => 'Catering-Zelt 20×30', 'vehicle' => '7,5-t-Lastwagen', 'task' => 'Zeltmaterial zurückbringen', 'sort' => 2, 'date' => '2027-06-15', 'hour' => 9, 'duration' => 60],
+        ];
+    }
+
+    /**
+     * Untergeordnete Bereiche innerhalb eines Gewerks: Gewerk-Name → Bereich mit seinen Bauprojekten. Der Bereich erhält einen
+     * Karten-Ort vom Typ «Fläche» ohne Polygon; die Grenzen werden in der Karte gezeichnet (keine erfundenen Koordinaten).
+     *
+     * @return array<string, array{name: string, sort: int, description: string, jobs: list<string>}>
+     */
+    private function subBereiche(): array
+    {
+        return [
+            'Bühne & Gerüst' => [
+                'name' => 'Hauptbühne',
+                'sort' => 5,
+                'description' => 'Bühnenbereich mit Hauptbühnen-Podest und FOH-Erweiterung.',
+                'jobs' => ['Hauptbühnen-Podest', 'FOH-Erweiterung'],
+            ],
+        ];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function procurementCatalog(): array
+    {
+        $category = 'Bauten, Überdachungen & Raummodule';
+
+        return [
+            ['key' => 'festzelt-3x3', 'job' => 'Info-Pagode Eingang', 'kind' => 'material', 'label' => 'Festzelt 3x3 m', 'qty' => 4, 'notes' => 'Als Wetterschutz an den Eingängen.', 'category' => $category, 'cost_kind' => DepartmentGrossanlassCost::KIND_LOAN, 'soll_chf' => 480],
+            ['key' => 'stromverteiler-63a', 'job' => 'Hauptverteiler CEE', 'kind' => 'material', 'label' => 'Stromverteiler 63 A', 'qty' => 6, 'notes' => 'Mietgeräte für die Unterverteilung.', 'category' => $category, 'cost_kind' => DepartmentGrossanlassCost::KIND_RENTAL, 'soll_chf' => 360],
         ];
     }
 
@@ -373,6 +1048,7 @@ final class DemoGrossanlassEventJobsSeedService
                             $this->mat('OSB 18 mm Platten', 24, 'Stk', 'Eingang Nord', 'Beplankung Wände und Dach.', false),
                             $this->mat('Bitumenschindeln anthrazit', 8, 'Stk', 'Eingang Nord', 'Dachdeckung Ticket-Häuschen, Pakete à 3 m².', false),
                             $this->mat('Holzbauschrauben 6×80 Sortiment', 4, 'Stk', 'Eingang Nord', 'Schrauben-Kartons inkl. Winkelverbinder.', false),
+                            $this->mat('Schwartenbund', 1, 'Stk', 'Eingang Nord', 'Aus dem früheren Demo-Anlass übernommen (damals Bauprojekt «Holzbau Eingang»).', false),
                         ],
                     ],
                     [
@@ -455,6 +1131,8 @@ final class DemoGrossanlassEventJobsSeedService
                             $this->rent('Podest 2×1 m Höhe 0.6 m', 12, 'FOH', 'Erweiterung Mischpult-Fläche.'),
                             $this->rent('Wetterdach 4×4 m', 1, 'FOH', 'Leichtes Zeltdach über FoH, inkl. Fussplatten.'),
                             $this->rent('Seitenvorhang 4 m', 2, 'FOH', 'Sicht- und Wetterschutz FoH-Seiten.'),
+                            $this->mat('Nägel', 1, 'Stk', 'FOH', 'Aus dem früheren Demo-Anlass übernommen (damals Bauprojekt «FOH Bau»).', false),
+                            $this->mat('Plane', 1, 'Stk', 'FOH', 'Aus dem früheren Demo-Anlass übernommen (damals Bauprojekt «FOH Bau»).', false),
                         ],
                     ],
                     [
@@ -472,7 +1150,7 @@ final class DemoGrossanlassEventJobsSeedService
                 ],
             ],
             [
-                'bereich' => 'Sanitär & Wasser',
+                'bereich' => 'Sanitär- & Wasserbau',
                 'bereich_desc' => 'Sanitärverleih — WCs, Duschen, Grauwasser.',
                 'firma' => 'Sanitär',
                 'sort' => 130,

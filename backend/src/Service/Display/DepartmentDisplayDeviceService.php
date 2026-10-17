@@ -290,6 +290,7 @@ class DepartmentDisplayDeviceService
             'last_contact_at' => $device->getLastContactAt()?->format('c'),
             'revoked_at' => $device->getRevokedAt()?->format('c'),
             'created_via' => $device->getCreatedVia(),
+            'profile' => $device->getDisplayProfile(),
             'created_at' => $device->getCreatedAt()->format('c'),
         ];
     }

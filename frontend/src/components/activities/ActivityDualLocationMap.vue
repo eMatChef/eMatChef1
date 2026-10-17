@@ -71,6 +71,14 @@
         </button>
         <button
           type="button"
+          :class="['activity-dual-location-map__layer-btn', { active: currentLayer === 'swissimage-labels' }]"
+          :title="t('components.mapView.layerSwissimageLabelsTitle')"
+          @click.stop="setLayer('swissimage-labels')"
+        >
+          🏷️
+        </button>
+        <button
+          type="button"
           :class="['activity-dual-location-map__layer-btn', { active: currentLayer === 'osm' }]"
           :title="t('components.mapView.layerOsmTitle')"
           @click.stop="setLayer('osm')"
@@ -121,6 +129,10 @@ export interface ActivityLocationPin {
   color?: string | null
   /** Nur sichtbar, wenn die Karte nah genug ist (unmarkierte GA-Orte). */
   detailOnly?: boolean
+  /** Hervorgehoben (z. B. Bauprojekte des gewählten Bereichs): immer sichtbar, grösser. */
+  highlighted?: boolean
+  /** Fremder Standort: dezent dargestellt (z. B. andere Gruppen im Gruppen-Dialog). */
+  muted?: boolean
 }
 
 export type ActivityMapPolygon = {
@@ -130,9 +142,11 @@ export type ActivityMapPolygon = {
   points: GaPolygonPoint[]
   starred?: boolean
   detailOnly?: boolean
+  highlighted?: boolean
+  muted?: boolean
 }
 
-type MapBaseLayer = 'swisstopo' | 'swissimage' | 'osm'
+type MapBaseLayer = 'swisstopo' | 'swissimage' | 'swissimage-labels' | 'osm'
 
 export type ActivityMapOverlay = {
   url: string
@@ -175,10 +189,13 @@ const props = withDefaults(
     polygons?: ActivityMapPolygon[]
     editablePolygonId?: string | null
     polygonDrawMode?: boolean
+    /** Pin-Namen nur beim Hover bzw. Antippen zeigen statt dauerhaft. */
+    hoverPinLabels?: boolean
   }>(),
   {
     height: '220px',
     interactive: true,
+    hoverPinLabels: false,
     editablePinId: null,
     preferSwissMap: true,
     showLayerControl: true,
@@ -196,6 +213,8 @@ const props = withDefaults(
 const emit = defineEmits<{
   'pin-moved': [payload: { id: string; latitude: number; longitude: number }]
   'map-click': [payload: { latitude: number; longitude: number }]
+  'pin-click': [id: string]
+  'polygon-click': [id: string]
   'polygon-change': [payload: { id: string; points: GaPolygonPoint[] }]
   'overlay-bounds-change': [bounds: ActivityMapOverlay]
 }>()
@@ -205,7 +224,7 @@ const planVisible = defineModel<boolean>('planVisible', { default: true })
 const mapContainer = ref<HTMLDivElement>()
 let map: L.Map | null = null
 let markersLayer: L.FeatureGroup | null = null
-let activeTileLayer: L.TileLayer | null = null
+let activeTileLayer: L.Layer | null = null
 let overlayLayer: L.ImageOverlay | null = null
 let overlayOutline: L.Rectangle | null = null
 let overlayHandleLayer: L.FeatureGroup | null = null
@@ -243,8 +262,8 @@ function showsDetailLayer(): boolean {
   return currentZoom >= GA_MAP_DETAIL_MIN_ZOOM
 }
 
-function isDetailFeatureVisible(detailOnly: boolean | undefined, id: string): boolean {
-  if (!detailOnly) return true
+function isDetailFeatureVisible(detailOnly: boolean | undefined, id: string, highlighted?: boolean): boolean {
+  if (!detailOnly || highlighted) return true
   if (id === props.editablePinId || id === props.editablePolygonId) return true
   return showsDetailLayer()
 }
@@ -253,7 +272,18 @@ function wmtsUrl(layerId: string, format: 'jpeg' | 'png' = 'jpeg'): string {
   return `${WMTS_BASE}/${layerId}/default/current/3857/{z}/{x}/{y}.${format}`
 }
 
-function createTileLayer(layer: MapBaseLayer): L.TileLayer {
+function createTileLayer(layer: MapBaseLayer): L.Layer {
+  if (layer === 'swissimage-labels') {
+    // Luftbild + Beschriftungen: Orthofoto mit der transparenten swisstopo-Namensebene (swissNAMES3D: Orte, Strassen, Gelände).
+    const base = createTileLayer('swissimage') as L.TileLayer
+    const labels = L.tileLayer(wmtsUrl('ch.swisstopo.swissnames3d', 'png'), {
+      attribution: SWISSTOPO_ATTRIBUTION,
+      maxNativeZoom: 17,
+      maxZoom: 21,
+      minZoom: 7,
+    })
+    return L.layerGroup([base, labels])
+  }
   if (layer === 'swissimage') {
     return L.tileLayer(wmtsUrl('ch.swisstopo.swissimage', 'jpeg'), {
       attribution: SWISSTOPO_ATTRIBUTION,
@@ -602,21 +632,21 @@ function pinIcon(pin: ActivityLocationPin): L.DivIcon {
   const kind = pin.variant ?? 'venue'
   return L.divIcon({
     className: 'activity-dual-location-map__marker-wrap',
-    html: `<span class="activity-dual-location-map__marker activity-dual-location-map__marker--${kind}" style="background:${color}"></span>`,
+    html: `<span class="activity-dual-location-map__marker activity-dual-location-map__marker--${kind}${pin.highlighted ? ' activity-dual-location-map__marker--highlight' : ''}${pin.muted ? ' activity-dual-location-map__marker--muted' : ''}" style="background:${color}"></span>`,
     iconSize: [20, 20],
     iconAnchor: [10, 10],
   })
 }
 
 function visiblePins(): ActivityLocationPin[] {
-  return props.pins.filter((pin) => isDetailFeatureVisible(pin.detailOnly, pin.id))
+  return props.pins.filter((pin) => isDetailFeatureVisible(pin.detailOnly, pin.id, pin.highlighted))
 }
 
 function visiblePolygons(): ActivityMapPolygon[] {
   return props.polygons.filter((row) => {
     if (row.id === props.editablePolygonId) return true
     if (row.points.length < 3) return false
-    return isDetailFeatureVisible(row.detailOnly, row.id)
+    return isDetailFeatureVisible(row.detailOnly, row.id, row.highlighted)
   })
 }
 
@@ -659,11 +689,17 @@ function renderMarkers(opts: { fit?: boolean } = {}) {
       interactive: canDrag || props.interactive,
     })
     marker.bindTooltip(pin.label, {
-      permanent: true,
+      permanent: !props.hoverPinLabels,
       direction: 'top',
       offset: [0, -8],
       className: 'activity-dual-location-map__tooltip',
     })
+    if (!canDrag && props.interactive && !props.polygonDrawMode) {
+      marker.on('click', (event) => {
+        L.DomEvent.stopPropagation(event)
+        emit('pin-click', pin.id)
+      })
+    }
     if (canDrag) {
       marker.on('dragend', () => {
         const pos = marker.getLatLng()
@@ -752,15 +788,23 @@ function renderPolygons() {
     if (latlngs.length === 0) continue
     const polygon = L.polygon(latlngs, {
       color: row.color,
-      weight: row.starred || row.id === props.editablePolygonId ? 2.5 : 1.5,
+      weight: row.highlighted ? 3.5 : row.muted ? 1 : row.starred || row.id === props.editablePolygonId ? 2.5 : 1.5,
       fillColor: row.color,
-      fillOpacity: row.starred ? 0.28 : 0.16,
+      opacity: row.muted ? 0.5 : 1,
+      dashArray: row.muted ? '4 4' : undefined,
+      fillOpacity: row.highlighted ? 0.34 : row.muted ? 0.08 : row.starred ? 0.28 : 0.16,
       interactive: props.interactive,
     })
     polygon.bindTooltip(row.label, {
       sticky: true,
       className: 'activity-dual-location-map__tooltip',
     })
+    if (props.interactive && !props.polygonDrawMode && row.id !== props.editablePolygonId) {
+      polygon.on('click', (event) => {
+        L.DomEvent.stopPropagation(event)
+        emit('polygon-click', row.id)
+      })
+    }
     polygonsLayer.addLayer(polygon)
     polygonById.set(row.id, polygon)
     bindVertexMarkers(row, latlngs)
@@ -1011,7 +1055,11 @@ function selectLocationSearchResult(result: GeoSearchResult) {
   locationSearchQuery.value = result.label
   locationSearchResults.value = []
   showLocationSearchResults.value = false
-  panTo(result.lat, result.lng, 14)
+  panTo(result.lat, result.lng, 17)
+  // Auswahl setzt bzw. verschiebt den Standortmarker (nur Entwurf; gespeichert wird erst im Dialog/Formular).
+  if (props.interactive && props.editablePinId && !props.polygonDrawMode) {
+    emit('map-click', { latitude: result.lat, longitude: result.lng })
+  }
 }
 
 function clearLocationSearch() {
@@ -1076,7 +1124,7 @@ defineExpose({
 })
 
 watch(
-  () => props.pins.map((p) => `${p.id}:${p.latitude}:${p.longitude}:${p.color ?? ''}:${p.detailOnly ? 1 : 0}`).join('|'),
+  () => props.pins.map((p) => `${p.id}:${p.latitude}:${p.longitude}:${p.color ?? ''}:${p.detailOnly ? 1 : 0}:${p.highlighted ? 1 : 0}:${p.muted ? 1 : 0}`).join('|'),
   () => {
     if (map) {
       nextTick(() => {
@@ -1090,7 +1138,7 @@ watch(
 watch(
   () =>
     props.polygons
-      .map((row) => `${row.id}:${row.color}:${row.detailOnly ? 1 : 0}:${row.points.map((p) => `${p.lat},${p.lng}`).join(';')}`)
+      .map((row) => `${row.id}:${row.color}:${row.detailOnly ? 1 : 0}:${row.highlighted ? 1 : 0}:${row.muted ? 1 : 0}:${row.points.map((p) => `${p.lat},${p.lng}`).join(';')}`)
       .join('|'),
   () => {
     if (map) {
@@ -1178,8 +1226,17 @@ onUnmounted(() => {
   top: 10px;
   left: 10px;
   z-index: 1000;
-  width: min(280px, calc(100% - 160px));
+  width: min(280px, calc(100% - 232px));
+  min-width: 140px;
   pointer-events: auto;
+}
+
+/* Schmale Karte: Suche unter die Kartenebenen-Symbole legen statt sie zu überlagern. */
+@media (max-width: 520px) {
+  .activity-dual-location-map__search {
+    top: 56px;
+    width: calc(100% - 20px);
+  }
 }
 
 .activity-dual-location-map__search-input {
@@ -1291,6 +1348,19 @@ onUnmounted(() => {
   border-radius: 50%;
   border: 2px solid #fff;
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.35);
+}
+
+:deep(.activity-dual-location-map__marker--highlight) {
+  width: 22px;
+  height: 22px;
+  margin: -3px 0 0 -3px;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.45), 0 1px 4px rgba(15, 23, 42, 0.35);
+}
+
+:deep(.activity-dual-location-map__marker--muted) {
+  opacity: 0.45;
+  transform: scale(0.8);
+  box-shadow: none;
 }
 
 :deep(.activity-dual-location-map__vertex-wrap) {

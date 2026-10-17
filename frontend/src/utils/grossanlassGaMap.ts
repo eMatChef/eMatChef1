@@ -53,6 +53,13 @@ export function mapPointFromClick(
   }
 }
 
+/** Zugeordnete Gruppen eines Standorts (group_ids, sonst der Übergangswert group_id). */
+export function gaPlaceGroupIds(place: { group_id?: string | null; group_ids?: string[] } | null | undefined): string[] {
+  if (!place) return []
+  if (place.group_ids) return place.group_ids
+  return place.group_id ? [place.group_id] : []
+}
+
 export function gaPlaceKind(kind: string | null | undefined): GaPlaceKind {
   return GA_PLACE_KINDS.includes(kind as GaPlaceKind) ? (kind as GaPlaceKind) : 'poi'
 }

@@ -54,9 +54,10 @@
       {{ createPinMode ? t('activities.venueLocations.createPinHint') : t('contacts.detail.mapEditHint') }}
     </p>
 
-    <div class="event-venue-detail-map-layout">
+    <div class="event-venue-detail-map-layout" :class="{ 'event-venue-detail-map-layout--picker': pickerMode }">
       <div class="event-venue-detail-accordion-list">
-      <template v-for="item in sidebarListItems" :key="item.key">
+      <slot name="sidebar-top" />
+      <template v-for="item in visibleSidebarItems" :key="item.key">
       <div
         v-if="item.type === 'site'"
         class="event-venue-detail-accordion"
@@ -269,7 +270,7 @@
       </button>
       </template>
 
-      <template v-if="!coreLocationMode">
+      <template v-if="!coreLocationMode && !pickerMode">
       <button
         v-if="!readOnly && allowChildren && !createPinMode && (allowPoiChildren || !deliveryAddress)"
         type="button"
@@ -310,6 +311,7 @@
           :editable-pin-id="polygonDrawMode ? null : mapEditablePinId"
           :editable-polygon-id="polygonDrawMode ? extraEditablePinId : null"
           :polygon-draw-mode="polygonDrawMode"
+          :hover-pin-labels="hoverPinLabels"
           :prefer-swiss-map="true"
           :show-layer-control="true"
           :overlay="overlay"
@@ -319,6 +321,8 @@
           :show-location-search="mapShowLocationSearch"
           @pin-moved="onMapPinMoved"
           @map-click="onVenueMapClick"
+          @pin-click="(id) => emit('map-site-click', id)"
+          @polygon-click="(id) => emit('map-site-click', id)"
           @polygon-change="onPolygonChange"
           @overlay-bounds-change="(bounds) => emit('overlay-bounds-change', bounds)"
         />
@@ -366,6 +370,10 @@ export type VenueExtraSite = {
   qrUrl?: string | null
   starred?: boolean
   detailOnly?: boolean
+  /** Hervorgehoben (Bereich gewählt: dessen Bauprojekte). */
+  highlighted?: boolean
+  /** Fremder Standort: dezent dargestellt. */
+  muted?: boolean
   canDelete?: boolean
   groupLinkKind?: 'bereich' | 'bauprojekt' | null
 }
@@ -419,6 +427,10 @@ const props = withDefaults(
     extraCreateLockedHint?: string
     /** Grossanlass: feste Reihenfolge Eventstandort → Zustellpunkt → Lagerstandort → GA-Orte. */
     coreLocationMode?: boolean
+    /** Pin-Namen nur beim Hover bzw. Antippen zeigen. */
+    hoverPinLabels?: boolean
+    /** Linke Spalte zeigt nur den gerade bearbeiteten Standort (Auswahl kommt über den Slot). */
+    pickerMode?: boolean
     /** Keine +-Zeilen für Kernstandorte/GA (Stammdaten-Übersicht). */
     lockCoreAdds?: boolean
     hasStorageLocation?: boolean
@@ -427,6 +439,8 @@ const props = withDefaults(
     storageLongitude?: number | null
     /** Ortschaft-Suche auf der Karte (Standard: nur im Erfassungsmodus). */
     showLocationSearch?: boolean
+    /** Suchleiste über der Karte, solange ein Standort erfasst oder bearbeitet wird. */
+    searchWhenEditing?: boolean
     overlay?: ActivityMapOverlay | null
     overlayEditable?: boolean
     /** Mausrad-Zoom — auf Stammdaten Strg+Scroll, damit die Seite sonst scrollt. */
@@ -455,6 +469,7 @@ const props = withDefaults(
     overviewHint: '',
     extraCreateLockedHint: '',
     coreLocationMode: false,
+    pickerMode: false,
     lockCoreAdds: false,
     hasStorageLocation: false,
     storageSummary: '',
@@ -491,6 +506,7 @@ const emit = defineEmits<{
   'redraw-polygon': []
   'save-area': []
   'open-linked-group': [id: string]
+  'map-site-click': [id: string]
 }>()
 
 const { t, locale } = useI18n()
@@ -651,7 +667,9 @@ const storagePinBase = computed((): ActivityLocationPin | null => {
 })
 
 const mapShowLocationSearch = computed(
-  () => props.showLocationSearch ?? props.createPinMode,
+  () =>
+    Boolean(props.showLocationSearch ?? props.createPinMode)
+    || (props.searchWhenEditing && (editingVenue.value || props.extraEditablePinId != null)),
 )
 
 const accordionSites = computed((): AccordionSite[] => {
@@ -845,6 +863,15 @@ const sidebarListItems = computed((): SidebarItem[] => {
   return items
 })
 
+const visibleSidebarItems = computed((): SidebarItem[] => {
+  if (!props.pickerMode) return sidebarListItems.value
+  return sidebarListItems.value.filter(
+    (item) =>
+      item.type === 'site'
+      && (item.site.id === props.extraEditablePinId || item.site.id === props.extraFocusPinId),
+  )
+})
+
 const childPins = computed((): ActivityLocationPin[] =>
   accordionSites.value
     .filter((s) => s.id !== 'venue')
@@ -872,7 +899,7 @@ const displayPins = computed((): ActivityLocationPin[] => {
   return pins.map((pin) => {
     const extra = props.extraSites.find((row) => row.id === pin.id)
     if (!extra) return pin
-    return { ...pin, detailOnly: extra.detailOnly === true }
+    return { ...pin, detailOnly: extra.detailOnly === true, highlighted: extra.highlighted === true, muted: extra.muted === true }
   })
 })
 
@@ -886,6 +913,8 @@ const displayPolygons = computed((): ActivityMapPolygon[] =>
       points: row.polygon ?? [],
       starred: row.starred === true,
       detailOnly: row.detailOnly === true,
+      highlighted: row.highlighted === true,
+      muted: row.muted === true,
     })),
 )
 
@@ -1295,6 +1324,10 @@ defineExpose({
     grid-template-columns: minmax(260px, 1fr) minmax(0, 1.65fr);
     gap: 16px;
     align-items: stretch;
+  }
+
+  .event-venue-detail-map-layout--picker {
+    grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
   }
 
   .event-venue-detail-accordion-list {

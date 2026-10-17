@@ -2,6 +2,7 @@
   <v-dialog
     :model-value="model"
     :max-width="maxWidth"
+    :width="width"
     :persistent="persistent || highlightOutside"
     :no-click-animation="highlightOutside"
     :scrollable="scrollable"
@@ -15,6 +16,7 @@
       :variant="cardVariant"
       :card-class="mergedCardClass"
       :data-onboarding="dataOnboarding || undefined"
+      @pointerdown="onCardPointerDown"
     >
       <v-card-title v-if="title || $slots.title" class="e-dialog__title">
         <slot name="title">{{ title }}</slot>
@@ -31,6 +33,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
+import { closeAllExclusiveOverlays } from '@/composables/useExclusiveOverlay'
 import ECard from './ECard.vue'
 
 defineOptions({ name: 'EDialog' })
@@ -39,6 +42,8 @@ const props = withDefaults(
   defineProps<{
     title?: string
     maxWidth?: number | string
+    /** Feste Breite (z. B. Karteneditor); wird durch maxWidth und den Viewport begrenzt. */
+    width?: number | string
     persistent?: boolean
     /** Klick ausserhalb schliesst nicht, der Dialog leuchtet in der Systemfarbe auf. */
     highlightOutside?: boolean
@@ -87,6 +92,16 @@ async function onUpdate(value: boolean) {
     if (!allowed) return
   }
   model.value = value
+}
+
+const INTERACTIVE = 'button, a, input, textarea, select, label, summary, [role="button"], [role="combobox"], [role="tab"], [tabindex], .v-field, .v-selection-control'
+
+/** Offene Dropdowns schliessen bei Klick auf nicht interaktive Dialogfläche (Titel, Rand, Text); Bedienelemente steuern ihr Overlay selbst. */
+function onCardPointerDown(e: PointerEvent) {
+  const card = e.currentTarget as Element | null
+  const hit = e.target instanceof Element ? e.target.closest(INTERACTIVE) : null
+  if (hit && card?.contains(hit) && hit !== card) return
+  closeAllExclusiveOverlays()
 }
 
 function onOutside() {

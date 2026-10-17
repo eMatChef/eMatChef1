@@ -106,7 +106,7 @@
           </div>
         </details>
 
-        <details class="member-profile-accordion" open>
+        <details class="member-profile-accordion">
           <summary class="member-profile-accordion__summary">
             {{ t('layout.profileModal.passwordSection') }}
           </summary>
@@ -165,7 +165,7 @@
           </div>
         </details>
 
-        <details class="member-profile-accordion" :open="membershipAccordionOpen || undefined">
+        <details class="member-profile-accordion" open>
           <summary class="member-profile-accordion__summary">
             {{ t('settings.departmentUsers.editSectionMembership') }}
           </summary>
@@ -189,6 +189,13 @@
                 hide-details
               />
             </div>
+            <ECheckbox
+              v-if="isGrossanlass"
+              v-model="editForm.is_helper"
+              :label="t('settings.departmentUsers.helperFlag')"
+              :hint="t('settings.departmentUsers.helperFlagTitle')"
+              persistent-hint
+            />
             <ECheckbox
               v-model="editForm.is_primary"
               :label="t('settings.departmentUsers.primaryDepartment')"
@@ -301,6 +308,7 @@ const editForm = ref({
   role: 'u',
   is_primary: false,
   is_js_coach: false,
+  is_helper: false,
   first_name: '',
   last_name: '',
   nickname: '',
@@ -350,6 +358,7 @@ function hydrateFromMember(member: DepartmentMember) {
     role: normalizeDeptRole(member.role),
     is_primary: member.is_primary,
     is_js_coach: !!member.is_js_coach,
+    is_helper: !!member.is_helper,
     first_name: member.first_name || '',
     last_name: member.last_name || '',
     nickname: member.nickname || '',
@@ -463,6 +472,7 @@ async function handleUpdate() {
         role: editForm.value.role,
         is_primary: editForm.value.is_primary,
         is_js_coach: editForm.value.is_js_coach,
+        ...(props.isGrossanlass ? { is_helper: editForm.value.is_helper } : {}),
       }),
     ])
     await saveMemberPrivateAddress(member)

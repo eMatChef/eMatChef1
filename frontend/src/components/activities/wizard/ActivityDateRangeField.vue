@@ -97,6 +97,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useExclusiveOverlay } from '@/composables/useExclusiveOverlay'
 import { useI18n } from 'vue-i18n'
 import { VDatePicker, VTextField } from 'vuetify/components'
 import { useDualDateCalendarLayout } from '@/composables/useSmAndUp'
@@ -168,6 +169,7 @@ const dualCalendar = computed(() => {
   return dualLayout.value
 })
 const menuOpen = ref(false)
+useExclusiveOverlay(menuOpen)
 const activatorRef = ref<{ $el: HTMLElement } | null>(null)
 const { scheduleClose } = useActivityDatePickerDelayedClose(menuOpen)
 const { pickerWidth } = useActivityDatePickerLayoutProps()

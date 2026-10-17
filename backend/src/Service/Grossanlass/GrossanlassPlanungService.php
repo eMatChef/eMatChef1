@@ -103,6 +103,12 @@ final class GrossanlassPlanungService
         if (array_key_exists('has_guest_departments', $data)) {
             $config->setHasGuestDepartments((bool) $data['has_guest_departments']);
         }
+        if (array_key_exists('staffing_mw_allowed', $data)) {
+            $config->setStaffingMwAllowed((bool) $data['staffing_mw_allowed']);
+        }
+        if (array_key_exists('staffing_ok_allowed', $data)) {
+            $config->setStaffingOkAllowed((bool) $data['staffing_ok_allowed']);
+        }
         if (array_key_exists('logistics_group_id', $data)) {
             $this->applyLogisticsGroup($department, $config, $data['logistics_group_id']);
         }
@@ -859,8 +865,20 @@ final class GrossanlassPlanungService
         return false;
     }
 
+    /**
+     * Ohne eigene Phasen (Aufbau/Abbau) ist der Anlasszeitraum zugleich die Durchführung: die Periode «grossanlass» folgt ihm.
+     * Hat das Department eigene Aufbau-/Abbau-Perioden, umfasst der Anlasszeitraum alle Phasen und «grossanlass» bleibt die
+     * davon unabhängig gepflegte Durchführung.
+     */
     private function syncEventCalendarPeriod(Department $department, \DateTime $start, \DateTime $end): void
     {
+        $phases = $this->entityManager->getRepository(DepartmentCalendarPeriod::class)->count([
+            'departmentId' => $department->getId(),
+            'label' => [DepartmentCalendarPeriod::LABEL_AUFBAU, DepartmentCalendarPeriod::LABEL_ABBAU],
+        ]);
+        if ($phases > 0) {
+            return;
+        }
         $period = $this->entityManager->getRepository(DepartmentCalendarPeriod::class)->findOneBy([
             'departmentId' => $department->getId(),
             'label' => DepartmentCalendarPeriod::LABEL_GROSSANLASS,

@@ -15,6 +15,14 @@
         :items="statusItems"
         hide-details
       />
+      <ESelect
+        v-model="kindFilter"
+        class="orders-toolbar__select"
+        :label="t('grossanlass.beschaffung.bestellungen.kindFilter')"
+        :items="kindItems"
+        hide-details
+        data-testid="orders-kind-filter"
+      />
       <div class="orders-toolbar__expand">
         <EButton variant="text" size="small" @click="expandAll">
           {{ t('grossanlass.beschaffung.zusagen.expandAll') }}
@@ -105,52 +113,11 @@
               </div>
             </div>
 
-            <form class="order-form" @submit.prevent="saveOrder(line)">
-              <ETextField
-                v-model="orderForms[line.id].cost_chf"
-                type="number"
-                min="0"
-                step="0.05"
-                :label="t('grossanlass.beschaffung.bestellungen.costChf')"
-                hide-details
-                density="compact"
-              />
-              <ETextField
-                v-model="orderForms[line.id].order_ref"
-                :label="t('grossanlass.beschaffung.bestellungen.orderRef')"
-                hide-details
-                density="compact"
-              />
-              <ETextField
-                v-model="orderForms[line.id].ordered_at"
-                type="date"
-                :label="t('grossanlass.beschaffung.bestellungen.orderedAt')"
-                hide-details
-                density="compact"
-              />
-              <ETextField
-                v-model="orderForms[line.id].delivery_at"
-                type="date"
-                :label="t('grossanlass.beschaffung.bestellungen.deliveryAt')"
-                hide-details
-                density="compact"
-              />
-              <ETextField
-                v-model="orderForms[line.id].notes"
-                :label="t('grossanlass.beschaffung.bestellungen.notes')"
-                hide-details
-                density="compact"
-              />
-              <EButton
-                variant="primary"
-                size="small"
-                type="submit"
-                :loading="savingLineId === line.id"
-                :disabled="!orderForms[line.id].cost_chf"
-              >
-                {{ line.order ? t('common.save') : t('grossanlass.beschaffung.bestellungen.placeOrder') }}
-              </EButton>
-            </form>
+            <GrossanlassProcurementOrdersPanel
+              :line="line"
+              :department-id="departmentId()"
+              @changed="onLineChanged"
+            />
           </article>
         </v-expansion-panel-text>
       </v-expansion-panel>
@@ -159,20 +126,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import GrossanlassProcurementLineSummary from '@/components/grossanlass/GrossanlassProcurementLineSummary.vue'
-import { EButton, ESearchField, ESelect, ETextField } from '@/components/form/base'
+import GrossanlassProcurementOrdersPanel from '@/components/grossanlass/GrossanlassProcurementOrdersPanel.vue'
+import { EButton, ESearchField, ESelect } from '@/components/form/base'
 import { resolveMediaPreviewUrl } from '@/api/media'
 import { formatGaDateLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import {
   formatChf,
   listGrossanlassProcurementLines,
-  upsertGrossanlassProcurementOrder,
   type GrossanlassProcurementLine,
   type GrossanlassProcurementQuote,
 } from '@/api/grossanlassProcurement'
@@ -188,17 +155,10 @@ const toast = useToast()
 const departmentId = () => String(route.params.departmentId || '')
 const lines = ref<GrossanlassProcurementLine[]>([])
 const isLoading = ref(true)
-const savingLineId = ref<string | null>(null)
 const query = ref('')
 const statusFilter = ref<StatusFilter>('all')
 const openGroups = ref<string[]>([])
-const orderForms = reactive<Record<string, {
-  cost_chf: string
-  order_ref: string
-  ordered_at: string
-  delivery_at: string
-  notes: string
-}>>({})
+const kindFilter = ref<'all' | 'material' | 'fahrzeug'>('all')
 
 const focusLineId = computed(() => String(route.query.line || '').trim())
 
@@ -208,6 +168,22 @@ const statusItems = computed(() => [
   { title: t('grossanlass.beschaffung.status.bestellt'), value: 'ordered' },
   { title: t('grossanlass.beschaffung.status.teilweise_erhalten'), value: 'partial' },
 ])
+
+const kindItems = computed(() => [
+  { title: t('grossanlass.beschaffung.bestellungen.kindAll'), value: 'all' },
+  { title: t('grossanlass.beschaffung.bestellungen.kindMaterial'), value: 'material' },
+  { title: t('grossanlass.beschaffung.bestellungen.kindVehicle'), value: 'fahrzeug' },
+])
+
+function matchesKind(line: GrossanlassProcurementLine): boolean {
+  if (kindFilter.value === 'all') return true
+  // Gemischte Positionen (Material und Fahrzeug) erscheinen in beiden Ansichten.
+  return line.wish_kind === kindFilter.value || line.wish_kind === 'beides'
+}
+
+function activeOrders(line: GrossanlassProcurementLine) {
+  return (line.orders ?? (line.order ? [line.order] : [])).filter((o) => o.status !== 'cancelled')
+}
 
 function selectedQuote(line: GrossanlassProcurementLine): GrossanlassProcurementQuote | null {
   return line.quotes.find((quote) => quote.selected) ?? null
@@ -243,7 +219,7 @@ function quoteIsLate(line: GrossanlassProcurementLine, quote: GrossanlassProcure
 
 function matchesStatus(line: GrossanlassProcurementLine): boolean {
   if (statusFilter.value === 'all') return true
-  if (statusFilter.value === 'open') return !line.order || line.status === 'budgetiert'
+  if (statusFilter.value === 'open') return (line.quantity_open ?? 0) > 0
   if (statusFilter.value === 'ordered') return line.status === 'bestellt'
   return line.status === 'teilweise_erhalten'
 }
@@ -259,8 +235,7 @@ function searchHaystack(line: GrossanlassProcurementLine): string {
     line.notes,
     quote?.supplier,
     quote?.notes,
-    line.order?.order_ref,
-    line.order?.notes,
+    ...activeOrders(line).flatMap((o) => [o.order_ref, o.notes, o.supplier]),
   ].filter(Boolean).join(' ').toLowerCase()
 }
 
@@ -273,9 +248,8 @@ function matchesQuery(line: GrossanlassProcurementLine): boolean {
 const groups = computed<SupplierGroup[]>(() => {
   const buckets = new Map<string, SupplierGroup>()
   for (const line of lines.value) {
-    if (!matchesStatus(line) || !matchesQuery(line)) continue
-    const quote = selectedQuote(line)
-    const label = quote?.supplier || t('grossanlass.beschaffung.offerten.supplier')
+    if (!matchesStatus(line) || !matchesQuery(line) || !matchesKind(line)) continue
+    const label = activeOrders(line)[0]?.supplier || selectedQuote(line)?.supplier || t('grossanlass.beschaffung.offerten.supplier')
     const id = `s:${label.toLowerCase()}`
     const bucket = buckets.get(id) ?? { id, label, lines: [] }
     bucket.lines.push(line)
@@ -317,24 +291,9 @@ function goOfferten(supplier: string, lineId?: string) {
   })
 }
 
-function toDateInput(iso: string | undefined): string {
-  if (!iso) return new Date().toISOString().slice(0, 10)
-  return iso.slice(0, 10)
-}
-
-function ensureForm(line: GrossanlassProcurementLine) {
-  const quote = selectedQuote(line)
-  orderForms[line.id] = {
-    cost_chf: line.order ? String(line.order.cost_chf) : line.budget_chf != null ? String(line.budget_chf) : '',
-    order_ref: line.order?.order_ref || '',
-    ordered_at: toDateInput(line.order?.ordered_at),
-    delivery_at: line.order?.delivery_at
-      ? toDateInput(line.order.delivery_at)
-      : quote?.delivery_at
-        ? toDateInput(quote.delivery_at)
-        : '',
-    notes: line.order?.notes || '',
-  }
+function onLineChanged(updated: GrossanlassProcurementLine) {
+  const index = lines.value.findIndex((l) => l.id === updated.id)
+  if (index >= 0) lines.value.splice(index, 1, updated)
 }
 
 function groupIdForLine(lineId: string): string | null {
@@ -358,10 +317,10 @@ async function load() {
   isLoading.value = true
   try {
     const all = await listGrossanlassProcurementLines(departmentId())
+    // Bestellbar ist jede Position mit offenem Bedarf (Offerte oder telefonische Absprache) sowie jede bereits bestellte.
     lines.value = all.filter(
-      (l) => l.budget_chf != null && ['budgetiert', 'bestellt', 'teilweise_erhalten'].includes(l.status),
+      (l) => l.budget_chf != null || activeOrders(l).length > 0 || (l.quantity_open ?? 0) > 0,
     )
-    lines.value.forEach(ensureForm)
     await nextTick()
     expandAll()
     await scrollToFocus()
@@ -372,28 +331,7 @@ async function load() {
   }
 }
 
-async function saveOrder(line: GrossanlassProcurementLine) {
-  const form = orderForms[line.id]
-  if (!form.cost_chf) return
-  savingLineId.value = line.id
-  try {
-    await upsertGrossanlassProcurementOrder(departmentId(), line.id, {
-      cost_chf: Number(form.cost_chf),
-      order_ref: form.order_ref.trim() || null,
-      notes: form.notes.trim() || null,
-      ordered_at: `${form.ordered_at}T12:00:00`,
-      delivery_at: form.delivery_at ? `${form.delivery_at}T12:00:00` : null,
-    })
-    toast.success(t('grossanlass.beschaffung.bestellungen.saveSuccess'))
-    await load()
-  } catch (e: any) {
-    toast.error(e.response?.data?.error || t('grossanlass.beschaffung.bestellungen.errorSave'))
-  } finally {
-    savingLineId.value = null
-  }
-}
-
-watch([query, statusFilter], () => {
+watch([query, statusFilter, kindFilter], () => {
   expandAll()
 })
 
@@ -440,13 +378,4 @@ onMounted(load)
 .quote-schedule.is-late { color: #b45309; font-weight: 600; }
 .quote-box__actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .quote-pdf-link { font-size: 0.78rem; color: #2563eb; }
-.order-form {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px dashed #e5e7eb;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 8px;
-  align-items: start;
-}
 </style>

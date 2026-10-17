@@ -9,6 +9,7 @@ use App\Entity\DepartmentGrossanlassEinsatz;
 use App\Entity\DepartmentGrossanlassMap;
 use App\Entity\DepartmentGrossanlassPack;
 use App\Entity\DepartmentGrossanlassPlace;
+use App\Entity\DepartmentGrossanlassPlaceGroup;
 use App\Entity\DepartmentGrossanlassUnterlager;
 use App\Entity\Group;
 use App\Entity\User;
@@ -39,7 +40,10 @@ final class GrossanlassPlaceService
         }
         $this->seedFromUnterlager($department);
 
-        return array_map(fn (DepartmentGrossanlassPlace $row) => $this->serialize($row), $this->rows($department));
+        $rows = $this->rows($department);
+        $groupIds = $this->groupIdsByPlace($rows);
+
+        return array_map(fn (DepartmentGrossanlassPlace $row) => $this->serialize($row, $groupIds[$row->getId()] ?? []), $rows);
     }
 
     /**
@@ -58,9 +62,7 @@ final class GrossanlassPlaceService
         if ($name === '') {
             throw new \InvalidArgumentException('Name ist erforderlich');
         }
-        $groupId = isset($data['group_id']) ? trim((string) $data['group_id']) : '';
         $row = $this->makePlace($department, $name);
-        $row->setGroupId($groupId !== '' ? $groupId : null);
         $kind = $this->inferKind($department, $data, null);
         $this->assertWritableKind($kind, null);
         $row->setKind($kind);
@@ -69,6 +71,7 @@ final class GrossanlassPlaceService
         $this->applyGeoPosition($department, $row, $data);
         $this->applyPolygon($department, $row, $data);
         $this->entityManager->flush();
+        $this->applyGroupLinks($department, $row, $data, true);
 
         return $this->serialize($row);
     }
@@ -101,15 +104,12 @@ final class GrossanlassPlaceService
             $this->assertWritableKind($kind, $row->getKind());
             $row->setKind($kind);
         }
-        if (array_key_exists('group_id', $data)) {
-            $groupId = trim((string) $data['group_id']);
-            $row->setGroupId($groupId !== '' ? $groupId : null);
-        }
         $this->applyStarred($department, $row, $data, false);
         $this->applyMapPosition($department, $row, $data);
         $this->applyGeoPosition($department, $row, $data);
         $this->applyPolygon($department, $row, $data);
         $this->entityManager->flush();
+        $this->applyGroupLinks($department, $row, $data, false);
 
         return $this->serialize($row);
     }
@@ -210,14 +210,267 @@ final class GrossanlassPlaceService
             ->findBy(['departmentId' => $department->getId()], ['name' => 'ASC']);
     }
 
-    public function findForGroup(Department $department, string $groupId): ?DepartmentGrossanlassPlace
+    /**
+     * Hauptstandort der Gruppe: das Polygon (Bereich), sonst die älteste Zuordnung.
+     * Weitere Punkte der Gruppe liefert placesForGroup().
+     *
+     * @param string|null $kind 'area' = nur Polygon-Standort, anderer Wert = nur Punkt-Standorte, null = Hauptstandort
+     */
+    public function findForGroup(Department $department, string $groupId, ?string $kind = null): ?DepartmentGrossanlassPlace
     {
-        $row = $this->entityManager->getRepository(DepartmentGrossanlassPlace::class)->findOneBy([
-            'departmentId' => $department->getId(),
-            'groupId' => $groupId,
-        ]);
+        $places = $this->placesForGroup($department, $groupId);
+        if ($kind !== null) {
+            $places = array_values(array_filter(
+                $places,
+                static fn (DepartmentGrossanlassPlace $p) => ($p->getKind() === GrossanlassPlaceCodes::KIND_AREA) === ($kind === GrossanlassPlaceCodes::KIND_AREA),
+            ));
+        }
 
-        return $row instanceof DepartmentGrossanlassPlace ? $row : null;
+        return $places[0] ?? null;
+    }
+
+    /**
+     * Alle Standorte der Gruppe, der Hauptstandort zuerst.
+     *
+     * @return list<DepartmentGrossanlassPlace>
+     */
+    public function placesForGroup(Department $department, string $groupId): array
+    {
+        $links = $this->entityManager->getRepository(DepartmentGrossanlassPlaceGroup::class)
+            ->findBy(['group' => $groupId]);
+
+        return $this->sortLinkedPlaces($department, $links);
+    }
+
+    /**
+     * @param list<DepartmentGrossanlassPlaceGroup> $links
+     * @return list<DepartmentGrossanlassPlace>
+     */
+    private function sortLinkedPlaces(Department $department, array $links): array
+    {
+        $links = array_values(array_filter(
+            $links,
+            static fn (DepartmentGrossanlassPlaceGroup $l) => $l->getPlace()->getDepartmentId() === $department->getId(),
+        ));
+        usort($links, static function (DepartmentGrossanlassPlaceGroup $a, DepartmentGrossanlassPlaceGroup $b): int {
+            $areaA = $a->getPlace()->getKind() === GrossanlassPlaceCodes::KIND_AREA ? 0 : 1;
+            $areaB = $b->getPlace()->getKind() === GrossanlassPlaceCodes::KIND_AREA ? 0 : 1;
+
+            return [$areaA, $a->getCreatedAt(), $a->getPlace()->getId()] <=> [$areaB, $b->getCreatedAt(), $b->getPlace()->getId()];
+        });
+
+        return array_map(static fn (DepartmentGrossanlassPlaceGroup $l) => $l->getPlace(), $links);
+    }
+
+    /**
+     * @param list<DepartmentGrossanlassPlace> $places
+     * @return array<string, list<DepartmentGrossanlassPlace>> Gruppen-ID => Standorte, Hauptstandort zuerst
+     */
+    public function placesByGroup(Department $department, array $places): array
+    {
+        if ($places === []) {
+            return [];
+        }
+        $links = $this->entityManager->getRepository(DepartmentGrossanlassPlaceGroup::class)
+            ->createQueryBuilder('l')
+            ->where('IDENTITY(l.place) IN (:ids)')
+            ->setParameter('ids', array_map(static fn (DepartmentGrossanlassPlace $p) => $p->getId(), $places))
+            ->getQuery()
+            ->getResult();
+        $byGroup = [];
+        foreach ($links as $link) {
+            $byGroup[$link->getGroup()->getId()][] = $link;
+        }
+        $out = [];
+        foreach ($byGroup as $groupId => $groupLinks) {
+            $out[$groupId] = $this->sortLinkedPlaces($department, $groupLinks);
+        }
+
+        return $out;
+    }
+
+    /**
+     * Legt einen eigenen Standortpunkt an und ordnet ihn der Gruppe zu; das Polygon der Gruppe bleibt unberührt.
+     *
+     * @param array<string, mixed> $data name, latitude, longitude
+     */
+    public function createPointForGroup(Department $department, Group $group, array $data): DepartmentGrossanlassPlace
+    {
+        $name = trim((string) ($data['name'] ?? ''));
+        if ($name === '') {
+            throw new \InvalidArgumentException('Name ist erforderlich');
+        }
+        $row = $this->makePlace($department, $name);
+        $row->setKind(GrossanlassPlaceCodes::KIND_BAUPROJEKT);
+        $this->applyGeoPosition($department, $row, $data);
+        $this->entityManager->flush();
+        $this->linkGroup($row, $group);
+
+        return $row;
+    }
+
+    /**
+     * Ändert Name und Position eines Punkts der Gruppe (nie das Polygon).
+     *
+     * @param array<string, mixed> $data name, latitude, longitude
+     */
+    public function updatePointForGroup(Department $department, Group $group, string $placeId, array $data): DepartmentGrossanlassPlace
+    {
+        $row = $this->getPlace($department, $placeId);
+        if ($row->getKind() === GrossanlassPlaceCodes::KIND_AREA
+            || !in_array($group->getId(), $this->groupIdsForPlace($row), true)) {
+            throw new \InvalidArgumentException('Punkt gehört nicht zu dieser Gruppe');
+        }
+        if (array_key_exists('name', $data)) {
+            $name = trim((string) $data['name']);
+            if ($name === '') {
+                throw new \InvalidArgumentException('Name ist erforderlich');
+            }
+            $row->setName($name);
+        }
+        $this->applyGeoPosition($department, $row, $data);
+        $this->entityManager->flush();
+
+        return $row;
+    }
+
+    /**
+     * @return list<string> Gruppen-IDs, denen der Standort zugeordnet ist
+     */
+    public function groupIdsForPlace(DepartmentGrossanlassPlace $place): array
+    {
+        $rows = $this->entityManager->getRepository(DepartmentGrossanlassPlaceGroup::class)
+            ->findBy(['place' => $place->getId()]);
+
+        return $this->sortedGroupIds($rows);
+    }
+
+    /**
+     * @param list<DepartmentGrossanlassPlace> $places
+     * @return array<string, list<string>> Standort-ID => Gruppen-IDs
+     */
+    public function groupIdsByPlace(array $places): array
+    {
+        if ($places === []) {
+            return [];
+        }
+        $links = $this->entityManager->getRepository(DepartmentGrossanlassPlaceGroup::class)
+            ->createQueryBuilder('l')
+            ->where('IDENTITY(l.place) IN (:ids)')
+            ->setParameter('ids', array_map(static fn (DepartmentGrossanlassPlace $p) => $p->getId(), $places))
+            ->getQuery()
+            ->getResult();
+        $out = [];
+        foreach ($links as $link) {
+            $out[$link->getPlace()->getId()][] = $link->getGroup()->getId();
+        }
+        foreach ($out as &$ids) {
+            sort($ids);
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<DepartmentGrossanlassPlaceGroup> $links
+     * @return list<string>
+     */
+    private function sortedGroupIds(array $links): array
+    {
+        $ids = array_map(static fn (DepartmentGrossanlassPlaceGroup $l) => $l->getGroup()->getId(), $links);
+        sort($ids);
+
+        return $ids;
+    }
+
+    /**
+     * Gruppen-ID, falls der Standort genau einer Gruppe gehört; sonst null (nie eine beliebige Auswahl).
+     *
+     * @param list<string> $groupIds
+     */
+    private function singleGroupId(array $groupIds): ?string
+    {
+        return count($groupIds) === 1 ? $groupIds[0] : null;
+    }
+
+    /**
+     * Spiegelt die Zuordnung in die Übergangsspalte group_id (nur bei genau einer Gruppe).
+     */
+    private function mirrorLegacyColumn(DepartmentGrossanlassPlace $place): void
+    {
+        $place->setLegacyGroupId($this->singleGroupId($this->groupIdsForPlace($place)));
+    }
+
+    /**
+     * Ordnet den Standort der Gruppe zusätzlich zu (eine Gruppe kann mehrere Standorte haben).
+     * Bestehende Zuordnungen der Gruppe bleiben unverändert.
+     */
+    public function linkGroup(DepartmentGrossanlassPlace $place, Group $group): void
+    {
+        $repo = $this->entityManager->getRepository(DepartmentGrossanlassPlaceGroup::class);
+        if ($repo->findOneBy(['group' => $group->getId(), 'place' => $place->getId()]) instanceof DepartmentGrossanlassPlaceGroup) {
+            return;
+        }
+        $this->entityManager->persist(new DepartmentGrossanlassPlaceGroup($place, $group));
+        $this->entityManager->flush();
+        $this->mirrorLegacyColumn($place);
+        $this->entityManager->flush();
+    }
+
+    /**
+     * Entfernt nur die Zuordnung. Standort, Name, Position, Polygon und QR-Code bleiben bestehen.
+     */
+    public function unlinkGroup(DepartmentGrossanlassPlace $place, string $groupId): void
+    {
+        $link = $this->entityManager->getRepository(DepartmentGrossanlassPlaceGroup::class)
+            ->findOneBy(['place' => $place->getId(), 'group' => $groupId]);
+        if (!$link instanceof DepartmentGrossanlassPlaceGroup) {
+            return;
+        }
+        $this->entityManager->remove($link);
+        $this->entityManager->flush();
+        $this->mirrorLegacyColumn($place);
+        $this->entityManager->flush();
+    }
+
+    /**
+     * Zuordnungen aus der Orte-API (group_ids; group_id nur als Übergang für eindeutige Standorte).
+     *
+     * @param array<string, mixed> $data
+     */
+    private function applyGroupLinks(Department $department, DepartmentGrossanlassPlace $row, array $data, bool $creating): void
+    {
+        if (array_key_exists('group_ids', $data)) {
+            $wanted = array_values(array_unique(array_filter(array_map(
+                static fn ($v) => trim((string) $v),
+                is_array($data['group_ids']) ? $data['group_ids'] : [],
+            ), static fn (string $v) => $v !== '')));
+        } elseif (array_key_exists('group_id', $data)) {
+            $current = $creating ? [] : $this->groupIdsForPlace($row);
+            if (count($current) > 1) {
+                throw new \InvalidArgumentException('Standort ist mehreren Gruppen zugeordnet — group_ids verwenden');
+            }
+            $single = trim((string) $data['group_id']);
+            $wanted = $single !== '' ? [$single] : [];
+        } else {
+            return;
+        }
+        $groups = [];
+        foreach ($wanted as $groupId) {
+            $group = $this->entityManager->getRepository(Group::class)->find($groupId);
+            if (!$group instanceof Group || $group->getDepartmentId() !== $department->getId()) {
+                throw new \InvalidArgumentException('Gruppe nicht gefunden');
+            }
+            $groups[$groupId] = $group;
+        }
+        foreach ($this->groupIdsForPlace($row) as $existing) {
+            if (!isset($groups[$existing])) {
+                $this->unlinkGroup($row, $existing);
+            }
+        }
+        foreach ($groups as $group) {
+            $this->linkGroup($row, $group);
+        }
     }
 
     public function getPlace(Department $department, string $placeId): DepartmentGrossanlassPlace
@@ -230,47 +483,93 @@ final class GrossanlassPlaceService
         return $row;
     }
 
+    /**
+     * Verknüpft einen vorhandenen Ort mit der Gruppe, als Hauptstandort oder zusätzlichen Punkt (kein Duplikat, auch bereits genutzte Orte).
+     * Der Ort behält Name, Position, Polygon, Typ und QR-Code.
+     */
+    public function linkExistingForGroup(Department $department, Group $group, string $placeId, bool $additional = false): DepartmentGrossanlassPlace
+    {
+        $row = $this->getPlace($department, $placeId);
+        if ($row->getKind() !== GrossanlassPlaceCodes::KIND_AREA && $row->getKind() !== GrossanlassPlaceCodes::KIND_BAUPROJEKT) {
+            throw new \InvalidArgumentException('Ort passt nicht zum Typ');
+        }
+        if (!$additional) {
+            // Hauptstandort ersetzen: nur die Zuordnung des bisherigen Standorts gleicher Art entfällt.
+            $current = $this->findForGroup($department, $group->getId(), $row->getKind());
+            if ($current instanceof DepartmentGrossanlassPlace && $current->getId() !== $row->getId()) {
+                $this->unlinkGroup($current, $group->getId());
+            }
+        }
+        $this->linkGroup($row, $group);
+
+        return $row;
+    }
+
+    /**
+     * Legt den Ort der Gruppe an oder passt Typ und (nur auf ausdrücklichen Wunsch) Namen an.
+     */
+    public function ensureForGroup(Department $department, Group $group, string $kind, ?string $name = null): DepartmentGrossanlassPlace
+    {
+        $name = $name !== null ? trim($name) : '';
+        $row = $this->findForGroup($department, $group->getId(), $kind);
+        if (!$row instanceof DepartmentGrossanlassPlace) {
+            $row = $this->makePlace($department, $name !== '' ? $name : $group->getName());
+            $row->setKind($kind);
+            $this->entityManager->flush();
+            $this->linkGroup($row, $group);
+        } elseif ($name !== '') {
+            $row->setName($name);
+        }
+        if ($row->getKind() !== $kind && !$this->isShared($row)) {
+            $row->setKind($kind);
+            if ($kind !== GrossanlassPlaceCodes::KIND_AREA) {
+                $row->setPolygon(null);
+            }
+        }
+        $this->entityManager->flush();
+
+        return $row;
+    }
+
     public function ensureForBauprojekt(Department $department, Group $group): DepartmentGrossanlassPlace
     {
-        $existing = $this->findForGroup($department, $group->getId());
+        $existing = $this->findForGroup($department, $group->getId(), GrossanlassPlaceCodes::KIND_BAUPROJEKT);
         if ($existing instanceof DepartmentGrossanlassPlace) {
-            if ($existing->getKind() !== GrossanlassPlaceCodes::KIND_BAUPROJEKT) {
+            // Ein gemeinsam genutzter Standort wechselt seinen Typ nicht still für andere Gruppen.
+            if ($existing->getKind() !== GrossanlassPlaceCodes::KIND_BAUPROJEKT && !$this->isShared($existing)) {
                 $existing->setKind(GrossanlassPlaceCodes::KIND_BAUPROJEKT);
                 $existing->setPolygon(null);
             }
-            if ($existing->getName() !== $group->getName()) {
-                $existing->setName($group->getName());
-            }
+            // Der Standortname gehört dem Standort: Gruppenumbenennungen ändern ihn nie.
             $this->entityManager->flush();
 
             return $existing;
         }
         $row = $this->makePlace($department, $group->getName());
-        $row->setGroupId($group->getId());
         $row->setKind(GrossanlassPlaceCodes::KIND_BAUPROJEKT);
         $this->entityManager->flush();
+        $this->linkGroup($row, $group);
 
         return $row;
     }
 
     public function ensureForArea(Department $department, Group $group): DepartmentGrossanlassPlace
     {
-        $existing = $this->findForGroup($department, $group->getId());
+        $existing = $this->findForGroup($department, $group->getId(), GrossanlassPlaceCodes::KIND_AREA);
         if ($existing instanceof DepartmentGrossanlassPlace) {
-            if ($existing->getKind() !== GrossanlassPlaceCodes::KIND_AREA) {
+            // Ein gemeinsam genutzter Standort wechselt seinen Typ nicht still für andere Gruppen.
+            if ($existing->getKind() !== GrossanlassPlaceCodes::KIND_AREA && !$this->isShared($existing)) {
                 $existing->setKind(GrossanlassPlaceCodes::KIND_AREA);
             }
-            if ($existing->getName() !== $group->getName()) {
-                $existing->setName($group->getName());
-            }
+            // Der Standortname gehört dem Standort: Gruppenumbenennungen ändern ihn nie.
             $this->entityManager->flush();
 
             return $existing;
         }
         $row = $this->makePlace($department, $group->getName());
-        $row->setGroupId($group->getId());
         $row->setKind(GrossanlassPlaceCodes::KIND_AREA);
         $this->entityManager->flush();
+        $this->linkGroup($row, $group);
 
         return $row;
     }
@@ -282,18 +581,31 @@ final class GrossanlassPlaceService
 
     public function detachOrgPlaceForGroup(Department $department, Group $group, ?string $onlyKind = null): void
     {
-        $row = $this->findForGroup($department, $group->getId());
-        if (!$row instanceof DepartmentGrossanlassPlace) {
-            return;
+        // Nur entkoppeln: Name, Koordinaten, Polygon und QR-Code bleiben erhalten.
+        // Löschen ist ausschliesslich über delete() (Standortverwaltung) möglich.
+        foreach ($this->placesForGroup($department, $group->getId()) as $row) {
+            if ($onlyKind === null || $row->getKind() === $onlyKind) {
+                $this->unlinkGroup($row, $group->getId());
+            }
         }
-        if ($onlyKind !== null && $row->getKind() !== $onlyKind) {
-            return;
-        }
-        $row->setGroupId(null);
-        if ($this->deleteBlockers($department, $row) === []) {
-            $this->entityManager->remove($row);
-        }
-        $this->entityManager->flush();
+    }
+
+    /** Gruppen-ID, falls der Standort genau einer Gruppe gehört; sonst null. */
+    public function soleGroupId(DepartmentGrossanlassPlace $place): ?string
+    {
+        return $this->singleGroupId($this->groupIdsForPlace($place));
+    }
+
+    /** Recht auf Standortverwaltung (entspricht den Prüfungen in create/update/delete). */
+    public function canManagePlaces(User $user, Department $department): bool
+    {
+        return $this->access->canSeeAnlassOverview($user, $department)
+            || $this->access->canSubmitEinsatz($user, $department);
+    }
+
+    public function isShared(DepartmentGrossanlassPlace $place): bool
+    {
+        return count($this->groupIdsForPlace($place)) > 1;
     }
 
     private function seedFromUnterlager(Department $department): void
@@ -344,16 +656,20 @@ final class GrossanlassPlaceService
     }
 
     /**
+     * @param list<string>|null $groupIds bereits geladene Zuordnungen (Bulk)
      * @return array<string, mixed>
      */
-    public function serialize(DepartmentGrossanlassPlace $row): array
+    public function serialize(DepartmentGrossanlassPlace $row, ?array $groupIds = null): array
     {
         $department = $row->getDepartment();
+        $groupIds ??= $this->groupIdsForPlace($row);
 
         return [
             'id' => $row->getId(),
             'name' => $row->getName(),
-            'group_id' => $row->getGroupId(),
+            'group_ids' => $groupIds,
+            // Übergangswert: nur gesetzt, wenn der Standort genau einer Gruppe gehört; sonst null.
+            'group_id' => $this->singleGroupId($groupIds),
             'unterlager_id' => $row->getUnterlagerId(),
             'kind' => $row->getKind(),
             'map_id' => $row->getMapId(),
@@ -365,32 +681,38 @@ final class GrossanlassPlaceService
             'starred' => $row->isStarred(),
             'public_code' => $row->getPublicCode(),
             'qr_url' => $this->qrUrl($row->getPublicCode()),
-            'can_delete' => $this->canDelete($department, $row),
-            'can_change_kind' => $this->canChangeKind($row),
+            'can_delete' => $this->canDelete($department, $row, $groupIds),
+            'can_change_kind' => $this->canChangeKind($row, $groupIds),
         ];
     }
 
-    public function canDelete(Department $department, DepartmentGrossanlassPlace $row): bool
+    /**
+     * @param list<string>|null $groupIds
+     */
+    public function canDelete(Department $department, DepartmentGrossanlassPlace $row, ?array $groupIds = null): bool
     {
-        return $this->deleteBlockers($department, $row) === [];
-    }
-
-    public function canChangeKind(DepartmentGrossanlassPlace $row): bool
-    {
-        return $row->getGroupId() === null && $row->getUnterlagerId() === null;
+        return $this->deleteBlockers($department, $row, $groupIds) === [];
     }
 
     /**
+     * @param list<string>|null $groupIds
+     */
+    public function canChangeKind(DepartmentGrossanlassPlace $row, ?array $groupIds = null): bool
+    {
+        $groupIds ??= $this->groupIdsForPlace($row);
+
+        return $groupIds === [] && $row->getUnterlagerId() === null;
+    }
+
+    /**
+     * @param list<string>|null $groupIds
      * @return list<string>
      */
-    private function deleteBlockers(Department $department, DepartmentGrossanlassPlace $row): array
+    private function deleteBlockers(Department $department, DepartmentGrossanlassPlace $row, ?array $groupIds = null): array
     {
+        $groupIds ??= $this->groupIdsForPlace($row);
         $blockers = [];
-        if (
-            $row->getGroupId() !== null
-            && $row->getGroupId() !== ''
-            && $row->getKind() === GrossanlassPlaceCodes::KIND_BAUPROJEKT
-        ) {
+        if ($groupIds !== [] && $row->getKind() === GrossanlassPlaceCodes::KIND_BAUPROJEKT) {
             $blockers[] = 'Mit Bauprojekt verknüpft.';
         }
         if ($row->getUnterlagerId() !== null && $row->getUnterlagerId() !== '') {
@@ -437,13 +759,13 @@ final class GrossanlassPlaceService
      */
     private function inferKind(Department $department, array $data, ?string $unterlagerId): string
     {
-        $groupId = trim((string) ($data['group_id'] ?? ''));
+        $groupId = trim((string) ($data['group_id'] ?? (is_array($data['group_ids'] ?? null) ? ($data['group_ids'][0] ?? '') : '')));
         $groupIsBauprojekt = false;
         if ($groupId !== '') {
             $group = $this->entityManager->getRepository(Group::class)->find($groupId);
             $groupIsBauprojekt = $group instanceof Group
                 && $group->getDepartmentId() === $department->getId()
-                && $group->getGrossanlassKind() === Group::GROSSANLASS_KIND_TEILBEREICH;
+                && in_array($group->getGrossanlassKind(), [Group::GROSSANLASS_KIND_TEILBEREICH, Group::GROSSANLASS_KIND_AUFTRAG], true);
         }
 
         return GrossanlassPlaceCodes::inferKind(

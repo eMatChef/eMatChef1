@@ -21,7 +21,8 @@ final class DemoOrganisationCatalogTest extends TestCase
         $orgNames = [];
         foreach (DemoScenarioKey::all() as $key) {
             $s = $catalog->scenario($key);
-            $orgNames[] = $s['organisation']['name'];
+            // Alle Szenarien teilen die eine Demo-Organisation; eine eigene Organisation je Szenario gibt es nicht mehr
+            self::assertArrayNotHasKey('organisation', $s, $key);
             $orgNames[] = $s['department']['name'];
             // Die Einrichtungs-Szenerie hat bewusst keine Ressorts: sie ist der noch nicht eingerichtete Grossanlass.
             if ($key !== DemoScenarioKey::GROSSANLASS_SETUP) {
@@ -33,7 +34,8 @@ final class DemoOrganisationCatalogTest extends TestCase
             self::assertSame(array_values(array_unique($perScenario[$key])), $perScenario[$key], $key);
             $perScenario[$key] = array_column($s['members'], 'account');
         }
-        // Organisationen und Departments sind je Szenario eigen
+        self::assertSame('Demo Organisation', $catalog->organisation()['name']);
+        // Die Szenario-Departments sind je Szenario eigen
         self::assertSame(array_values(array_unique($orgNames)), $orgNames);
         // Demo-Benutzer dürfen mehreren Demo-Departments angehören (matwart: eigenes Department und Gast-Abteilung)
         self::assertContains('matwart', $perScenario['materialverwaltung']);
@@ -83,18 +85,18 @@ final class DemoOrganisationCatalogTest extends TestCase
         self::assertSame(['kantonalverband'], $scopes['orgchef']);
         self::assertSame(['abteilung-sued'], $scopes['suborgchef']);
 
-        // Organisations-Scopes in anderen Szenarien: Orgchef im Camp (zugleich dort normales Mitglied «u»), Suborgchef im Event;
-        // beide kombinieren damit Department- und Organisations-Zuständigkeit
-        $organisationScopes = [];
+        // Keine Organisations-Scopes: die eine Demo-Organisation würde sonst alle Szenarien umfassen (Rechteausweitung).
+        // Orgchef verwaltet zusätzlich das Camp-, Suborgchef das Event-Department samt Gast-Abteilung, jeweils über roots.
+        $rootsByScenario = [];
         foreach (DemoScenarioKey::all() as $key) {
             foreach ($catalog->scenario($key)['adminScopes'] ?? [] as $scope) {
-                if (($scope['organisation'] ?? false) === true) {
-                    $organisationScopes[$scope['account']][] = $key;
-                }
+                self::assertArrayNotHasKey('organisation', $scope, $key);
+                $rootsByScenario[$scope['account']][$key] = $scope['roots'];
             }
         }
-        ksort($organisationScopes);
-        self::assertSame(['orgchef' => ['grossanlass-camp'], 'suborgchef' => ['grossanlass-event']], $organisationScopes);
+        ksort($rootsByScenario['orgchef']);
+        self::assertSame(['grossanlass-camp' => ['main'], 'materialverwaltung' => ['kantonalverband']], $rootsByScenario['orgchef']);
+        self::assertSame(['main', 'gast-abteilung'], $rootsByScenario['suborgchef']['grossanlass-event']);
         // Superadmin braucht keinen Scope; kein anderes Konto erhält Verwaltungsbereiche
         $accountsWithScope = [];
         foreach (DemoScenarioKey::all() as $key) {
@@ -205,16 +207,66 @@ final class DemoOrganisationCatalogTest extends TestCase
 
             return $d;
         }, 'weder Orgchef noch Suborgchef'];
-        yield 'admin scope without roots or organisation' => [static function (array $d): array {
+        yield 'admin scope without roots' => [static function (array $d): array {
             $d['scenarios']['materialverwaltung']['adminScopes'][0] = ['account' => 'orgchef'];
 
             return $d;
-        }, 'ohne roots oder organisation'];
+        }, 'ohne roots'];
+        yield 'organisation scope is not allowed' => [static function (array $d): array {
+            $d['scenarios']['materialverwaltung']['adminScopes'][0]['organisation'] = true;
+
+            return $d;
+        }, 'Organisations-Scope'];
+        yield 'own organisation per scenario' => [static function (array $d): array {
+            $d['scenarios']['grossanlass-camp']['organisation'] = ['name' => 'Eigene'];
+
+            return $d;
+        }, 'eigene Organisation je Szenario'];
+        yield 'missing shared organisation' => [static function (array $d): array {
+            unset($d['organisation']);
+
+            return $d;
+        }, 'organisation.name fehlt'];
+        yield 'parentRef to unknown department' => [static function (array $d): array {
+            $d['scenarios']['grossanlass-setup']['department']['parentRef'] = ['scenario' => 'materialverwaltung', 'department' => 'nirgendwo'];
+
+            return $d;
+        }, 'parentRef.department'];
         yield 'admin scope with unknown root' => [static function (array $d): array {
             $d['scenarios']['materialverwaltung']['adminScopes'][0]['roots'] = ['nirgendwo'];
 
             return $d;
         }, 'Wurzel «nirgendwo»'];
+        yield 'unknown quick selection key' => [static function (array $d): array {
+            $d['scenarios']['grossanlass-event']['grossanlass']['clockPresets'][2]['key'] = 'mitte';
+
+            return $d;
+        }, 'clockPresets'];
+        yield 'quick selection without wall clock' => [static function (array $d): array {
+            $d['scenarios']['grossanlass-event']['grossanlass']['clockPresets'][0]['at'] = '2027-01-04 16:00';
+
+            return $d;
+        }, 'clockPresets'];
+        yield 'event end before start' => [static function (array $d): array {
+            $d['scenarios']['grossanlass-event']['grossanlass']['eventEnd'] = '2027-05-19T12:00:00';
+
+            return $d;
+        }, 'eventEnd muss nach eventStart'];
+        yield 'phase outside the event period' => [static function (array $d): array {
+            $d['scenarios']['grossanlass-event']['grossanlass']['phases'][2]['end'] = '2027-06-24T12:00:00';
+
+            return $d;
+        }, 'ausserhalb des Anlasszeitraums'];
+        yield 'phase with unknown key' => [static function (array $d): array {
+            $d['scenarios']['grossanlass-event']['grossanlass']['phases'][0]['key'] = 'vorbereitung';
+
+            return $d;
+        }, 'grossanlass.phases'];
+        yield 'time without wall clock format' => [static function (array $d): array {
+            $d['scenarios']['grossanlass-event']['grossanlass']['clockOrigin'] = '2027-04-04 16:00';
+
+            return $d;
+        }, 'Wandzeit'];
         yield 'bad version' => [static function (array $d): array {
             $d['catalogVersion'] = 'v1';
 
@@ -241,7 +293,35 @@ final class DemoOrganisationCatalogTest extends TestCase
     public function testGrossanlassScenariosDeclareTheirTypeAndSetupState(): void
     {
         $catalog = new DemoOrganisationCatalog();
-        self::assertSame(['guestActivityType' => 'event', 'setupReleased' => true], $catalog->scenario('grossanlass-event')['grossanlass']);
+        $event = $catalog->scenario('grossanlass-event')['grossanlass'];
+        self::assertSame(['event', true], [$event['guestActivityType'], $event['setupReleased']]);
+        // Anlasszeitraum = gesamter Zeitraum von Aufbaubeginn bis Abbauende; feste Zeiten 2027 (lokale Wandzeit, nie aus dem heutigen Datum)
+        self::assertSame(['2027-05-19T13:00:00', '2027-06-23T12:00:00', '2027-04-04T16:00:00'], [$event['eventStart'], $event['eventEnd'], $event['clockOrigin']]);
+        // Schnellwahl der Demo-Uhr (Europe/Zurich-Wandzeit): Aufbau, Event und Abbau springen bewusst mitten in die Phase
+        self::assertSame([
+            'months_before_5' => '2027-01-04T16:00:00',
+            'months_before_2' => '2027-04-04T16:00:00',
+            'build' => '2027-05-31T14:00:00',
+            'during_event' => '2027-06-05T17:00:00',
+            'teardown' => '2027-06-08T08:00:00',
+            'months_after_2' => '2027-08-06T16:00:00',
+        ], array_column($event['clockPresets'], 'at', 'key'));
+        self::assertSame(
+            [
+                'aufbau' => ['2027-05-19T13:00:00', '2027-06-04T16:00:00'],
+                'durchfuehrung' => ['2027-06-04T16:00:00', '2027-06-06T16:00:00'],
+                'abbau' => ['2027-06-06T17:00:00', '2027-06-23T12:00:00'],
+            ],
+            array_column(array_map(static fn (array $p): array => ['key' => $p['key'], 'range' => [$p['start'], $p['end']]], $event['phases']), 'range', 'key'),
+        );
+        // Standorte aus dem bisherigen Event: Eventplatz (nur Koordinaten, keine erfundene Strasse), Zustellpunkt, Lager
+        self::assertSame(['Event Platz', 47.1783698, 8.0470522, ''], [$event['venue']['name'], $event['venue']['latitude'], $event['venue']['longitude'], $event['venue']['street'] ?? '']);
+        self::assertSame(['Ettiswilerstrasse', '3', '6242', 'Wauwil'], [$event['delivery']['street'], $event['delivery']['streetNumber'], $event['delivery']['postalCode'], $event['delivery']['city']]);
+        self::assertSame([47.1804331, 8.049413], [$event['storage']['latitude'], $event['storage']['longitude']]);
+        self::assertNotEquals([$event['venue']['latitude'], $event['venue']['longitude']], [$event['storage']['latitude'], $event['storage']['longitude']]);
+        self::assertNotEquals([$event['venue']['latitude'], $event['venue']['longitude']], [$event['delivery']['latitude'], $event['delivery']['longitude']]);
+        self::assertNotSame('', $event['locationText']);
+        self::assertNotSame('', $event['notes']);
         self::assertSame(['guestActivityType' => 'camp', 'setupReleased' => true], $catalog->scenario('grossanlass-camp')['grossanlass']);
         // Der noch nicht freigegebene Grossanlass für die Ersteinrichtung: ohne Ressorts, mit allen Rollen zum Testen der Sperre
         $setup = $catalog->scenario('grossanlass-setup');
@@ -261,7 +341,12 @@ final class DemoOrganisationCatalogTest extends TestCase
         $catalog = new DemoOrganisationCatalog();
         $roles = static fn (string $key): array => array_column($catalog->scenario($key)['members'], 'role', 'account');
         $event = $roles('grossanlass-event');
-        foreach (['ga-mw', 'ga-cmw', 'ga-ok', 'ga-komm', 'ga-spon', 'ga-lw', 'ga-clw', 'ga-bereich', 'ga-helfer'] as $account) {
+        // Fabian (ga-helfer) ist nur im Event Helfer («h»); in Camp und Setup bleibt er Mitglied («u»).
+        self::assertSame('h', $event['ga-helfer']);
+        self::assertSame('u', $roles('grossanlass-camp')['ga-helfer']);
+        self::assertSame('u', $roles('grossanlass-setup')['ga-helfer']);
+        self::assertSame('u', $event['ga-user']);
+        foreach (['ga-mw', 'ga-cmw', 'ga-ok', 'ga-komm', 'ga-spon', 'ga-lw', 'ga-clw', 'ga-bereich'] as $account) {
             // dieselbe Rolle im Event und im Camp: ein Login testet beide Anlässe nach seiner vorgesehenen Rolle
             self::assertArrayHasKey($account, $roles('grossanlass-camp'), "$account im Camp");
             self::assertSame($event[$account], $roles('grossanlass-camp')[$account], "$account Rolle im Camp");

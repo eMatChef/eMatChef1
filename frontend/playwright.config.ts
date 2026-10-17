@@ -20,6 +20,8 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     ...devices['Desktop Chrome'],
+    // Isolierte lokale Umgebung: Host-Namen auf 127.0.0.1 abbilden, z. B. «MAP *.ematchef.test 127.0.0.1» (siehe docs/E2E.md)
+    launchOptions: { args: process.env.E2E_HOST_RESOLVER ? [`--host-resolver-rules=${process.env.E2E_HOST_RESOLVER}`] : [] },
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 })

@@ -580,7 +580,17 @@ final class DemoGrossanlassSeedService
             $row->setKind('bauprojekt');
             $this->entityManager->persist($row);
         }
-        $row->setGroupId($group->getId());
+        $linkRepo = $this->entityManager->getRepository(\App\Entity\DepartmentGrossanlassPlaceGroup::class);
+        $link = $linkRepo->findOneBy(['group' => $group->getId()]);
+        if (!$link instanceof \App\Entity\DepartmentGrossanlassPlaceGroup || $link->getPlace()->getId() !== $row->getId()) {
+            if ($link instanceof \App\Entity\DepartmentGrossanlassPlaceGroup) {
+                $this->entityManager->remove($link);
+                $this->entityManager->flush();
+            }
+            $this->entityManager->persist(new \App\Entity\DepartmentGrossanlassPlaceGroup($row, $group));
+        }
+        // Übergangsspalte spiegeln (Zuordnungstabelle ist führend).
+        $row->setLegacyGroupId($group->getId());
 
         return $row;
     }

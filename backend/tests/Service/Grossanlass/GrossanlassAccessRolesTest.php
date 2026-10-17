@@ -22,6 +22,23 @@ class GrossanlassAccessRolesTest extends TestCase
         self::assertFalse(GrossanlassAccessRoles::canWorkMailbox('u'));
     }
 
+    public function testManageStaffingDefaultsSwitchesAndHvAlways(): void
+    {
+        foreach (['hv', 'subhv', 'mw', 'dc'] as $role) {
+            self::assertTrue(GrossanlassAccessRoles::canManageStaffing($role), $role);
+        }
+        self::assertFalse(GrossanlassAccessRoles::canManageStaffing('mw', false, true));
+        self::assertTrue(GrossanlassAccessRoles::canManageStaffing('dc', false, true));
+        self::assertTrue(GrossanlassAccessRoles::canManageStaffing('mw', true, false));
+        self::assertFalse(GrossanlassAccessRoles::canManageStaffing('dc', true, false));
+        foreach (['hv', 'subhv'] as $role) {
+            self::assertTrue(GrossanlassAccessRoles::canManageStaffing($role, false, false), $role);
+        }
+        foreach (['cmw', 'bl', 'lw', 'komm', 'u', 'h', ''] as $role) {
+            self::assertFalse(GrossanlassAccessRoles::canManageStaffing($role), $role);
+        }
+    }
+
     public function testCmwCannotStartWaveOrConnectOrSend(): void
     {
         self::assertTrue(GrossanlassAccessRoles::canTakeInquiry('cmw'));

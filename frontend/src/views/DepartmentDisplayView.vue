@@ -1,6 +1,6 @@
 <template>
-  <div class="department-display">
-    <header class="display-header">
+  <div class="department-display" :class="{ 'department-display--layout': layoutMode }">
+    <header v-if="!layoutMode" class="display-header">
       <div class="display-header-main">
         <EmcLogoMark size="sm" />
         <div>
@@ -8,7 +8,7 @@
           <p v-if="!needsPin && deviceState !== 'expired' && displaySubtitle" class="display-subtitle">{{ displaySubtitle }}</p>
         </div>
       </div>
-      <div v-if="!needsPin && deviceState !== 'expired'" class="display-header-meta">
+      <div v-if="showHeaderMeta" class="display-header-meta">
         <span v-if="isPreview" class="display-preview-badge">{{ t('display.preview.badge') }}</span>
         <button v-if="isPreview" type="button" class="display-fullscreen-btn" @click="leavePreview">
           {{ t('display.preview.back') }}
@@ -61,6 +61,29 @@
       <p class="display-pin-hint">{{ t('display.expired.text', { name: deviceName }) }}</p>
       <p class="display-pin-hint muted">{{ t('display.expired.waiting') }}</p>
     </ECard>
+
+    <!-- Layout-Anzeige (Grossanlass): reiner Kiosk-Renderer der veröffentlichten Revision, keine Bedienelemente. -->
+    <template v-else-if="layoutMode">
+      <div v-if="offline" class="display-offline display-offline--overlay" role="status">
+        <strong>{{ t('display.offline.banner') }}</strong>
+        <span v-if="lastUpdateLabel"> · {{ t('display.offline.lastUpdate', { time: lastUpdateLabel }) }}</span>
+      </div>
+      <div v-if="layoutPayload?.state === 'ready' && layoutPayload.layout" class="display-layout">
+        <DisplayLayoutRenderer
+          :layout="layoutPayload.layout"
+          :variant-id="layoutPayload.variant_id"
+          :font-scale="layoutPayload.font_scale ?? 1"
+        />
+      </div>
+      <div v-else class="display-layout display-layout--waiting" role="status">
+        <EmcLogoMark size="lg" />
+        <p>{{ t('display.layout.waiting') }}</p>
+      </div>
+      <div v-if="isPreview" class="display-preview-bar">
+        <span class="display-preview-badge">{{ layoutPayload?.source === 'published' ? t('display.layout.previewPublished') : t('display.layout.previewDraft') }}</span>
+        <button type="button" class="display-fullscreen-btn" @click="leavePreview">{{ t('display.preview.back') }}</button>
+      </div>
+    </template>
 
     <template v-else>
       <div v-if="offline" class="display-offline" role="status">
@@ -176,6 +199,8 @@ import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import EButton from '@/components/form/base/EButton.vue'
 import ECard from '@/components/form/base/ECard.vue'
 import ETextField from '@/components/form/base/ETextField.vue'
+import DisplayLayoutRenderer from '@/components/display/layout/DisplayLayoutRenderer.vue'
+import type { DisplayLayoutPayload } from '@/api/displayLayout'
 import type { DisplayActivityRow, DisplayStatistics, DisplayWorkshopTicketRow } from '@/api/display'
 import {
   authenticatePublicDisplay,
@@ -213,6 +238,7 @@ const offline = ref(false)
 const loaded = ref(false)
 const lastUpdate = ref<Date | null>(null)
 const scope = ref<'department' | 'grossanlass' | undefined>(undefined)
+const layoutPayload = ref<DisplayLayoutPayload | null>(null)
 const pinInput = ref('')
 const pinError = ref<string | null>(null)
 const pinSubmitting = ref(false)
@@ -252,6 +278,11 @@ const displaySubtitle = computed(() => {
   if (custom) return custom
   return t('display.subtitle')
 })
+
+/** Layout-Modus (Grossanlass): die Anzeige kommt aus dem veröffentlichten Layout statt aus den Bereichs-Checkboxen. */
+const layoutMode = computed(() => loaded.value && layoutPayload.value !== null)
+/** Auf dem TV erscheinen vor dem ersten Laden keine Bedienelemente (kein Vollbild-Button im Wartezustand). */
+const showHeaderMeta = computed(() => !needsPin.value && deviceState.value !== 'expired' && !(isDeviceMode.value && !loaded.value))
 
 const panelCount = computed(() => (showActivities.value ? 1 : 0) + (showWorkshop.value ? 1 : 0))
 
@@ -464,6 +495,7 @@ function applyData(data: PublicDisplayData) {
   allowedActivityStatuses.value = data.activity_statuses?.length ? data.activity_statuses : []
   allowedWorkshopStatuses.value = data.workshop_statuses?.length ? data.workshop_statuses : []
   statistics.value = data.statistics ?? null
+  layoutPayload.value = data.layout ?? null
 }
 
 /** Verwirft alle angezeigten Inhalte (Widerruf, abgelaufene Freigabe): nichts bleibt im Speicher sichtbar. */
@@ -530,7 +562,9 @@ async function load() {
   if (!loaded.value) loading.value = true
   loadError.value = null
   try {
-    applyData(await getDisplayPreviewData(previewDepartmentId.value, id))
+    const source = route.query.source === 'published' ? 'published' : 'draft'
+    const variant = typeof route.query.variant === 'string' ? route.query.variant : undefined
+    applyData(await getDisplayPreviewData(previewDepartmentId.value, id, { source, variantId: variant }))
     loaded.value = true
     lastUpdate.value = new Date()
   } catch (err: unknown) {
@@ -628,6 +662,47 @@ watch(publicId, () => {
   padding: 24px 28px 32px;
   background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
   color: #0f172a;
+}
+
+.department-display--layout {
+  min-height: 0;
+  padding: 0;
+  background: #0b1220;
+}
+
+.display-layout {
+  position: fixed;
+  inset: 0;
+}
+
+.display-layout--waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  background: #0b1220;
+  color: #94a3b8;
+  font-size: 1.6rem;
+}
+
+.display-offline--overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  margin: 0;
+}
+
+.display-preview-bar {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .display-header {

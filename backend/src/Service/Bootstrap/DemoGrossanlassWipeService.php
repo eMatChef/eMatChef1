@@ -212,7 +212,13 @@ final class DemoGrossanlassWipeService
         );
 
         foreach ([
+            'department_grossanlass_dependency',
+            'department_grossanlass_order_event',
+            'department_grossanlass_order_archive_log',
             'department_grossanlass_task',
+            // Nach den Aufgaben: deren Löschung entfernt Bedarf und Zuteilungen; erst dann sind die Helfer frei.
+            'department_grossanlass_staffing_log',
+            'department_grossanlass_helper',
             'department_grossanlass_user_card',
             'department_grossanlass_place',
             'department_grossanlass_map',

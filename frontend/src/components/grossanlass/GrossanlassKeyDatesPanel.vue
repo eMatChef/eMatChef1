@@ -102,7 +102,6 @@ import DepartmentFixedDatesManager from '@/components/settings/DepartmentFixedDa
 import {
   calendarPeriodTime,
   listDepartmentCalendarPeriods,
-  GROSSANLASS_TIME_MODULE_LABELS,
   type DepartmentCalendarPeriod,
 } from '@/api/calendarPeriods'
 
@@ -150,13 +149,6 @@ function formatRange(row: DepartmentCalendarPeriod): string {
   return start === end ? start : `${start} – ${end}`
 }
 
-const KEY_DATE_LABELS = new Set<string>([...GROSSANLASS_TIME_MODULE_LABELS, 'other'])
-
-const visibleKeyDateLabels = computed(() => {
-  if (!props.hideEventPeriod) return KEY_DATE_LABELS
-  return new Set([...KEY_DATE_LABELS].filter((label) => label !== 'grossanlass'))
-})
-
 const hintText = computed(() =>
   props.hideEventPeriod
     ? t('grossanlass.planung.keyDates.hintWithoutEvent')
@@ -171,7 +163,7 @@ const summaryText = computed(() => {
 
 const fixedPeriods = computed(() =>
   periods.value
-    .filter((p) => visibleKeyDateLabels.value.has(p.label))
+    .filter((p) => !(props.hideEventPeriod && p.label === 'grossanlass'))
     .slice()
     .sort((a, b) => {
       const sa = `${a.start_date}T${calendarPeriodTime(a.start_time, '00:00')}`
@@ -194,8 +186,8 @@ async function loadPeriods() {
   if (!props.departmentId) return
   loading.value = true
   try {
-    const y = new Date().getFullYear()
-    periods.value = await listDepartmentCalendarPeriods(props.departmentId, [y - 1, y, y + 1, y + 2])
+    // Gleiche Datenquelle wie «Fixe Daten verwalten»: alle Jahre, alle Arten.
+    periods.value = await listDepartmentCalendarPeriods(props.departmentId)
   } catch {
     periods.value = []
   } finally {

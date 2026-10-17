@@ -13,7 +13,7 @@
           show-arrows
           @update:model-value="onTabChange"
         >
-          <v-tab v-for="tab in tabItems" :key="tab.id" :value="tab.id">
+          <v-tab v-for="tab in tabItems" :key="tab.id" :value="tab.id" :data-testid="`nav-beschaffung-${tab.id}`">
             <v-icon :icon="tab.icon" start size="18" />
             {{ tab.label }}
           </v-tab>
@@ -103,7 +103,7 @@ const allTabItems = [
   { id: 'offers', labelKey: 'grossanlass.beschaffung.tabOfferten', icon: 'mdi-file-document-outline' },
   { id: 'commitments', labelKey: 'grossanlass.beschaffung.tabZusagen', icon: 'mdi-handshake-outline' },
   { id: 'orders', labelKey: 'grossanlass.beschaffung.tabBestellungen', icon: 'mdi-cart-outline' },
-  { id: 'received', labelKey: 'grossanlass.beschaffung.tabErhalten', icon: 'mdi-package-check' },
+  { id: 'budget', labelKey: 'grossanlass.beschaffung.tabBudget', icon: 'mdi-cash-multiple' },
 ] as const
 
 const tabItems = computed(() => {

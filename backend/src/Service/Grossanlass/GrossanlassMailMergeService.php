@@ -28,6 +28,7 @@ final class GrossanlassMailMergeService
         'ANLASS',
         'ORT',
         'ZEITRAUMTEXT',
+        'ANLASSZEITRAUM',
         'MATERIALLISTE',
         'BEREICHE',
         'ABSENDER',
@@ -356,6 +357,7 @@ final class GrossanlassMailMergeService
             'ANLASS' => $department->getName(),
             'ORT' => $inquiry?->getPlace() ?? '',
             'ZEITRAUMTEXT' => self::zeitraumTextForMail($this->getZeitraumText($department)),
+            'ANLASSZEITRAUM' => $this->anlassZeitraumText($department),
             'MATERIALLISTE' => $materialList,
             'BEREICHE' => $packages,
             'ABSENDER' => 'OK Material & Logistik',
@@ -453,6 +455,42 @@ final class GrossanlassMailMergeService
         $setting->setSettingValue(json_encode($trimmed, JSON_UNESCAPED_UNICODE) ?: '""');
         $setting->setUpdatedAt(new \DateTime());
         $this->entityManager->flush();
+    }
+
+    /**
+     * Gesamter organisatorischer Anlasszeitraum (Aufbaubeginn bis Abbauende, «planned_event_*»), nicht die Durchführungsphase.
+     * Leer, solange das Department keinen Anlasszeitraum kennt.
+     */
+    public function anlassZeitraumText(Department $department): string
+    {
+        $config = $department->getGrossanlassConfig();
+        if ($config === null) {
+            return '';
+        }
+        $end = $config->getPlannedEventEnd() ?? $config->getPlannedEventStart();
+
+        return self::formatAnlassZeitraum($config->getPlannedEventStart(), $end);
+    }
+
+    /** «19. Mai bis 23. Juni 2027»; Wandzeit, ohne Zeitzonenumrechnung. */
+    public static function formatAnlassZeitraum(\DateTimeInterface $start, \DateTimeInterface $end): string
+    {
+        $months = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+        $day = static fn (\DateTimeInterface $d): string => $d->format('j') . '.';
+        $month = static fn (\DateTimeInterface $d): string => $months[(int) $d->format('n') - 1];
+        $year = static fn (\DateTimeInterface $d): string => $d->format('Y');
+
+        if ($end < $start) {
+            $end = $start;
+        }
+        if ($start->format('Y-m-d') === $end->format('Y-m-d')) {
+            return sprintf('%s %s %s', $day($start), $month($start), $year($start));
+        }
+        if ($year($start) === $year($end)) {
+            return sprintf('%s %s bis %s %s %s', $day($start), $month($start), $day($end), $month($end), $year($end));
+        }
+
+        return sprintf('%s %s %s bis %s %s %s', $day($start), $month($start), $year($start), $day($end), $month($end), $year($end));
     }
 
     public static function zeitraumTextForMail(string $plain): string

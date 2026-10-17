@@ -10,11 +10,11 @@
         color="primary"
         @update:model-value="onShellTabChange"
       >
-        <v-tab v-if="showGaMasterTab" value="ga-master">{{ t('grossanlass.aufgaben.tabMaster') }}</v-tab>
-        <v-tab v-if="isGrossanlass" value="ga-mine">{{ t('grossanlass.aufgaben.tabMine') }}</v-tab>
-        <v-tab value="general">{{ t('tasksShell.tabGeneral') }}</v-tab>
-        <v-tab v-if="!isGrossanlass || canManagePrintTasks" value="inventory">{{ t('tasksShell.tabInventory') }}</v-tab>
-        <v-tab v-if="!isGrossanlass || canManagePrintTasks" value="print">{{ t('common.print') }}</v-tab>
+        <v-tab v-if="tabs.gaMaster" value="ga-master">{{ t('grossanlass.aufgaben.tabMaster') }}</v-tab>
+        <v-tab v-if="tabs.gaMine" value="ga-mine">{{ t('grossanlass.aufgaben.tabMine') }}</v-tab>
+        <v-tab v-if="tabs.general" value="general">{{ t('tasksShell.tabGeneral') }}</v-tab>
+        <v-tab v-if="tabs.inventory" value="inventory">{{ t('tasksShell.tabInventory') }}</v-tab>
+        <v-tab v-if="tabs.print" value="print">{{ t('common.print') }}</v-tab>
       </v-tabs>
     </template>
 
@@ -29,6 +29,7 @@ import { useI18n } from 'vue-i18n'
 import PageShell from '@/components/layout/PageShell.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import { isGaTasksRoute, tasksShellTabs } from '@/views/tasksShellTabs'
 import '@/styles/views/tasks-tabs.css'
 
 const route = useRoute()
@@ -43,6 +44,15 @@ const isGrossanlass = computed(() => authStore.isDepartmentGrossanlass(departmen
 /** Prototyp: alle Grossanlass-Rollen sehen vorerst die MW-Masteransicht; Rollen-Sichten folgen. */
 const showGaMasterTab = computed(() => isGrossanlass.value)
 const canManagePrintTasks = computed(() => !isUserRole.value)
+
+/** Im GA-Aufgabenbereich nur «Aufgaben» und «Meine Aufgaben»; die Department-Tabs bleiben unter `/dept/tasks`. */
+const tabs = computed(() =>
+  tasksShellTabs({
+    isGrossanlass: isGrossanlass.value,
+    isGaTasksArea: isGrossanlass.value && isGaTasksRoute(route.name),
+    canManagePrintTasks: canManagePrintTasks.value,
+  }),
+)
 
 const showTasksTabs = computed(() => canManagePrintTasks.value || isGrossanlass.value)
 

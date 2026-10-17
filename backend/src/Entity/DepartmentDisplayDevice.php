@@ -61,6 +61,10 @@ class DepartmentDisplayDevice
     #[ORM\Column(name: 'reminder3_for', type: 'datetime', nullable: true)]
     private ?\DateTimeInterface $reminder3For = null;
 
+    /** Bildschirmprofil (Format, Auflösung, Lesbarkeit, Layoutvariante); null = Standard. Siehe DisplayDeviceProfileService. */
+    #[ORM\Column(name: 'display_profile', type: 'json', nullable: true)]
+    private ?array $displayProfile = null;
+
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTimeInterface $createdAt;
 
@@ -241,6 +245,20 @@ class DepartmentDisplayDevice
     public function setReminder3For(?\DateTimeInterface $reminder3For): self
     {
         $this->reminder3For = $reminder3For;
+
+        return $this;
+    }
+
+    /** @return array<string, mixed>|null */
+    public function getDisplayProfile(): ?array
+    {
+        return $this->displayProfile;
+    }
+
+    /** @param array<string, mixed>|null $displayProfile */
+    public function setDisplayProfile(?array $displayProfile): self
+    {
+        $this->displayProfile = $displayProfile;
 
         return $this;
     }

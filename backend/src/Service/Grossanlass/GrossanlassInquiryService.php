@@ -97,7 +97,13 @@ class GrossanlassInquiryService
         $inquiry = $this->find($department, $inquiryId);
         $this->applyFields($inquiry, $data, false);
         if (($data['status'] ?? null) === DepartmentGrossanlassInquiry::STATUS_ZUSAGE) {
-            $this->commitments->ensureFromInquiry($department, $user, $inquiry->getId());
+            try {
+                $this->commitments->ensureFromInquiry($department, $user, $inquiry->getId());
+            } catch (\InvalidArgumentException $e) {
+                // Keine Zusage möglich (z. B. ohne Bedarfsposition): Anfrage bleibt unverändert, Meldung geht an den Aufrufer.
+                $this->entityManager->refresh($inquiry);
+                throw $e;
+            }
             $inquiry = $this->find($department, $inquiryId);
             $this->procurement->freezeAskedFromInquiry($department, $inquiry);
         }

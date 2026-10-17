@@ -2,6 +2,15 @@ import apiClient from './apiClient'
 
 export type DepartmentClockMode = 'real' | 'demo' | 'dev'
 
+/** Schnellwahl der Demo-Uhr: vom Server aus Anlasszeitraum und fixen Daten (Aufbau, Abbau) abgeleitet. */
+export type DepartmentClockPresetKey = 'months_before_5' | 'months_before_2' | 'build' | 'during_event' | 'teardown' | 'months_after_2'
+
+export interface DepartmentClockPreset {
+  key: DepartmentClockPresetKey
+  /** Naive Wandzeit `YYYY-MM-DDTHH:mm:ss`. */
+  at: string
+}
+
 /** Fachzeit eines Departments (BusinessClock). Security-/Token-Zeit ist davon unabhängig. */
 export interface DepartmentClock {
   mode: DepartmentClockMode
@@ -10,6 +19,8 @@ export interface DepartmentClock {
   real_now: string
   offset_seconds: number
   can_travel: boolean
+  /** Leer für Departments ohne Grossanlass-Konfiguration. */
+  presets?: DepartmentClockPreset[]
 }
 
 const base = (departmentId: string) => `/api/departments/${departmentId}/clock`

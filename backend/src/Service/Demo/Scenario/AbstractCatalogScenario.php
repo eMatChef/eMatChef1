@@ -9,7 +9,7 @@ use App\Service\Demo\Organisation\DemoOrganisationSeeder;
 /** Szenario, dessen Organisationsstruktur aus dem Seed-Katalog stammt (Phase 2). Prozessdaten folgen in späteren Phasen. */
 abstract class AbstractCatalogScenario extends AbstractDemoScenario
 {
-    public function __construct(private DemoOrganisationSeeder $organisationSeeder)
+    public function __construct(protected DemoOrganisationSeeder $organisationSeeder)
     {
     }
 

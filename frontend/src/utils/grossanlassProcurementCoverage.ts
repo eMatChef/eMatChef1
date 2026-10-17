@@ -10,21 +10,29 @@ export function procurementIsOrdered(line: GrossanlassProcurementLine): boolean 
   return ORDERED_STATUSES.has(line.status)
 }
 
+/**
+ * Bestellte Menge: Summe der Kauf-Chargen aller aktiven Bestellungen (Server rechnet). Nur Payloads ohne dieses Feld
+ * (ältere Antworten) fallen auf die ganze Positionsmenge zurück, sobald die Position bestellt ist.
+ */
 export function procurementOrderedQty(line: GrossanlassProcurementLine): number {
+  if (line.quantity_ordered != null) return Math.max(0, line.quantity_ordered)
   if (!procurementIsOrdered(line)) return 0
   return Math.max(0, line.quantity)
 }
 
+/**
+ * Gedeckte Menge einschliesslich noch nicht gespeicherter Zusagen im Formular (`hereTaken`).
+ * Bestellungen, Leihe und Spende decken zusammen; eine Offerte allein deckt nichts.
+ */
 export function procurementCoveredQty(
   line: GrossanlassProcurementLine,
   otherTaken: number,
   hereTaken = 0,
 ): number {
-  const ordered = procurementOrderedQty(line)
-  if (ordered > 0) return ordered
-  return otherTaken + hereTaken
+  return procurementOrderedQty(line) + otherTaken + hereTaken
 }
 
+/** Offene Menge; negativ bei Überdeckung. */
 export function procurementCoverageOpen(
   line: GrossanlassProcurementLine,
   otherTaken: number,

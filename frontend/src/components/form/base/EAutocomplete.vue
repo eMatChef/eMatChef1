@@ -72,6 +72,7 @@
 
 <script setup lang="ts">
 import { computed, useAttrs, useId } from 'vue'
+import { useExclusiveOverlay } from '@/composables/useExclusiveOverlay'
 
 defineOptions({ inheritAttrs: false, name: 'EAutocomplete' })
 
@@ -122,6 +123,7 @@ const props = withDefaults(
 const model = defineModel<unknown>({ default: null })
 const search = defineModel<string | null>('search', { default: '' })
 const menuOpen = defineModel<boolean>('menu', { default: false })
+useExclusiveOverlay(menuOpen)
 
 const searchText = computed({
   get: () => search.value ?? '',

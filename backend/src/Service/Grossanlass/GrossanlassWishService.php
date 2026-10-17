@@ -451,6 +451,10 @@ class GrossanlassWishService
         if (array_key_exists('self_organized', $data)) {
             $line->setSelfOrganized(filter_var($data['self_organized'], FILTER_VALIDATE_BOOLEAN));
         }
+        if (array_key_exists('procurement_responsibility', $data)) {
+            $responsibility = $data['procurement_responsibility'];
+            $line->setProcurementResponsibility($responsibility === null || $responsibility === '' ? null : (string) $responsibility);
+        }
         $line->touchUpdatedAt();
         $this->entityManager->flush();
 
@@ -504,6 +508,10 @@ class GrossanlassWishService
         $this->applyPickup($line, $data);
         if (array_key_exists('self_organized', $data)) {
             $line->setSelfOrganized(filter_var($data['self_organized'], FILTER_VALIDATE_BOOLEAN));
+        }
+        if (array_key_exists('procurement_responsibility', $data)) {
+            $responsibility = $data['procurement_responsibility'];
+            $line->setProcurementResponsibility($responsibility === null || $responsibility === '' ? null : (string) $responsibility);
         }
         $line->setCreatedByUser($user);
         $line->setStatus(ActivityGrossanlassWishLine::STATUS_REQUESTED);
@@ -689,6 +697,7 @@ class GrossanlassWishService
         if ($this->wishHasFrozenProcurement($line)) {
             throw new \InvalidArgumentException('Wunsch ist an eine eingefrorene Beschaffungsposition gebunden');
         }
+        $this->assertWishNotBoundToProcurement($line);
 
         $this->removeOpenDemandForWish($line);
 
@@ -1512,7 +1521,7 @@ class GrossanlassWishService
         }
         $kind = $group->getGrossanlassKind();
 
-        return $kind === null || $kind === '' || $kind === Group::GROSSANLASS_KIND_TEILBEREICH;
+        return $kind === null || $kind === '' || $kind === Group::GROSSANLASS_KIND_TEILBEREICH || $kind === Group::GROSSANLASS_KIND_AUFTRAG;
     }
 
     private function findWishInRound(Department $department, string $roundId, string $wishId): ActivityGrossanlassWishLine
@@ -1543,6 +1552,27 @@ class GrossanlassWishService
             $this->entityManager->remove($link);
             if ($onlyThisWish && $stillNeed) {
                 $this->entityManager->remove($procurement);
+            }
+        }
+    }
+
+    /**
+     * Ein Wunsch einer Position in Offerte/Bestellung oder mit Zusagen bleibt als Herkunft erhalten:
+     * Löschen würde Verknüpfung und Wareneingangs-Zuordnung zerstören, die Position aber bestehen lassen.
+     */
+    private function assertWishNotBoundToProcurement(ActivityGrossanlassWishLine $line): void
+    {
+        $links = $this->entityManager->getRepository(ActivityGrossanlassProcurementLineWish::class)
+            ->findBy(['wishLineId' => $line->getId()]);
+        foreach ($links as $link) {
+            if (!$link instanceof ActivityGrossanlassProcurementLineWish) {
+                continue;
+            }
+            $procurement = $link->getProcurementLine();
+            $hasCharge = $this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)
+                ->count(['procurementLineId' => $procurement->getId()]) > 0;
+            if ($hasCharge || $procurement->getStatus() !== ActivityGrossanlassProcurementLine::STATUS_BEDARF) {
+                throw new \InvalidArgumentException('Wunsch gehört zu einer Position in Offerte, Bestellung oder mit Zusagen und kann nicht gelöscht werden');
             }
         }
     }
@@ -2033,6 +2063,7 @@ class GrossanlassWishService
             'return_needed' => $line->isReturnNeeded(),
             'quantity_unit' => $line->getQuantityUnit(),
             'self_organized' => $line->isSelfOrganized(),
+            'procurement_responsibility' => $line->getProcurementResponsibility(),
             ...$line->enoughOnHandPayload(),
             'status' => $line->getStatus(),
             'last_stage' => $line->getLastStage(),

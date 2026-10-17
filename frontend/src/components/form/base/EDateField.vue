@@ -17,6 +17,8 @@
           :show-presets="showPresets"
           :show-markers="showMarkers"
           :view-date="viewDateModel"
+          :parent-window="parentWindow"
+          :own-window="ownWindow"
         />
       </div>
     </div>
@@ -44,6 +46,9 @@ const props = withDefaults(
     showMarkers?: boolean
     /** API-Format yyyy-mm-dd — Kalender startet hier, wenn das Feld leer ist */
     viewDate?: string
+    /** Zeitfenster-Hervorhebung im Kalender (yyyy-mm-dd, inklusive) */
+    parentWindow?: { start?: string | null; end?: string | null } | null
+    ownWindow?: { start?: string | null; end?: string | null } | null
     errorMessages?: string | readonly string[]
   }>(),
   {
@@ -54,6 +59,8 @@ const props = withDefaults(
     showPresets: false,
     showMarkers: true,
     viewDate: '',
+    parentWindow: null,
+    ownWindow: null,
   },
 )
 

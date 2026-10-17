@@ -2,7 +2,6 @@
   <div class="ga-aufgaben">
     <p class="ga-aufgaben__intro">
       {{ t('grossanlass.aufgaben.intro') }}
-      <v-chip size="x-small" variant="tonal" color="warning" class="ml-2">{{ t('grossanlass.aufgaben.prototype') }}</v-chip>
     </p>
 
     <section class="ga-aufgaben__kpis" :aria-label="t('grossanlass.aufgaben.overview')">
@@ -20,18 +19,13 @@
     </section>
 
     <section class="ga-aufgaben__filters">
-      <div class="ga-aufgaben__kinds" role="group" :aria-label="t('grossanlass.aufgaben.filter.kind')">
-        <EButton
-          v-for="option in kindOptions"
-          :key="option.value"
-          size="small"
-          :variant="filters.kind === option.value ? 'primary' : 'secondary'"
-          @click="filters.kind = option.value"
-        >
-          <v-icon v-if="option.icon" :icon="option.icon" start size="16" />
-          {{ option.label }}
+      <div>
+        <EButton size="small" variant="primary" :disabled="!projects.length" @click="openCreate">
+          <v-icon icon="mdi-plus" start size="16" />
+          {{ t('grossanlass.aufgaben.create.open') }}
         </EButton>
       </div>
+      <ESwitch v-model="showArchived" :label="t('grossanlass.aufgaben.archive.showArchived')" hide-details density="compact" data-testid="show-archived" />
       <div class="ga-aufgaben__selects">
         <ESearchField v-model="filters.search" :label="t('grossanlass.aufgaben.filter.search')" />
         <ESelect v-model="filters.ressort" :items="ressortItems" :label="t('grossanlass.aufgaben.filter.ressort')" clearable hide-details />
@@ -42,8 +36,9 @@
       </div>
     </section>
 
+    <ELoadingState v-if="loading && !tasks.length" />
     <EEmptyState
-      v-if="!visible.length"
+      v-else-if="!visible.length"
       variant="generic"
       icon="mdi-clipboard-check-outline"
       :title="t('grossanlass.aufgaben.emptyTitle')"
@@ -60,15 +55,24 @@
           v-for="task in group.items"
           :key="task.id"
           class="ga-card"
-          :class="`ga-card--${statusKey(task)}`"
+          :class="`ga-card--${statusKey(task, now)}`"
         >
           <header class="ga-card__head">
             <span class="ga-card__kind">
               <v-icon :icon="KIND_ICON[task.kind]" size="16" />
               {{ t(`grossanlass.aufgaben.kind.${task.kind}`) }}
             </span>
-            <v-chip size="x-small" variant="flat" :color="STATUS_COLOR[statusKey(task)]">
-              {{ t(`grossanlass.aufgaben.status.${statusKey(task)}`) }}
+            <v-chip v-if="task.rework" size="x-small" variant="tonal" color="info" prepend-icon="mdi-wrench-outline" class="mr-1">
+              {{ t('grossanlass.aufgaben.rework.chip') }}
+            </v-chip>
+            <v-chip v-if="task.waiting" size="x-small" variant="flat" color="warning" prepend-icon="mdi-timer-sand" class="mr-1">
+              {{ t('grossanlass.aufgaben.deps.chip') }}
+            </v-chip>
+            <v-chip v-if="task.blocked" size="x-small" variant="flat" color="error" prepend-icon="mdi-alert-octagon-outline" class="mr-1">
+              {{ t('grossanlass.aufgaben.blocked.chip') }}
+            </v-chip>
+            <v-chip size="x-small" variant="flat" :color="STATUS_COLOR[statusKey(task, now)]">
+              {{ t(`grossanlass.aufgaben.status.${statusKey(task, now)}`) }}
             </v-chip>
           </header>
           <p class="ga-card__origin">{{ task.origin.join(' · ') }}</p>
@@ -100,19 +104,66 @@
     </section>
 
     <EDialog v-model="detailOpen" :title="selected?.title ?? ''" max-width="720" :retain-focus="false">
-      <GrossanlassAufgabeDetail v-if="selected" :task="selected" can-assign />
+      <GrossanlassAufgabeDetail
+        v-if="selected"
+        :task="selected"
+        can-assign
+        :assignees="assignees"
+        :error="actionError"
+        @status="(status) => setStatus(selected!, status)"
+        @step-add="(label) => addStep(selected!, label)"
+        @step-done="(id, done) => setStepDone(selected!, id, done)"
+        @step-move="(id, delta) => moveStep(selected!, id, delta)"
+        @step-remove="(id) => removeStep(selected!, id)"
+        @block="(reason) => block(selected!, reason)"
+        @unblock="unblock(selected!)"
+        @report="(note) => reportDone(selected!, note)"
+        @accept="accept(selected!)"
+        @give-back="(reason) => giveBack(selected!, reason)"
+        :dependency-candidates="dependencyCandidates"
+        @dependency-add="(id, mode) => addDependency(selected!, id, mode)"
+        @dependency-mode="(dep, mode) => changeDependencyMode(selected!, dep, mode)"
+        @dependency-remove="(dep) => removeDependency(selected!, dep)"
+        @dependency-release="(dep, reason) => releaseDependency(selected!, dep, reason)"
+        @assign="(userId) => setAssignee(selected!, userId)"
+      />
       <template #actions>
         <EButton variant="secondary" @click="detailOpen = false">{{ t('common.close') }}</EButton>
+      </template>
+    </EDialog>
+
+    <EDialog v-model="createOpen" :title="t('grossanlass.aufgaben.create.title')" max-width="520" :retain-focus="false">
+      <div class="ga-create">
+        <ESelect v-model="draft.groupId" :items="projects" :label="t('grossanlass.aufgaben.create.project')" hide-details />
+        <ETextField v-model="draft.title" :label="t('grossanlass.aufgaben.create.name')" hide-details />
+        <ETextField v-model="draft.startsAt" type="datetime-local" :label="t('grossanlass.aufgaben.create.start')" hide-details />
+        <ETextField v-model="draft.minutes" type="number" min="0" :label="t('grossanlass.aufgaben.create.minutes')" hide-details />
+        <ESelect
+          v-model="draft.assigneeId"
+          :items="draftAssignees"
+          :label="t('grossanlass.aufgaben.detail.assign')"
+          clearable
+          hide-details
+        />
+        <p v-if="createError" class="ga-create__error">{{ createError }}</p>
+      </div>
+      <template #actions>
+        <EButton variant="secondary" @click="createOpen = false">{{ t('common.cancel') }}</EButton>
+        <EButton variant="primary" :disabled="!draft.groupId || !draft.title.trim()" @click="submitCreate">
+          {{ t('common.save') }}
+        </EButton>
       </template>
     </EDialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { EButton, EDialog, ESearchField, ESelect } from '@/components/form/base'
+import { EButton, EDialog, ESearchField, ESelect, ESwitch, ETextField } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
 import GrossanlassAufgabeDetail from './GrossanlassAufgabeDetail.vue'
 import {
   bucketOf,
@@ -120,55 +171,65 @@ import {
   matchesFilters,
   statusCounts,
   taskProgress,
-  useGaAufgabenMock,
   type GaAufgabe,
   type GaAufgabeBucket,
-  type GaAufgabeKind,
   type GaAufgabeStatusFilter,
 } from './gaAufgabenMock'
-import { KIND_ICON, KIND_ORDER, STATUS_COLOR, dayLabel, statusKey, whenLabel } from './gaAufgabenUi'
+import { useGaAufgaben, assigneesFor } from './useGaAufgaben'
+import { KIND_ICON, STATUS_COLOR, dayLabel, statusKey, useGaNow, whenLabel } from './gaAufgabenUi'
 
 const { t, locale } = useI18n()
-const { tasks } = useGaAufgabenMock()
+const route = useRoute()
+const { tasks, projects, groups: orgGroups, loading, load, actionError, addStep, setStepDone, moveStep, removeStep, block, unblock, reportDone, accept, giveBack, addDependency, changeDependencyMode, removeDependency, releaseDependency, setStatus, setAssignee, create } = useGaAufgaben(
+  () => String(route.params.departmentId || ''),
+  () => showArchived.value,
+)
+onMounted(load)
+const now = useGaNow()
 
+/** Archivierte Bauaufträge sind standardmässig ausgeblendet. */
+const showArchived = ref(false)
+watch(showArchived, () => load())
 const filters = reactive(emptyAufgabeFilters())
 const selectedId = ref<string | null>(null)
 const detailOpen = ref(false)
 const selected = computed(() => tasks.value.find((task) => task.id === selectedId.value) ?? null)
+/** Mögliche Vorgänger: alle anderen sichtbaren Aufgaben (auch aus anderen Ressorts), noch nicht verknüpft. */
+const dependencyCandidates = computed(() => {
+  const current = selected.value
+  if (!current) return []
+  const linked = new Set((current.dependencies ?? []).filter((dep) => dep.kind === 'task' && dep.predecessor_id).map((dep) => dep.predecessor_id))
+  return tasks.value
+    .filter((task) => task.id !== current.id && !linked.has(task.id))
+    .map((task) => ({ value: task.id, title: `${task.origin.join(' › ')} · ${task.title}` }))
+    .sort((a, b) => a.title.localeCompare(b.title, 'de'))
+})
 
 /** Kennzahlen gelten für die gewählten Filter ausser Status. */
-const scoped = computed(() => tasks.value.filter((task) => matchesFilters(task, filters, { ignoreStatus: true })))
-const counts = computed(() => statusCounts(scoped.value))
+const scoped = computed(() => tasks.value.filter((task) => matchesFilters(task, filters, { ignoreStatus: true, now: now.value })))
+const counts = computed(() => statusCounts(scoped.value, now.value))
 const kpis = computed(() => [
   { key: 'open' as const, count: counts.value.open },
   { key: 'progress' as const, count: counts.value.progress },
   { key: 'overdue' as const, count: counts.value.overdue },
+  { key: 'review' as const, count: counts.value.review },
   { key: 'done' as const, count: counts.value.done },
 ])
 
 const visible = computed(() =>
   tasks.value
-    .filter((task) => matchesFilters(task, filters))
+    .filter((task) => matchesFilters(task, filters, { now: now.value }))
     .slice()
     .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()),
 )
 
-const BUCKET_ORDER: GaAufgabeBucket[] = ['overdue', 'today', 'tomorrow', 'later', 'done']
+const BUCKET_ORDER: GaAufgabeBucket[] = ['overdue', 'review', 'today', 'tomorrow', 'later', 'done']
 const groups = computed(() =>
   BUCKET_ORDER.map((bucket) => ({
     bucket,
-    items: visible.value.filter((task) => bucketOf(task) === bucket),
+    items: visible.value.filter((task) => bucketOf(task, now.value) === bucket),
   })).filter((group) => group.items.length > 0),
 )
-
-const kindOptions = computed(() => [
-  { value: 'all' as const, label: t('grossanlass.aufgaben.kind.all'), icon: '' },
-  ...KIND_ORDER.map((kind: GaAufgabeKind) => ({
-    value: kind,
-    label: t(`grossanlass.aufgaben.kindFilter.${kind}`),
-    icon: KIND_ICON[kind],
-  })),
-])
 
 function uniqueSorted(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'))
@@ -189,12 +250,42 @@ const statusItems = computed(() => [
   { title: t('grossanlass.aufgaben.status.all'), value: 'all' },
   { title: t('grossanlass.aufgaben.status.open'), value: 'open' },
   { title: t('grossanlass.aufgaben.status.progress'), value: 'progress' },
+  { title: t('grossanlass.aufgaben.status.review'), value: 'review' },
   { title: t('grossanlass.aufgaben.status.overdue'), value: 'overdue' },
   { title: t('grossanlass.aufgaben.status.done'), value: 'done' },
 ])
 
 function toggleStatus(key: GaAufgabeStatusFilter) {
   filters.status = filters.status === key ? 'all' : key
+}
+
+const assignees = computed(() => (selected.value?.groupId ? assigneesFor(selected.value.groupId, orgGroups.value) : []))
+
+const createOpen = ref(false)
+const createError = ref('')
+const draft = reactive({ groupId: '', title: '', startsAt: '', minutes: '60', assigneeId: null as string | null })
+const draftAssignees = computed(() => (draft.groupId ? assigneesFor(draft.groupId, orgGroups.value) : []))
+
+function openCreate() {
+  Object.assign(draft, { groupId: '', title: '', startsAt: '', minutes: '60', assigneeId: null })
+  createError.value = ''
+  createOpen.value = true
+}
+
+async function submitCreate() {
+  createError.value = ''
+  try {
+    await create({
+      group_id: draft.groupId,
+      title: draft.title.trim(),
+      starts_at: draft.startsAt || null,
+      duration_minutes: draft.minutes === '' ? null : Number(draft.minutes),
+      assignee_user_id: draft.assigneeId,
+    })
+    createOpen.value = false
+  } catch {
+    createError.value = t('grossanlass.aufgaben.create.error')
+  }
 }
 
 function openTask(task: GaAufgabe) {
@@ -217,7 +308,7 @@ function openTask(task: GaAufgabe) {
 }
 .ga-aufgaben__kpis {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
 }
 .ga-kpi {
@@ -365,5 +456,13 @@ function openTask(task: GaAufgabe) {
   .ga-aufgaben__list {
     grid-template-columns: 1fr;
   }
+}
+.ga-create {
+  display: grid;
+  gap: 14px;
+}
+.ga-create__error {
+  margin: 0;
+  color: #b91c1c;
 }
 </style>

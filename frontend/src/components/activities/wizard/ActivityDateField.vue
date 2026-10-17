@@ -53,6 +53,7 @@
                 :item="item"
                 :btn-props="dayBtnProps"
                 :markers="markersForIsoKey(item.isoDate)"
+                :window-tint="windowTintFor(item.isoDate)"
                 :department-closed-date-keys="departmentClosedDateKeys"
               />
             </template>
@@ -63,6 +64,7 @@
 </template>
 
 <script setup lang="ts">
+import { useExclusiveOverlay } from '@/composables/useExclusiveOverlay'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { VDatePicker, VTextField } from 'vuetify/components'
@@ -101,6 +103,10 @@ const props = withDefaults(
     showMarkers?: boolean
     /** Kalender-Monat, wenn noch kein Datum gewählt (z. B. Eventfenster) */
     viewDate?: Date | null
+    /** Übergeordnetes Zeitfenster (yyyy-mm-dd, inklusive) — dezent hervorgehoben, Tage bleiben wählbar. */
+    parentWindow?: { start?: string | null; end?: string | null } | null
+    /** Eigener Zeitraum der Aufgabe (yyyy-mm-dd, inklusive) — kräftiger hervorgehoben. */
+    ownWindow?: { start?: string | null; end?: string | null } | null
   }>(),
   {
     departmentId: null,
@@ -112,6 +118,8 @@ const props = withDefaults(
     showMarkers: true,
     presetMode: 'single',
     viewDate: null,
+    parentWindow: null,
+    ownWindow: null,
   },
 )
 
@@ -122,6 +130,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const toast = useToast()
 const menuOpen = ref(false)
+useExclusiveOverlay(menuOpen)
 const activatorRef = ref<{ $el: HTMLElement } | null>(null)
 const { scheduleClose } = useActivityDatePickerDelayedClose(menuOpen)
 const { pickerWidth } = useActivityDatePickerLayoutProps()
@@ -155,6 +164,19 @@ const menuPresets = computed(() =>
     props.blockClosedDates,
   ),
 )
+
+function inWindow(iso: string, w: { start?: string | null; end?: string | null } | null): boolean {
+  if (!w?.start || !w?.end) return false
+  return iso >= w.start && iso <= w.end
+}
+
+/** Reaktiv: Props werden pro Render gelesen, daher aktualisiert sich die Markierung ohne Neuaufbau. */
+function windowTintFor(iso?: string): 'parent' | 'own' | null {
+  if (!iso) return null
+  if (inWindow(iso, props.ownWindow)) return 'own'
+  if (inWindow(iso, props.parentWindow)) return 'parent'
+  return null
+}
 
 const displayText = computed(() => formatActivityDateDe(props.modelValue))
 

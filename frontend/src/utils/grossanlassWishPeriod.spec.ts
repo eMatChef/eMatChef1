@@ -3,6 +3,7 @@ import {
   calendarRangeForPhaseChoice,
   isWishPhaseSelectField,
   mapWishPhaseChoiceToCalendarLabel,
+  periodsWithinEvent,
   resolveWishNeedPeriod,
   unionCalendarPeriods,
   wishPeriodLooksLikeSubmitTime,
@@ -165,5 +166,47 @@ describe('grossanlassWishPeriod', () => {
       '2027-06-02T18:00:00',
       { from: '2027-08-20T08:00:00', to: '2027-09-11T18:00:00' },
     )).toBe(false)
+  })
+})
+
+describe('Event 2027: fixe Daten im Anlasszeitraum', () => {
+  function timed(
+    label: DepartmentCalendarPeriod['label'],
+    start: [string, string],
+    end: [string, string],
+  ): DepartmentCalendarPeriod {
+    return { ...period(label, start[0], end[0]), start_time: start[1], end_time: end[1] }
+  }
+  const aufbau = timed('aufbau', ['2027-05-19', '13:00'], ['2027-06-04', '16:00'])
+  const durchfuehrung = timed('grossanlass', ['2027-06-04', '16:00'], ['2027-06-06', '16:00'])
+  const abbau = timed('abbau', ['2027-06-06', '17:00'], ['2027-06-23', '12:00'])
+  const anlass = { start: '2027-05-19T13:00:00', end: '2027-06-23T12:00:00' }
+
+  it('offers all three phases with their own time range', () => {
+    const periods = periodsWithinEvent([abbau, durchfuehrung, aufbau], anlass)
+    expect(periods).toHaveLength(3)
+    expect(calendarRangeForPhaseChoice('Aufbau', periods)).toEqual({ from: '2027-05-19T13:00:00', to: '2027-06-04T16:00:00' })
+    expect(calendarRangeForPhaseChoice('Während Event', periods)).toEqual({ from: '2027-06-04T16:00:00', to: '2027-06-06T16:00:00' })
+    expect(calendarRangeForPhaseChoice('Abbau', periods)).toEqual({ from: '2027-06-06T17:00:00', to: '2027-06-23T12:00:00' })
+  })
+
+  it('keeps the one-hour gap between operation and teardown', () => {
+    const union = unionCalendarPeriods([durchfuehrung, abbau], ['grossanlass', 'abbau'])
+    expect(union).toEqual({ from: '2027-06-04T16:00:00', to: '2027-06-23T12:00:00' })
+    expect(calendarRangeForPhaseChoice('Während Event', [durchfuehrung, abbau])?.to).toBe('2027-06-06T16:00:00')
+    expect(calendarRangeForPhaseChoice('Abbau', [durchfuehrung, abbau])?.from).toBe('2027-06-06T17:00:00')
+  })
+
+  it('does not offer fixed dates outside the event period', () => {
+    const outside = timed('abbau', ['2027-06-23', '13:00'], ['2027-06-30', '12:00'])
+    const stray = timed('other', ['2026-03-01', '08:00'], ['2026-03-02', '18:00'])
+    const kept = periodsWithinEvent([aufbau, durchfuehrung, outside, stray], anlass)
+    expect(kept.map((p) => p.label)).toEqual(['aufbau', 'grossanlass'])
+  })
+
+  it('leaves the list untouched without a known event period', () => {
+    const all = [aufbau, durchfuehrung, abbau]
+    expect(periodsWithinEvent(all, null)).toBe(all)
+    expect(periodsWithinEvent(all, { start: '2027-05-19T13:00:00', end: null })).toBe(all)
   })
 })

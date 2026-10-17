@@ -19,6 +19,9 @@ export type GrossanlassPlanungConfig = {
   has_guest_departments: boolean
   invite_group_ids: string[]
   logistics_group_id?: string | null
+  /** Helferpool-Verwaltung für GA-MW / GA-OK erlaubt (GA-HV/GA-SUBHV immer). */
+  staffing_mw_allowed?: boolean
+  staffing_ok_allowed?: boolean
 }
 
 export type GrossanlassPlanungActivity = {
@@ -104,6 +107,8 @@ export async function updateGrossanlassPlanung(
     invite_group_ids?: string[]
     department_name?: string
     logistics_group_id?: string | null
+    staffing_mw_allowed?: boolean
+    staffing_ok_allowed?: boolean
   },
 ): Promise<GrossanlassPlanungOverview> {
   const response = await apiClient.patch<GrossanlassPlanungOverview>(

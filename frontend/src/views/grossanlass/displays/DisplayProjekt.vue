@@ -13,9 +13,15 @@
       />
       <ul class="proj__chips">
         <li v-for="board in boards" :key="board.order.id">
-          <button type="button" class="chip" :class="[`chip--${board.health}`, { 'chip--active': board.order.id === activeId }]" @click="$emit('select', board.order.id)">
+          <component
+            :is="passive ? 'span' : 'button'"
+            :type="passive ? undefined : 'button'"
+            class="chip"
+            :class="[`chip--${board.health}`, { 'chip--active': board.order.id === activeId }]"
+            @click="!passive && $emit('select', board.order.id)"
+          >
             <span class="chip__dot" />{{ board.order.title }}
-          </button>
+          </component>
         </li>
       </ul>
       <p class="proj__legend">
@@ -72,7 +78,8 @@ import { useI18n } from 'vue-i18n'
 import GaSiteMap from './GaSiteMap.vue'
 import { orderPlaceName, type GaBlocker, type GaHealth, type GaProjectBoard, type GaTrip } from '@/views/grossanlass/live/gaLiveModel'
 
-const props = defineProps<{ boards: GaProjectBoard[]; trips: GaTrip[]; activeId: string }>()
+/** `passive`: Projekt-Chips sind reine Anzeige (Infoscreen ohne Bedienelemente). */
+const props = defineProps<{ boards: GaProjectBoard[]; trips: GaTrip[]; activeId: string; passive?: boolean }>()
 defineEmits<{ select: [id: string] }>()
 const { t, locale } = useI18n()
 

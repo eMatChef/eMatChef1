@@ -82,6 +82,14 @@ class DepartmentGrossanlassConfig
      * nur MW/CMW/OK-Leitung dürfen einrichten, alle anderen GA-Rollen haben noch keinen Zugang. Bestehende Anlässe wurden
      * bei der Einführung freigegeben.
      */
+    /** Helferpool-Verwaltung für GA-MW erlaubt (GA-HV/GA-SUBHV immer). */
+    #[ORM\Column(name: 'staffing_mw_allowed', type: 'boolean', options: ['default' => true])]
+    private bool $staffingMwAllowed = true;
+
+    /** Helferpool-Verwaltung für GA-OK (OK-Leitung) erlaubt. */
+    #[ORM\Column(name: 'staffing_ok_allowed', type: 'boolean', options: ['default' => true])]
+    private bool $staffingOkAllowed = true;
+
     #[ORM\Column(name: 'setup_released_at', type: 'datetime', nullable: true)]
     private ?\DateTime $setupReleasedAt = null;
 
@@ -91,6 +99,30 @@ class DepartmentGrossanlassConfig
     #[ORM\ManyToOne(targetEntity: Group::class)]
     #[ORM\JoinColumn(name: 'logistics_group_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?Group $logisticsGroup = null;
+
+    public function isStaffingMwAllowed(): bool
+    {
+        return $this->staffingMwAllowed;
+    }
+
+    public function setStaffingMwAllowed(bool $allowed): self
+    {
+        $this->staffingMwAllowed = $allowed;
+
+        return $this;
+    }
+
+    public function isStaffingOkAllowed(): bool
+    {
+        return $this->staffingOkAllowed;
+    }
+
+    public function setStaffingOkAllowed(bool $allowed): self
+    {
+        $this->staffingOkAllowed = $allowed;
+
+        return $this;
+    }
 
     public function isSetupReleased(): bool
     {

@@ -350,7 +350,7 @@ import GrossanlassDashboardPanel from '@/components/grossanlass/GrossanlassDashb
 import GrossanlassSetupPanel from '@/components/grossanlass/GrossanlassSetupPanel.vue'
 import PendingDepartmentInvitesPanel from '@/components/dashboard/PendingDepartmentInvitesPanel.vue'
 import { EButton } from '@/components/form/base'
-import { formatPeriodCompact } from '@/utils/formatPeriod'
+import { formatEventPeriodCompact } from '@/utils/formatPeriod'
 import { intlLocaleForUiLanguage } from '@/config/languages'
 
 const route = useRoute()
@@ -520,7 +520,7 @@ function formatDateShort(iso?: string | null): string {
 const grossanlassPeriodLabel = computed(() => {
   const cfg = activeMembership.value?.department?.grossanlass_config
   if (!cfg?.planned_event_start) return ''
-  return formatPeriodCompact(cfg.planned_event_start, cfg.planned_event_end)
+  return formatEventPeriodCompact(cfg.planned_event_start, cfg.planned_event_end)
 })
 
 function getRelativeDate(iso?: string | null): string {

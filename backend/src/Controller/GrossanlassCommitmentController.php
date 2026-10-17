@@ -7,6 +7,7 @@ use App\Entity\User;
 use App\Service\Grossanlass\GrossanlassAvailabilityConflict;
 use App\Service\Grossanlass\GrossanlassChargeMovementService;
 use App\Service\Grossanlass\GrossanlassCommitmentService;
+use App\Service\Grossanlass\GrossanlassOvercoverageConfirmationRequiredException;
 use App\Service\GroupAccessService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -132,6 +133,8 @@ class GrossanlassCommitmentController extends AbstractController
         }
         try {
             return new JsonResponse($fn($department, $user), $okStatus);
+        } catch (GrossanlassOvercoverageConfirmationRequiredException $e) {
+            return new JsonResponse($e->toPayload(), 409);
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
         } catch (GrossanlassAvailabilityConflict $e) {

@@ -22,7 +22,7 @@ describe('Grossanlass setup navigation', () => {
   })
 
   it('keeps the operational pages closed before release', () => {
-    for (const path of ['/ga/planning', '/ga/material', '/ga/my-unit', '/ga/procurement', '/ga/activity-settings/locations', '/ga/activity-settings/approval', '/ga/settings', '/ga/settings/my-department', '/ga/settings/user-karten', '/dept/settings', '/dept/settings/users', '/dept/tasks', '/dept/notifications']) {
+    for (const path of ['/ga/planning', '/ga/material', '/ga/my-unit', '/ga/procurement', '/ga/activity-settings/locations', '/ga/activity-settings/approval', '/ga/settings', '/ga/settings/my-department', '/ga/settings/user-karten', '/dept/settings', '/dept/settings/users', '/dept/tasks', '/ga/tasks', '/dept/notifications', '/ga/notifications']) {
       expect(isGrossanlassSetupAllowedPath(`/${D}${path}`, D, true), path).toBe(false)
     }
   })

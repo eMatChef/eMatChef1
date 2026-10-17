@@ -111,7 +111,8 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
                 self::assertSame([], $result->notes, $key);
             }
             $scenarioCount = \count(DemoScenarioKey::all());
-            self::assertSame($before['organisation'] + $scenarioCount, $after['organisation']);
+            // Alle Szenarien teilen genau eine Demo-Organisation
+            self::assertSame($before['organisation'] + 1, $after['organisation']);
             $extraDepartments = 0;
             foreach (DemoScenarioKey::all() as $key) {
                 $extraDepartments += \count($catalog->scenario($key)['departments'] ?? []);
@@ -129,6 +130,8 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
                     $accounts[$m['account']] = true;
                 }
             }
+            // Event-Inhalt: 6 Gewerke (Bereiche), der Unterbereich «Hauptbühne» und 20 Bauprojekte kommen zusätzlich zum Katalog-Gruppenbaum
+            $expectedGroups += 6 + 1 + 20;
             // Demo-Benutzer: jedes Konto genau einmal (auch wenn in mehreren Departments), plus Lieferant
             $expectedUsers = \count($accounts) + \count($catalog->sharedAccounts());
             self::assertSame($before['"user"'] + $expectedUsers, $after['"user"']);
@@ -215,16 +218,27 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
             // Zusätzliche Departments sind Demo-Departments ohne Szenario-Schlüssel
             self::assertSame(0, (int) $conn->fetchOne("SELECT count(*) FROM department WHERE name IN ('Demo Kantonalverband','Demo Abteilung Süd','Demo Abteilung Süd Aussenstelle','Demo Gast-Abteilung') AND (demo_mode = false OR demo_scenario_key IS NOT NULL)"));
 
-            // Verwaltungsbereiche (kombinierbar): Orgchef = Department Kantonalverband + Organisation Camp,
-            // Suborgchef = Department Abteilung Süd + Organisation Event; Superadmin braucht keinen Scope
+            // Verwaltungsbereiche nur über Department-Wurzeln (kein Organisations-Scope in der gemeinsamen Demo-Organisation):
+            // Orgchef = Kantonalverband + Camp, Suborgchef = Abteilung Süd + Event samt Gast-Abteilung; Superadmin braucht keinen Scope
             $scope = static function (string $account) use ($conn): array {
                 $raw = json_decode((string) $conn->fetchOne('SELECT admin_capabilities::text FROM profile WHERE email=?', [DemoAccounts::email($account)]), true)['scope'] ?? [];
 
                 return ['departments' => $raw['department_root_ids'] ?? [], 'organisations' => $raw['organisation_ids'] ?? []];
             };
-            $orgId = static fn (string $scenario): string => (string) $conn->fetchOne('SELECT organisation_id FROM department WHERE demo_scenario_key=?', [$scenario]);
-            self::assertSame(['departments' => [$id('Demo Kantonalverband')], 'organisations' => [$orgId('grossanlass-camp')]], $scope('orgchef'));
-            self::assertSame(['departments' => [$id('Demo Abteilung Süd')], 'organisations' => [$orgId('grossanlass-event')]], $scope('suborgchef'));
+            $sorted = static function (array $scope): array {
+                sort($scope['departments']);
+
+                return $scope;
+            };
+            $campId = (string) $conn->fetchOne("SELECT id FROM department WHERE demo_scenario_key='grossanlass-camp'");
+            $eventIds = [(string) $conn->fetchOne("SELECT id FROM department WHERE demo_scenario_key='grossanlass-event'"), $id('Demo Gast-Abteilung')];
+            $expectedOrgchef = [$id('Demo Kantonalverband'), $campId];
+            sort($expectedOrgchef);
+            $expectedSuborgchef = array_merge([$id('Demo Abteilung Süd')], $eventIds);
+            sort($expectedSuborgchef);
+            self::assertSame(['departments' => $expectedOrgchef, 'organisations' => []], $sorted($scope('orgchef')));
+            self::assertSame(['departments' => $expectedSuborgchef, 'organisations' => []], $sorted($scope('suborgchef')));
+            self::assertSame(1, (int) $conn->fetchOne("SELECT count(DISTINCT organisation_id) FROM department WHERE demo_scenario_key IS NOT NULL OR name IN ('Demo Kantonalverband','Demo Gast-Abteilung')"));
             self::assertNull($conn->fetchOne('SELECT admin_capabilities FROM profile WHERE email=?', [DemoAccounts::email('superadmin')]) ?: null);
             // Fehlender Scope: kein anderes Demo-Konto trägt Verwaltungsbereiche
             self::assertSame(2, (int) $conn->fetchOne("SELECT count(*) FROM profile WHERE email LIKE '%@demo.ematchef.ch' AND admin_capabilities IS NOT NULL"));
@@ -469,7 +483,7 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
             $this->syncAll($runner, $registry, $em);
             $groupsBefore = (int) $conn->fetchOne('SELECT count(*) FROM "group"');
             // Eine Gruppe von Hand umbenannt (soll geschützt bleiben), eine zweite bleibt unberührt
-            $conn->executeStatement("UPDATE \"group\" SET name='Meine Bauten' WHERE name='Bauten' AND grossanlass_kind='teilbereich' AND department_id=(SELECT id FROM department WHERE demo_scenario_key='grossanlass-event')");
+            $conn->executeStatement("UPDATE \"group\" SET name='Meine Bauten' WHERE name='Aufbau' AND grossanlass_kind='bereich' AND department_id=(SELECT id FROM department WHERE demo_scenario_key='grossanlass-event')");
 
             $data = json_decode((string) file_get_contents(DemoOrganisationCatalog::FILE), true, 512, JSON_THROW_ON_ERROR);
             $data['catalogVersion'] = '2026.10.2';

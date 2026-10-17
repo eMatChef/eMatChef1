@@ -153,6 +153,13 @@
       "group": "grossanlass"
     },
     {
+      "key": "ga-user",
+      "email": "ga-user@demo.ematchef.ch",
+      "label": "GA · Benutzer",
+      "role": "u",
+      "group": "grossanlass"
+    },
+    {
       "key": "camp-mw",
       "email": "camp-mw@demo.ematchef.ch",
       "label": "Camp · Materialchef",

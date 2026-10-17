@@ -52,4 +52,9 @@ const type = computed(() => resolveGrossanlassNodeType(props.nodeType ?? undefin
   background: #fef3c7;
   color: #b45309;
 }
+
+.ga-group-node-icon.node-auftrag {
+  background: #ede9fe;
+  color: #6d28d9;
+}
 </style>

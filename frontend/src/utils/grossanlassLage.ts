@@ -1,3 +1,4 @@
+import { gaPlaceGroupIds } from '@/utils/grossanlassGaMap'
 import type { GrossanlassGroup } from '@/api/grossanlassGroups'
 import type { GaPlace } from '@/api/grossanlassLogistics'
 import type { GaUebersichtEinsatz } from '@/api/grossanlassUebersicht'
@@ -8,16 +9,15 @@ export function gaLageTaskKind(
   row: Pick<GaUebersichtEinsatz, 'delivery' | 'group_id'> &
     Partial<Pick<GaUebersichtEinsatz, 'destination_place_id'>>,
   groups: Pick<GrossanlassGroup, 'id' | 'node_type'>[],
-  places: Pick<GaPlace, 'id' | 'kind' | 'group_id'>[] = [],
+  places: Pick<GaPlace, 'id' | 'kind' | 'group_id' | 'group_ids'>[] = [],
 ): GaLageTaskKind {
   if (row.delivery === 'trip') return 'fahrauftrag'
   const group = groups.find((item) => item.id === row.group_id)
   if (group?.node_type === 'bauprojekt') return 'bauauftrag'
   const place = places.find((item) => item.id === row.destination_place_id)
   if (place?.kind === 'bauprojekt') return 'bauauftrag'
-  if (place?.group_id) {
-    const placeGroup = groups.find((item) => item.id === place.group_id)
-    if (placeGroup?.node_type === 'bauprojekt') return 'bauauftrag'
+  if (gaPlaceGroupIds(place).some((gid) => groups.find((item) => item.id === gid)?.node_type === 'bauprojekt')) {
+    return 'bauauftrag'
   }
   return 'einsatz'
 }
@@ -44,7 +44,7 @@ export function gaLageRowsOfKind<T extends GaLageFilterRow>(
   rows: T[],
   kind: GaLageTaskKind,
   groups: Pick<GrossanlassGroup, 'id' | 'node_type'>[],
-  places: Pick<GaPlace, 'id' | 'kind' | 'group_id'>[] = [],
+  places: Pick<GaPlace, 'id' | 'kind' | 'group_id' | 'group_ids'>[] = [],
 ): T[] {
   return rows
     .filter((row) => row.status !== 'returned')

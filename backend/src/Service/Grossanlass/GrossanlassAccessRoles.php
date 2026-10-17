@@ -43,6 +43,28 @@ final class GrossanlassAccessRoles
         return self::isOneOf($role, ['mw', 'dc']);
     }
 
+    /**
+     * Helferpool: Zuteilungen und Ausnahmen (Override) verwalten.
+     * GA-HV/GA-SUBHV immer; GA-MW und GA-OK (Rolle `dc`, OK-Leitung) standardmässig, je per GA-Einstellung abschaltbar.
+     */
+    public static function canManageStaffing(string $role, bool $mwAllowed = true, bool $okAllowed = true): bool
+    {
+        $role = self::normalize($role);
+
+        return match ($role) {
+            'hv', 'subhv' => true,
+            'mw' => $mwAllowed,
+            'dc' => $okAllowed,
+            default => false,
+        };
+    }
+
+    /** Personalbedarf und Deckung lesen (ohne Helfernamen): GA-HV/GA-SUBHV und die GA-Leitung. */
+    public static function canSeeStaffingOverview(string $role): bool
+    {
+        return self::isOneOf($role, ['hv', 'subhv', 'mw', 'cmw', 'dc']);
+    }
+
     public static function canWorkMailbox(string $role): bool
     {
         return self::isOneOf($role, ['mw', 'cmw', 'komm', 'spon']);

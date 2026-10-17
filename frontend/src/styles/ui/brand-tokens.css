@@ -37,3 +37,14 @@
   /* App-Shell Sidebar (v-navigation-drawer) */
   --emc-sidebar-bg: #26353b;
 }
+
+/* Textauswahl: eMatChef-Akzent statt Browser-/Systemfarbe (nur vorhandene Tokens) */
+::selection {
+  background: var(--color-primary-subtle-bg);
+  color: var(--color-text);
+}
+
+::-moz-selection {
+  background: var(--color-primary-subtle-bg);
+  color: var(--color-text);
+}

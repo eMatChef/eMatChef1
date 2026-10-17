@@ -194,3 +194,32 @@
   align-items: flex-start;
   gap: 6px;
 }
+
+/* Funktionssymbole: Hand = Helfer (unten rechts), Fahrzeug = Fahrer (oben rechts). Stern/Beschaffung/Stufe bleiben links. */
+.user-avatar-badge__func {
+  position: absolute;
+  right: -4px;
+  width: 13px;
+  height: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.user-avatar-badge__func .v-icon {
+  color: inherit;
+}
+
+.user-avatar-badge__func--helper {
+  bottom: -4px;
+  background: #0ea5e9;
+}
+
+.user-avatar-badge__func--driver {
+  top: -4px;
+  background: #16a34a;
+}

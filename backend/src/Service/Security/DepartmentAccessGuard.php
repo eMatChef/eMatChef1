@@ -21,7 +21,7 @@ final class DepartmentAccessGuard
      * Basis-Mitgliedsrollen ohne Zugang zu Department-Einstellungen. Entspricht dem Frontend-Modell
      * (`DEPARTMENT_BASIC_MEMBER_ROLES`, `denyDepartmentRoles` der Einstellungsseiten): Mitglied und Leader 1–3.
      */
-    public const BASIC_MEMBER_ROLES = ['u', 'user', 'l1', 'l2', 'l3'];
+    public const BASIC_MEMBER_ROLES = ['u', 'user', 'h', 'l1', 'l2', 'l3'];
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,

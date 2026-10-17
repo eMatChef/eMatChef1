@@ -1,5 +1,6 @@
 import apiClient from './apiClient'
 import type { DepartmentDisplayData } from './display'
+import type { DisplayLayoutPayload } from './displayLayout'
 
 export interface DisplayScreenSettings {
   id: string
@@ -14,6 +15,8 @@ export interface DisplayScreenSettings {
   activity_statuses?: string[]
   workshop_statuses?: string[]
   show_statistics?: boolean
+  /** Layout-Status (Entwurf/Veröffentlichung); nur in Kontexten mit Layouts relevant. */
+  layout?: { has_draft: boolean; draft_version: number; published_number: number | null }
   access_code_hint: string | null
   code_version: number
   revoked_at: string | null
@@ -41,6 +44,8 @@ export type PublicDisplayData = DepartmentDisplayData & {
   activity_statuses?: string[]
   workshop_statuses?: string[]
   show_statistics?: boolean
+  /** Layout des Infoscreens; null = Layouts sind im Kontext nicht aktiv (Checkbox-Konfiguration). */
+  layout?: DisplayLayoutPayload | null
 }
 
 export interface DisplayScreenSettingsUpdate {
@@ -61,13 +66,15 @@ export async function listDisplayScreens(departmentId: string): Promise<DisplayS
   return res.data || []
 }
 
+/** Infoscreen ohne Gerät anlegen, optional mit Vorlage (`blank` = leer) oder als Kopie eines anderen Infoscreens. */
 export async function createDisplayScreen(
   departmentId: string,
   name: string,
+  seed?: { template_id?: string; source_screen_id?: string },
 ): Promise<DisplayScreenSettings> {
   const res = await apiClient.post<DisplayScreenSettings>(
     `/api/departments/${encodeURIComponent(departmentId)}/display-screens`,
-    { name },
+    { name, ...seed },
   )
   return res.data
 }
@@ -163,6 +170,7 @@ export function mapDisplayPayload(data: PublicDisplayDataResponse): PublicDispla
     workshop_statuses: data.workshop_statuses,
     show_statistics: data.show_statistics === true,
     statistics: data.statistics ?? null,
+    layout: data.layout ?? null,
   }
 }
 
@@ -170,9 +178,11 @@ export function mapDisplayPayload(data: PublicDisplayDataResponse): PublicDispla
 export async function getDisplayPreviewData(
   departmentId: string,
   screenId: string,
+  options?: { source?: 'draft' | 'published'; variantId?: string },
 ): Promise<PublicDisplayData> {
   const res = await apiClient.get<PublicDisplayDataResponse>(
     `/api/departments/${encodeURIComponent(departmentId)}/display-screens/${encodeURIComponent(screenId)}/preview-data`,
+    { params: { source: options?.source, variant_id: options?.variantId } },
   )
   return mapDisplayPayload(res.data)
 }

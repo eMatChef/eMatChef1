@@ -22,6 +22,8 @@ class DepartmentRoleLabelService
         'mw' => 'Materialchef',
         'cmw' => 'Co-Materialchef',
         'dc' => 'Departmentchef',
+        'hv' => 'GA-HV',
+        'subhv' => 'GA-SUBHV',
         'komm' => 'Kommunikation',
         'spon' => 'Sponsoring',
         'lw' => 'Logistikwart',
@@ -30,6 +32,7 @@ class DepartmentRoleLabelService
         'l2' => 'Leiter 2',
         'l3' => 'Leiter 3',
         'u' => 'Mitglied',
+        'h' => 'Helfer',
     ];
 
     public function __construct(
@@ -43,6 +46,8 @@ class DepartmentRoleLabelService
             'matwart' => 'mw',
             'co_matwart' => 'cmw',
             'depchef' => 'dc',
+            'ga_hv' => 'hv',
+            'ga_subhv' => 'subhv',
             'kommunikation' => 'komm',
             'sponsoring' => 'spon',
             'logistikwart' => 'lw',
@@ -51,6 +56,7 @@ class DepartmentRoleLabelService
             'leader2' => 'l2',
             'leader3' => 'l3',
             'user' => 'u',
+            'helper' => 'h',
         ];
         $code = $aliases[$normalized] ?? $normalized;
 

@@ -38,6 +38,7 @@ export const useBusinessClockStore = defineStore('businessClock', () => {
 
   const canTravel = computed(() => clock.value?.can_travel === true)
   const mode = computed(() => clock.value?.mode ?? 'real')
+  const presets = computed(() => clock.value?.presets ?? [])
   /** Angezeigte Fachzeit (Wandzeit-Felder als lokale Felder), läuft sichtbar weiter. */
   const displayNow = computed(() => {
     const base = clock.value ? parseWallClock(clock.value.now) : new Date(tick.value)
@@ -81,14 +82,29 @@ export const useBusinessClockStore = defineStore('businessClock', () => {
     }
   }
 
-  async function travelTo(target: Date) {
+  /** Setzt die Fachzeit auf eine Wandzeit `YYYY-MM-DDTHH:mm[:ss]` (ohne Zeitzonen- oder Sommerzeit-Umrechnung). */
+  async function travelToWall(wall: string) {
     if (!departmentId.value) return
-    apply(await setDepartmentClock(departmentId.value, formatWallClock(target)))
+    const value = /T\d{2}:\d{2}$/.test(wall) ? `${wall}:00` : wall
+    apply(await setDepartmentClock(departmentId.value, value))
     revision.value++
   }
 
+  async function travelTo(target: Date) {
+    await travelToWall(formatWallClock(target))
+  }
+
+  /**
+   * Relativ springen, gerechnet auf der Wandzeit: ein Tag bleibt auch über die Sommerzeitumstellung derselbe Uhrzeit-Wert
+   * (UTC-Arithmetik auf den Wandzeit-Feldern statt Millisekunden der Browser-Zeitzone).
+   */
   async function shift(deltaMs: number) {
-    await travelTo(new Date(displayNow.value.getTime() + deltaMs))
+    const [datePart, timePart] = formatWallClock(displayNow.value).split('T')
+    const [y, mo, d] = datePart.split('-').map(Number)
+    const [h, mi, sec] = timePart.split(':').map(Number)
+    const moved = new Date(Date.UTC(y, mo - 1, d, h, mi, sec) + deltaMs)
+    const p = (n: number) => String(n).padStart(2, '0')
+    await travelToWall(`${moved.getUTCFullYear()}-${p(moved.getUTCMonth() + 1)}-${p(moved.getUTCDate())}T${p(moved.getUTCHours())}:${p(moved.getUTCMinutes())}:${p(moved.getUTCSeconds())}`)
   }
 
   async function reset() {
@@ -97,5 +113,5 @@ export const useBusinessClockStore = defineStore('businessClock', () => {
     revision.value++
   }
 
-  return { clock, canTravel, mode, displayNow, revision, load, travelTo, shift, reset, stopTicking }
+  return { clock, canTravel, mode, presets, displayNow, revision, load, travelTo, travelToWall, shift, reset, stopTicking }
 })

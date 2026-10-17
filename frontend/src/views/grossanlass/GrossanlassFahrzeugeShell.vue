@@ -56,6 +56,7 @@ const departmentId = computed(() => {
 })
 
 const tabItems = computed(() => [
+  { id: 'dispatch', label: t('grossanlass.dispo.tab'), icon: 'mdi-source-branch' },
   { id: 'requests', label: t('grossanlass.fahrzeuge.tabWuensche'), icon: 'mdi-lightbulb-on-outline' },
   { id: 'fleet', label: t('grossanlass.fahrzeuge.tabFuhrpark'), icon: 'mdi-truck-outline' },
 ])
@@ -65,6 +66,10 @@ const activeTab = computed(() => (route.meta.fahrzeugeTab as string) || 'request
 function onTabChange(tab: unknown) {
   const id = departmentId.value
   if (!id || typeof tab !== 'string') return
+  if (tab === 'dispatch') {
+    void router.push(`/${id}/ga/logistics/dispatch`)
+    return
+  }
   void router.push(`/${id}/ga/vehicles/${tab}`)
 }
 </script>

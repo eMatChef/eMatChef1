@@ -7,6 +7,8 @@ use App\Entity\User;
 use App\Service\Display\DepartmentDisplayDataService;
 use App\Service\Display\DepartmentDisplayScreenService;
 use App\Service\Display\DisplayPairingService;
+use App\Service\Display\Layout\DisplayLayoutException;
+use App\Service\Display\Layout\DisplayLayoutService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -22,6 +24,7 @@ class DepartmentDisplayScreenController extends AbstractController
         private DepartmentDisplayScreenService $displayScreenService,
         private DepartmentDisplayDataService $displayDataService,
         private DisplayPairingService $pairingService,
+        private DisplayLayoutService $layoutService,
     ) {
     }
 
@@ -55,10 +58,24 @@ class DepartmentDisplayScreenController extends AbstractController
         $data = json_decode($request->getContent(), true) ?? [];
         $name = trim((string) ($data['name'] ?? ''));
 
+        // Infoscreen ohne Gerät: optional gleich mit Vorlage ("blank" = leer) oder als Kopie eines anderen Infoscreens.
+        $templateId = isset($data['template_id']) ? (string) $data['template_id'] : null;
+        $sourceId = isset($data['source_screen_id']) ? (string) $data['source_screen_id'] : null;
+        $seeded = $templateId !== null || $sourceId !== null;
+        try {
+            $seed = $seeded ? $this->layoutService->seed($departmentId, $templateId, $sourceId) : null;
+        } catch (DisplayLayoutException $e) {
+            return new JsonResponse(['error' => $e->getMessage(), 'code' => $e->errorCode], $e->httpStatus);
+        }
+
         try {
             $result = $this->displayScreenService->create($departmentId, $name, $user);
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
+        }
+
+        if ($seed !== null) {
+            $this->layoutService->initialize($result['screen'], $templateId, $sourceId, 0);
         }
 
         $payload = $this->displayScreenService->serializeForSettings($result['screen']);
@@ -105,7 +122,7 @@ class DepartmentDisplayScreenController extends AbstractController
      */
     #[Route('/{screenId}/preview-data', name: 'preview_data', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]
-    public function previewData(string $departmentId, string $screenId): JsonResponse
+    public function previewData(string $departmentId, string $screenId, Request $request): JsonResponse
     {
         $user = $this->requireManager($departmentId);
         if ($user instanceof JsonResponse) {
@@ -120,7 +137,16 @@ class DepartmentDisplayScreenController extends AbstractController
             return new JsonResponse(['error' => 'Screen ist widerrufen.'], 410);
         }
 
-        return new JsonResponse($this->displayDataService->buildPayloadForScreen($screen));
+        // Vorschau zeigt standardmässig den Entwurf; `source=published` die aktive Revision (nie ein Gerätezustand).
+        $source = $request->query->get('source') === 'published' ? 'published' : 'draft';
+        $variant = $request->query->get('variant_id');
+
+        return new JsonResponse($this->displayDataService->buildPayloadForScreen(
+            $screen,
+            null,
+            $source,
+            \is_string($variant) && $variant !== '' ? $variant : null,
+        ));
     }
 
     #[Route('/{screenId}', name: 'update', methods: ['PATCH'])]

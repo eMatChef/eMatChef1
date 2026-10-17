@@ -178,7 +178,7 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.planung') }}</span>
       </router-link>
       <router-link
-        v-if="showGrossanlassUebersichtMenu"
+        v-if="showGrossanlassHelferpoolMenu"
         :to="getLink('/ga/helper-pool')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('helferpool') }"
@@ -189,7 +189,7 @@
       </router-link>
       <router-link
         v-if="true"
-        :to="getLink('/dept/tasks')"
+        :to="tasksLink"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('tasks') }"
         :title="tasksNavTitle"
@@ -204,7 +204,7 @@
         v-if="showGrossanlassBeschaffungMenu"
         :to="grossanlassBeschaffungLink"
         class="nav-item"
-        :class="{ active: isDeptSectionNavActive('beschaffung') }"
+        :class="{ active: isGrossanlassBeschaffungNavActive }"
         :title="t('sidebar.beschaffungHint')"
       >
         <v-icon icon="mdi-cart-outline" class="nav-icon nav-icon--mdi" size="20" />
@@ -227,21 +227,11 @@
         v-if="showGrossanlassLogistikMenu"
         :to="getLink('/ga/logistics')"
         class="nav-item"
-        :class="{ active: isDeptSectionNavActive('logistik') }"
+        :class="{ active: isGrossanlassLogistikNavActive }"
         :title="t('sidebar.logistikHint')"
       >
         <v-icon icon="mdi-truck-fast-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.logistik') }}</span>
-      </router-link>
-      <router-link
-        v-if="showGrossanlassMaterialsMenu"
-        :to="getLink('/ga/vehicles')"
-        class="nav-item"
-        :class="{ active: isGrossanlassFahrzeugeNavActive }"
-        :title="t('sidebar.fahrzeugeHint')"
-      >
-        <v-icon icon="mdi-truck-outline" class="nav-icon nav-icon--mdi" size="20" />
-        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.fahrzeuge') }}</span>
       </router-link>
       <div class="nav-group-label" :class="{ 'nav-group-label--rail': !showNavLabels }">
         <span v-if="showNavLabels">{{ t('sidebar.group.betrieb') }}</span>
@@ -274,7 +264,7 @@
       </div>
       <router-link
         v-if="true"
-        :to="getLink('/dept/notifications')"
+        :to="notificationsLink"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('notifications') }"
       >
@@ -347,7 +337,7 @@
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassBeschaffungMenu"
         :to="grossanlassBeschaffungLink"
         class="nav-item"
-        :class="{ active: isDeptSectionNavActive('beschaffung') }"
+        :class="{ active: isGrossanlassBeschaffungNavActive }"
         :title="t('sidebar.beschaffungHint')"
       >
         <v-icon icon="mdi-cart-outline" class="nav-icon nav-icon--mdi" size="20" />
@@ -359,7 +349,7 @@
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassAnfragenSidebarLink"
         :to="getLink('/ga/procurement/inquiries')"
         class="nav-item"
-        :class="{ active: isDeptSectionNavActive('beschaffung') }"
+        :class="{ active: isGrossanlassBeschaffungNavActive }"
         :title="t('sidebar.anfragenHint')"
       >
         <v-icon icon="mdi-email-outline" class="nav-icon nav-icon--mdi" size="20" />
@@ -458,7 +448,7 @@
       <!-- Aufgaben -->
       <router-link
         v-if="!isPendingAssignmentRoute && !useGroupedGaNav && (showGrossanlassHelperNav ? showGrossanlassHelperSidebarLinks : showDeptContextSidebarLinks)"
-        :to="getLink('/dept/tasks')"
+        :to="tasksLink"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('tasks') }"
         data-onboarding="nav-tasks"
@@ -479,7 +469,7 @@
       <!-- Nachrichtenzentrale (unter Aufgaben) -->
       <router-link
         v-if="!isPendingAssignmentRoute && !useGroupedGaNav && showDeptContextSidebarLinks && !showGrossanlassHelperNav"
-        :to="getLink('/dept/notifications')"
+        :to="notificationsLink"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('notifications') }"
         data-onboarding="nav-notifications"
@@ -633,6 +623,7 @@ import {
   gaCanManageProcurement,
   gaCanSeeAnlassOverview,
   gaCanSeeMaterial,
+  gaCanSeeStaffing,
   gaCanWorkMailbox,
   gaIsBereichsleitung,
   gaIsGrossanlassHelper,
@@ -1063,6 +1054,12 @@ const showGrossanlassLogistikMenu = computed(() => showGrossanlassUebersichtMenu
 
 const isGrossanlassFahrzeugeNavActive = computed(() => route.path.includes('/vehicles'))
 
+/** Hauptnavigation ist kompakt: Beschaffung (inkl. Anfragen, Zusagen, Bestellungen, Budget) und Logistik (inkl. Fahrzeuge) sind je ein Eintrag. */
+const isGrossanlassBeschaffungNavActive = computed(() => route.path.includes('/ga/procurement'))
+const isGrossanlassLogistikNavActive = computed(
+  () => /\/ga\/logistics(\/|$)/.test(route.path) || isGrossanlassFahrzeugeNavActive.value,
+)
+
 const isGrossanlassMaterialNavActive = computed(() =>
   /\/material(\/|$)/.test(route.path),
 )
@@ -1156,6 +1153,11 @@ const showGrossanlassUebersichtMenu = computed(() => {
   return gaCanSeeMaterial(authStore.currentDepartmentRole, isBereichsleitung.value)
 })
 
+const showGrossanlassHelferpoolMenu = computed(() => {
+  if (isSuperAdmin.value || !isGrossanlassDept.value) return false
+  return gaCanSeeStaffing(authStore.currentDepartmentRole)
+})
+
 const showGrossanlassAnfragenSidebarLink = computed(
   () => showGrossanlassMailboxOnlyMenu.value && grossanlassHomeKind.value !== 'mailbox',
 )
@@ -1240,6 +1242,18 @@ function isDeptSectionNavActive(section: string): boolean {
   if (path.includes('/settings')) return false
   return path.includes(`/${section}`)
 }
+
+/** GA-Aufgaben liegen unter /ga/tasks, die allgemeine Aufgabenverwaltung bleibt unter /dept/tasks. */
+const tasksLink = computed(() => {
+  const id = (route.params.departmentId as string) || authStore.activeDepartmentId || ''
+  return getLink(id && authStore.isDepartmentGrossanlass(id) ? '/ga/tasks' : '/dept/tasks')
+})
+
+/** Nachrichtenzentrale: Grossanlass unter /ga/notifications, sonst /dept/notifications. */
+const notificationsLink = computed(() => {
+  const id = (route.params.departmentId as string) || authStore.activeDepartmentId || ''
+  return getLink(id && authStore.isDepartmentGrossanlass(id) ? '/ga/notifications' : '/dept/notifications')
+})
 
 const tasksNavTitle = computed(() => {
   const n = printCartCount.value

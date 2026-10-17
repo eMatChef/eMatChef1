@@ -1,14 +1,14 @@
 {
-  "_comment": "Versionierter Seed-Katalog der Demo-Organisationen. Schlüssel (key) sind stabile Seed-Identitäten und werden nie umbenannt; Anzeigenamen dürfen sich ändern. Konten stammen aus demo-accounts.json. Demo-Benutzer sind reine Testdaten, gehören keinem Szenario und dürfen in mehreren Demo-Departments Mitglied sein. Globale Rollen (sa/org/sub) stehen in profile.roles und sind keine Mitgliedschaftsrolle: Superadmin, Orgchef und Suborgchef erhalten nie automatisch eine MW-Rolle; ihre Verwaltungszuständigkeit steht in adminScopes (roots = Department-Wurzeln samt Unterbaum, organisation = die Organisation des Szenarios; kombinierbar, auch über mehrere Szenarien; ohne Eintrag keine Verwaltungsrechte), operative Rollen nur ausdrücklich unter members. Zusätzliche Departments (departments) bilden nur die Hierarchie ab, ohne Prozessdaten. members[].department verweist auf einen Schlüssel aus departments (ohne Angabe: das Szenario-Department). retiredMembers nennt früher fälschlich gesäte Mitgliedschaften, die nur entfernt werden, wenn sie unverändert vom Seed stammen. Doku: docs/demo/SEED-KONZEPT.md §7.11.",
-  "catalogVersion": "2026.10.6",
+  "catalogVersion": "2026.10.10",
+  "_comment": "Versionierter Seed-Katalog der Demo-Organisationen. Schlüssel (key) sind stabile Seed-Identitäten und werden nie umbenannt; Anzeigenamen dürfen sich ändern. Konten stammen aus demo-accounts.json. Demo-Benutzer sind reine Testdaten, gehören keinem Szenario und dürfen in mehreren Demo-Departments Mitglied sein. Globale Rollen (sa/org/sub) stehen in profile.roles und sind keine Mitgliedschaftsrolle: Superadmin, Orgchef und Suborgchef erhalten nie automatisch eine MW-Rolle; ihre Verwaltungszuständigkeit steht in adminScopes (roots = Department-Wurzeln samt Unterbaum, organisation = die Organisation des Szenarios; kombinierbar, auch über mehrere Szenarien; ohne Eintrag keine Verwaltungsrechte), operative Rollen nur ausdrücklich unter members. Alle Szenarien teilen die eine Demo-Organisation (oberste Ebene organisation); Organisations-Scopes sind nicht erlaubt, Verwaltungsbereiche nur über roots. department.parentRef (optional) kann das Szenario-Department unter ein zusätzliches Department eines anderen Szenarios hängen; die Einrichtung nutzt es bewusst nicht, weil sie sonst im Verwaltungsbereich des Orgchefs läge (Rechteausweitung). Zusätzliche Departments (departments) bilden nur die Hierarchie ab, ohne Prozessdaten. members[].department verweist auf einen Schlüssel aus departments (ohne Angabe: das Szenario-Department). retiredMembers nennt früher fälschlich gesäte Mitgliedschaften, die nur entfernt werden, wenn sie unverändert vom Seed stammen. Doku: docs/demo/SEED-KONZEPT.md §7.11. Grossanlass-Zeiten (eventStart/eventEnd, phases, clockOrigin) sind feste Wandzeiten (lokale Veranstaltungszeit Europe/Zurich, ohne Zeitzonenumrechnung wie alle Grossanlass-Zeiten) und werden nie aus dem heutigen Datum berechnet; clockOrigin setzt die Demo-Uhr einmalig bei der Erstinitialisierung.",
+  "organisation": {
+    "name": "Demo Organisation"
+  },
   "sharedAccounts": [
     "supplier"
   ],
   "scenarios": {
     "materialverwaltung": {
-      "organisation": {
-        "name": "Demo Organisation Materialverwaltung"
-      },
       "department": {
         "name": "Demo Materialverwaltung",
         "parent": "kantonalverband"
@@ -172,9 +172,6 @@
       ]
     },
     "grossanlass-event": {
-      "organisation": {
-        "name": "Demo Organisation Grossanlass Event"
-      },
       "department": {
         "name": "Demo Grossanlass Event"
       },
@@ -186,32 +183,88 @@
       ],
       "groups": [
         {
+          "key": "ok",
+          "name": "OK / Gesamtleitung",
+          "sort": 5,
+          "kind": "ressort"
+        },
+        {
           "key": "infrastruktur",
           "name": "Infrastruktur",
           "sort": 10,
           "kind": "ressort"
         },
         {
-          "key": "material-logistik",
-          "name": "Material & Logistik",
-          "sort": 20,
+          "key": "bauten",
+          "name": "Aufbau",
+          "sort": 10,
           "parent": "infrastruktur",
-          "kind": "ressort",
-          "logistics": true
+          "kind": "bereich"
         },
         {
-          "key": "bauten",
-          "name": "Bauten",
-          "sort": 30,
+          "key": "technik",
+          "name": "Technik",
+          "sort": 20,
           "parent": "infrastruktur",
-          "kind": "teilbereich"
+          "kind": "bereich"
         },
         {
           "key": "wasser-sanitaer",
           "name": "Wasser & Sanitär",
+          "sort": 10,
+          "parent": "technik",
+          "kind": "bereich"
+        },
+        {
+          "key": "material-logistik",
+          "name": "Logistik",
+          "sort": 20,
+          "kind": "ressort",
+          "logistics": true
+        },
+        {
+          "key": "material",
+          "name": "Material",
+          "sort": 10,
+          "parent": "material-logistik",
+          "kind": "bereich"
+        },
+        {
+          "key": "transporte",
+          "name": "Transporte",
+          "sort": 20,
+          "parent": "material-logistik",
+          "kind": "bereich"
+        },
+        {
+          "key": "programm",
+          "name": "Programm",
+          "sort": 30,
+          "kind": "ressort"
+        },
+        {
+          "key": "verpflegung",
+          "name": "Verpflegung",
           "sort": 40,
-          "parent": "infrastruktur",
-          "kind": "teilbereich"
+          "kind": "ressort"
+        },
+        {
+          "key": "sicherheit",
+          "name": "Sicherheit",
+          "sort": 50,
+          "kind": "ressort"
+        },
+        {
+          "key": "kommunikation",
+          "name": "Kommunikation",
+          "sort": 60,
+          "kind": "ressort"
+        },
+        {
+          "key": "sponsoring",
+          "name": "Sponsoring",
+          "sort": 70,
+          "kind": "ressort"
         }
       ],
       "members": [
@@ -224,6 +277,11 @@
               "group": "material-logistik",
               "role": "leader",
               "primary": true
+            },
+            {
+              "group": "material",
+              "role": "leader",
+              "primary": false
             }
           ]
         },
@@ -236,6 +294,11 @@
               "group": "material-logistik",
               "role": "member",
               "primary": true
+            },
+            {
+              "group": "material",
+              "role": "member",
+              "primary": false
             }
           ]
         },
@@ -248,6 +311,11 @@
               "group": "infrastruktur",
               "role": "member",
               "primary": true
+            },
+            {
+              "group": "ok",
+              "role": "leader",
+              "primary": false
             }
           ]
         },
@@ -255,23 +323,41 @@
           "account": "ga-komm",
           "role": "komm",
           "primary": true,
-          "groups": []
+          "groups": [
+            {
+              "group": "kommunikation",
+              "role": "leader",
+              "primary": true
+            }
+          ]
         },
         {
           "account": "ga-spon",
           "role": "spon",
           "primary": true,
-          "groups": []
+          "groups": [
+            {
+              "group": "sponsoring",
+              "role": "leader",
+              "primary": true
+            }
+          ]
         },
         {
           "account": "ga-lw",
           "role": "lw",
+          "helper": true,
           "primary": true,
           "groups": [
             {
               "group": "material-logistik",
               "role": "member",
               "primary": true
+            },
+            {
+              "group": "transporte",
+              "role": "leader",
+              "primary": false
             }
           ]
         },
@@ -284,6 +370,11 @@
               "group": "material-logistik",
               "role": "member",
               "primary": true
+            },
+            {
+              "group": "transporte",
+              "role": "member",
+              "primary": false
             }
           ]
         },
@@ -301,6 +392,19 @@
         },
         {
           "account": "ga-helfer",
+          "role": "h",
+          "helper": false,
+          "primary": true,
+          "groups": [
+            {
+              "group": "bauten",
+              "role": "member",
+              "primary": true
+            }
+          ]
+        },
+        {
+          "account": "ga-user",
           "role": "u",
           "primary": true,
           "groups": [
@@ -339,18 +443,245 @@
       "adminScopes": [
         {
           "account": "suborgchef",
-          "organisation": true
+          "roots": [
+            "main",
+            "gast-abteilung"
+          ]
         }
       ],
       "grossanlass": {
         "guestActivityType": "event",
-        "setupReleased": true
+        "setupReleased": true,
+        "locationText": "Event Platz",
+        "notes": "Mehrtägige Pfadi-Grossveranstaltung mit Aufbau, Veranstaltungsbetrieb und Rückbau.",
+        "venue": {
+          "name": "Event Platz",
+          "postalCode": "6212",
+          "city": "Kaltbach",
+          "canton": "LU",
+          "latitude": 47.1783698,
+          "longitude": 8.0470522
+        },
+        "delivery": {
+          "name": "Event Platz – Zustellung",
+          "street": "Ettiswilerstrasse",
+          "streetNumber": "3",
+          "postalCode": "6242",
+          "city": "Wauwil",
+          "canton": "LU",
+          "latitude": 47.1831479,
+          "longitude": 8.02793
+        },
+        "storage": {
+          "name": "Lagerplatz Gelände",
+          "postalCode": "6212",
+          "city": "Kaltbach",
+          "canton": "LU",
+          "latitude": 47.1804331,
+          "longitude": 8.049413
+        },
+        "eventStart": "2027-05-19T13:00:00",
+        "eventEnd": "2027-06-23T12:00:00",
+        "phases": [
+          {
+            "key": "aufbau",
+            "name": "Aufbau",
+            "start": "2027-05-19T13:00:00",
+            "end": "2027-06-04T16:00:00"
+          },
+          {
+            "key": "durchfuehrung",
+            "name": "Event-Durchführung",
+            "start": "2027-06-04T16:00:00",
+            "end": "2027-06-06T16:00:00"
+          },
+          {
+            "key": "abbau",
+            "name": "Abbau",
+            "start": "2027-06-06T17:00:00",
+            "end": "2027-06-23T12:00:00"
+          }
+        ],
+        "logistics": {
+          "budget": {
+            "material": 2000,
+            "logistik": 900
+          },
+          "racks": [
+            { "key": "regal-a", "name": "Regal A – Kleinmaterial", "sort": 1, "slots": ["Fach 1", "Fach 2", "Fach 3"] },
+            { "key": "bodenlager", "name": "Bodenlager Bau", "sort": 2, "slots": ["Palette 1", "Palette 2"] }
+          ],
+          "vehicles": [
+            { "key": "transporter", "name": "Transporter 3,5 t", "length_m": 4.2, "width_m": 1.9, "height_m": 2.0, "payload_kg": 1200, "volume_m3": 12, "notes": "Demo-Fahrzeug" },
+            { "key": "lieferwagen-hebebuehne", "name": "Lieferwagen mit Hebebühne", "length_m": 4.8, "width_m": 2.0, "height_m": 2.1, "payload_kg": 1000, "volume_m3": 14, "notes": "Demo-Fahrzeug" },
+            { "key": "anhaenger", "name": "Anhänger 2 t", "length_m": 3.0, "width_m": 1.6, "height_m": 0.6, "payload_kg": 2000, "volume_m3": 3, "notes": "Demo-Fahrzeug" }
+          ],
+          "cards": [
+            { "account": "ga-lw", "may_drive": true, "classes": ["b", "be"] },
+            { "account": "ga-clw", "may_drive": true, "classes": ["b"] },
+            { "account": "ga-helfer", "may_drive": true, "classes": ["b"] }
+          ],
+          "charges": [
+            {
+              "key": "bauzaun-eigen",
+              "name": "Bauzaunelemente 3,5 m",
+              "source": "Eigenbestand Demo Grossanlass",
+              "origin": "own",
+              "owner_kind": "grossanlass",
+              "quantity": 60,
+              "present_from": "2027-05-19T13:00:00",
+              "present_to": "2027-06-23T12:00:00"
+            },
+            {
+              "key": "festbank-leihe",
+              "name": "Festbankgarnituren",
+              "source": "Zeltverleih Beispiel",
+              "origin": "loan",
+              "owner_kind": "external",
+              "quantity": 40,
+              "handover_from": "2027-06-02T08:00:00",
+              "handover_to": "2027-06-02T10:00:00",
+              "present_from": "2027-06-02T10:00:00",
+              "present_to": "2027-06-08T12:00:00",
+              "return_from": "2027-06-08T12:00:00",
+              "return_to": "2027-06-08T16:00:00"
+            },
+            {
+              "key": "holzschnitzel-spende",
+              "name": "Holzschnitzel (Sackware)",
+              "source": "Sponsoring Beispiel AG",
+              "origin": "donation",
+              "owner_kind": "grossanlass",
+              "quantity": 25,
+              "present_from": "2027-06-01T08:00:00",
+              "present_to": "2027-06-23T12:00:00"
+            }
+          ]
+        },
+        "clockOrigin": "2027-04-04T16:00:00",
+        "map": {
+          "fixture": "event-gelaende.webp",
+          "sha256": "eac4a15e31829ea7620c5c6ecb7d0ad96f84a4c4411691e8d56f17da0c1a8caa",
+          "name": "Gelände (© swisstopo)",
+          "bounds": {
+            "north": 47.18446266494,
+            "south": 47.176207763535,
+            "east": 8.0551671981812,
+            "west": 8.0383444725869
+          },
+          "overlayOpacity": 0.72,
+          "placements": {
+            "Hauptbühnen-Podest": [
+              0.567,
+              0.713
+            ],
+            "Lichtbrücke Traversen": [
+              0.54,
+              0.7
+            ],
+            "FOH-Erweiterung": [
+              0.575,
+              0.678
+            ],
+            "Delay-Tower Ost": [
+              0.64,
+              0.6
+            ],
+            "Catering-Zelt 20×30": [
+              0.47,
+              0.71
+            ],
+            "Crew-Zelt Backstage": [
+              0.65,
+              0.39
+            ],
+            "Info-Pagode Eingang": [
+              0.51,
+              0.45
+            ],
+            "Ticket-Häuschen Eingang": [
+              0.49,
+              0.432
+            ],
+            "Bar-Tresen West": [
+              0.49,
+              0.46
+            ],
+            "Crew-Hütte Backstage": [
+              0.67,
+              0.36
+            ],
+            "Rollstuhlrampe Haupteingang": [
+              0.54,
+              0.43
+            ],
+            "Hauptverteiler CEE": [
+              0.62,
+              0.5
+            ],
+            "Notstromaggregat": [
+              0.68,
+              0.52
+            ],
+            "Wegeleuchten Gelände": [
+              0.55,
+              0.55
+            ],
+            "WC-Park West": [
+              0.47,
+              0.4
+            ],
+            "Crew-Duschen": [
+              0.65,
+              0.43
+            ],
+            "Grauwasser Hauptbühne": [
+              0.57,
+              0.78
+            ],
+            "Bauzaun Perimeter": [
+              0.36,
+              0.3
+            ],
+            "Dränggitter Front of Stage": [
+              0.6,
+              0.68
+            ],
+            "Fluchtweg-Markierung": [
+              0.4,
+              0.62
+            ]
+          }
+        },
+        "clockPresets": [
+          {
+            "key": "months_before_5",
+            "at": "2027-01-04T16:00:00"
+          },
+          {
+            "key": "months_before_2",
+            "at": "2027-04-04T16:00:00"
+          },
+          {
+            "key": "build",
+            "at": "2027-05-31T14:00:00"
+          },
+          {
+            "key": "during_event",
+            "at": "2027-06-05T17:00:00"
+          },
+          {
+            "key": "teardown",
+            "at": "2027-06-08T08:00:00"
+          },
+          {
+            "key": "months_after_2",
+            "at": "2027-08-06T16:00:00"
+          }
+        ]
       }
     },
     "grossanlass-camp": {
-      "organisation": {
-        "name": "Demo Organisation Grossanlass Camp"
-      },
       "department": {
         "name": "Demo Grossanlass Camp"
       },
@@ -560,7 +891,9 @@
       "adminScopes": [
         {
           "account": "orgchef",
-          "organisation": true
+          "roots": [
+            "main"
+          ]
         }
       ],
       "grossanlass": {
@@ -569,9 +902,6 @@
       }
     },
     "grossanlass-setup": {
-      "organisation": {
-        "name": "Demo Organisation Grossanlass Einrichtung"
-      },
       "department": {
         "name": "Demo Grossanlass Einrichtung"
       },

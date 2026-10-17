@@ -4,6 +4,26 @@
     :title="t('grossanlass.meinRessort.title')"
     :subtitle="pageSubtitle"
   >
+    <div
+      v-if="canChooseScope && !isLoading && !error"
+      class="mein-ressort-scope"
+      role="radiogroup"
+      :aria-label="t('grossanlass.meinRessort.scope.label')"
+    >
+      <button
+        v-for="option in scopeOptions"
+        :key="option.value"
+        type="button"
+        role="radio"
+        class="mein-ressort-scope__option"
+        :class="{ 'is-active': ressortScope === option.value }"
+        :aria-checked="ressortScope === option.value"
+        @click="ressortScope = option.value"
+      >
+        {{ option.label }}
+      </button>
+    </div>
+
     <GrossanlassMeinRessortSkeleton
       v-if="isLoading"
       :helper-view="isHelperHomeView"
@@ -171,7 +191,10 @@
       v-if="showRessortTree"
       v-model="showCreateProject"
       :title="createModalTitle"
-      :max-width="groupDialogMaxWidth"
+      :max-width="GROUP_DIALOG_MAP_WIDTH"
+      :width="groupDialogWidth"
+      :retain-focus="false"
+      :before-close="confirmGroupDialogClose"
       scrollable
     >
       <ETextField
@@ -180,76 +203,62 @@
         :placeholder="createNamePlaceholder"
         hide-details="auto"
       />
-      <ESelect
+      <GrossanlassParentTreeSelect
         v-if="showEditParentSelect"
-        v-model="createForm.parent_id"
-        :items="editParentSelectItems"
+        v-model="editParentModel"
+        :groups="groups"
+        :selectable-ids="editParentSelectableIds"
+        :exclude-id="editingGroup?.id ?? null"
+        :none-label="editParentNoneLabel"
         :label="t('grossanlass.planung.ressorts.parentLabel')"
-        hide-details
       />
       <GrossanlassUnitSlider v-model="unitChoice" />
-      <GaBuildMetaFields
-        v-if="showEditUsageWindow"
-        :department-id="departmentId"
-        :autosave="!!editingGroup"
-        v-model:start="createForm.window_start"
-        v-model:end="createForm.window_end"
-        v-model:status="createForm.build_status"
-        :window-label="showEditProjectWindow
-          ? t('grossanlass.planung.ressorts.windowLabel')
-          : t('grossanlass.planung.ressorts.usageWindowLabel')"
-        :window-hint="showEditProjectWindow
-          ? ''
-          : t('grossanlass.planung.ressorts.usageWindowHint')"
-        :window-baseline="usageWindowBaseline"
-        :status-baseline="buildStatusBaseline"
-        :node-type="structuralNodeType"
-        :reported-statuses="editingReportedStatuses"
-        :procurement-progress="editingGroup?.procurement_progress"
-        :child-procurement="editingChildProcurement"
-        :allow-manual="canSetStatusHere"
-        hint-class="group-modal-map__hint"
-        :save-window="saveUsageWindowAutosave"
-        :save-status="saveBuildStatusAutosave"
-      />
-      <ETextarea
-        v-if="showEditDescription"
-        v-model="createForm.description"
-        :label="t('grossanlass.planung.ressorts.descriptionHeading')"
-        :placeholder="t('grossanlass.planung.ressorts.descriptionPlaceholder')"
-        rows="4"
-        hide-details="auto"
-      />
       <ESwitch
-        v-if="showEditAreaToggle"
         v-model="createForm.include_on_map"
         :label="t('grossanlass.planung.ressorts.includeOnMap')"
         :hint="t('grossanlass.planung.ressorts.includeOnMapHint')"
         persistent-hint
         hide-details="auto"
       />
-      <div v-if="showEditProjectWindow || showEditAreaMap" class="group-modal-map">
-        <p v-if="!showEditAreaMap" class="group-modal-map__hint">
-          {{ t('grossanlass.planung.ressorts.mapHint') }}
-        </p>
-        <ActivityVenueOverviewBlock
-          v-if="venueAddressId"
+      <div v-if="showEditAreaMap">
+        <GrossanlassGroupMapEditor
           ref="groupMapRef"
-          :venue-address-id="venueAddressId"
+          v-model:existing-place-id="existingPlaceId"
+          v-model:place-kind="placeKind"
+          v-model:place-name="placeName"
           :department-id="departmentId"
-          :ga-department-id="departmentId"
-          ga-map-mode="all"
-          inline-place-draft
-          :draft-place-name="createForm.name"
-          :draft-place-kind="showEditAreaMap ? 'area' : 'bauprojekt'"
-          hide-title
+          :venue-address-id="venueAddressId"
+          :name="createForm.name"
+          :editing-place-id="editingMapPlaceId"
+          :group-id="editingGroup?.id ?? null"
           @save-area="saveAreaKeepOpen"
+          @places-changed="loadGroupsAfterPlaces"
         />
-        <p v-else class="group-modal-map__missing">{{ t('grossanlass.planung.ressorts.placeMissing') }}</p>
       </div>
       <template #actions>
-        <EButton variant="secondary" size="small" @click="closeGroupDialog">{{ t('common.cancel') }}</EButton>
         <EButton
+          v-if="editingGroup && canShareGroup(editingGroup)"
+          variant="secondary"
+          size="small"
+          :title="t('grossanlass.planung.ressorts.shareHint')"
+          @click="openShare(editingGroup)"
+        >
+          {{ t('grossanlass.planung.ressorts.shareWith') }}
+        </EButton>
+        <EButton
+          v-if="editingGroup && canDeleteGroup(editingGroup)"
+          variant="danger"
+          size="small"
+          :loading="deletingGroupId === editingGroup.id"
+          @click="confirmDeleteGroup(editingGroup)"
+        >
+          {{ t('common.delete') }}
+        </EButton>
+        <EButton variant="secondary" size="small" @click="requestCloseGroupDialog">
+          {{ canEditDialogGroup ? t('common.cancel') : t('settings.groups.close') }}
+        </EButton>
+        <EButton
+          v-if="canEditDialogGroup"
           variant="primary"
           size="small"
           :disabled="!createForm.name.trim() || (!editingGroup && !createAsRoot && !createForm.parent_id) || createSaving"
@@ -260,6 +269,23 @@
         </EButton>
       </template>
     </EDialog>
+
+    <GrossanlassOrderDialog
+      v-if="showRessortTree"
+      v-model="orderDialogOpen"
+      :department-id="departmentId"
+      :groups="groups"
+      :initial-group="orderDialogGroup"
+      :initial-type="orderDialogType"
+      :initial-parent-id="orderDialogParentId"
+      :initial-name="orderDialogName"
+      :initial-tab="orderDialogTab"
+      show-share
+      @saved="reloadAfterOrderChange"
+      @changed="reloadAfterOrderChange"
+      @deleted="reloadAfterOrderChange"
+      @share="openShare"
+    />
 
     <EDialog
       v-if="showRessortTree"
@@ -305,46 +331,6 @@
       </template>
     </EDialog>
 
-    <EDialog
-      v-if="showRessortTree"
-      v-model="showProjectModal"
-      :max-width="920"
-      :title="projectModalTitle"
-      :retain-focus="false"
-      :before-close="() => bauprojektPanelRef?.confirmClose() ?? true"
-      highlight-outside
-    >
-      <GrossanlassBauprojektPanel
-        v-if="projectGroup && departmentId"
-        ref="bauprojektPanelRef"
-        :department-id="departmentId"
-        :group-id="projectGroup.id"
-        @meta-saved="onProjectMetaSaved"
-      />
-      <template #actions>
-        <EButton
-          v-if="projectGroup && canShareGroup(projectGroup)"
-          variant="secondary"
-          size="small"
-          @click="openShare(projectGroup)"
-        >
-          {{ t('grossanlass.planung.ressorts.shareWith') }}
-        </EButton>
-        <EButton
-          v-if="projectGroup && canDeleteGroup(projectGroup)"
-          variant="danger"
-          size="small"
-          :loading="deletingGroupId === projectGroup.id"
-          @click="confirmDeleteGroup(projectGroup)"
-        >
-          {{ t('common.delete') }}
-        </EButton>
-        <EButton variant="secondary" size="small" @click="closeBauprojekt">
-          {{ t('settings.groups.close') }}
-        </EButton>
-      </template>
-    </EDialog>
-
     <GrossanlassEinsatzBookPreviewDialog
       v-if="showEinsatzTools"
       v-model="submitOpen"
@@ -377,20 +363,13 @@ import GrossanlassMeinRessortSkeleton from '@/views/grossanlass/GrossanlassMeinR
 import MaterialJourneyScanBar from '@/components/activities/materialJourney/MaterialJourneyScanBar.vue'
 import GrossanlassHelperScanResultPanel from '@/views/grossanlass/GrossanlassHelperScanResultPanel.vue'
 import { useGrossanlassHelperScan } from '@/composables/useGrossanlassHelperScan'
-import { EButton, EDialog, ESelect, ESwitch, ETextField, ETextarea } from '@/components/form/base'
-import ActivityVenueOverviewBlock from '@/components/activities/ActivityVenueOverviewBlock.vue'
+import { EButton, EDialog, ESwitch, ETextField } from '@/components/form/base'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useAuthStore } from '@/stores/auth'
-import { gaCanApproveEinsatz, gaCanManagePlanung, gaCanSetBuildStatus, gaIsHelperHomeView } from '@/utils/grossanlassAccess'
-import {
-  packBauprojektWindow,
-  unpackBauprojektWindow,
-} from '@/utils/grossanlassBauprojektWindow'
-import type { AutoSaveFieldValue } from '@/components/common/autoSave/types'
-import GrossanlassBauprojektPanel from '@/components/grossanlass/GrossanlassBauprojektPanel.vue'
-import { useBauprojektPanelClose } from '@/composables/useBauprojektPanelClose'
-import GaBuildMetaFields from '@/components/grossanlass/GaBuildMetaFields.vue'
+import { gaCanApproveEinsatz, gaCanManagePlanung, gaIsHelperHomeView } from '@/utils/grossanlassAccess'
+import GrossanlassOrderDialog from '@/components/grossanlass/GrossanlassOrderDialog.vue'
+import GrossanlassGroupMapEditor from '@/components/grossanlass/GrossanlassGroupMapEditor.vue'
 import GrossanlassMeinRessortBranch from '@/components/grossanlass/GrossanlassMeinRessortBranch.vue'
 import GrossanlassShareTargetTree, {
   type ShareTargetNode,
@@ -425,9 +404,10 @@ import {
   nodeTypeForKind,
   type NestedTreeNode,
 } from '@/utils/grossanlassGroupHierarchy'
+import GrossanlassParentTreeSelect from '@/components/grossanlass/GrossanlassParentTreeSelect.vue'
 import GrossanlassUnitSlider from '@/components/grossanlass/GrossanlassUnitSlider.vue'
 import { isEinsatzBookableWish } from '@/utils/grossanlassBookProjectPicker'
-import { grossanlassGroupNodeKindKey } from '@/utils/grossanlassGroupNode'
+import { grossanlassGroupNodeKindKey, isGrossanlassLeafNodeType } from '@/utils/grossanlassGroupNode'
 import GrossanlassEinsatzBookPreviewDialog, {
   type GaBookPreviewDraft,
 } from '@/views/grossanlass/GrossanlassEinsatzBookPreviewDialog.vue'
@@ -450,7 +430,7 @@ import {
   type GaHelperTaskKind,
 } from '@/views/grossanlass/grossanlassHelperAssignment'
 import { updateGrossanlassPlace, type GaPlace } from '@/api/grossanlassLogistics'
-import { childReportedStatuses, descendantProcurementProgress, watchGrossanlassBuildPeriods } from '@/utils/grossanlassBuildStatus'
+import { watchGrossanlassBuildPeriods } from '@/utils/grossanlassBuildStatus'
 import { getGrossanlassPlanung } from '@/api/grossanlassPlanung'
 import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 
@@ -504,7 +484,7 @@ const editingGroup = ref<GrossanlassGroup | null>(null)
 const bereichTreeEl = ref<HTMLElement | null>(null)
 const accordionWidth = ref<number | null>(null)
 const venueAddressId = ref<string | null>(null)
-const groupMapRef = ref<InstanceType<typeof ActivityVenueOverviewBlock> | null>(null)
+const groupMapRef = ref<InstanceType<typeof GrossanlassGroupMapEditor> | null>(null)
 const showShareDialog = ref(false)
 const shareGroup = ref<GrossanlassGroup | null>(null)
 const shareTargetId = ref('')
@@ -512,36 +492,31 @@ const shareSaving = ref(false)
 const shareCreateParentId = ref<string | null>(null)
 const shareCreateName = ref('')
 const shareCreateSaving = ref(false)
-const showProjectModal = ref(false)
-const { panelRef: bauprojektPanelRef, requestClose: closeBauprojekt } = useBauprojektPanelClose(showProjectModal)
+/** Aufträge und Bauaufträge laufen über den zentralen Dialog (gleich wie in der Planung). */
+const orderDialogOpen = ref(false)
+const orderDialogGroup = ref<GrossanlassGroup | null>(null)
+const orderDialogType = ref<'order' | 'build'>('order')
+const orderDialogParentId = ref('')
+const orderDialogName = ref('')
+const orderDialogTab = ref<'basics' | 'tasks'>('basics')
+const basicsBaseline = ref('')
 const createSaving = ref(false)
 const deletingGroupId = ref<string | null>(null)
 const expandedParentIds = ref<string[]>([])
-const projectGroup = ref<GrossanlassGroup | null>(null)
 const createForm = ref({
   name: '',
   parent_id: '' as string,
-  kind: 'teilbereich' as GrossanlassGroupKind,
-  window_start: '',
-  window_end: '',
-  build_status: '',
-  description: '',
+  kind: 'bereich' as GrossanlassGroupKind,
   include_on_map: false,
 })
 
-function createFormParent(): GrossanlassGroup | null {
-  if (createAsRoot.value && !editingGroup.value) return null
-  const parentId = createForm.value.parent_id
-  if (!parentId) return null
-  return groups.value.find((row) => row.id === parentId) ?? null
-}
-
 const unitChoice = computed({
-  get(): 'ressort' | 'bereich' | 'teilbereich' {
-    if (createForm.value.kind === 'bereich' || createForm.value.kind === 'teilbereich') return createForm.value.kind
+  get(): GrossanlassGroupKind {
+    const kind = createForm.value.kind
+    if (kind === 'bereich' || kind === 'teilbereich' || kind === 'auftrag') return kind
     return 'ressort'
   },
-  set(value: 'ressort' | 'bereich' | 'teilbereich') {
+  set(value: GrossanlassGroupKind) {
     createForm.value.kind = value
   },
 })
@@ -566,77 +541,86 @@ const createNamePlaceholder = computed(() => {
 })
 
 const createParentOptions = computed(() =>
-  myGroupsTree.value.filter((group) => group.node_type !== 'bauprojekt' && canCreateChild(group)),
+  myGroupsTree.value.filter((group) => !isGrossanlassLeafNodeType(group.node_type) && canCreateChild(group)),
 )
 const showEditParentSelect = computed(() => {
   if (editingGroup.value) return canManageStruktur.value
   return !createAsRoot.value
 })
-const editingReportedStatuses = computed(() => {
-  const group = editingGroup.value
-  if (!group || group.node_type === 'bauprojekt') return []
-  return childReportedStatuses(group.id, groups.value)
+const showEditAreaMap = computed(() => createForm.value.include_on_map)
+/**
+ * Mit Kartenbearbeitung bis 1400 px, sonst normale Dialogbreite. max-width bleibt konstant:
+ * Vuetify berechnet max-width beim Öffnen (Location-Strategy) und aktualisiert es bei späterer
+ * Änderung nicht zuverlässig, ein dynamisches max-width blieb deshalb auf dem Anfangswert hängen.
+ */
+const GROUP_DIALOG_MAP_WIDTH = 1400
+const groupDialogWidth = computed(() => (showEditAreaMap.value ? GROUP_DIALOG_MAP_WIDTH : 720))
+
+/** Vorhandener, freier Ort, der statt eines neuen Punkts/Bereichs verwendet wird. */
+const existingPlaceId = ref<string | null>(null)
+const placeKind = ref<'area' | 'bauprojekt'>('bauprojekt')
+const placeName = ref('')
+
+/** Eigener Ort der bearbeiteten Gruppe (Bereich: nur wenn er ein Polygon ist). */
+const editingMapPlaceId = computed(() => {
+  const place = editingGroup.value?.place
+  if (!place?.id) return null
+  return place.id
 })
 
-const canSetStatusHere = computed(() => {
-  const target = editingGroup.value
-    ?? groups.value.find((row) => row.id === createForm.value.parent_id)
-    ?? null
-  return gaCanSetBuildStatus(authStore.currentDepartmentRole, authStore.userId, target, groups.value)
-})
-
-const editingChildProcurement = computed(() => {
-  const group = editingGroup.value
-  if (!group) return null
-  return descendantProcurementProgress(group.id, groups.value)
-})
-
-const showEditProjectWindow = computed(() => structuralNodeType.value === 'bauprojekt')
-const showEditBereichWindow = computed(() => structuralNodeType.value === 'unterressort')
-const showEditUsageWindow = computed(() => showEditProjectWindow.value || showEditBereichWindow.value)
-const usageWindowBaseline = ref('|')
-const buildStatusBaseline = ref('')
-const showEditDescription = computed(() => showEditProjectWindow.value)
-const showEditAreaToggle = computed(() => !showEditProjectWindow.value)
-const showEditAreaMap = computed(() => showEditAreaToggle.value && createForm.value.include_on_map)
-const groupDialogMaxWidth = computed(() => {
-  if (editingGroup.value) {
-    return accordionWidth.value ?? 1400
-  }
-  return showEditProjectWindow.value || showEditAreaMap.value ? 920 : 720
-})
+watch([showCreateProject, showEditAreaMap], () => {
+  existingPlaceId.value = null
+  placeKind.value = 'area'
+  placeName.value = createForm.value.name
+}, { flush: 'sync' })
 
 function syncAccordionWidth() {
   const width = bereichTreeEl.value?.getBoundingClientRect().width
   accordionWidth.value = width && width >= 480 ? Math.round(width) : null
 }
-const editParentSelectItems = computed(() => {
+const editParentSelectableIds = computed(() => {
   const blocked = editingGroup.value ? collectIdsFrom(editingGroup.value.id) : new Set<string>()
-  const items = createParentOptions.value
-    .filter((group) => !blocked.has(group.id))
-    .map((group) => ({ title: group.name, value: group.id }))
-  if (editingGroup.value && canManageStruktur.value) {
-    return [{ title: t('grossanlass.planung.ressorts.parentNone'), value: '' }, ...items]
-  }
-  return items
+  return createParentOptions.value.filter((group) => !blocked.has(group.id)).map((group) => group.id)
 })
-const projectModalTitle = computed(() =>
-  projectGroup.value
-    ? t('grossanlass.planung.ressorts.projectTitle', { name: projectGroup.value.name })
-    : t('grossanlass.planung.ressorts.openProject'),
+const editParentNoneLabel = computed(() =>
+  editingGroup.value && canManageStruktur.value ? t('grossanlass.planung.ressorts.parentNone') : '',
 )
+const editParentModel = computed<string | null>({
+  get: () => createForm.value.parent_id || null,
+  set: (value) => { createForm.value.parent_id = value ?? '' },
+})
+const canEditDialogGroup = computed(() => !editingGroup.value || canEditGroup(editingGroup.value))
+
+function basicsSnapshot(): string {
+  return JSON.stringify([createForm.value, placeName.value, existingPlaceId.value, placeKind.value])
+}
+const basicsDirty = computed(() => {
+  if (!canEditDialogGroup.value) return false
+  if (!editingGroup.value) return !!createForm.value.name.trim()
+  return basicsSnapshot() !== basicsBaseline.value
+})
+
+/** Warnt beim Schliessen, wenn die Grunddaten ungespeicherte Eingaben haben. */
+async function confirmGroupDialogClose(): Promise<boolean> {
+  if (!basicsDirty.value) return true
+  return confirm.confirm({
+    title: t('grossanlass.planung.ressorts.unsavedCloseTitle'),
+    message: t('grossanlass.planung.ressorts.unsavedCloseMessage'),
+    confirmText: t('settings.groups.close'),
+    cancelText: t('layout.confirm.back'),
+    variant: 'warning',
+  })
+}
+
+async function requestCloseGroupDialog() {
+  if (await confirmGroupDialogClose()) closeGroupDialog()
+}
 
 function emptyCreateForm(kind: GrossanlassGroupKind, parentId = ''): typeof createForm.value {
-  usageWindowBaseline.value = '|'
-  buildStatusBaseline.value = ''
   return {
     name: '',
     parent_id: parentId,
     kind,
-    window_start: '',
-    window_end: '',
-    build_status: '',
-    description: '',
     include_on_map: false,
   }
 }
@@ -664,14 +648,45 @@ function openCreateChild(_kind: GrossanlassGroupKind, parentId?: string) {
   showCreateProject.value = true
 }
 
+/** Auftrag/Bauauftrag: anlegen und bearbeiten laufen über den zentralen Dialog. */
+function openOrderDialog(group: GrossanlassGroup | null, opts: {
+  type?: 'order' | 'build'
+  parentId?: string
+  name?: string
+  tab?: 'basics' | 'tasks'
+} = {}) {
+  orderDialogGroup.value = group
+  orderDialogType.value = opts.type ?? 'order'
+  orderDialogParentId.value = opts.parentId ?? ''
+  orderDialogName.value = opts.name ?? ''
+  orderDialogTab.value = opts.tab ?? 'basics'
+  orderDialogOpen.value = true
+}
+
+/** Wählt der Benutzer beim Anlegen «Bauprojekt»/«Auftrag», wechselt er in den zentralen Dialog. */
+watch(() => createForm.value.kind, (kind) => {
+  if (!showCreateProject.value || editingGroup.value) return
+  if (kind !== 'teilbereich' && kind !== 'auftrag') return
+  const { name, parent_id } = createForm.value
+  closeGroupDialog()
+  openOrderDialog(null, { type: kind === 'teilbereich' ? 'build' : 'order', parentId: parent_id, name })
+})
+
+async function reloadAfterOrderChange() {
+  if (!departmentId.value) return
+  groups.value = await getGrossanlassGroups(departmentId.value)
+  wishes.value = await getMyRessortWishes(departmentId.value)
+  await loadDirectLines()
+}
+
+/** «Aufgaben & Material»: derselbe Dialog wie «Bearbeiten», aber auf dem zweiten Reiter. */
 function openProject(group: GrossanlassGroup) {
-  projectGroup.value = group
-  showProjectModal.value = true
+  openEditGroup(group, 'tasks')
 }
 
 async function confirmDeleteGroup(group: GrossanlassGroup) {
   if (!departmentId.value || deletingGroupId.value) return
-  const isProject = group.node_type === 'bauprojekt'
+  const isProject = isGrossanlassLeafNodeType(group.node_type)
   const ok = await confirm.confirm({
     title: isProject
       ? t('grossanlass.planung.ressorts.deleteBauprojektTitle')
@@ -687,10 +702,7 @@ async function confirmDeleteGroup(group: GrossanlassGroup) {
   deletingGroupId.value = group.id
   try {
     await deleteGrossanlassGroup(departmentId.value, group.id)
-    if (projectGroup.value?.id === group.id) {
-      showProjectModal.value = false
-      projectGroup.value = null
-    }
+    if (editingGroup.value?.id === group.id) closeGroupDialog()
     groups.value = await getGrossanlassGroups(departmentId.value)
     wishes.value = await getMyRessortWishes(departmentId.value)
     await loadDirectLines()
@@ -708,7 +720,7 @@ async function confirmDeleteGroup(group: GrossanlassGroup) {
 }
 
 async function resumeGroupMapAfterSave() {
-  if (!showEditProjectWindow.value && !showEditAreaMap.value) return
+  if (!showEditAreaMap.value) return
   await nextTick()
   await groupMapRef.value?.reloadGa?.()
   await nextTick()
@@ -724,20 +736,16 @@ async function persistGroup(closeAfter: boolean) {
   if (asRoot && !canCreateRoot() && !editingGroup.value) return
   if (!asRoot && !createForm.value.parent_id && !editingGroup.value) return
   const kind = createForm.value.kind
-  const includeOnMap = showEditAreaToggle.value && createForm.value.include_on_map
-  const polygon = includeOnMap ? groupMapRef.value?.getInlineDraftPolygon() ?? [] : null
+  const includeOnMap = createForm.value.include_on_map
+  const placeFields = includeOnMap ? groupMapRef.value?.getPlacePayload() : undefined
   createSaving.value = true
   try {
     const payload = {
       name: createForm.value.name.trim(),
       parent_id: asRoot ? null : createForm.value.parent_id,
       kind,
-      window_start: showEditUsageWindow.value ? (createForm.value.window_start || null) : null,
-      window_end: showEditUsageWindow.value ? (createForm.value.window_end || null) : null,
-      build_status: showEditUsageWindow.value ? (createForm.value.build_status || null) : null,
-      description: createForm.value.description.trim() || null,
-      include_on_map: showEditAreaToggle.value ? includeOnMap : undefined,
-      polygon: includeOnMap ? polygon : undefined,
+      include_on_map: includeOnMap,
+      ...placeFields,
     }
     const wasEditing = !!editingGroup.value
     let saved: GrossanlassGroup
@@ -746,11 +754,11 @@ async function persistGroup(closeAfter: boolean) {
         ...payload,
         kind: editingGroup.value.parent_id || createForm.value.parent_id ? kind : undefined,
       })
-      if (showEditProjectWindow.value) {
-        await syncGroupPlaceCoords(saved)
-      }
     } else {
       saved = await createGrossanlassGroup(departmentId.value, payload)
+    }
+    if (placeFields?.place_kind === 'point' && !placeFields.place_id) {
+      await syncGroupPlaceCoords(saved)
     }
     groups.value = await getGrossanlassGroups(departmentId.value)
     const refreshed = groups.value.find((row) => row.id === saved.id) ?? saved
@@ -758,9 +766,6 @@ async function persistGroup(closeAfter: boolean) {
       closeGroupDialog()
       if (wasEditing) {
         toast.success(t('grossanlass.meinRessort.ressortUpdated'))
-      } else if (kind === 'teilbereich') {
-        toast.success(t('grossanlass.meinRessort.bauprojektCreated'))
-        openProject(saved)
       } else if (asRoot) {
         toast.success(t('grossanlass.meinRessort.ressortCreated'))
       } else {
@@ -768,8 +773,10 @@ async function persistGroup(closeAfter: boolean) {
       }
       return
     }
+    existingPlaceId.value = null
     editingGroup.value = refreshed
     createAsRoot.value = !refreshed.parent_id
+    void nextTick(() => { basicsBaseline.value = basicsSnapshot() })
     toast.success(
       includeOnMap
         ? t('grossanlass.planung.ressorts.areaSaved')
@@ -781,50 +788,6 @@ async function persistGroup(closeAfter: boolean) {
     toast.error(err.response?.data?.error || t('grossanlass.planung.ressorts.errorSave'))
   } finally {
     createSaving.value = false
-  }
-}
-
-function patchLocalGroup(saved: GrossanlassGroup) {
-  groups.value = groups.value.map((row) => (row.id === saved.id ? { ...row, ...saved } : row))
-  if (editingGroup.value?.id === saved.id) {
-    editingGroup.value = { ...editingGroup.value, ...saved }
-  }
-  if (projectGroup.value?.id === saved.id) {
-    projectGroup.value = { ...projectGroup.value, ...saved }
-  }
-}
-
-async function persistUsageMeta() {
-  if (!departmentId.value || !editingGroup.value || !showEditUsageWindow.value) return
-  const saved = await updateGrossanlassGroup(departmentId.value, editingGroup.value.id, {
-    window_start: createForm.value.window_start || null,
-    window_end: createForm.value.window_end || null,
-    build_status: createForm.value.build_status || null,
-  })
-  patchLocalGroup(saved)
-  usageWindowBaseline.value = packBauprojektWindow(saved.window_start, saved.window_end)
-  buildStatusBaseline.value = saved.build_status || ''
-}
-
-async function saveUsageWindowAutosave(value: AutoSaveFieldValue) {
-  const next = unpackBauprojektWindow(value)
-  createForm.value.window_start = next.start
-  createForm.value.window_end = next.end
-  await persistUsageMeta()
-}
-
-async function saveBuildStatusAutosave(value: AutoSaveFieldValue) {
-  createForm.value.build_status = value == null ? '' : String(value)
-  await persistUsageMeta()
-}
-
-function onProjectMetaSaved(group: { id: string; window_start?: string | null; window_end?: string | null; build_status?: string | null }) {
-  groups.value = groups.value.map((row) => (row.id === group.id ? { ...row, ...group } : row))
-  if (editingGroup.value?.id === group.id) {
-    editingGroup.value = { ...editingGroup.value, ...group }
-  }
-  if (projectGroup.value?.id === group.id) {
-    projectGroup.value = { ...projectGroup.value, ...group }
   }
 }
 
@@ -966,8 +929,17 @@ async function onTogglePackedAssignment(assignment: GaHelperAssignment) {
   }
 }
 
-/** MW/CMW: «Mein Ressort» zeigt nur die eigene Zuordnung; die Gesamtstruktur liegt unter «Grossanlass verwalten». */
-const isOwnBranchOnly = computed(() => gaCanManagePlanung(authStore.currentDepartmentRole))
+/** Gesamtansicht nur für Rollen mit anlassweiter Strukturansicht (MW/CMW/OK-Leitung); reine Ansicht, keine zusätzlichen Rechte. */
+const canChooseScope = computed(() => !isHelperHomeView.value && canManageStruktur.value)
+/** MW/CMW starten mit der eigenen Zuordnung, OK-Leitung mit der Gesamtstruktur (wie bisher). */
+const ressortScope = ref<'own' | 'all'>(
+  gaCanManagePlanung(authStore.currentDepartmentRole) ? 'own' : 'all',
+)
+const scopeOptions = computed(() => [
+  { value: 'own' as const, label: t('grossanlass.meinRessort.scope.own') },
+  { value: 'all' as const, label: t('grossanlass.meinRessort.scope.all') },
+])
+const isOwnBranchOnly = computed(() => canChooseScope.value && ressortScope.value === 'own')
 
 const myGroupsTree = computed(() =>
   flattenGrossanlassGroupsFiltered(groups.value, (g) =>
@@ -989,10 +961,10 @@ const displayGroupsTree = computed(() =>
 
 const bereichRoots = computed(() =>
   myGroupsTree.value.filter((group) => {
-    if (group.node_type === 'bauprojekt') return false
+    if (isGrossanlassLeafNodeType(group.node_type)) return false
     if (!group.parent_id) return true
     const parent = myGroupsTree.value.find((row) => row.id === group.parent_id)
-    return !parent || parent.node_type === 'bauprojekt'
+    return !parent || isGrossanlassLeafNodeType(parent.node_type)
   }),
 )
 
@@ -1017,14 +989,14 @@ function uniqueGroups(rows: GrossanlassGroup[]): GrossanlassGroup[] {
 
 function unterressortsOf(parent: GrossanlassGroup): GrossanlassGroup[] {
   return uniqueGroups(myGroupsTree.value.filter((group) => {
-    if (group.node_type === 'bauprojekt') return false
+    if (isGrossanlassLeafNodeType(group.node_type)) return false
     return group.parent_id === parent.id || isSharedIntoGroup(group, parent)
   }))
 }
 
 function bauprojekteOf(parent: GrossanlassGroup): GrossanlassGroup[] {
   return uniqueGroups(myGroupsTree.value.filter((group) => {
-    if (group.node_type !== 'bauprojekt') return false
+    if (!isGrossanlassLeafNodeType(group.node_type)) return false
     return group.parent_id === parent.id || isSharedIntoGroup(group, parent)
   }))
 }
@@ -1061,7 +1033,7 @@ const shareTargetTree = computed((): ShareTargetNode[] => {
   if (!source) return []
   const blocked = new Set([...collectIdsFrom(source.id), ...collectAncestorIds(source.id)])
   const already = new Set((source.shared_with ?? []).map((row) => row.target_group_id))
-  const orgs = groups.value.filter((group) => group.node_type !== 'bauprojekt')
+  const orgs = groups.value.filter((group) => !isGrossanlassLeafNodeType(group.node_type))
 
   function toNode(group: NestedTreeNode<GrossanlassGroup>): ShareTargetNode | null {
     const children = group.children.map(toNode).filter((node): node is ShareTargetNode => node !== null)
@@ -1082,23 +1054,24 @@ const shareTargetTree = computed((): ShareTargetNode[] => {
   return nestTreeWithLevel(orgs).map(toNode).filter((node): node is ShareTargetNode => node !== null)
 })
 
-function openEditGroup(group: GrossanlassGroup) {
+function openEditGroup(group: GrossanlassGroup, tab: 'basics' | 'tasks' = 'basics') {
+  if (isGrossanlassLeafNodeType(group.node_type)) {
+    openOrderDialog(group, { tab })
+    return
+  }
   editingGroup.value = group
   createAsRoot.value = !group.parent_id
   createForm.value = {
     name: group.name,
     parent_id: group.parent_id || '',
     kind: group.kind,
-    window_start: group.window_start || '',
-    window_end: group.window_end || '',
-    build_status: group.build_status || '',
-    description: group.description || '',
     include_on_map: group.include_on_map === true || group.place?.kind === 'area',
   }
-  usageWindowBaseline.value = packBauprojektWindow(group.window_start, group.window_end)
-  buildStatusBaseline.value = group.build_status || ''
   showCreateProject.value = true
-  void syncGroupMapPlacement()
+  void syncGroupMapPlacement().then(async () => {
+    await nextTick()
+    basicsBaseline.value = basicsSnapshot()
+  })
 }
 
 async function loadVenueAddress() {
@@ -1116,26 +1089,9 @@ async function loadVenueAddress() {
 
 async function syncGroupMapPlacement() {
   if (!showCreateProject.value || !venueAddressId.value) return
-  if (!showEditProjectWindow.value && !showEditAreaMap.value) return
+  if (!showEditAreaMap.value) return
   await nextTick()
-  await groupMapRef.value?.reloadGa?.()
-  await nextTick()
-  groupMapRef.value?.refreshMaps?.()
-  if (showEditAreaMap.value) {
-    if (editingGroup.value?.place?.kind === 'area' && editingGroup.value.place.id) {
-      groupMapRef.value?.beginEditPlace(editingGroup.value.place.id)
-      return
-    }
-    groupMapRef.value?.beginInlineDraft(createForm.value.name, 'area')
-    return
-  }
-  if (editingGroup.value?.place?.id) {
-    groupMapRef.value?.beginEditPlace(editingGroup.value.place.id)
-    return
-  }
-  if (structuralNodeType.value === 'bauprojekt') {
-    groupMapRef.value?.beginInlineDraft(createForm.value.name, 'bauprojekt')
-  }
+  await groupMapRef.value?.syncPlacement()
 }
 
 async function syncGroupPlaceCoords(group: GrossanlassGroup | null) {
@@ -1158,8 +1114,8 @@ async function openShare(group: GrossanlassGroup) {
   shareTargetId.value = ''
   shareCreateParentId.value = null
   shareCreateName.value = ''
-  if (bauprojektPanelRef.value && !(await bauprojektPanelRef.value.confirmClose())) return
-  showProjectModal.value = false
+  if (!(await confirmGroupDialogClose())) return
+  closeGroupDialog()
   showShareDialog.value = true
 }
 
@@ -1418,18 +1374,6 @@ async function loadDirectLines() {
   }
 }
 
-async function openSubmit() {
-  if (!departmentId.value) return
-  try {
-    submitBoard.value = await getGrossanlassSubmitBoard(departmentId.value)
-    submitDraft.value = null
-    submitOpen.value = true
-  } catch (e: unknown) {
-    const err = e as { response?: { data?: { error?: string } } }
-    toast.error(err.response?.data?.error || t('grossanlass.meinRessort.errorLoad'))
-  }
-}
-
 function onPlaceCreated(place: GaPlace) {
   const board = submitBoard.value
   if (!board) return
@@ -1497,6 +1441,12 @@ async function onSubmitOrder(current: GaBookPreviewDraft) {
   await onSubmitEinsatz({ ...current, asOrder: true })
 }
 
+/** Standortpunkte wurden im Karteneditor geändert: Gruppenliste neu laden. */
+async function loadGroupsAfterPlaces() {
+  if (!departmentId.value) return
+  groups.value = await getGrossanlassGroups(departmentId.value)
+}
+
 async function load() {
   if (!departmentId.value) return
   isLoading.value = true
@@ -1531,8 +1481,9 @@ async function load() {
         submitOpen.value = true
       }
     }
-  } catch (e: any) {
-    error.value = e.response?.data?.error || t('grossanlass.meinRessort.errorLoad')
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    error.value = err.response?.data?.error || t('grossanlass.meinRessort.errorLoad')
   } finally {
     isLoading.value = false
   }
@@ -1572,6 +1523,45 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.mein-ressort-scope {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 2px;
+  padding: 3px;
+  margin-bottom: 16px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.mein-ressort-scope__option {
+  padding: 6px 16px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mein-ressort-scope__option:hover:not(.is-active) {
+  color: #0f172a;
+}
+
+.mein-ressort-scope__option.is-active {
+  background: #fff;
+  color: #047857;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+}
+
+.mein-ressort-scope__option:focus-visible {
+  outline: 2px solid #10b981;
+  outline-offset: 1px;
+}
 .mein-ressort-content {
   display: flex;
   flex-direction: column;

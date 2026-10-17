@@ -81,9 +81,9 @@ export function gaIsBereichsleitung(role: string | null | undefined): boolean {
   return gaRole(role) === 'bl'
 }
 
-/** Helfer (`u`): Mein Ressort, eigene Einsätze, gefilterte Aufgaben — kein Planung/Postfach. */
+/** Mitglied/Helfer (`u`, `h`): Mein Ressort, eigene Einsätze, gefilterte Aufgaben — kein Planung/Postfach. */
 export function gaIsGrossanlassHelper(role: string | null | undefined): boolean {
-  return gaRole(role) === 'u'
+  return ['u', 'h'].includes(gaRole(role))
 }
 
 /** Komm/Spon: Postfach + Vorlagen, ohne Beschaffungs-Kommando. */
@@ -127,11 +127,38 @@ export function gaDeptStageBadge(role: string | null | undefined): GaDeptStageBa
       return { short: 'LW', role: r }
     case 'clw':
       return { short: 'CLW', role: r }
+    case 'hv':
+      return { short: 'HV', role: r }
+    case 'subhv':
+      return { short: 'SUBHV', role: r }
     case 'u':
+      return { short: 'U', role: r }
+    case 'h':
       return { short: 'H', role: r }
     default:
       return null
   }
+}
+
+/**
+ * Helferpool: Helfer, Verfügbarkeit, Zuteilungen und Ausnahmen.
+ * GA-HV/GA-SUBHV immer; GA-MW und GA-OK (`dc`) standardmässig, je per GA-Einstellung abschaltbar.
+ * Nur Vorabschätzung der UI — massgeblich ist `can_manage` der Backend-Antwort.
+ */
+export function gaCanManageStaffing(
+  role: string | null | undefined,
+  allowed: { mw?: boolean; ok?: boolean } = {},
+): boolean {
+  const r = gaRole(role)
+  if (r === 'hv' || r === 'subhv') return true
+  if (r === 'mw') return allowed.mw !== false
+  if (r === 'dc') return allowed.ok !== false
+  return false
+}
+
+/** Personalbedarf und Deckung lesen (ohne Helfernamen): GA-HV/GA-SUBHV und die GA-Leitung. */
+export function gaCanSeeStaffing(role: string | null | undefined): boolean {
+  return gaCanManageStaffing(role) || ['mw', 'cmw', 'dc'].includes(gaRole(role))
 }
 
 export function gaCanApproveEinsatz(role: string | null | undefined): boolean {
@@ -167,8 +194,11 @@ export const GA_MATERIALS_ROUTE_ROLES = [...GA_MATERIAL_ROUTE_ROLES] as const
 /** Router: Planung / Struktur / Freigabe. */
 export const GA_PLANUNG_ROUTE_ROLES = [...GA_UEBERSICHT_ROUTE_ROLES] as const
 
+/** Router: Helferpool (Verwaltung hv/subhv, Personalbedarf lesen auch MW/CMW/OK-Leitung). */
+export const GA_HELFERPOOL_ROUTE_ROLES = ['matwart', 'mw', 'cmw', 'depchef', 'dc', 'hv', 'subhv'] as const
+
 /** Router: Meine Einsätze (Helfer). */
-export const GA_HELPER_ROUTE_ROLES = ['user', 'u'] as const
+export const GA_HELPER_ROUTE_ROLES = ['user', 'u', 'h'] as const
 
 /** Stern = Chef in diesem Ressort, nicht die Systemrolle BL. */
 export function gaIsChefFromGroups(

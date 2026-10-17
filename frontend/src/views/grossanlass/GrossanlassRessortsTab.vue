@@ -23,7 +23,7 @@
 
     <div v-else-if="error" class="ressorts-error">
       <v-alert type="error" variant="tonal" :text="error" />
-      <EButton variant="secondary" class="mt-3" @click="loadGroups">{{ t('common.retry') }}</EButton>
+      <EButton variant="secondary" class="mt-3" @click="loadGroups()">{{ t('common.retry') }}</EButton>
     </div>
 
     <EEmptyState
@@ -39,37 +39,14 @@
     </EEmptyState>
 
     <template v-else>
-    <div class="ressorts-toolbar">
-      <v-tabs
-        v-model="activeSubTab"
-        class="materials-view-tabs ressorts-subtabs"
-        color="primary"
-        show-arrows
-      >
-        <v-tab value="ressorts">
-          {{ t('grossanlass.planung.ressorts.panelRessorts') }}
-          <span class="materials-view-tab-count">{{ groups.length }}</span>
-        </v-tab>
-        <v-tab value="members">
-          {{ t('grossanlass.planung.ressorts.panelMembers') }}
-          <span class="materials-view-tab-count">{{ uniqueMembers.length }}</span>
-        </v-tab>
-      </v-tabs>
-      <EButton v-if="activeSubTab === 'ressorts' && canCreateRoot()" variant="primary" @click="openCreateModal()">
+    <div v-if="canCreateRoot()" class="ressorts-toolbar ressorts-toolbar--end">
+      <EButton variant="primary" @click="openCreateModal()">
         <v-icon icon="mdi-plus" start size="20" />
         {{ t('grossanlass.planung.ressorts.addAction') }}
       </EButton>
-      <EButton
-        v-else-if="activeSubTab === 'members' && canAddOverviewMembers"
-        variant="primary"
-        @click="openAddMemberDialog"
-      >
-        <v-icon icon="mdi-plus" start size="20" />
-        {{ t('grossanlass.planung.ressorts.addMembersAction') }}
-      </EButton>
     </div>
 
-    <div v-if="activeSubTab === 'ressorts'" class="ressorts-subtab">
+    <div class="ressorts-subtab">
     <p v-if="canFullyManage && !logisticsGroupId" class="cost-hint">
       {{ t('grossanlass.planung.ressorts.costSetHint') }}
     </p>
@@ -84,14 +61,25 @@
         </thead>
         <tbody>
           <tr
-            v-for="group in hierarchicalGroups"
+            v-for="group in visibleGroups"
             :key="group.id"
             class="group-row"
-            :class="{ 'is-child': group._level > 0 }"
+            :class="{ 'is-child': group._level > 0, 'is-toggleable': hasChildren(group) }"
+            @click="onRowClick($event, group)"
           >
             <td class="col-name">
               <div class="name-cell" :style="{ paddingLeft: group._level * 24 + 'px' }">
-                <span v-if="group._level > 0" class="indent-icon">↳</span>
+                <button
+                  v-if="hasChildren(group)"
+                  type="button"
+                  class="row-chevron"
+                  :aria-expanded="!isCollapsed(group.id)"
+                  :title="isCollapsed(group.id) ? t('common.expand') : t('common.collapse')"
+                  @click.stop="toggleGroup(group.id)"
+                >
+                  <v-icon :icon="isCollapsed(group.id) ? 'mdi-chevron-right' : 'mdi-chevron-down'" size="18" />
+                </button>
+                <span v-else-if="group._level > 0" class="indent-icon">↳</span>
                 <GrossanlassGroupNodeIcon :node-type="group.node_type" />
                 <div class="name-stack">
                   <button
@@ -151,6 +139,9 @@
                     :key="member.user_id"
                     :user="member"
                     :dept-stage-role="deptRoleForUser(member.user_id)"
+                    :show-leader-star="member.is_leader"
+                    :show-helper="isHelperFlagged(member.user_id)"
+                    :show-driver="driverUserIds.has(member.user_id)"
                   />
                 </template>
                 <span v-else class="text-muted">–</span>
@@ -159,7 +150,7 @@
             <td v-if="showManagementActions" class="col-actions">
               <div class="action-buttons">
                 <button
-                  v-if="canOpenDetail(group)"
+                  v-if="canOpenDetail(group) && !isGrossanlassLeafNodeType(group.node_type)"
                   class="action-btn"
                   :title="t('grossanlass.planung.ressorts.openProject')"
                   @click="openProjectPanel(group)"
@@ -214,97 +205,12 @@
     </div>
     </div>
 
-    <div v-else class="ressorts-subtab">
-          <EFilterRow v-if="uniqueMembers.length" class="members-filter-row">
-            <v-col class="e-filter-row__search">
-              <ESearchField
-                v-model="memberSearchQuery"
-                :label="t('grossanlass.planung.ressorts.membersSearchPlaceholder')"
-              />
-            </v-col>
-            <v-col cols="auto" class="e-filter-row__select">
-              <select
-                v-model="memberRoleFilter"
-                class="form-select role-select-sm"
-                :aria-label="t('common.role')"
-              >
-                <option value="">{{ t('grossanlass.planung.ressorts.membersFilterAllRoles') }}</option>
-                <option
-                  v-for="item in memberRoleFilterItems"
-                  :key="item.value"
-                  :value="item.value"
-                >
-                  {{ item.title }}
-                </option>
-              </select>
-            </v-col>
-            <v-col cols="auto" class="e-filter-row__actions members-sort-actions">
-              <SortHeaderButton
-                :label="t('grossanlass.planung.ressorts.membersSortName')"
-                :title="memberSortDir === 'asc'
-                  ? t('grossanlass.planung.ressorts.membersSortNameAsc')
-                  : t('grossanlass.planung.ressorts.membersSortNameDesc')"
-                sort-key="name"
-                active-key="name"
-                :direction="memberSortDir"
-                @toggle="toggleMemberNameSort"
-              />
-              <EButton
-                variant="text"
-                size="small"
-                :style="{ visibility: hasMemberListFilters ? 'visible' : 'hidden' }"
-                :aria-hidden="!hasMemberListFilters"
-                @click="resetMemberListFilters"
-              >
-                {{ t('grossanlass.planung.ressorts.membersResetFilters') }}
-              </EButton>
-            </v-col>
-          </EFilterRow>
-          <ul v-if="filteredUniqueMembers.length" class="member-overview">
-            <li v-for="row in filteredUniqueMembers" :key="row.groupMember.user_id" class="member-overview__row">
-              <DepartmentMemberRow
-                :name="row.departmentMember?.name || row.groupMember.name"
-                :subtitle="row.groups.join(' · ')"
-                :avatar="row.groupMember"
-                :dept-stage-role="row.departmentMember?.role"
-                :can-manage="!!row.departmentMember && canManageMember(row.departmentMember)"
-                @details="openMemberDetail(row.departmentMember)"
-                @remove="handleRemoveFromDepartment(row.departmentMember)"
-              >
-                <template #aside>
-                  <select
-                    v-if="row.departmentMember && canEditDeptRole(row.departmentMember.user_id)"
-                    :value="normalizeDeptRole(row.departmentMember.role)"
-                    class="form-select role-select-sm"
-                    :aria-label="t('common.role')"
-                    @change="handleDeptRoleChange(row.departmentMember.user_id, ($event.target as HTMLSelectElement).value)"
-                  >
-                    <option
-                      v-for="item in roleSelectItemsFor(row.departmentMember.role)"
-                      :key="item.value"
-                      :value="item.value"
-                    >
-                      {{ item.title }}
-                    </option>
-                  </select>
-                  <span v-else class="role-readonly">{{ deptRoleLabelFor(row.groupMember.user_id) }}</span>
-                </template>
-              </DepartmentMemberRow>
-            </li>
-          </ul>
-          <p v-else class="text-muted">
-            {{
-              uniqueMembers.length
-                ? t('grossanlass.planung.ressorts.emptyMembersFilter')
-                : t('grossanlass.planung.ressorts.emptyMembersPanel')
-            }}
-          </p>
-    </div>
     </template>
 
     <EDialog
       v-model="showGroupModal"
-      :max-width="showProjectWindow || showAreaMap ? 920 : 480"
+      :max-width="1400"
+      :width="groupDialogMapWide ? 1400 : 480"
       :title="groupModalTitle"
       scrollable
     >
@@ -315,46 +221,17 @@
         :placeholder="groupNamePlaceholder"
         hide-details="auto"
       />
-      <ESelect
-        v-if="canManageStruktur && showParentSelect"
+      <GrossanlassParentTreeSelect
+        v-if="showParentSelect"
         v-model="groupForm.parent_id"
-        :items="parentGroupSelectItems"
+        :groups="groups"
+        :selectable-ids="parentSelectableIds"
+        :exclude-id="editingGroup?.id ?? null"
+        :none-label="creatingBereich || isLeafForm || !canManageStruktur ? '' : t('grossanlass.planung.ressorts.parentNone')"
         :label="t('grossanlass.planung.ressorts.parentLabel')"
         :disabled="!!fixedParentId && !editingGroup"
-        hide-details
       />
-      <GrossanlassUnitSlider v-model="unitChoice" :hide-bauprojekt="groupForm.kind !== 'teilbereich'" />
-      <GaBuildMetaFields
-        v-if="showUsageWindow"
-        :department-id="departmentId"
-        :autosave="!!editingGroup"
-        v-model:start="groupForm.window_start"
-        v-model:end="groupForm.window_end"
-        v-model:status="groupForm.build_status"
-        :window-label="showProjectWindow
-          ? t('grossanlass.planung.ressorts.windowLabel')
-          : t('grossanlass.planung.ressorts.usageWindowLabel')"
-        :window-hint="showProjectWindow
-          ? ''
-          : t('grossanlass.planung.ressorts.usageWindowHint')"
-        :window-baseline="usageWindowBaseline"
-        :status-baseline="buildStatusBaseline"
-        :node-type="structuralNodeType"
-        :reported-statuses="editingReportedStatuses"
-        :procurement-progress="editingGroup?.procurement_progress"
-        :child-procurement="editingChildProcurement"
-        :allow-manual="canSetStatusHere"
-        :save-window="saveUsageWindowAutosave"
-        :save-status="saveBuildStatusAutosave"
-      />
-      <ETextarea
-        v-if="showProjectWindow"
-        v-model="groupForm.description"
-        :label="t('grossanlass.planung.ressorts.descriptionHeading')"
-        :placeholder="t('grossanlass.planung.ressorts.descriptionPlaceholder')"
-        rows="3"
-        hide-details="auto"
-      />
+      <GrossanlassUnitSlider v-model="unitChoice" :hide-bauprojekt="!canPickLeafKind" />
       <ESwitch
         v-if="showAreaMapToggle"
         v-model="groupForm.include_on_map"
@@ -363,31 +240,27 @@
         persistent-hint
         hide-details="auto"
       />
-      <div v-if="showProjectWindow || showAreaMap" class="group-modal-map">
-        <p v-if="!showAreaMap" class="group-modal-map__hint">
-          {{ t('grossanlass.planung.ressorts.mapHint') }}
-        </p>
-        <ActivityVenueOverviewBlock
-          v-if="venueAddressId"
+      <div v-if="showProjectWindow || showAreaMap">
+        <GrossanlassGroupMapEditor
           ref="groupMapRef"
-          :venue-address-id="venueAddressId"
+          v-model:existing-place-id="existingPlaceId"
+          v-model:place-kind="placeKind"
+          v-model:place-name="placeName"
           :department-id="departmentId"
-          :ga-department-id="departmentId"
-          ga-map-mode="all"
-          inline-place-draft
-          :draft-place-name="groupForm.name"
-          :draft-place-kind="showAreaMap ? 'area' : 'bauprojekt'"
-          hide-title
+          :venue-address-id="venueAddressId"
+          :name="groupForm.name"
+          :editing-place-id="editingMapPlaceId"
+          :group-id="editingGroup?.id ?? null"
           @save-area="saveAreaKeepOpen"
+          @places-changed="loadGroupsAfterPlaces"
         />
-        <p v-else class="group-modal-map__missing">{{ t('grossanlass.planung.ressorts.placeMissing') }}</p>
       </div>
       <template #actions>
         <EButton variant="secondary" size="small" @click="closeGroupModal">{{ t('common.cancel') }}</EButton>
         <EButton
           variant="primary"
           size="small"
-          :disabled="!groupForm.name.trim() || isSaving || (creatingBereich && !groupForm.parent_id)"
+          :disabled="!groupForm.name.trim() || isSaving || ((creatingBereich || isLeafForm) && !groupForm.parent_id)"
           :loading="isSaving"
           @click="saveGroup"
         >
@@ -395,6 +268,20 @@
         </EButton>
       </template>
     </EDialog>
+
+    <GrossanlassOrderDialog
+      v-model="orderDialogOpen"
+      :department-id="departmentId"
+      :groups="groups"
+      :initial-group="orderDialogGroup"
+      :initial-type="orderDialogType"
+      :initial-parent-id="orderDialogParentId"
+      :initial-name="orderDialogName"
+      :initial-tab="orderDialogTab"
+      @saved="reloadSoft"
+      @changed="reloadSoft"
+      @deleted="reloadSoft"
+    />
 
     <EDialog v-model="showMembersModal" :max-width="1024" card-class="ga-members-modal">
       <template #title>
@@ -809,15 +696,15 @@ import {
 import { useDepartmentMemberAdmin } from '@/composables/useDepartmentMemberAdmin'
 import GrossanlassHelperInviteForm from '@/components/grossanlass/GrossanlassHelperInviteForm.vue'
 import GrossanlassBauprojektPanel from '@/components/grossanlass/GrossanlassBauprojektPanel.vue'
+import GrossanlassOrderDialog from '@/components/grossanlass/GrossanlassOrderDialog.vue'
 import { useBauprojektPanelClose } from '@/composables/useBauprojektPanelClose'
-import GaBuildMetaFields from '@/components/grossanlass/GaBuildMetaFields.vue'
 import GrossanlassGroupNodeIcon from '@/components/grossanlass/GrossanlassGroupNodeIcon.vue'
-import ActivityVenueOverviewBlock from '@/components/activities/ActivityVenueOverviewBlock.vue'
+import GrossanlassGroupMapEditor from '@/components/grossanlass/GrossanlassGroupMapEditor.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import EFilterRow from '@/components/layout/EFilterRow.vue'
 import SortHeaderButton from '@/components/material/SortHeaderButton.vue'
-import { EButton, EDialog, ESearchField, ESwitch, ETextField, ESelect, ETextarea } from '@/components/form/base'
+import { EButton, EDialog, ESearchField, ESwitch, ETextField, ESelect } from '@/components/form/base'
 import '@/styles/views/materials-view-tabs.css'
 import {
   getGrossanlassGroups,
@@ -831,6 +718,7 @@ import {
   type GrossanlassGroup,
   type GrossanlassGroupKind,
 } from '@/api/grossanlassGroups'
+import { getGrossanlassUserCards } from '@/api/grossanlassUserCards'
 import {
   getDepartmentMembers,
   getAvailableUsersForDepartment,
@@ -847,13 +735,13 @@ import {
   defaultKindForParent,
   nodeTypeForKind,
 } from '@/utils/grossanlassGroupHierarchy'
+import GrossanlassParentTreeSelect from '@/components/grossanlass/GrossanlassParentTreeSelect.vue'
 import GrossanlassUnitSlider from '@/components/grossanlass/GrossanlassUnitSlider.vue'
-import { grossanlassGroupNodeKindKey } from '@/utils/grossanlassGroupNode'
-import { gaCanSetBuildStatus, gaDeptRoleSkipsGroupFlags } from '@/utils/grossanlassAccess'
+import { grossanlassGroupNodeKindKey, isGrossanlassLeafNodeType } from '@/utils/grossanlassGroupNode'
+import { gaDeptRoleSkipsGroupFlags } from '@/utils/grossanlassAccess'
 import {
   formatBauprojektWindow,
   packBauprojektWindow,
-  unpackBauprojektWindow,
 } from '@/utils/grossanlassBauprojektWindow'
 import {
   childReportedStatuses,
@@ -863,7 +751,6 @@ import {
   showsGaBuildStatus,
   watchGrossanlassBuildPeriods,
 } from '@/utils/grossanlassBuildStatus'
-import type { AutoSaveFieldValue } from '@/components/common/autoSave/types'
 import { getDeptRoleShort, normalizeDeptRole, ROLE_HIERARCHY_GROSSANLASS } from '@/utils/departmentMemberRoles'
 import { getGrossanlassPlanung, updateGrossanlassPlanung } from '@/api/grossanlassPlanung'
 import { updateGrossanlassPlace } from '@/api/grossanlassLogistics'
@@ -912,10 +799,16 @@ const groupForm = ref({
   description: '',
 })
 const showProjectModal = ref(false)
+const orderDialogOpen = ref(false)
+const orderDialogGroup = ref<GrossanlassGroup | null>(null)
+const orderDialogType = ref<'order' | 'build'>('order')
+const orderDialogParentId = ref('')
+const orderDialogName = ref('')
+const orderDialogTab = ref<'basics' | 'tasks'>('basics')
 const { panelRef: bauprojektPanelRef, requestClose: closeBauprojekt } = useBauprojektPanelClose(showProjectModal)
 const projectGroup = ref<GrossanlassGroup | null>(null)
 const venueAddressId = ref<string | null>(null)
-const groupMapRef = ref<InstanceType<typeof ActivityVenueOverviewBlock> | null>(null)
+const groupMapRef = ref<InstanceType<typeof GrossanlassGroupMapEditor> | null>(null)
 
 const showMembersModal = ref(false)
 const selectedGroup = ref<GrossanlassGroup | null>(null)
@@ -970,9 +863,75 @@ const addMemberSkipsGroupFlags = computed(() =>
 )
 
 const rootCount = computed(() => groups.value.filter((g) => !g.parent_id).length)
-const totalMembers = computed(() => groups.value.reduce((sum, g) => sum + g.member_count, 0))
+const totalMembers = computed(() => groups.value.reduce((sum, g) => sum + g.members.filter((m) => !isHelperOnly(m)).length, 0))
 
 const hierarchicalGroups = computed(() => flattenGrossanlassGroupsWithLevel(groups.value))
+
+// Auf-/Zuklappen: Zustand je Knoten; zugeklappte Vorfahren blenden die Zeile aus (Zustand der Kinder bleibt erhalten).
+const collapsedIds = ref<Set<string>>(new Set())
+const knownGroupIds = new Set<string>()
+
+/** Initialzustand je neuem Knoten: Ressorts offen; Bereiche und Bauprojekte (mit Aufträgen) zu. Bekannte Knoten behalten ihren Zustand. */
+function applyDefaultCollapse(list: GrossanlassGroup[]) {
+  const next = new Set(collapsedIds.value)
+  for (const g of list) {
+    if (knownGroupIds.has(g.id)) continue
+    knownGroupIds.add(g.id)
+    if (g.parent_id) next.add(g.id)
+  }
+  collapsedIds.value = next
+}
+
+const childCountById = computed(() => {
+  const map = new Map<string, number>()
+  for (const g of groups.value) {
+    if (g.parent_id) map.set(g.parent_id, (map.get(g.parent_id) ?? 0) + 1)
+  }
+  return map
+})
+
+function hasChildren(group: GrossanlassGroup): boolean {
+  return (childCountById.value.get(group.id) ?? 0) > 0
+}
+
+function isCollapsed(id: string): boolean {
+  return collapsedIds.value.has(id)
+}
+
+function toggleGroup(id: string) {
+  const next = new Set(collapsedIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  collapsedIds.value = next
+}
+
+function onRowClick(event: MouseEvent, group: GrossanlassGroup) {
+  if (!hasChildren(group)) return
+  const target = event.target as HTMLElement | null
+  if (target?.closest('button, a, input, select, .col-actions, .user-avatar-badge-list')) return
+  toggleGroup(group.id)
+}
+
+const visibleGroups = computed(() => {
+  const byId = new Map(groups.value.map((g) => [g.id, g]))
+  return hierarchicalGroups.value.filter((g) => {
+    const seen = new Set<string>()
+    let parentId = g.parent_id
+    while (parentId && !seen.has(parentId)) {
+      seen.add(parentId)
+      if (collapsedIds.value.has(parentId)) return false
+      parentId = byId.get(parentId)?.parent_id ?? null
+    }
+    return true
+  })
+})
+
+/** Helfer (Rolle `h`, ohne Leitung) gehören in den Helfer-Tab der Benutzer, nicht in die Ressortübersicht. */
+function isHelperOnly(member: GroupMember): boolean {
+  if (member.is_leader) return false
+  const role = departmentMembers.value.find((m) => m.user_id === member.user_id)?.role
+  return normalizeDeptRole(role ?? '') === 'h'
+}
 
 const uniqueMembers = computed(() => {
   const deptById = new Map(departmentMembers.value.map((m) => [m.user_id, m]))
@@ -989,6 +948,7 @@ const uniqueMembers = computed(() => {
   >()
   for (const group of groups.value) {
     for (const member of group.members ?? []) {
+      if (isHelperOnly(member)) continue
       const row = map.get(member.user_id)
       if (row) {
         if (!row.groups.includes(group.name)) row.groups.push(group.name)
@@ -1099,32 +1059,41 @@ const availableParents = computed(() => {
 /** Neu anlegen: ein Ressort hat kein Elternteil, ein Bereich gehört zu einem Ressort (Bauprojekte hängen an Bereichen). */
 const creatingRessort = computed(() => !editingGroup.value && groupForm.value.kind === 'ressort')
 const creatingBereich = computed(() => !editingGroup.value && groupForm.value.kind === 'bereich')
-const showParentSelect = computed(() => !creatingRessort.value)
+/** Bauprojekt oder Auftrag: Blätter der Struktur, die Leitungen mit Zielrecht auch verschieben dürfen. */
+/** Von der Komponente selbst geladen und gespeichert; hier nur der Zustand. */
+const isLeafForm = computed(() => groupForm.value.kind === 'teilbereich' || groupForm.value.kind === 'auftrag')
+const showParentSelect = computed(() => {
+  if (creatingRessort.value) return false
+  return canManageStruktur.value || (!!editingGroup.value && isLeafForm.value)
+})
 
-const parentGroupSelectItems = computed(() => [
-  ...(creatingBereich.value ? [] : [{ title: t('grossanlass.planung.ressorts.parentNone'), value: null }]),
-  ...availableParents.value
-    .filter((g) => !creatingBereich.value || g.node_type !== 'bauprojekt')
-    .map((g) => ({
-    title: grossanlassGroupSelectTitle(g, t('grossanlass.planung.ressorts.kindBauprojekt')),
-    value: g.id,
-  })),
-])
-
-function formParentGroup(): GrossanlassGroup | null {
-  const parentId = fixedParentId.value || groupForm.value.parent_id
-  if (!parentId) return null
-  return groups.value.find((row) => row.id === parentId) ?? null
-}
+const parentSelectableIds = computed(() =>
+  availableParents.value
+    .filter((g) => !isGrossanlassLeafNodeType(g.node_type))
+    .filter((g) => canManageStruktur.value || canCreateChild(g))
+    .map((g) => g.id),
+)
 
 const unitChoice = computed({
-  get(): 'ressort' | 'bereich' | 'teilbereich' {
-    if (groupForm.value.kind === 'bereich' || groupForm.value.kind === 'teilbereich') return groupForm.value.kind
+  get(): GrossanlassGroupKind {
+    const kind = groupForm.value.kind
+    if (kind === 'bereich' || kind === 'teilbereich' || kind === 'auftrag') return kind
     return 'ressort'
   },
-  set(value: 'ressort' | 'bereich' | 'teilbereich') {
+  set(value: GrossanlassGroupKind) {
     groupForm.value.kind = value
   },
+})
+
+/** Bauprojekt/Auftrag sind beim Anlegen unter einem Elternteil wählbar; der Wechsel öffnet den zentralen Dialog. */
+const canPickLeafKind = computed(() => !editingGroup.value && !!(fixedParentId.value || groupForm.value.parent_id))
+
+watch(() => groupForm.value.kind, (kind) => {
+  if (!showGroupModal.value || editingGroup.value) return
+  if (kind !== 'teilbereich' && kind !== 'auftrag') return
+  const { name, parent_id } = groupForm.value
+  closeGroupModal()
+  openOrderDialog(null, { type: kind === 'teilbereich' ? 'build' : 'order', parentId: parent_id ?? '', name })
 })
 
 const structuralNodeType = computed(() => nodeTypeForKind(groupForm.value.kind))
@@ -1136,15 +1105,30 @@ const groupModalTitle = computed(() => {
 
 const showProjectWindow = computed(() => structuralNodeType.value === 'bauprojekt')
 
-const showBereichWindow = computed(() => structuralNodeType.value === 'unterressort')
-
-const showUsageWindow = computed(() => showProjectWindow.value || showBereichWindow.value)
+/** Nutzungszeit und Baustatus gehören nur zu konkreten Bauprojekten; bei Ressorts/Bereichen bleiben gespeicherte Werte unangetastet. */
+const showUsageWindow = computed(() => isLeafForm.value)
 const usageWindowBaseline = ref('|')
 const buildStatusBaseline = ref('')
 
-const showAreaMapToggle = computed(() => !showProjectWindow.value)
+/** Bauprojekte haben immer einen Standort; Aufträge und Bereiche nur auf Wunsch. */
+const showAreaMapToggle = computed(() => !isLeafForm.value || groupForm.value.kind === 'auftrag')
 
 const showAreaMap = computed(() => showAreaMapToggle.value && groupForm.value.include_on_map)
+
+/** Mit Kartenbearbeitung wird der Dialog auf bis zu 1400 px verbreitert (max-width konstant, siehe Meine Einheit). */
+const groupDialogMapWide = computed(() => showProjectWindow.value || showAreaMap.value)
+
+/** Vorhandener, freier Ort, der statt eines neuen Punkts/Bereichs verknüpft wird. */
+const existingPlaceId = ref<string | null>(null)
+const placeKind = ref<'area' | 'bauprojekt'>('bauprojekt')
+const placeName = ref('')
+
+/** Eigener Ort der bearbeiteten Gruppe (Bereich: nur wenn er ein Polygon ist). */
+const editingMapPlaceId = computed(() => {
+  const place = editingGroup.value?.place
+  if (!place?.id) return null
+  return place.id
+})
 
 const projectModalTitle = computed(() => {
   const group = projectGroup.value
@@ -1178,28 +1162,9 @@ function projectWindow(group: GrossanlassGroup): string {
 }
 
 function reportedFor(group: GrossanlassGroup): string[] {
-  if (group.node_type === 'bauprojekt') return []
+  if (isGrossanlassLeafNodeType(group.node_type)) return []
   return childReportedStatuses(group.id, groups.value)
 }
-
-const editingReportedStatuses = computed(() => {
-  const group = editingGroup.value
-  if (!group || group.node_type === 'bauprojekt') return []
-  return childReportedStatuses(group.id, groups.value)
-})
-
-const canSetStatusHere = computed(() => {
-  const target = editingGroup.value
-    ?? groups.value.find((row) => row.id === (fixedParentId.value || groupForm.value.parent_id))
-    ?? null
-  return gaCanSetBuildStatus(authStore.currentDepartmentRole, authStore.userId, target, groups.value)
-})
-
-const editingChildProcurement = computed(() => {
-  const group = editingGroup.value
-  if (!group) return null
-  return descendantProcurementProgress(group.id, groups.value)
-})
 
 function buildStatusChip(group: GrossanlassGroup): string {
   if (!showsGaBuildStatus(group)) return ''
@@ -1212,10 +1177,29 @@ function buildStatusChip(group: GrossanlassGroup): string {
 }
 
 function canOpenDetail(group: GrossanlassGroup): boolean {
-  return group.node_type === 'bauprojekt' || group.node_type === 'unterressort'
+  return isGrossanlassLeafNodeType(group.node_type) || group.node_type === 'unterressort'
+}
+
+/** Auftrag/Bauprojekt: anlegen und bearbeiten laufen über den zentralen Dialog (wie in «Mein Ressort»). */
+function openOrderDialog(group: GrossanlassGroup | null, opts: {
+  type?: 'order' | 'build'
+  parentId?: string
+  name?: string
+  tab?: 'basics' | 'tasks'
+} = {}) {
+  orderDialogGroup.value = group
+  orderDialogType.value = opts.type ?? 'order'
+  orderDialogParentId.value = opts.parentId ?? ''
+  orderDialogName.value = opts.name ?? ''
+  orderDialogTab.value = opts.tab ?? 'basics'
+  orderDialogOpen.value = true
 }
 
 function openProjectPanel(group: GrossanlassGroup) {
+  if (isGrossanlassLeafNodeType(group.node_type)) {
+    openOrderDialog(group, { tab: 'tasks' })
+    return
+  }
   projectGroup.value = group
   showProjectModal.value = true
 }
@@ -1225,7 +1209,7 @@ function kindLabel(group: GrossanlassGroup): string {
 }
 
 function isCostEligible(group: GrossanlassGroup): boolean {
-  return group.node_type !== 'bauprojekt' && group.kind !== 'teilbereich'
+  return !isGrossanlassLeafNodeType(group.node_type) && group.kind !== 'teilbereich'
 }
 
 function isLogisticsNode(group: GrossanlassGroup): boolean {
@@ -1238,8 +1222,24 @@ function canSetLogisticsNode(group: GrossanlassGroup): boolean {
 
 function getGroupMembersForDisplay(group: GrossanlassGroup): GroupMember[] {
   const leaders = group.members.filter((m) => m.is_leader)
-  const members = group.members.filter((m) => !m.is_leader)
+  const members = group.members.filter((m) => !m.is_leader && !isHelperOnly(m))
   return [...leaders, ...members]
+}
+
+const driverUserIds = ref<Set<string>>(new Set())
+
+async function loadDrivers() {
+  if (!departmentId.value) return
+  try {
+    const cards = await getGrossanlassUserCards(departmentId.value)
+    driverUserIds.value = new Set(cards.filter((c) => c.may_drive).map((c) => c.user_id))
+  } catch {
+    driverUserIds.value = new Set()
+  }
+}
+
+function isHelperFlagged(userId: string): boolean {
+  return !!departmentMembers.value.find((m) => m.user_id === userId)?.is_helper
 }
 
 function deptRoleForUser(userId: string): string | null {
@@ -1254,23 +1254,34 @@ function memberShowProcure(userId: string, canProcure?: boolean): boolean {
   return !!canProcure && !memberSkipsGroupFlags(userId)
 }
 
-async function loadGroups() {
+/** Standortpunkte wurden im Karteneditor geändert: Gruppenliste neu laden. */
+async function loadGroupsAfterPlaces() {
+  await loadGroups(true)
+}
+
+/** Nach Änderungen im Dialog: Daten still nachladen, ohne Ladezustand (Scroll, Filter und Aufklappzustand bleiben). */
+function reloadSoft() {
+  return loadGroups(true)
+}
+
+async function loadGroups(soft = false) {
   if (!departmentId.value) return
-  isLoading.value = true
+  if (!soft) isLoading.value = true
   error.value = null
   try {
     const [groupList, planung] = await Promise.all([
       getGrossanlassGroups(departmentId.value),
       getGrossanlassPlanung(departmentId.value),
     ])
+    applyDefaultCollapse(groupList)
     groups.value = groupList
     logisticsGroupId.value = planung.config.logistics_group_id || null
-    void loadDepartmentMembers()
+    await Promise.all([loadDepartmentMembers(), loadDrivers()])
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } } }
     error.value = e.response?.data?.error || t('grossanlass.planung.ressorts.errorLoad')
   } finally {
-    isLoading.value = false
+    if (!soft) isLoading.value = false
   }
 }
 
@@ -1411,16 +1422,22 @@ async function handleRemoveFromDepartment(member: DepartmentMember | null | unde
     showMemberDetail.value = false
     editingMember.value = null
   }
-  await loadGroups()
+  await loadGroups(true)
 }
 
 async function onMemberDetailSaved() {
   showMemberDetail.value = false
   editingMember.value = null
-  await loadGroups()
+  await loadGroups(true)
 }
 
 function openCreateModal(parentId: string | null = null) {
+  const parent = parentId ? groups.value.find((row) => row.id === parentId) : null
+  const defaultKind = defaultKindForParent(parent)
+  if (defaultKind === 'teilbereich' || defaultKind === 'auftrag') {
+    openOrderDialog(null, { type: defaultKind === 'teilbereich' ? 'build' : 'order', parentId: parentId ?? '' })
+    return
+  }
   editingGroup.value = null
   fixedParentId.value = parentId
   groupForm.value = {
@@ -1443,6 +1460,10 @@ function openCreateModal(parentId: string | null = null) {
 }
 
 function openEditModal(group: GrossanlassGroup) {
+  if (isGrossanlassLeafNodeType(group.node_type)) {
+    openOrderDialog(group)
+    return
+  }
   editingGroup.value = group
   fixedParentId.value = null
   groupForm.value = {
@@ -1488,26 +1509,8 @@ async function syncGroupMapPlacement() {
   if (!showGroupModal.value || !venueAddressId.value) return
   if (!showProjectWindow.value && !showAreaMap.value) return
   await nextTick()
-  await groupMapRef.value?.reloadGa?.()
-  await nextTick()
-  groupMapRef.value?.refreshMaps?.()
-  if (showAreaMap.value) {
-    if (editingGroup.value?.place?.kind === 'area' && editingGroup.value.place.id) {
-      groupMapRef.value?.beginEditPlace(editingGroup.value.place.id)
-      return
-    }
-    groupMapRef.value?.beginInlineDraft(groupForm.value.name, 'area')
-    return
-  }
-  if (editingGroup.value?.place?.id) {
-    groupMapRef.value?.beginEditPlace(editingGroup.value.place.id)
-    return
-  }
-  if (structuralNodeType.value === 'bauprojekt') {
-    groupMapRef.value?.beginInlineDraft(groupForm.value.name, 'bauprojekt')
-  }
+  await groupMapRef.value?.syncPlacement()
 }
-
 
 async function syncGroupPlaceCoords(group: GrossanlassGroup | null) {
   if (!departmentId.value || !group?.place?.id) return
@@ -1534,30 +1537,6 @@ function patchLocalGroup(saved: GrossanlassGroup) {
   }
 }
 
-async function persistUsageMeta() {
-  if (!departmentId.value || !editingGroup.value || !showUsageWindow.value) return
-  const saved = await updateGrossanlassGroup(departmentId.value, editingGroup.value.id, {
-    window_start: groupForm.value.window_start || null,
-    window_end: groupForm.value.window_end || null,
-    build_status: groupForm.value.build_status || null,
-  })
-  patchLocalGroup(saved)
-  usageWindowBaseline.value = packBauprojektWindow(saved.window_start, saved.window_end)
-  buildStatusBaseline.value = saved.build_status || ''
-}
-
-async function saveUsageWindowAutosave(value: AutoSaveFieldValue) {
-  const next = unpackBauprojektWindow(value)
-  groupForm.value.window_start = next.start
-  groupForm.value.window_end = next.end
-  await persistUsageMeta()
-}
-
-async function saveBuildStatusAutosave(value: AutoSaveFieldValue) {
-  groupForm.value.build_status = value == null ? '' : String(value)
-  await persistUsageMeta()
-}
-
 function onProjectMetaSaved(group: { id: string; window_start?: string | null; window_end?: string | null; build_status?: string | null }) {
   groups.value = groups.value.map((row) => (row.id === group.id ? { ...row, ...group } : row))
   if (editingGroup.value?.id === group.id) {
@@ -1574,7 +1553,9 @@ async function persistGroup(closeAfter: boolean) {
   try {
     let saved: GrossanlassGroup
     const includeOnMap = showAreaMapToggle.value && groupForm.value.include_on_map
-    const polygon = includeOnMap ? groupMapRef.value?.getInlineDraftPolygon() ?? [] : null
+    const placeFields = showProjectWindow.value || includeOnMap
+      ? groupMapRef.value?.getPlacePayload()
+      : undefined
     if (editingGroup.value) {
       saved = await updateGrossanlassGroup(departmentId.value, editingGroup.value.id, {
         name: groupForm.value.name.trim(),
@@ -1585,7 +1566,7 @@ async function persistGroup(closeAfter: boolean) {
         build_status: showUsageWindow.value ? groupForm.value.build_status || null : undefined,
         description: groupForm.value.description.trim() || null,
         include_on_map: showAreaMapToggle.value ? includeOnMap : undefined,
-        polygon: includeOnMap ? polygon : undefined,
+        ...placeFields,
       })
     } else {
       saved = await createGrossanlassGroup(departmentId.value, {
@@ -1597,17 +1578,18 @@ async function persistGroup(closeAfter: boolean) {
         build_status: showUsageWindow.value ? groupForm.value.build_status || null : undefined,
         description: groupForm.value.description.trim() || null,
         include_on_map: showAreaMapToggle.value ? includeOnMap : undefined,
-        polygon: includeOnMap ? polygon : undefined,
+        ...placeFields,
       })
     }
-    if (showProjectWindow.value) {
+    if (placeFields?.place_kind === 'point' && !placeFields.place_id) {
       await syncGroupPlaceCoords(saved)
     }
-    await loadGroups()
+    await loadGroups(true)
     if (closeAfter) {
       closeGroupModal()
       return
     }
+    existingPlaceId.value = null
     editingGroup.value = groups.value.find((row) => row.id === saved.id) ?? saved
     usageWindowBaseline.value = packBauprojektWindow(editingGroup.value.window_start, editingGroup.value.window_end)
     buildStatusBaseline.value = editingGroup.value.build_status || ''
@@ -1643,7 +1625,7 @@ async function handleDelete(group: GrossanlassGroup) {
   if (!ok || !departmentId.value) return
   try {
     await deleteGrossanlassGroup(departmentId.value, group.id)
-    await loadGroups()
+    await loadGroups(true)
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } } }
     toast.error(e.response?.data?.error || t('grossanlass.planung.ressorts.errorDelete'))
@@ -1690,7 +1672,7 @@ function closeMembersModal() {
 }
 
 async function refreshSelectedGroup() {
-  await loadGroups()
+  await loadGroups(true)
   const updated = groups.value.find((g) => g.id === selectedGroup.value?.id)
   if (updated) selectedGroup.value = updated
 }
@@ -1809,7 +1791,7 @@ async function handleRoleChange(member: GroupMember, newRole: string) {
     await updateGrossanlassGroupMember(departmentId.value, selectedGroup.value.id, member.user_id, {
       role: newRole,
     })
-    await loadGroups()
+    await loadGroups(true)
     const updated = groups.value.find((g) => g.id === selectedGroup.value?.id)
     if (updated) selectedGroup.value = updated
   } catch (err: unknown) {
@@ -1831,7 +1813,7 @@ async function handleCanProcureChange(member: GroupMember, canProcure: boolean) 
     await updateGrossanlassGroupMember(departmentId.value, selectedGroup.value.id, member.user_id, {
       can_procure: canProcure,
     })
-    await loadGroups()
+    await loadGroups(true)
     const updated = groups.value.find((g) => g.id === selectedGroup.value?.id)
     if (updated) selectedGroup.value = updated
   } catch (err: unknown) {
@@ -1846,7 +1828,7 @@ async function handlePrimaryChange(member: GroupMember, isPrimary: boolean) {
     await updateGrossanlassGroupMember(departmentId.value, selectedGroup.value.id, member.user_id, {
       is_primary: isPrimary,
     })
-    await loadGroups()
+    await loadGroups(true)
     const updated = groups.value.find((g) => g.id === selectedGroup.value?.id)
     if (updated) selectedGroup.value = updated
   } catch (err: unknown) {
@@ -1856,7 +1838,7 @@ async function handlePrimaryChange(member: GroupMember, isPrimary: boolean) {
 }
 
 async function onHelperCreated() {
-  await loadGroups()
+  await loadGroups(true)
   const updated = groups.value.find((g) => g.id === selectedGroup.value?.id)
   if (updated) selectedGroup.value = updated
   await loadDepartmentMembers()
@@ -1874,7 +1856,7 @@ async function handleRemoveMember(member: GroupMember) {
   if (!ok) return
   try {
     await removeGrossanlassGroupMember(departmentId.value, selectedGroup.value.id, member.user_id)
-    await loadGroups()
+    await loadGroups(true)
     const updated = groups.value.find((g) => g.id === selectedGroup.value?.id)
     if (updated) selectedGroup.value = updated
   } catch (err: unknown) {
@@ -1888,8 +1870,13 @@ watch(departmentId, () => {
   void loadVenueAddress()
 })
 watch(showProjectModal, (open) => {
-  if (!open) void loadGroups()
+  if (!open) void loadGroups(true)
 })
+watch([showGroupModal, showAreaMap, showProjectWindow], () => {
+  existingPlaceId.value = null
+  placeKind.value = showProjectWindow.value || groupForm.value.kind === 'auftrag' ? 'bauprojekt' : 'area'
+  placeName.value = groupForm.value.name
+}, { flush: 'sync' })
 watch(showGroupModal, (open) => {
   if (open) void syncGroupMapPlacement()
   else groupMapRef.value?.clearInlineDraft()
@@ -1945,6 +1932,11 @@ onMounted(() => {
   gap: 16px;
   margin-bottom: 16px;
   border-bottom: 2px solid var(--color-border, #e5e7eb);
+}
+
+.ressorts-toolbar--end {
+  justify-content: flex-end;
+  border-bottom: 0;
 }
 
 .ressorts-subtabs {
@@ -2068,6 +2060,24 @@ onMounted(() => {
   font-size: 14px;
   color: #1e293b;
   border-bottom: 1px solid #f3f4f6;
+}
+
+.group-row.is-toggleable {
+  cursor: pointer;
+}
+
+.row-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  flex: 0 0 auto;
 }
 
 .group-row:hover {

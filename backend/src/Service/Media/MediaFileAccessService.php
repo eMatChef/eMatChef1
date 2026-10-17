@@ -29,7 +29,7 @@ class MediaFileAccessService
     private const ACCOUNTING_ROLES = ['mw', 'dc', 'matwart', 'depchef'];
 
     /** @var list<string> */
-    private const BASIC_ROLES = ['u', 'user', 'l1', 'l2', 'l3'];
+    private const BASIC_ROLES = ['u', 'user', 'h', 'l1', 'l2', 'l3'];
 
     public function __construct(
         private EntityManagerInterface $entityManager,

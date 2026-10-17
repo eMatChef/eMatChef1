@@ -79,6 +79,7 @@ final class GrossanlassCommitmentService
         ));
         $row->setDepartment($department);
         $this->apply($row, $department, $data, true);
+        $this->assertNoOvercoverage($row, $department, 0, null, $data);
         $this->entityManager->persist($row);
         $this->syncCost($row, $data);
         $this->entityManager->flush();
@@ -94,8 +95,11 @@ final class GrossanlassCommitmentService
     {
         $this->assertManage($department, $user);
         $row = $this->find($department, $id);
-        $this->availability->transactional(function () use ($row, $department, $data): void {
+        $previousQty = $row->getQuantity();
+        $previousLineId = $row->getProcurementLineId();
+        $this->availability->transactional(function () use ($row, $department, $data, $previousQty, $previousLineId): void {
             $this->apply($row, $department, $data, false);
+            $this->assertNoOvercoverage($row, $department, $previousQty, $previousLineId, $data);
             $this->syncCost($row, $data);
             $this->entityManager->flush();
         });
@@ -141,10 +145,72 @@ final class GrossanlassCommitmentService
         $this->entityManager->flush();
     }
 
+    /**
+     * Eine Zusage/Charge mit Wareneingang, Einsatz, Pack oder Bestellung bleibt als Nachweis bestehen:
+     * Löschen würde Bewegungen (Kaskade), Herkunft und Zuteilungen zerstören. Korrektur läuft über Menge/Rückgabe/Storno.
+     */
+    private function assertDeletable(DepartmentGrossanlassCommitment $row): void
+    {
+        $id = $row->getId();
+        $em = $this->entityManager;
+        if ($em->getRepository(DepartmentGrossanlassChargeMovement::class)->count(['commitmentId' => $id]) > 0) {
+            throw new \InvalidArgumentException('Zusage hat gebuchte Wareneingänge und kann nicht gelöscht werden');
+        }
+        if ($em->getRepository(DepartmentGrossanlassEinsatz::class)->count(['commitmentId' => $id]) > 0
+            || $em->getRepository(DepartmentGrossanlassPackLine::class)->count(['commitmentId' => $id]) > 0
+            || $row->isPacked()
+        ) {
+            throw new \InvalidArgumentException('Zusage ist bereits zugeteilt oder gepackt und kann nicht gelöscht werden');
+        }
+        $orderId = (string) ($row->getItemDetails()['order_id'] ?? '');
+        if ($orderId !== '' && $em->getRepository(ActivityGrossanlassProcurementOrder::class)->find($orderId) !== null) {
+            throw new \InvalidArgumentException('Zusage gehört zu einer Bestellung und kann nicht gelöscht werden');
+        }
+    }
+
+    /**
+     * Zusagen mit Bezug zu einer Bedarfsposition dürfen deren Bedarf nur bewusst überdecken.
+     * Geprüft wird nur, wenn die Menge steigt oder die Zusage neu der Position zugeordnet wird.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function assertNoOvercoverage(
+        DepartmentGrossanlassCommitment $row,
+        Department $department,
+        int $previousQty,
+        ?string $previousLineId,
+        array $data,
+    ): void {
+        $line = $row->getProcurementLine();
+        if (!$line instanceof ActivityGrossanlassProcurementLine) {
+            return;
+        }
+        $sameLine = $previousLineId === $line->getId();
+        if ($sameLine && $row->getQuantity() <= $previousQty) {
+            return;
+        }
+        $others = [];
+        foreach ($this->commitmentsForLine($department, $line->getId()) as $other) {
+            if ($other->getId() !== $row->getId()) {
+                $others[] = ['origin' => $other->getOrigin(), 'quantity' => max(0, $other->getQuantity())];
+            }
+        }
+        $covered = GrossanlassProcurementQuantities::compute($line->getQuantity(), $others)['covered'];
+        $added = $sameLine ? $row->getQuantity() - $previousQty : $row->getQuantity();
+        // Bei bereits überdeckter Position zählt nur der zusätzliche Anteil.
+        GrossanlassOvercoverageConfirmationRequiredException::assertWithin(
+            $line->getQuantity(),
+            $sameLine ? $covered + $previousQty : $covered,
+            $added,
+            filter_var($data['confirm_overcoverage'] ?? false, FILTER_VALIDATE_BOOLEAN),
+        );
+    }
+
     public function delete(Department $department, User $user, string $id): void
     {
         $this->assertManage($department, $user);
         $row = $this->find($department, $id);
+        $this->assertDeletable($row);
         $this->detachRelated($row);
         $this->entityManager->remove($row);
         $this->entityManager->flush();
@@ -165,24 +231,84 @@ final class GrossanlassCommitmentService
         if ($existing instanceof DepartmentGrossanlassCommitment) {
             return $this->serialize($existing);
         }
+        // Zuerst den Artikel bestimmen: ohne Bedarfsposition und Angebot bricht die Zusage ab, bevor die Anfrage verändert wird.
+        $article = $this->articleForInquiry($department, $inquiry);
         $inquiry->setStatus(DepartmentGrossanlassInquiry::STATUS_ZUSAGE);
         $inquiry->appendThread(['who' => 'ok', 'text' => 'Als Zusage erfasst.']);
 
         return $this->create($department, $user, [
-            'name' => $inquiry->getName(),
+            'name' => $article['name'],
             'source' => $inquiry->getName(),
-            'family' => in_array('fahrzeuge', array_map('strtolower', $inquiry->getCategoryIds()), true)
-                ? DepartmentGrossanlassCommitment::FAMILY_VEHICLE
-                : DepartmentGrossanlassCommitment::FAMILY_MATERIAL,
+            'family' => $article['family'],
             'origin' => DepartmentGrossanlassCommitment::ORIGIN_LOAN,
+            'quantity' => $article['quantity'],
             'inquiry_id' => $inquiry->getId(),
-            'category_id' => $inquiry->getCategoryIds()[0] ?? null,
+            'category_id' => $article['category_id'],
+        ] + ($article['line_id'] !== null ? ['procurement_line_id' => $article['line_id']] : []) + [
             'item_details' => [
                 'absprache' => true,
+                ...($article['line_id'] !== null ? ['from_line_id' => $article['line_id']] : []),
                 'inbound_status' => 'expected',
                 'inbound_mode' => 'pickup',
             ],
         ]);
+    }
+
+    /**
+     * Artikeldaten einer Zusage: aus der Bedarfszeile, sonst aus dem Angebot der Anfrage — nie aus dem Firmennamen.
+     * Bei mehreren Zeilen gibt es keine eindeutige Zuordnung (eine Zusage trägt einen Artikel), dann zählt das Angebot.
+     *
+     * @return array{name: string, family: string, quantity: int, category_id: ?string, line_id: ?string}
+     */
+    private function articleForInquiry(Department $department, DepartmentGrossanlassInquiry $inquiry): array
+    {
+        $lines = [];
+        foreach (array_unique($inquiry->getLineIds()) as $lineId) {
+            $line = $this->entityManager->getRepository(ActivityGrossanlassProcurementLine::class)->find($lineId);
+            if ($line instanceof ActivityGrossanlassProcurementLine && $line->getDepartmentId() === $department->getId()) {
+                $lines[] = $line;
+            }
+        }
+        if (count($lines) === 1 && trim($lines[0]->getLabel()) !== '') {
+            $line = $lines[0];
+
+            return [
+                'name' => trim($line->getLabel()),
+                'family' => $line->getWishKind() === 'fahrzeug'
+                    ? DepartmentGrossanlassCommitment::FAMILY_VEHICLE
+                    : DepartmentGrossanlassCommitment::FAMILY_MATERIAL,
+                'quantity' => max(1, $line->getQuantity()),
+                'category_id' => $line->getCategoryId(),
+                // Verknüpfung nur, solange die Position nicht schon gedeckt ist; sonst bleibt die Zusage unverknüpft
+                // (keine automatische Überdeckung, die Zuordnung erfolgt dann bewusst über die Position).
+                'line_id' => $this->lineHasRoomFor($department, $line) ? $line->getId() : null,
+            ];
+        }
+        $offering = trim($inquiry->getOffering());
+        if ($offering === '') {
+            throw new \InvalidArgumentException('Zusage ohne eindeutige Bedarfsposition: bitte Artikel erfassen oder Position zuordnen');
+        }
+
+        return [
+            'name' => mb_substr($offering, 0, 255),
+            'family' => in_array('fahrzeuge', array_map('strtolower', $inquiry->getCategoryIds()), true)
+                ? DepartmentGrossanlassCommitment::FAMILY_VEHICLE
+                : DepartmentGrossanlassCommitment::FAMILY_MATERIAL,
+            'quantity' => 1,
+            'category_id' => $inquiry->getCategoryIds()[0] ?? null,
+            'line_id' => null,
+        ];
+    }
+
+    private function lineHasRoomFor(Department $department, ActivityGrossanlassProcurementLine $line): bool
+    {
+        $charges = array_map(
+            static fn (DepartmentGrossanlassCommitment $other) => ['origin' => $other->getOrigin(), 'quantity' => max(0, $other->getQuantity())],
+            $this->commitmentsForLine($department, $line->getId()),
+        );
+        $covered = GrossanlassProcurementQuantities::compute($line->getQuantity(), $charges)['covered'];
+
+        return $covered + max(1, $line->getQuantity()) <= $line->getQuantity();
     }
 
     /**
@@ -194,12 +320,16 @@ final class GrossanlassCommitmentService
         User $user,
         ActivityGrossanlassProcurementLine $line,
         ActivityGrossanlassProcurementOrder $order,
-        ?ActivityGrossanlassProcurementQuote $quote,
+        ?ActivityGrossanlassProcurementQuote $quote = null,
     ): void {
         // Die Bestellung kann die Menge der Kauf-Charge ändern: gleiche Transaktion und Chargensperre wie die Buchungen.
-        $this->availability->transactional(fn () => $this->syncBuyChargeFromOrder($department, $user, $line, $order, $quote));
+        $this->availability->transactional(fn () => $this->syncBuyChargeFromOrder($department, $user, $line, $order, $quote ?? $order->getQuote()));
     }
 
+    /**
+     * Eine Kauf-Charge je Bestellung. Eine stornierte Bestellung setzt die Menge ihrer Charge auf 0
+     * (Charge und Historie bleiben bestehen, der Bedarf gilt wieder als offen).
+     */
     private function syncBuyChargeFromOrder(
         Department $department,
         User $user,
@@ -209,27 +339,22 @@ final class GrossanlassCommitmentService
     ): void {
         $this->assertManage($department, $user);
 
-        $related = $this->commitmentsForLine($department, $line->getId());
-        $existing = null;
-        foreach ($related as $row) {
-            if ($row->getOrigin() === DepartmentGrossanlassCommitment::ORIGIN_BUY) {
-                $existing = $row;
-                break;
-            }
-        }
+        $existing = $this->movements->buyChargeForOrder($order);
 
-        $qty = max(0, $line->getQuantity());
-        $supplier = trim((string) ($quote?->getSupplier() ?? ''));
+        $qty = $order->isCancelled() ? 0 : max(0, $order->getQuantity() ?? $line->getQuantity());
+        $supplier = trim((string) ($quote?->getSupplier() ?? $order->getSupplier() ?? ''));
         $source = $supplier !== '' ? $supplier : $line->getLabel();
+        $inboundMode = $order->getInboundMode() ?? $quote?->getInboundMode();
         $details = [
             'from_line_id' => $line->getId(),
             'inbound_status' => 'expected',
-            'inbound_mode' => $quote?->getInboundMode() === 'pickup' ? 'pickup' : 'delivery',
+            'inbound_mode' => $inboundMode === 'pickup' ? 'pickup' : 'delivery',
+            'order_id' => $order->getId(),
+            'agreement_kind' => $order->getAgreementKind(),
         ];
         if ($quote !== null) {
             $details['quote_id'] = $quote->getId();
         }
-        $details['order_id'] = $order->getId();
         if ($order->getOrderRef()) {
             $details['order_ref'] = $order->getOrderRef();
         }
@@ -238,7 +363,7 @@ final class GrossanlassCommitmentService
             ? DepartmentGrossanlassCommitment::FAMILY_VEHICLE
             : DepartmentGrossanlassCommitment::FAMILY_MATERIAL;
 
-        $returnRequired = $quote?->isReturnNeeded() ?? false;
+        $returnRequired = $order->getReturnNeeded() ?? $quote?->isReturnNeeded() ?? false;
         $ownership = [
             'procurement_line_id' => $line->getId(),
             'return_required' => $returnRequired,
@@ -259,15 +384,14 @@ final class GrossanlassCommitmentService
                 'origin' => DepartmentGrossanlassCommitment::ORIGIN_BUY,
                 'item_details' => $merged,
                 'category_id' => $line->getCategoryId(),
-                'released' => true,
+                'released' => $qty > 0,
+                'quantity' => $qty,
             ] + $ownership;
-            if ($stillExpected && $qty > 0) {
-                $payload['quantity'] = $qty;
-            }
             if ($stillExpected && $order->getDeliveryAt() instanceof \DateTime) {
                 $payload['present_from'] = $order->getDeliveryAt();
             }
             $this->apply($existing, $department, $payload, false);
+            $existing->setOrder($order);
             $this->entityManager->flush();
 
             return;
@@ -295,6 +419,7 @@ final class GrossanlassCommitmentService
             'released' => true,
             'present_from' => $order->getDeliveryAt(),
         ] + $ownership, true);
+        $row->setOrder($order);
         $this->entityManager->persist($row);
         $this->entityManager->flush();
     }
@@ -753,6 +878,7 @@ final class GrossanlassCommitmentService
             'owner_department_id' => $row->getOwnerDepartmentId(),
             'owner_department_name' => $row->getOwnerDepartment()?->getName(),
             'procurement_line_id' => $row->getProcurementLineId(),
+            'order_id' => $row->getOrderId(),
             'received_quantity' => $inbound['received'],
             'missing_quantity' => $inbound['missing'],
             'inbound_state' => $inbound['state'],

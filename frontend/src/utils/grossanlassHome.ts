@@ -13,7 +13,7 @@ export function gaHomeKind(
   const r = gaRole(role)
   if (r === 'komm' || r === 'spon') return 'mailbox'
   if (r === 'bl' || options?.isBereichsleitung) return 'dashboard'
-  if (r === 'u' || r === 'user') return 'mein-bereich'
+  if (r === 'u' || r === 'user' || r === 'h') return 'mein-bereich'
   return 'dashboard'
 }
 

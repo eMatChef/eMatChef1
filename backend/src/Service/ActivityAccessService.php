@@ -18,7 +18,7 @@ class ActivityAccessService
     private const DEPARTMENT_WIDE_MANAGER_ROLES = ['sa', 'org', 'sub', 'mw', 'dc'];
 
     /** Basissicht wie «u» — L1–L3 vorerst gleich; Gruppenchef ohne Extra-Rechte. */
-    private const BASIC_MEMBER_ROLES = ['u', 'user', 'l1', 'l2', 'l3'];
+    private const BASIC_MEMBER_ROLES = ['u', 'user', 'h', 'l1', 'l2', 'l3'];
 
     /** Department-Rolle für Berechtigungsvergleich: l1–l3 wie «u». */
     public static function normalizeBasicMemberDepartmentRole(?string $role): ?string
@@ -27,7 +27,7 @@ class ActivityAccessService
             return null;
         }
         $r = strtolower(trim($role));
-        if (\in_array($r, ['l1', 'l2', 'l3', 'user'], true)) {
+        if (\in_array($r, ['l1', 'l2', 'l3', 'user', 'h'], true)) {
             return 'u';
         }
 
@@ -609,7 +609,7 @@ class ActivityAccessService
         if ($hostMem) {
             $role = (string) ($hostMem->getRole() ?? '');
             if ($basicMemberOnly) {
-                if (!\in_array($role, ['u', 'user', 'l1', 'l2', 'l3'], true)) {
+                if (!\in_array($role, ['u', 'user', 'h', 'l1', 'l2', 'l3'], true)) {
                     return false;
                 }
             } elseif (\in_array($role, ['mw', 'dc'], true)) {
@@ -648,7 +648,7 @@ class ActivityAccessService
             if ($mem) {
                 $invRole = (string) ($mem->getRole() ?? '');
                 if ($basicMemberOnly) {
-                    if (!\in_array($invRole, ['u', 'user', 'l1', 'l2', 'l3'], true)) {
+                    if (!\in_array($invRole, ['u', 'user', 'h', 'l1', 'l2', 'l3'], true)) {
                         continue;
                     }
                 } elseif (\in_array($invRole, ['mw', 'dc'], true)) {

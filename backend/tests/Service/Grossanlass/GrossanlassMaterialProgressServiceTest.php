@@ -28,7 +28,8 @@ class GrossanlassMaterialProgressServiceTest extends TestCase
             'required' => 100,
             'covered' => 100,
             'open' => 0,
-            'received' => 80,
+            // 80 sind eingegangen, zugeteilt (und damit beim Wunsch angekommen) sind 60.
+            'received' => 60,
             'allocated' => 60,
             'packed' => 50,
             'ready_for_transport' => 20,
@@ -69,12 +70,13 @@ class GrossanlassMaterialProgressServiceTest extends TestCase
         ));
 
         self::assertSame(100, $row['covered']);
-        self::assertSame(100, $row['received']);
+        // Nur die zugeteilten 60 gelten beim Wunsch als eingegangen, nicht der gesamte Bestand der Position.
+        self::assertSame(60, $row['received']);
         self::assertSame(60, $row['allocated']);
         self::assertSame(60, $row['packed']);
     }
 
-    public function testReceivedChargeIsPreferredOverEmptyCommitmentOnSameLine(): void
+    public function testReceivedStockIsNotAssignedToWishWithoutAllocation(): void
     {
         $row = $this->single(GrossanlassMaterialProgressService::compute(
             [$this->wish('w1', 100, 'L1')],
@@ -85,7 +87,7 @@ class GrossanlassMaterialProgressServiceTest extends TestCase
         ));
 
         self::assertSame(100, $row['covered']);
-        self::assertSame(80, $row['received']);
+        self::assertSame(0, $row['received']);
     }
 
     public function testBookedChargeIsPreferred(): void
@@ -101,7 +103,7 @@ class GrossanlassMaterialProgressServiceTest extends TestCase
         self::assertSame(40, $row['received']);
     }
 
-    public function testBundledLineIsSplitPerWishAndReceiptNotDuplicated(): void
+    public function testBundledLineIsSplitPerWishAndReceiptIsNotDistributedAutomatically(): void
     {
         $rows = GrossanlassMaterialProgressService::compute(
             [$this->wish('w1', 40, 'L1', 'g1'), $this->wish('w2', 60, 'L1', 'g2')],
@@ -112,8 +114,8 @@ class GrossanlassMaterialProgressServiceTest extends TestCase
         );
 
         self::assertSame(['w1' => 40, 'w2' => 60], array_column($rows, 'covered', 'id'));
-        self::assertSame(['w1' => 40, 'w2' => 10], array_column($rows, 'received', 'id'));
-        self::assertSame(50, array_sum(array_column($rows, 'received')));
+        // 50 sind eingegangen, aber keinem Bauprojekt zugeteilt: kein Wunsch gilt automatisch als beliefert.
+        self::assertSame(['w1' => 0, 'w2' => 0], array_column($rows, 'received', 'id'));
     }
 
     public function testBookingFromForeignChargeCoversOtherWish(): void
@@ -127,8 +129,8 @@ class GrossanlassMaterialProgressServiceTest extends TestCase
         );
 
         self::assertSame(['w1' => 10, 'w2' => 5], array_column($rows, 'covered', 'id'));
-        // 12 erhalten: 10 für die Position, 2 für den fremden Einsatz — nicht 10 + 5.
-        self::assertSame(['w1' => 10, 'w2' => 2], array_column($rows, 'received', 'id'));
+        // 12 erhalten, 5 davon dem anderen Wunsch zugeteilt; die Position selbst erhält nichts automatisch.
+        self::assertSame(['w1' => 0, 'w2' => 5], array_column($rows, 'received', 'id'));
     }
 
     public function testSelfOrganizedWishCountsAsCovered(): void

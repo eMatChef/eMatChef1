@@ -476,23 +476,18 @@ import { isProfilePath, profileEntryQuery } from '@/utils/profileReturn'
 import { useProfileModal } from '@/composables/useProfileContext'
 import { useUnsavedLeaveGuard } from '../../composables/useUnsavedLeaveGuard'
 import {
-  getPendingDepartmentActivityInvites,
   decidePendingDepartmentInvite,
-  getReceivedDepartmentInvites,
   markReceivedDepartmentInviteRead,
   acceptDepartmentInvite,
   declineDepartmentInvite,
-  getInviteNotifications,
   markInviteNotificationRead,
   type InviteAcceptedNotification,
   type PendingDepartmentActivityInvite,
   type ReceivedDepartmentInviteNotification,
   type GrossanlassMwAssignedNotification,
   type GrossanlassRoundOpenedNotification,
-  type ReceivedUserInboxNotification,
 } from '../../api/joinRequests'
 import {
-  getPublicFoundMessages,
   markPublicFoundMessageRead,
   updatePublicFoundMessageStatus,
   type PublicFoundItemMessage,
@@ -510,16 +505,16 @@ import {
   type DetailTabType,
 } from '../../stores/detailTabs'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
+import { loadInboxSources } from '@/utils/inboxSources'
+import { notificationsCenterPath } from '@/utils/notificationsRoute'
 import { getPostLogoutPath } from '@/utils/appLoginUrl'
 import { grossanlassOpenRoundWishRoute } from '@/utils/grossanlassNavigation'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import {
-  getActivityMwNotifications,
   markActivityMwNotificationRead,
   type ActivityMwNotification,
 } from '@/api/activityNotifications'
 import {
-  getUserActivityStatusNotifications,
   markUserActivityStatusNotificationRead,
 } from '@/api/activityUserNotifications'
 import { listAcquisitionFollowups } from '@/api/accountingAcquisitionFollowups'
@@ -530,7 +525,6 @@ import { adminContextHomePath } from '@/utils/adminContext'
 import { routeForInboxActivityNotification } from '@/utils/inboxPackJourneyDeepLink'
 import { appVersionLabel } from '@/config/appVersion'
 import {
-  getUserDirectMessages,
   markUserDirectMessageRead,
   type UserDirectMessage,
 } from '@/api/inboxMessages'
@@ -937,7 +931,7 @@ function goToNotificationsCenter() {
     (route.params.departmentId as string | undefined) || authStore.activeDepartmentId || ''
   if (!deptId) return
   showNotifications.value = false
-  router.push(`/${deptId}/dept/notifications`)
+  router.push(notificationsCenterPath(deptId, authStore.isDepartmentGrossanlass(deptId)))
 }
 
 async function dismissActivityBellEntry(entry: BellActivityEntry) {
@@ -1188,14 +1182,14 @@ async function openDepartmentInviteFromBell(inv: ReceivedDepartmentInviteNotific
       /* navigate anyway */
     }
   }
-  void router.push({ path: `/${deptId}/dept/notifications` })
+  void router.push({ path: notificationsCenterPath(deptId, authStore.isDepartmentGrossanlass(deptId)) })
 }
 
 function openCampInviteFromBell(invite: PendingDepartmentActivityInvite) {
   const deptId = authStore.activeDepartmentId
   if (!deptId) return
   showNotifications.value = false
-  void router.push({ path: `/${deptId}/dept/notifications` })
+  void router.push({ path: notificationsCenterPath(deptId, authStore.isDepartmentGrossanlass(deptId)) })
 }
 
 function inviteAcceptedBellTitle(note: InviteAcceptedNotification): string {
@@ -1224,7 +1218,7 @@ async function openInviteAcceptedFromBell(note: InviteAcceptedNotification) {
       /* navigate anyway */
     }
   }
-  void router.push({ path: `/${deptId}/dept/notifications` })
+  void router.push({ path: notificationsCenterPath(deptId, authStore.isDepartmentGrossanlass(deptId)) })
 }
 
 /** Glocke: nur ungelesene Nachrichten + offene Aufgaben (QR, Einladungen). */
@@ -1233,109 +1227,50 @@ async function loadDepartmentInvites() {
   if (!deptId) return
   isLoadingNotifications.value = true
   try {
-    const receivedInvitesPromise = getReceivedDepartmentInvites({ bucket: 'unread', limit: 5 }).catch(() => ({
-      count: 0,
-      unread_count: 0,
-      items: [] as ReceivedUserInboxNotification[],
-    }))
-
-    const userMsgPromise = getUserDirectMessages(deptId, { bucket: 'unread', limit: 5 }).catch(() => ({
-      unread_count: 0,
-      items: [] as UserDirectMessage[],
-    }))
-
-    const campInvitesPromise = canSeeDepartmentManagerInbox.value
-      ? getPendingDepartmentActivityInvites(deptId).catch(() => ({
-          count: 0,
-          items: [] as PendingDepartmentActivityInvite[],
-        }))
-      : Promise.resolve({ count: 0, items: [] as PendingDepartmentActivityInvite[] })
-
-    const foundPromise = canSeeDepartmentManagerInbox.value
-      ? getPublicFoundMessages(deptId, { bucket: 'open', limit: 5 }).catch(() => ({
-          unread_count: 0,
-          items: [] as PublicFoundItemMessage[],
-        }))
-      : Promise.resolve({ unread_count: 0, items: [] as PublicFoundItemMessage[] })
-
-    const activityMwPromise = canManageMaterials.value
-      ? getActivityMwNotifications(deptId, { bucket: 'unread', limit: 5 }).catch(() => ({
-          unread_count: 0,
-          items: [] as ActivityMwNotification[],
-        }))
-      : Promise.resolve({ unread_count: 0, items: [] as ActivityMwNotification[] })
-
-    const activityUserPromise = getUserActivityStatusNotifications(deptId, {
+    const sourcesPromise = loadInboxSources(deptId, {
       bucket: 'unread',
       limit: 5,
-    }).catch(() => ({ unread_count: 0, items: [] as ActivityMwNotification[] }))
-
+      qrBucket: 'open',
+      includeQr: canSeeDepartmentManagerInbox.value,
+      includeActivityMw: canManageMaterials.value,
+      includeInviteAccepted: canSeeInviteAcceptedInbox.value,
+      includeCampInvites: canSeeDepartmentManagerInbox.value,
+    })
     const followUpPromise =
       !isUserRole.value && departmentHasAccountingRole(deptId)
         ? listAcquisitionFollowups(deptId, 'pending').catch(() => [])
         : Promise.resolve([])
 
-    const inviteAcceptedPromise = canSeeInviteAcceptedInbox.value
-      ? getInviteNotifications(deptId, { bucket: 'unread', limit: 5 }).catch(() => [] as InviteAcceptedNotification[])
-      : Promise.resolve([] as InviteAcceptedNotification[])
+    const [sources, pendingFollowUps] = await Promise.all([sourcesPromise, followUpPromise])
 
-    const [
-      receivedInvites,
-      userMsg,
-      inviteResult,
-      foundResult,
-      activityMwResult,
-      activityUserResult,
-      pendingFollowUps,
-      inviteAcceptedItems,
-    ] = await Promise.all([
-      receivedInvitesPromise,
-      userMsgPromise,
-      campInvitesPromise,
-      foundPromise,
-      activityMwPromise,
-      activityUserPromise,
-      followUpPromise,
-      inviteAcceptedPromise,
-    ])
+    userMessagePreview.value = sources.userMessages.items
+    userMessageUnreadCount.value = sources.userMessages.unreadCount ?? userMessagePreview.value.length
 
-    userMessagePreview.value = userMsg.items || []
-    userMessageUnreadCount.value =
-      typeof userMsg.unread_count === 'number'
-        ? userMsg.unread_count
-        : userMessagePreview.value.length
-
-    receivedDepartmentInvitePreview.value = (receivedInvites.items || [])
-      .filter((i): i is ReceivedDepartmentInviteNotification => i.type === 'department_invite')
-      .slice(0, 5)
-    grossanlassMwAssignedPreview.value = (receivedInvites.items || [])
-      .filter((i): i is GrossanlassMwAssignedNotification => i.type === 'grossanlass_mw_assigned')
-      .slice(0, 5)
-    grossanlassRoundOpenedPreview.value = (receivedInvites.items || [])
-      .filter((i): i is GrossanlassRoundOpenedNotification => i.type === 'grossanlass_round_opened')
-      .slice(0, 5)
+    receivedDepartmentInvitePreview.value = sources.departmentInvites.slice(0, 5)
+    grossanlassMwAssignedPreview.value = sources.grossanlassMwAssigned.slice(0, 5)
+    grossanlassRoundOpenedPreview.value = sources.grossanlassRoundOpened.slice(0, 5)
     receivedDepartmentInviteUnread.value =
-      typeof receivedInvites.unread_count === 'number'
-        ? receivedInvites.unread_count
-        : receivedDepartmentInvitePreview.value.filter((e) => !e.read).length +
-          grossanlassMwAssignedPreview.value.filter((e) => !e.read).length +
-          grossanlassRoundOpenedPreview.value.filter((e) => !e.read).length
+      sources.receivedInvites.unreadCount ??
+      receivedDepartmentInvitePreview.value.filter((e) => !e.read).length +
+        grossanlassMwAssignedPreview.value.filter((e) => !e.read).length +
+        grossanlassRoundOpenedPreview.value.filter((e) => !e.read).length
 
-    pendingDepartmentInvites.value = inviteResult.items || []
-    publicFoundPreview.value = foundResult.items || []
+    const inviteResult = { items: sources.campInvites }
+    const foundResult = sources.found
+    const activityMwResult = sources.activityMw
+    const activityUserResult = sources.activityUser
+    const inviteAcceptedItems = sources.inviteAccepted
 
-    activityMwPreview.value = canManageMaterials.value ? (activityMwResult.items || []).slice(0, 5) : []
+    pendingDepartmentInvites.value = inviteResult.items
+    publicFoundPreview.value = foundResult.items
+
+    activityMwPreview.value = canManageMaterials.value ? activityMwResult.items.slice(0, 5) : []
     activityMwUnreadCount.value = canManageMaterials.value
-      ? typeof activityMwResult.unread_count === 'number'
-        ? activityMwResult.unread_count
-        : activityMwPreview.value.length
+      ? activityMwResult.unreadCount ?? activityMwPreview.value.length
       : 0
 
-    activityUserPreview.value = (activityUserResult.items || []).slice(0, 5)
-    activityUserUnreadCount.value =
-      typeof activityUserResult.unread_count === 'number'
-        ? activityUserResult.unread_count
-        : activityUserPreview.value.length
+    activityUserPreview.value = activityUserResult.items.slice(0, 5)
+    activityUserUnreadCount.value = activityUserResult.unreadCount ?? activityUserPreview.value.length
 
     inviteAcceptedPreview.value = (inviteAcceptedItems || []).slice(0, 5)
     inviteAcceptedUnreadCount.value = inviteAcceptedPreview.value.filter((n) => !n.read).length
@@ -1352,10 +1287,8 @@ async function loadDepartmentInvites() {
     const taskCount = accountingInBell
 
     const qrUnread = canSeeDepartmentManagerInbox.value
-      ? typeof foundResult.unread_count === 'number'
-          ? foundResult.unread_count
-          : publicFoundPreview.value.filter((m) => m.status === 'open').length
-        : 0
+      ? foundResult.unreadCount ?? publicFoundPreview.value.filter((m) => m.status === 'open').length
+      : 0
 
     const messageCount =
       userMessageUnreadCount.value +
@@ -1413,7 +1346,7 @@ async function openUserMessageFromBell(msg: UserDirectMessage) {
     /* navigate anyway */
   }
   void router.push({
-    path: `/${deptId}/dept/notifications`,
+    path: notificationsCenterPath(deptId, authStore.isDepartmentGrossanlass(deptId)),
     query: { openMessage: msg.id },
   })
 }
@@ -1423,7 +1356,7 @@ async function openFoundMessageFromBell(msg: PublicFoundItemMessage) {
   if (!deptId) return
   showNotifications.value = false
   void router.push({
-    path: `/${deptId}/dept/notifications`,
+    path: notificationsCenterPath(deptId, authStore.isDepartmentGrossanlass(deptId)),
     query: { highlight: msg.id },
   })
 }
@@ -1946,7 +1879,11 @@ watch(
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   min-width: 280px;
   z-index: 1000;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: calc(100vh - 80px);
+  max-height: calc(100dvh - 80px);
+  overscroll-behavior: contain;
 }
 
 .user-dropdown.onboarding-tour-elevate-root {

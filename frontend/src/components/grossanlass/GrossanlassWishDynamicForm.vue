@@ -265,6 +265,7 @@ import {
 import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import {
   calendarRangeForPhaseChoice,
+  periodsWithinEvent,
   isWishPhaseSelectField,
   mapWishPhaseChoiceToCalendarLabel,
   unionCalendarPeriods,
@@ -583,7 +584,7 @@ const parentSelectItems = computed(() => {
     : null
 
   return flattenGrossanlassGroupsFiltered(props.groups, (g) => {
-    if (g.node_type === 'bauprojekt') return false
+    if (g.node_type === 'bauprojekt' || g.node_type === 'auftrag') return false
     if (branchFilter && !branchFilter.has(g.id)) return false
     // Neues Bauprojekt: alle Ressorts, unter denen der User Kinder anlegen darf (§4.2)
     return props.canFullyManage || props.canCreateChild(g)
@@ -607,7 +608,7 @@ function allowNewBauprojekt(field: GrossanlassRoundFormField): boolean {
 function canUserCreateNewBauprojekt(): boolean {
   if (props.canFullyManage) return true
   return props.groups.some(
-    (g) => g.node_type !== 'bauprojekt' && props.canCreateChild(g),
+    (g) => g.node_type !== 'bauprojekt' && g.node_type !== 'auftrag' && props.canCreateChild(g),
   )
 }
 
@@ -903,7 +904,11 @@ watch(
       return
     }
     void listDepartmentCalendarPeriods(id).then((rows) => {
-      calendarPeriods.value = rows
+      const config = authStore.departments.find((d) => d.department_id === id)?.department?.grossanlass_config
+      calendarPeriods.value = periodsWithinEvent(rows, {
+        start: config?.planned_event_start,
+        end: config?.planned_event_end,
+      })
     }).catch(() => {
       calendarPeriods.value = []
     })

@@ -323,9 +323,10 @@ final class GrossanlassUebersichtService
         $groupsById = $this->groupsById($department);
         $destinationPlaceNames = $this->destinationPlaceNames($department);
         $groupBranch = [];
-        if ($place !== null && $place->getGroupId() !== null && $place->getGroupId() !== '') {
+        $placeGroupIds = $place !== null ? $this->places->groupIdsForPlace($place) : [];
+        if ($placeGroupIds !== []) {
             $groupBranch = array_fill_keys(
-                $this->hierarchy->expandWithDescendants($department->getId(), [$place->getGroupId()]),
+                $this->hierarchy->expandWithDescendants($department->getId(), $placeGroupIds),
                 true,
             );
         }
@@ -1237,14 +1238,11 @@ final class GrossanlassUebersichtService
             return true;
         }
         $groupId = $row->getGroupId();
-        $placeGroupId = $place->getGroupId();
-        if ($groupId === null || $groupId === '' || $placeGroupId === null || $placeGroupId === '') {
+        if ($groupId === null || $groupId === '') {
             return false;
         }
-        if ($groupId === $placeGroupId) {
-            return true;
-        }
 
+        // groupBranch enthält alle Gruppen des Standorts samt Unterbaum.
         return isset($groupBranch[$groupId]);
     }
 
