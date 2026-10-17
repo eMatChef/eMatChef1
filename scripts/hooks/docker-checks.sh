@@ -8,6 +8,8 @@
 #     auch kein Mountpunkt `vendor/` oder `dist/`). Es wird nie ein anderer Worktree geprüft.
 #   - Abhängigkeiten: die benannten Volumes des Dev-Stacks (backend/vendor schreibgeschützt; node_modules
 #     beschreibbar, weil Vite/Vitest dort nur ihre Caches `.vite*` anlegen, wie es der Dev-Container selbst tut).
+#   - Backend-Tests, die Frontend-Fixtures vergleichen (z. B. DisplayLayoutTemplateFixtureTest), finden sie unter
+#     /frontend/src/test-fixtures (schreibgeschützt eingehängt, entspricht dem Repo-Layout relativ zu /work).
 #   - Datenbank (nur Backend): eine Wegwerf-PostgreSQL mit Datenbank `val_hook` in einem eigenen Netz; `mvdb` und der
 #     Dev-Stack werden nicht berührt. Alles wird beim Beenden entfernt.
 # Fehlt ein Werkzeug, ein Image oder ein Volume, bricht der Hook mit einer Meldung ab (nichts wird übersprungen).
@@ -108,6 +110,7 @@ backend_checks() {
 
   docker run --rm --entrypoint sh --network "$net" \
     -v "$ROOT/backend:/src:ro" -v "$BE_VOLUME:/work/vendor:ro" \
+    -v "$ROOT/frontend/src/test-fixtures:/frontend/src/test-fixtures:ro" \
     --tmpfs /work:exec,size=2g -w /work \
     -e APP_ENV=test -e DATABASE_URL="$url" -e EMATCHEF_TEST_DB_URL="$url" "$BE_IMAGE" \
     -c '
