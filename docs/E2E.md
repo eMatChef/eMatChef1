@@ -63,6 +63,8 @@ E2E_USER_EMAIL=ga-mw@demo.ematchef.ch E2E_USER_PASSWORD='<Demo-Passwort aus demo
 npx playwright test e2e/ga-event-demo.spec.ts
 ```
 
+`frontend/e2e/ga-procurement-orders.spec.ts` prüft die Beschaffung vom Wunsch bis zum Wareneingang (`ga-mw`): Wunsch bündeln, Offerte, zwei Teil-Bestellungen (Offerte und telefonische Absprache ohne Offerte), bestätigte Überdeckung, Storno mit Ersatzbestellung, Teillieferung mit Gegenbuchung im Wareneingang, Material/Fahrzeuge getrennt, Mengen in Beschaffung und Bauprojekt-Fortschritt gleich sowie die Seed-Position «Bitumenschindeln» (Leihe plus Kauf). Aktiv mit `E2E_GA_PROCUREMENT=1`; der Test **schreibt** (Position «Dachlatten 30×50», Bestellungen, Eingänge) und läuft nur gegen die isolierte Wegwerf-Umgebung auf frisch synchronisierten Demo-Daten (nie `mvdb`).
+
 `frontend/e2e/ga-procurement-takeover.spec.ts` prüft den Übernahme-Workflow (`ga-mw`): zwei Wünsche zentral kategorisieren, ähnliche Position finden und zuordnen, zweiten Wunsch in eine neue Position übernehmen, Originalnamen und Mengen bleiben erhalten. Aktiv mit `E2E_GA_TAKEOVER=1`; er **schreibt** (Zuständigkeit, Positionen) und läuft nur gegen die isolierte Wegwerf-Umgebung wie oben (nie `mvdb`).
 
 **Achtung:** Ein Neustart des Backend-Containers der Entwicklungsumgebung führt `doctrine:migrations:migrate` gegen `mvdb` aus (Entrypoint) und würde damit neue Migrationen anwenden.

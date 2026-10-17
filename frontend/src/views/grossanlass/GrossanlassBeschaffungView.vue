@@ -13,7 +13,7 @@
           show-arrows
           @update:model-value="onTabChange"
         >
-          <v-tab v-for="tab in tabItems" :key="tab.id" :value="tab.id">
+          <v-tab v-for="tab in tabItems" :key="tab.id" :value="tab.id" :data-testid="`nav-beschaffung-${tab.id}`">
             <v-icon :icon="tab.icon" start size="18" />
             {{ tab.label }}
           </v-tab>

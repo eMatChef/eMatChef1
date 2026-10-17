@@ -210,6 +210,10 @@ Dieselben Logistikfelder und die Einheit liegen auch auf der Bedarfsposition. Ei
 
 Beschaffung ist implementiert, keine leere Shell: Bedarf bündeln, Kategorien, Offerten, Offerte wählen, Bestellung, Zusagen, Direkt-Bedarf.
 
+**Mehrere Bestellungen je Bedarfsposition (IST):** Im Tab Bestellungen (`GrossanlassProcurementOrdersPanel`) hat jede Position eine Liste ihrer Bestellungen mit eigener Menge, Lieferant, Kosten und Eingangsstand. Neue Bestellungen entstehen aus einer Offerte oder als telefonische/mündliche Absprache ohne Offerte; Offerten decken keinen Bedarf. API: `POST …/beschaffung/lines/{id}/orders`, `PUT …/orders/{orderId}`, `POST …/orders/{orderId}/cancel` (Grund Pflicht); `PUT …/lines/{id}/order` bleibt für Positionen mit einer Bestellung. Eine Bestellung oder Zusage, die den Bedarf überdeckt (Leihe plus Kauf, mehrere Bestellungen), braucht `confirm_overcoverage` (sonst 409 `overcoverage_confirmation_required`). Der Filter «Art» trennt Material und Fahrzeuge (gemischte Positionen erscheinen in beiden). Details Modell, Mengen, Eingang, Gegenbuchung und Storno: [materialfluss.md §4.3–§6](./materialfluss.md#43-deckung-und-offene-menge-ist).
+
+**Geänderte Wünsche (IST):** Im Bedarf zeigt eine Position mit geänderter Wunschsumme einen Hinweis mit «Neu übernehmen» (nur unverbindliche Positionen) oder «Menge beibehalten»; Bestellung und Zusagen ändern sich nie automatisch.
+
 Direkt-Beschaffung: `source=direct`, `self_organized` an der Position, Freigabe `group_membership.can_procure` im Ressort-Zweig. Delegierte pflegen Direkt-Bedarf und eigene Offerten; wählen, budgetieren und bestellen bleibt MW/CMW.
 
 Anfrage (`department_grossanlass_inquiry`):

@@ -57,6 +57,8 @@ export interface GrossanlassProcurementQuoteSupplierAddress {
 }
 
 export interface GrossanlassProcurementQuote {
+  /** Anfrage, auf die die Offerte antwortet. */
+  inquiry_id?: string | null
   id: string
   procurement_line_id: string
   supplier: string
@@ -88,16 +90,49 @@ export interface GrossanlassProcurementQuoteContactExtract {
   amount_chf: number | null
 }
 
+export type GrossanlassProcurementOrderStatus = 'confirmed' | 'cancelled'
+/** Grundlage der Bestellung: Offerte oder telefonische/mündliche Absprache ohne Offerte. */
+export type GrossanlassProcurementAgreementKind = 'quote' | 'phone'
+
 export interface GrossanlassProcurementOrder {
   id: string
   procurement_line_id: string
+  status?: GrossanlassProcurementOrderStatus
+  agreement_kind?: GrossanlassProcurementAgreementKind
+  quote_id?: string | null
+  supplier?: string | null
   ordered_at: string
   delivery_at: string | null
   cost_chf: number
   order_ref: string | null
+  /** Bestellte Teilmenge; null bei Bestellungen ohne Mengenangabe (= ganze Positionsmenge). */
+  quantity?: number | null
+  /** Wirksam bestellte Menge (0 bei Storno). */
+  ordered_quantity?: number
+  received_quantity?: number
+  missing_quantity?: number
+  /** Kauf-Charge dieser Bestellung; hier wird der Wareneingang gebucht. */
+  commitment_id?: string | null
+  inbound_mode?: 'pickup' | 'delivery' | null
+  return_needed?: boolean
+  cancelled_at?: string | null
+  cancel_reason?: string | null
   notes: string | null
   created_at: string
   updated_at: string
+}
+
+/** Auswirkung geänderter Wünsche auf eine Position; verändert nie Menge, Bestellung oder Zusagen. */
+export interface GrossanlassProcurementSourceChange {
+  decision_required: boolean
+  reasons: Array<'quantity' | 'unit'>
+  source_quantity: number
+  accepted_quantity: number
+  line_quantity: number
+  delta: number
+  binding: boolean
+  frozen: boolean
+  can_adopt: boolean
 }
 
 export type GrossanlassProcurementLineSource = 'from_wish' | 'direct'
@@ -147,12 +182,21 @@ export interface GrossanlassProcurementLine {
   quantity_loaned?: number
   quantity_ordered?: number
   quantity_open?: number
+  quantity_donated?: number
+  quantity_covered?: number
+  quantity_received?: number
+  quantity_awaiting?: number
+  /** Überdeckung: mehr gedeckt als Bedarf. */
+  quantity_over?: number
+  source_change?: GrossanlassProcurementSourceChange | null
   need_from?: string | null
   need_to?: string | null
   quotes: GrossanlassProcurementQuote[]
   selected_quote_id: string | null
   budget_chf: number | null
+  /** Erste aktive Bestellung (Kompatibilität); alle Bestellungen stehen in `orders`. */
   order: GrossanlassProcurementOrder | null
+  orders?: GrossanlassProcurementOrder[]
   created_at: string
   updated_at: string
 }
@@ -701,6 +745,7 @@ export async function createGrossanlassProcurementQuote(
   data: {
     supplier: string
     supplier_address_id?: string | null
+    inquiry_id?: string | null
     amount_chf: number
     notes?: string | null
     delivery_at?: string | null
@@ -817,20 +862,89 @@ export async function uploadGrossanlassProcurementQuotePdf(
   return response.data
 }
 
+export interface GrossanlassProcurementOrderPayload {
+  /** Grundlage: Offerte der Position; ohne Offerte `supplier` (telefonische Absprache). */
+  quote_id?: string | null
+  supplier?: string | null
+  cost_chf: number
+  order_ref?: string | null
+  notes?: string | null
+  ordered_at?: string
+  delivery_at?: string | null
+  /** Bestellte Teilmenge; ohne Angabe der noch offene Bedarf. */
+  quantity?: number
+  inbound_mode?: 'pickup' | 'delivery' | ''
+  return_needed?: boolean | null
+  /** Überdeckung (Leihe/Spende/andere Bestellung plus diese) bewusst bestätigen; sonst 409 `overcoverage_confirmation_required`. */
+  confirm_overcoverage?: boolean
+}
+
+/** Überdeckung braucht Bestätigung (HTTP 409). */
+export interface GrossanlassOvercoverageInfo {
+  code: 'overcoverage_confirmation_required'
+  need: number
+  already_covered: number
+  requested: number
+  open: number
+  over: number
+}
+
+export function overcoverageInfoFromError(error: unknown): GrossanlassOvercoverageInfo | null {
+  const response = (error as { response?: { status?: number; data?: GrossanlassOvercoverageInfo } })?.response
+  return response?.status === 409 && response.data?.code === 'overcoverage_confirmation_required' ? response.data : null
+}
+
+const linesBase = (departmentId: string) => `/api/departments/${departmentId}/grossanlass/beschaffung/lines`
+
+/** Neue Bestellung (Teilmenge) einer Position. */
+export async function createGrossanlassProcurementOrder(
+  departmentId: string,
+  lineId: string,
+  data: GrossanlassProcurementOrderPayload,
+): Promise<GrossanlassProcurementLine> {
+  const response = await apiClient.post<GrossanlassProcurementLine>(`${linesBase(departmentId)}/${lineId}/orders`, data)
+  return response.data
+}
+
+export async function updateGrossanlassProcurementOrder(
+  departmentId: string,
+  lineId: string,
+  orderId: string,
+  data: GrossanlassProcurementOrderPayload,
+): Promise<GrossanlassProcurementLine> {
+  const response = await apiClient.put<GrossanlassProcurementLine>(`${linesBase(departmentId)}/${lineId}/orders/${orderId}`, data)
+  return response.data
+}
+
+/** Storno mit Grund; nur ohne Wareneingang und Zuteilung. */
+export async function cancelGrossanlassProcurementOrder(
+  departmentId: string,
+  lineId: string,
+  orderId: string,
+  reason: string,
+): Promise<GrossanlassProcurementLine> {
+  const response = await apiClient.post<GrossanlassProcurementLine>(`${linesBase(departmentId)}/${lineId}/orders/${orderId}/cancel`, { reason })
+  return response.data
+}
+
+/** Kompatibilität: ändert die einzige aktive Bestellung oder legt die erste an. */
 export async function upsertGrossanlassProcurementOrder(
   departmentId: string,
   lineId: string,
-  data: {
-    cost_chf: number
-    order_ref?: string | null
-    notes?: string | null
-    ordered_at?: string
-    delivery_at?: string | null
-  },
+  data: GrossanlassProcurementOrderPayload & { order_id?: string },
 ): Promise<GrossanlassProcurementLine> {
-  const response = await apiClient.put<GrossanlassProcurementLine>(
-    `/api/departments/${departmentId}/grossanlass/beschaffung/lines/${lineId}/order`,
-    data,
+  const response = await apiClient.put<GrossanlassProcurementLine>(`${linesBase(departmentId)}/${lineId}/order`, data)
+  return response.data
+}
+
+export async function decideGrossanlassProcurementSourceChange(
+  departmentId: string,
+  lineId: string,
+  decision: 'adopt' | 'keep',
+): Promise<GrossanlassProcurementLine> {
+  const response = await apiClient.post<GrossanlassProcurementLine>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/lines/${lineId}/source-change`,
+    { decision },
   )
   return response.data
 }
@@ -839,7 +953,12 @@ export async function recordGrossanlassProcurementReceived(
   departmentId: string,
   lineId: string,
   data: {
+    /** Bei mehreren Bestellungen erforderlich: die Bestellung, zu der geliefert wurde. */
+    order_id?: string
+    /** Diese Lieferung (Teilmenge). */
+    quantity?: number
     full?: boolean
+    note?: string
     allocations?: Array<{ wish_line_id: string; quantity: number }>
   },
 ): Promise<GrossanlassProcurementLine> {

@@ -61,8 +61,10 @@ const moneyLine = computed(() => {
   if (props.line.budget_chf != null) {
     parts.push(`${t('grossanlass.beschaffung.budgetSoll')}: ${formatChf(props.line.budget_chf)}`)
   }
-  if (props.line.order) {
-    parts.push(`${t('grossanlass.beschaffung.costIst')}: ${formatChf(props.line.order.cost_chf)}`)
+  // Ist-Kosten sind die Summe aller aktiven Bestellungen (stornierte zählen nicht).
+  const orders = (props.line.orders ?? (props.line.order ? [props.line.order] : [])).filter((o) => o.status !== 'cancelled')
+  if (orders.length > 0) {
+    parts.push(`${t('grossanlass.beschaffung.costIst')}: ${formatChf(orders.reduce((sum, o) => sum + o.cost_chf, 0))}`)
   }
   return parts.join(' · ')
 })

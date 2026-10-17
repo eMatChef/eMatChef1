@@ -144,6 +144,12 @@
             {{ t('grossanlass.material.wareneingang.printLabel') }}
           </EButton>
         </div>
+        <GrossanlassReceiptReversal
+          :commitment="row"
+          :department-id="departmentId"
+          :received="receivedQty(row)"
+          @reversed="onReversed"
+        />
         <div class="inbound-docs">
           <a
             v-if="isBuyOrder(row) && orderPdfUrl(row)"
@@ -212,6 +218,7 @@ import GrossanlassLabelPrintDialog from '@/views/grossanlass/packen/GrossanlassL
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
+import GrossanlassReceiptReversal from '@/components/grossanlass/GrossanlassReceiptReversal.vue'
 import { useToast } from '@/composables/useToast'
 import { resolveMediaPreviewUrl } from '@/api/media'
 import {
@@ -306,6 +313,8 @@ const visibleRows = computed(() => {
   const today = todayKey()
   const weekEnd = addDays(today, 6)
   return catalog.commitments.value
+    // Charge einer stornierten Bestellung (Menge 0) bleibt als Historie, ist aber keine Erwartung mehr.
+    .filter((row) => row.quantity > 0)
     .filter((row) => {
       const status = inboundStatus(row)
       const day = (expectedAtIso(row) || '').slice(0, 10)
@@ -384,7 +393,8 @@ function openLabel(row: GrossanlassCommitment) {
 }
 
 function orderedQty(row: GrossanlassCommitment): number {
-  if (row.origin === 'loan') return row.quantity
+  // Eine Kauf-Charge gehört zu genau einer Bestellung: bestellt ist ihre eigene Menge, nicht die der ganzen Position.
+  if (row.origin === 'loan' || row.order_id) return row.quantity
   const line = orderLineOf(row)
   return line?.quantity_ordered || line?.quantity || row.quantity
 }
@@ -533,6 +543,11 @@ async function receive(row: GrossanlassCommitment) {
   } finally {
     busyId.value = null
   }
+}
+
+function onReversed(commitment: GrossanlassCommitment) {
+  catalog.upsert(commitment)
+  if (commitment.procurement_line_id) void loadProcurementLines()
 }
 
 function loadProcurementLines() {

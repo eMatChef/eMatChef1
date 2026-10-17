@@ -10,6 +10,8 @@ export type GrossanlassInboundState = 'none' | 'partial' | 'complete'
 
 export type GrossanlassChargeMovementKind =
   | 'received'
+  /** Gegenbuchung zu einem Wareneingang (Fehlbuchung); zieht die Menge ab, die Historie bleibt. */
+  | 'receipt_reversed'
   | 'returned_to_store'
   | 'to_workshop'
   | 'returned_to_owner'
@@ -27,6 +29,8 @@ export type GrossanlassChargeMovement = {
   place_id: string | null
   place_name: string | null
   einsatz_id: string | null
+  /** Bei Gegenbuchungen der korrigierte Wareneingang. */
+  reverses_id?: string | null
   note: string | null
   created_by_user_id: string | null
   created_by_name: string | null
@@ -84,6 +88,8 @@ export type GrossanlassCommitment = {
   owner_department_id?: string | null
   owner_department_name?: string | null
   procurement_line_id?: string | null
+  /** Bestellung, aus der eine Kauf-Charge entstanden ist. */
+  order_id?: string | null
   received_quantity?: number
   missing_quantity?: number
   inbound_state?: GrossanlassInboundState
@@ -218,6 +224,19 @@ export async function recordGrossanlassChargeMovement(
   const response = await apiClient.post<GrossanlassChargeMovementResult>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/zusagen/${commitmentId}/movements`,
     { kind: 'received', ...data },
+  )
+  return response.data
+}
+
+/** Gegenbuchung zu einem Wareneingang. Grund ist Pflicht; nicht möglich für bereits zugeteilte oder gepackte Ware. */
+export async function reverseGrossanlassChargeReceipt(
+  departmentId: string,
+  commitmentId: string,
+  data: { quantity: number; note: string; reverses_id?: string | null },
+): Promise<GrossanlassChargeMovementResult> {
+  const response = await apiClient.post<GrossanlassChargeMovementResult>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/zusagen/${commitmentId}/movements`,
+    { kind: 'receipt_reversed', ...data },
   )
   return response.data
 }

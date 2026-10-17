@@ -544,6 +544,40 @@
                 {{ t('grossanlass.beschaffung.bedarf.quantityAdjusted', { sum: line.source_quantity_sum }) }}
               </span>
             </div>
+            <div
+              v-if="line.source_change?.decision_required"
+              class="source-change"
+              role="alert"
+              :data-testid="`source-change-${line.id}`"
+            >
+              <p class="source-change__text">
+                {{ t('grossanlass.beschaffung.bedarf.sourceChange.text', {
+                  source: line.source_change.source_quantity,
+                  accepted: line.source_change.accepted_quantity,
+                  current: line.quantity,
+                }) }}
+                <span v-if="line.source_change.binding">{{ t('grossanlass.beschaffung.bedarf.sourceChange.binding') }}</span>
+              </p>
+              <div class="source-change__actions">
+                <EButton
+                  v-if="line.source_change.can_adopt"
+                  variant="primary"
+                  size="small"
+                  :data-testid="`source-change-adopt-${line.id}`"
+                  @click="decideSourceChange(line, 'adopt')"
+                >
+                  {{ t('grossanlass.beschaffung.bedarf.sourceChange.adopt', { count: line.source_change.source_quantity }) }}
+                </EButton>
+                <EButton
+                  variant="secondary"
+                  size="small"
+                  :data-testid="`source-change-keep-${line.id}`"
+                  @click="decideSourceChange(line, 'keep')"
+                >
+                  {{ t('grossanlass.beschaffung.bedarf.sourceChange.keep', { count: line.quantity }) }}
+                </EButton>
+              </div>
+            </div>
             <div v-if="line.source_wishes?.length || line.source_vehicles?.length" class="line-card__sources">
               <button
                 type="button"
@@ -825,6 +859,7 @@ import {
   addWishesToGrossanlassProcurementLine,
   assignGrossanlassCollectorToInquiry,
   assignGrossanlassCollectorToMaterial,
+  decideGrossanlassProcurementSourceChange,
   deleteGrossanlassProcurementLine,
   discardGrossanlassCollectorItem,
   getGrossanlassBedarfOverview,
@@ -1303,6 +1338,16 @@ function toggleVehicle(id: string) {
     selectedVehicleIds.value = selectedVehicleIds.value.filter((x) => x !== id)
   } else {
     selectedVehicleIds.value = [...selectedVehicleIds.value, id]
+  }
+}
+
+async function decideSourceChange(line: GrossanlassProcurementLine, decision: 'adopt' | 'keep') {
+  try {
+    await decideGrossanlassProcurementSourceChange(departmentId.value, line.id, decision)
+    toast.success(t(`grossanlass.beschaffung.bedarf.sourceChange.done.${decision}`))
+    await load()
+  } catch (e: unknown) {
+    toast.error((e as { response?: { data?: { error?: string } } })?.response?.data?.error || t('grossanlass.beschaffung.bedarf.sourceChange.error'))
   }
 }
 
@@ -2293,4 +2338,16 @@ watch(focusedLineId, () => {
   color: #64748b;
   margin-top: 2px;
 }
+.source-change {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  background: #fffbeb;
+  display: grid;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+.source-change__text { margin: 0; }
+.source-change__actions { display: flex; flex-wrap: wrap; gap: 6px; }
 </style>
