@@ -53,6 +53,7 @@
         density="comfortable"
         hide-details
         class="e-select"
+        v-model:menu="selectMenuOpen"
         @update:model-value="onVuetifyUpdate"
         @focus="handleFocus"
         @blur="onBlur"
@@ -99,7 +100,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, toRef } from 'vue'
+import { computed, ref, toRef } from 'vue'
+import { useExclusiveOverlay } from '@/composables/useExclusiveOverlay'
 import { useI18n } from 'vue-i18n'
 import { useAutoSaveField } from '@/composables/useAutoSaveField'
 import AutoSaveFieldShell from '@/components/common/autoSave/AutoSaveFieldShell.vue'
@@ -109,6 +111,9 @@ import type {
   AutoSaveFieldValue,
   AutoSaveSelectOption,
 } from '@/components/common/autoSave/types'
+
+const selectMenuOpen = ref(false)
+useExclusiveOverlay(selectMenuOpen)
 
 const props = withDefaults(
   defineProps<{

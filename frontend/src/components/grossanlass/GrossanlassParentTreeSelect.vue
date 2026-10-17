@@ -132,6 +132,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useExclusiveOverlay } from '@/composables/useExclusiveOverlay'
 import type { GrossanlassGroup } from '@/api/grossanlassGroups'
 import GrossanlassGroupNodeIcon from '@/components/grossanlass/GrossanlassGroupNodeIcon.vue'
 
@@ -166,6 +167,7 @@ const model = defineModel<string | null>({ default: null })
 const { t } = useI18n()
 
 const menuOpen = ref(false)
+useExclusiveOverlay(menuOpen)
 const query = ref('')
 const expanded = ref(new Set<string>())
 

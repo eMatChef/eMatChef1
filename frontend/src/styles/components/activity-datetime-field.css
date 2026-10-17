@@ -28,6 +28,13 @@
   --emc-date-range-light: rgba(16, 185, 129, 0.2);
   --emc-date-muted: #9ca3af;
   --emc-date-adjacent: #b8bcc4;
+  --emc-date-window-parent: rgba(59, 130, 246, 0.12);
+  --emc-date-window-own: rgba(59, 130, 246, 0.32);
+}
+
+.v-theme--dark .activity-date-picker-menu {
+  --emc-date-window-parent: rgba(96, 165, 250, 0.18);
+  --emc-date-window-own: rgba(96, 165, 250, 0.4);
 }
 
 .activity-date-picker-menu__shell {
@@ -425,6 +432,15 @@
 
 .activity-date-picker-menu .activity-date-picker-day-btn--today {
   background: transparent !important;
+}
+
+/* Zeitfenster (Auftrag / Aufgabe): Hintergrund; heute (Unterstreichung) und Auswahl bleiben sichtbar */
+.activity-date-picker-menu .activity-date-picker-day-btn--window-parent:not(.activity-date-picker-day-btn--selected) {
+  background: var(--emc-date-window-parent) !important;
+}
+
+.activity-date-picker-menu .activity-date-picker-day-btn--window-own:not(.activity-date-picker-day-btn--selected) {
+  background: var(--emc-date-window-own) !important;
 }
 
 /* Einzelnes gewähltes Datum: grün, rund */

@@ -55,6 +55,8 @@ const props = withDefaults(
     /** Tatsächlicher Anker (nicht Hover-Vorschau in range). */
     rangeAnchorDate?: Date | null
     markers?: ActivityDatePickerDayMarker[]
+    /** Hervorhebung als Zeitfenster-Tag (übergeordnet = dezent, eigen = kräftiger). */
+    windowTint?: 'parent' | 'own' | null
     departmentClosedDateKeys?: ReadonlySet<string> | null
     /** Doppelkalender: Range-Balken nur im angezeigten Monat des Panes */
     rangeInPaneMonthOnly?: boolean
@@ -66,6 +68,7 @@ const props = withDefaults(
     rangeAnchorCount: 0,
     rangeAnchorDate: null,
     markers: () => [],
+    windowTint: null,
     departmentClosedDateKeys: null,
     rangeInPaneMonthOnly: false,
     paneMonth: undefined,
@@ -206,6 +209,8 @@ const dayClasses = computed(() => ({
   'activity-date-picker-day-btn--adjacent-future':
     isAdjacentFuture.value && !isSelectedSingle.value && !visibleRangeRole.value,
   'activity-date-picker-day-btn--selected': isSelectedSingle.value,
+  'activity-date-picker-day-btn--window-parent': props.windowTint === 'parent',
+  'activity-date-picker-day-btn--window-own': props.windowTint === 'own',
   'activity-date-picker-day-btn--range-start':
     visibleRangeRole.value === 'start' || visibleRangeRole.value === 'start-end',
   'activity-date-picker-day-btn--range-start-only':

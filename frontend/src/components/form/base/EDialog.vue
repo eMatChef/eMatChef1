@@ -16,6 +16,7 @@
       :variant="cardVariant"
       :card-class="mergedCardClass"
       :data-onboarding="dataOnboarding || undefined"
+      @pointerdown="onCardPointerDown"
     >
       <v-card-title v-if="title || $slots.title" class="e-dialog__title">
         <slot name="title">{{ title }}</slot>
@@ -32,6 +33,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
+import { closeAllExclusiveOverlays } from '@/composables/useExclusiveOverlay'
 import ECard from './ECard.vue'
 
 defineOptions({ name: 'EDialog' })
@@ -90,6 +92,16 @@ async function onUpdate(value: boolean) {
     if (!allowed) return
   }
   model.value = value
+}
+
+const INTERACTIVE = 'button, a, input, textarea, select, label, summary, [role="button"], [role="combobox"], [role="tab"], [tabindex], .v-field, .v-selection-control'
+
+/** Offene Dropdowns schliessen bei Klick auf nicht interaktive Dialogfläche (Titel, Rand, Text); Bedienelemente steuern ihr Overlay selbst. */
+function onCardPointerDown(e: PointerEvent) {
+  const card = e.currentTarget as Element | null
+  const hit = e.target instanceof Element ? e.target.closest(INTERACTIVE) : null
+  if (hit && card?.contains(hit) && hit !== card) return
+  closeAllExclusiveOverlays()
 }
 
 function onOutside() {

@@ -41,6 +41,7 @@
 
 <script setup lang="ts">
 import { computed, useAttrs, useId } from 'vue'
+import { useExclusiveOverlay } from '@/composables/useExclusiveOverlay'
 
 defineOptions({ inheritAttrs: false, name: 'ESelect' })
 
@@ -69,6 +70,7 @@ const props = withDefaults(
 
 const model = defineModel<unknown>({ default: null })
 const menuOpen = defineModel<boolean>('menu', { default: false })
+useExclusiveOverlay(menuOpen)
 const attrs = useAttrs()
 const generatedId = useId()
 const fieldId = computed(() => props.id ?? generatedId)

@@ -41,6 +41,7 @@
 </template>
 
 <script setup lang="ts">
+import { useExclusiveOverlay } from '@/composables/useExclusiveOverlay'
 import { computed, ref, watch, type ComponentPublicInstance } from 'vue'
 import { VMenu, VTextField, VTimePicker } from 'vuetify/components'
 import { ACTIVITY_PICKER_MENU_Z_INDEX } from '@/composables/useActivityDateMenuProps'
@@ -71,6 +72,7 @@ const emit = defineEmits<{
 }>()
 
 const menuOpen = ref(false)
+useExclusiveOverlay(menuOpen)
 const activatorRef = ref<ComponentPublicInstance | null>(null)
 const { closeOnOutside } = useActivityPickerOutsideClose({
   open: menuOpen,
