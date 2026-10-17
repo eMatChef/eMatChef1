@@ -130,8 +130,8 @@ final class DemoOrganisationSeedIntegrationTest extends TestCase
                     $accounts[$m['account']] = true;
                 }
             }
-            // Event-Inhalt: 6 Gewerke (Bereiche) und 20 Bauprojekte kommen zusätzlich zum Katalog-Gruppenbaum
-            $expectedGroups += 6 + 20;
+            // Event-Inhalt: 6 Gewerke (Bereiche), der Unterbereich «Hauptbühne» und 20 Bauprojekte kommen zusätzlich zum Katalog-Gruppenbaum
+            $expectedGroups += 6 + 1 + 20;
             // Demo-Benutzer: jedes Konto genau einmal (auch wenn in mehreren Departments), plus Lieferant
             $expectedUsers = \count($accounts) + \count($catalog->sharedAccounts());
             self::assertSame($before['"user"'] + $expectedUsers, $after['"user"']);

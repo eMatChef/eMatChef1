@@ -142,9 +142,19 @@ class GrossanlassBudgetAreaService
                 $lineIds[$cost->getProcurementLineId()] = true;
             }
         }
+        // Positionen mit eigener Kostenzeile (ohne Zusage): deren Zusagen-Kostenzeilen zählen nie zusätzlich, auch wenn sie die Position tragen.
+        $ownCostLineIds = [];
+        foreach ($costs as $cost) {
+            if ($cost->getProcurementLineId() !== null && $cost->getCommitmentId() === null) {
+                $ownCostLineIds[$cost->getProcurementLineId()] = true;
+            }
+        }
         $out = [];
         foreach ($costs as $cost) {
             $line = $cost->getProcurementLine();
+            if ($cost->getCommitmentId() !== null && $cost->getProcurementLineId() !== null && isset($ownCostLineIds[$cost->getProcurementLineId()])) {
+                continue;
+            }
             if ($line === null && $this->belongsToCountedLine($cost, $lineIds)) {
                 continue;
             }

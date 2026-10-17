@@ -172,8 +172,8 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             self::assertEqualsWithDelta((new \DateTimeImmutable('2027-04-04 16:00:00', new \DateTimeZone('UTC')))->getTimestamp(), time() + $offset, 180);
             self::assertSame(1, (int) $conn->fetchOne("SELECT count(*) FROM demo_seed_record WHERE seed_key='grossanlass-event:clock'"));
 
-            // Ressorts und Bereiche (Organisationsstruktur) sowie Bauprojekte: 13 Katalog-Gruppen + 6 Gewerke + 20 Bauprojekte
-            self::assertSame(13 + 6 + 20, (int) $conn->fetchOne('SELECT count(*) FROM "group" WHERE department_id=?', [$event]));
+            // Ressorts und Bereiche (Organisationsstruktur) sowie Bauprojekte: 13 Katalog-Gruppen + 6 Gewerke + Unterbereich «Hauptbühne» + 20 Bauprojekte
+            self::assertSame(13 + 6 + 1 + 20, (int) $conn->fetchOne('SELECT count(*) FROM "group" WHERE department_id=?', [$event]));
             self::assertSame(8, (int) $conn->fetchOne("SELECT count(*) FROM \"group\" WHERE department_id=? AND grossanlass_kind='ressort'", [$event]));
             self::assertSame(20, (int) $conn->fetchOne("SELECT count(*) FROM \"group\" WHERE department_id=? AND grossanlass_kind='teilbereich' AND build_status='planned'", [$event]));
             // Feste Zeitfenster: vom Aufbaubeginn (19.05.) bis zum Ende der Rücklieferung innerhalb des Abbaus (16.06.)
@@ -183,7 +183,7 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             // Materialwünsche, Orte, Aufgaben, Fahrzeugbedarfe, Beschaffung und Kosten (6 aus Beschaffung/Zusagen, 2 aus den Chargen Leihe und Spende)
             self::assertSame(60, (int) $conn->fetchOne('SELECT count(*) FROM activity_grossanlass_wish_line l JOIN "group" g ON g.id=l.group_id WHERE g.department_id=?', [$event]));
             self::assertSame(20, (int) $conn->fetchOne("SELECT count(*) FROM department_grossanlass_place WHERE department_id=? AND kind='bauprojekt'", [$event]));
-            self::assertSame([7, 6, 5, 8], [
+            self::assertSame([9, 6, 5, 8], [
                 (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_task WHERE department_id=?', [$event]),
                 (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_vehicle_need WHERE department_id=?', [$event]),
                 (int) $conn->fetchOne('SELECT count(*) FROM activity_grossanlass_procurement_line WHERE department_id=?', [$event]),
@@ -293,7 +293,8 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
 
             // QR-Identitäten: reproduzierbar aus dem Seed-Schlüssel und ohne Übernahme von Legacy-Codes
             $placeCodes = $conn->fetchAllAssociative("SELECT p.public_code, r.seed_key FROM department_grossanlass_place p JOIN demo_seed_record r ON r.entity_id=p.id AND r.entity_class=? WHERE p.department_id=? AND r.seed_key LIKE '%:ort:%'", [\App\Entity\DepartmentGrossanlassPlace::class, $event]);
-            self::assertCount(20, $placeCodes);
+            // 20 Bauprojekt-Orte und der Ort des Unterbereichs «Hauptbühne»
+            self::assertCount(21, $placeCodes);
             foreach ($placeCodes as $row) {
                 self::assertSame(\App\Service\Demo\DemoStableCodes::prefixed('ga', $key, $row['seed_key']), $row['public_code'], $row['seed_key']);
             }
