@@ -231,24 +231,84 @@ final class GrossanlassCommitmentService
         if ($existing instanceof DepartmentGrossanlassCommitment) {
             return $this->serialize($existing);
         }
+        // Zuerst den Artikel bestimmen: ohne Bedarfsposition und Angebot bricht die Zusage ab, bevor die Anfrage verändert wird.
+        $article = $this->articleForInquiry($department, $inquiry);
         $inquiry->setStatus(DepartmentGrossanlassInquiry::STATUS_ZUSAGE);
         $inquiry->appendThread(['who' => 'ok', 'text' => 'Als Zusage erfasst.']);
 
         return $this->create($department, $user, [
-            'name' => $inquiry->getName(),
+            'name' => $article['name'],
             'source' => $inquiry->getName(),
-            'family' => in_array('fahrzeuge', array_map('strtolower', $inquiry->getCategoryIds()), true)
-                ? DepartmentGrossanlassCommitment::FAMILY_VEHICLE
-                : DepartmentGrossanlassCommitment::FAMILY_MATERIAL,
+            'family' => $article['family'],
             'origin' => DepartmentGrossanlassCommitment::ORIGIN_LOAN,
+            'quantity' => $article['quantity'],
             'inquiry_id' => $inquiry->getId(),
-            'category_id' => $inquiry->getCategoryIds()[0] ?? null,
+            'category_id' => $article['category_id'],
+        ] + ($article['line_id'] !== null ? ['procurement_line_id' => $article['line_id']] : []) + [
             'item_details' => [
                 'absprache' => true,
+                ...($article['line_id'] !== null ? ['from_line_id' => $article['line_id']] : []),
                 'inbound_status' => 'expected',
                 'inbound_mode' => 'pickup',
             ],
         ]);
+    }
+
+    /**
+     * Artikeldaten einer Zusage: aus der Bedarfszeile, sonst aus dem Angebot der Anfrage — nie aus dem Firmennamen.
+     * Bei mehreren Zeilen gibt es keine eindeutige Zuordnung (eine Zusage trägt einen Artikel), dann zählt das Angebot.
+     *
+     * @return array{name: string, family: string, quantity: int, category_id: ?string, line_id: ?string}
+     */
+    private function articleForInquiry(Department $department, DepartmentGrossanlassInquiry $inquiry): array
+    {
+        $lines = [];
+        foreach (array_unique($inquiry->getLineIds()) as $lineId) {
+            $line = $this->entityManager->getRepository(ActivityGrossanlassProcurementLine::class)->find($lineId);
+            if ($line instanceof ActivityGrossanlassProcurementLine && $line->getDepartmentId() === $department->getId()) {
+                $lines[] = $line;
+            }
+        }
+        if (count($lines) === 1 && trim($lines[0]->getLabel()) !== '') {
+            $line = $lines[0];
+
+            return [
+                'name' => trim($line->getLabel()),
+                'family' => $line->getWishKind() === 'fahrzeug'
+                    ? DepartmentGrossanlassCommitment::FAMILY_VEHICLE
+                    : DepartmentGrossanlassCommitment::FAMILY_MATERIAL,
+                'quantity' => max(1, $line->getQuantity()),
+                'category_id' => $line->getCategoryId(),
+                // Verknüpfung nur, solange die Position nicht schon gedeckt ist; sonst bleibt die Zusage unverknüpft
+                // (keine automatische Überdeckung, die Zuordnung erfolgt dann bewusst über die Position).
+                'line_id' => $this->lineHasRoomFor($department, $line) ? $line->getId() : null,
+            ];
+        }
+        $offering = trim($inquiry->getOffering());
+        if ($offering === '') {
+            throw new \InvalidArgumentException('Zusage ohne eindeutige Bedarfsposition: bitte Artikel erfassen oder Position zuordnen');
+        }
+
+        return [
+            'name' => mb_substr($offering, 0, 255),
+            'family' => in_array('fahrzeuge', array_map('strtolower', $inquiry->getCategoryIds()), true)
+                ? DepartmentGrossanlassCommitment::FAMILY_VEHICLE
+                : DepartmentGrossanlassCommitment::FAMILY_MATERIAL,
+            'quantity' => 1,
+            'category_id' => $inquiry->getCategoryIds()[0] ?? null,
+            'line_id' => null,
+        ];
+    }
+
+    private function lineHasRoomFor(Department $department, ActivityGrossanlassProcurementLine $line): bool
+    {
+        $charges = array_map(
+            static fn (DepartmentGrossanlassCommitment $other) => ['origin' => $other->getOrigin(), 'quantity' => max(0, $other->getQuantity())],
+            $this->commitmentsForLine($department, $line->getId()),
+        );
+        $covered = GrossanlassProcurementQuantities::compute($line->getQuantity(), $charges)['covered'];
+
+        return $covered + max(1, $line->getQuantity()) <= $line->getQuantity();
     }
 
     /**

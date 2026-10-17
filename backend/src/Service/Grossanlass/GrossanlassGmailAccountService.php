@@ -1551,7 +1551,7 @@ final class GrossanlassGmailAccountService
         if ($kind === DepartmentGrossanlassMailTemplate::KIND_ZUSAGE_OK
             || $kind === DepartmentGrossanlassMailTemplate::KIND_NEHMEN
         ) {
-            $inquiry->setStatus(DepartmentGrossanlassInquiry::STATUS_ZUSAGE);
+            // Die Zusage setzt den Status selbst; scheitert sie (keine Bedarfsposition), bleibt die Anfrage unverändert.
             $this->commitments->ensureFromInquiry($department, $user, $inquiry->getId());
             $this->procurement->freezeAskedFromInquiry($department, $inquiry);
 
