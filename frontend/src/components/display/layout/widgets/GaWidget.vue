@@ -5,6 +5,7 @@
       <div class="ga-w__body">
         <DisplayMaterial v-if="family === 'material'" :board="materialData" :view="materialView" />
         <DisplayLogistik v-else-if="family === 'logistik'" :board="logistikData" :view="logistikView" />
+        <DisplayGesamt v-else-if="family === 'overall'" :data="overallData" />
         <DisplayProjekt v-else-if="family === 'projekt'" passive :boards="boards" :trips="tripList" :active-id="activeProject" />
         <GaSiteMap
           v-else-if="family === 'map'"
@@ -44,6 +45,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import DisplayGesamt from '@/views/grossanlass/displays/DisplayGesamt.vue'
 import DisplayFeed from '@/views/grossanlass/displays/DisplayFeed.vue'
 import DisplayLogistik from '@/views/grossanlass/displays/DisplayLogistik.vue'
 import DisplayMaterial from '@/views/grossanlass/displays/DisplayMaterial.vue'
@@ -81,6 +83,7 @@ const FAMILY: Record<string, string> = {
   ga_goods_receipt: 'material',
   ga_transport_overview: 'logistik',
   ga_dispatch_tours: 'logistik',
+  ga_overview: 'overall',
   ga_projects: 'projekt',
   ga_tasks: 'tasks',
   ga_helpers: 'helpers',
@@ -215,14 +218,16 @@ const warnings = computed<Warning[]>(() => {
   flex-direction: column;
   gap: 8px;
 }
+.ga-w__body :deep(.feed) {
+  height: 100%;
+  box-sizing: border-box;
+}
 .ga-w__title {
   margin: 0;
   font-size: 22px;
 }
 .ga-w__body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
+  flex: 1 0 auto;
 }
 .ga-w__demo {
   position: absolute;

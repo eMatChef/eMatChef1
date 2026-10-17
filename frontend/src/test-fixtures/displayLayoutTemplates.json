@@ -1,0 +1,613 @@
+[
+    {
+        "id": "blank",
+        "version": 1,
+        "contexts": [
+            "grossanlass",
+            "department"
+        ],
+        "layout": {
+            "schema_version": 1,
+            "default_variant_id": "v-std",
+            "variants": [
+                {
+                    "id": "v-std",
+                    "name": "Standard 16:9",
+                    "aspect_ratio": "16:9",
+                    "root": {
+                        "type": "page",
+                        "page_id": "p-main"
+                    }
+                }
+            ],
+            "pages": [
+                {
+                    "id": "p-main",
+                    "name": "Hauptseite",
+                    "rows": 12,
+                    "items": []
+                }
+            ]
+        }
+    },
+    {
+        "id": "ga_materiallager",
+        "version": 2,
+        "contexts": [
+            "grossanlass"
+        ],
+        "layout": {
+            "schema_version": 1,
+            "default_variant_id": "v-std",
+            "variants": [
+                {
+                    "id": "v-std",
+                    "name": "Standard 16:9",
+                    "aspect_ratio": "16:9",
+                    "root": {
+                        "type": "page",
+                        "page_id": "p-main"
+                    }
+                },
+                {
+                    "id": "v-compact",
+                    "name": "Kompakt",
+                    "aspect_ratio": "16:9",
+                    "root": {
+                        "type": "page",
+                        "page_id": "p-compact"
+                    }
+                }
+            ],
+            "pages": [
+                {
+                    "id": "p-main",
+                    "name": "Materiallager",
+                    "rows": 12,
+                    "items": [
+                        {
+                            "id": "i-head",
+                            "x": 0,
+                            "y": 0,
+                            "w": 12,
+                            "h": 1,
+                            "content": {
+                                "type": "widget",
+                                "widget": "header",
+                                "widget_version": 1,
+                                "config": {
+                                    "title": "Materiallager",
+                                    "subtitle": "Zentrallager, Eingang · Material-Leitstand"
+                                }
+                            }
+                        },
+                        {
+                            "id": "i-rot",
+                            "x": 0,
+                            "y": 1,
+                            "w": 9,
+                            "h": 11,
+                            "content": {
+                                "type": "rotation",
+                                "enabled": true,
+                                "interval_sec": 12,
+                                "steps": [
+                                    {
+                                        "duration_sec": null,
+                                        "content": {
+                                            "type": "widget",
+                                            "widget": "ga_material_overview",
+                                            "widget_version": 1,
+                                            "config": []
+                                        }
+                                    },
+                                    {
+                                        "duration_sec": null,
+                                        "content": {
+                                            "type": "widget",
+                                            "widget": "ga_pack_progress",
+                                            "widget_version": 1,
+                                            "config": []
+                                        }
+                                    },
+                                    {
+                                        "duration_sec": null,
+                                        "content": {
+                                            "type": "widget",
+                                            "widget": "ga_missing_material",
+                                            "widget_version": 1,
+                                            "config": []
+                                        }
+                                    },
+                                    {
+                                        "duration_sec": null,
+                                        "content": {
+                                            "type": "widget",
+                                            "widget": "ga_transport_overview",
+                                            "widget_version": 1,
+                                            "config": {
+                                                "view": "material"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "duration_sec": null,
+                                        "content": {
+                                            "type": "widget",
+                                            "widget": "ga_goods_receipt",
+                                            "widget_version": 1,
+                                            "config": []
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "id": "i-feed",
+                            "x": 9,
+                            "y": 1,
+                            "w": 3,
+                            "h": 11,
+                            "content": {
+                                "type": "widget",
+                                "widget": "ga_activity_feed",
+                                "widget_version": 1,
+                                "config": {
+                                    "area": "material"
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "id": "p-compact",
+                    "name": "Materiallager kompakt",
+                    "rows": 12,
+                    "items": [
+                        {
+                            "id": "i-head",
+                            "x": 0,
+                            "y": 0,
+                            "w": 12,
+                            "h": 1,
+                            "content": {
+                                "type": "widget",
+                                "widget": "header",
+                                "widget_version": 1,
+                                "config": {
+                                    "title": "Materiallager",
+                                    "subtitle": "Zentrallager, Eingang · Material-Leitstand"
+                                }
+                            }
+                        },
+                        {
+                            "id": "i-rot",
+                            "x": 0,
+                            "y": 1,
+                            "w": 12,
+                            "h": 11,
+                            "content": {
+                                "type": "rotation",
+                                "enabled": true,
+                                "interval_sec": 12,
+                                "steps": [
+                                    {
+                                        "duration_sec": null,
+                                        "content": {
+                                            "type": "widget",
+                                            "widget": "ga_material_overview",
+                                            "widget_version": 1,
+                                            "config": []
+                                        }
+                                    },
+                                    {
+                                        "duration_sec": null,
+                                        "content": {
+                                            "type": "widget",
+                                            "widget": "ga_pack_progress",
+                                            "widget_version": 1,
+                                            "config": []
+                                        }
+                                    },
+                                    {
+                                        "duration_sec": null,
+                                        "content": {
+                                            "type": "widget",
+                                            "widget": "ga_missing_material",
+                                            "widget_version": 1,
+                                            "config": []
+                                        }
+                                    },
+                                    {
+                                        "duration_sec": null,
+                                        "content": {
+                                            "type": "widget",
+                                            "widget": "ga_transport_overview",
+                                            "widget_version": 1,
+                                            "config": {
+                                                "view": "material"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "duration_sec": null,
+                                        "content": {
+                                            "type": "widget",
+                                            "widget": "ga_goods_receipt",
+                                            "widget_version": 1,
+                                            "config": []
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    {
+        "id": "ga_baubuero",
+        "version": 2,
+        "contexts": [
+            "grossanlass"
+        ],
+        "layout": {
+            "schema_version": 1,
+            "default_variant_id": "v-std",
+            "variants": [
+                {
+                    "id": "v-std",
+                    "name": "Standard 16:9",
+                    "aspect_ratio": "16:9",
+                    "root": {
+                        "type": "page",
+                        "page_id": "p-main"
+                    }
+                }
+            ],
+            "pages": [
+                {
+                    "id": "p-main",
+                    "name": "Baubüro",
+                    "rows": 12,
+                    "items": [
+                        {
+                            "id": "i-head",
+                            "x": 0,
+                            "y": 0,
+                            "w": 12,
+                            "h": 1,
+                            "content": {
+                                "type": "widget",
+                                "widget": "header",
+                                "widget_version": 1,
+                                "config": {
+                                    "title": "Baubüro",
+                                    "subtitle": "Baubüro · Gesamt-Leitstand"
+                                }
+                            }
+                        },
+                        {
+                            "id": "i-rot",
+                            "x": 0,
+                            "y": 1,
+                            "w": 9,
+                            "h": 11,
+                            "content": {
+                                "type": "rotation",
+                                "enabled": true,
+                                "interval_sec": 15,
+                                "steps": [
+                                    {
+                                        "duration_sec": null,
+                                        "content": {
+                                            "type": "widget",
+                                            "widget": "ga_overview",
+                                            "widget_version": 1,
+                                            "config": []
+                                        }
+                                    },
+                                    {
+                                        "duration_sec": null,
+                                        "content": {
+                                            "type": "widget",
+                                            "widget": "ga_site_map",
+                                            "widget_version": 1,
+                                            "config": []
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "id": "i-feed",
+                            "x": 9,
+                            "y": 1,
+                            "w": 3,
+                            "h": 11,
+                            "content": {
+                                "type": "widget",
+                                "widget": "ga_activity_feed",
+                                "widget_version": 1,
+                                "config": []
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    {
+        "id": "ga_projekt",
+        "version": 2,
+        "contexts": [
+            "grossanlass"
+        ],
+        "layout": {
+            "schema_version": 1,
+            "default_variant_id": "v-std",
+            "variants": [
+                {
+                    "id": "v-std",
+                    "name": "Standard 16:9",
+                    "aspect_ratio": "16:9",
+                    "root": {
+                        "type": "page",
+                        "page_id": "p-main"
+                    }
+                }
+            ],
+            "pages": [
+                {
+                    "id": "p-main",
+                    "name": "Projekt",
+                    "rows": 12,
+                    "items": [
+                        {
+                            "id": "i-head",
+                            "x": 0,
+                            "y": 0,
+                            "w": 12,
+                            "h": 1,
+                            "content": {
+                                "type": "widget",
+                                "widget": "header",
+                                "widget_version": 1,
+                                "config": {
+                                    "title": "Projekt",
+                                    "subtitle": "Projektkarte · Ressort, Bereich und Bauauftrag im Widget wählen"
+                                }
+                            }
+                        },
+                        {
+                            "id": "i-projects",
+                            "x": 0,
+                            "y": 1,
+                            "w": 12,
+                            "h": 11,
+                            "content": {
+                                "type": "widget",
+                                "widget": "ga_projects",
+                                "widget_version": 1,
+                                "config": {
+                                    "rotate": true
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    {
+        "id": "ga_disposition",
+        "version": 2,
+        "contexts": [
+            "grossanlass"
+        ],
+        "layout": {
+            "schema_version": 1,
+            "default_variant_id": "v-std",
+            "variants": [
+                {
+                    "id": "v-std",
+                    "name": "Standard 16:9",
+                    "aspect_ratio": "16:9",
+                    "root": {
+                        "type": "page",
+                        "page_id": "p-main"
+                    }
+                },
+                {
+                    "id": "v-compact",
+                    "name": "Kompakt",
+                    "aspect_ratio": "16:9",
+                    "root": {
+                        "type": "page",
+                        "page_id": "p-compact"
+                    }
+                }
+            ],
+            "pages": [
+                {
+                    "id": "p-main",
+                    "name": "Disposition",
+                    "rows": 12,
+                    "items": [
+                        {
+                            "id": "i-head",
+                            "x": 0,
+                            "y": 0,
+                            "w": 12,
+                            "h": 1,
+                            "content": {
+                                "type": "widget",
+                                "widget": "header",
+                                "widget_version": 1,
+                                "config": {
+                                    "title": "Disposition",
+                                    "subtitle": "Disposition, Büro · Logistik-Leitstand"
+                                }
+                            }
+                        },
+                        {
+                            "id": "i-rot",
+                            "x": 0,
+                            "y": 1,
+                            "w": 9,
+                            "h": 11,
+                            "content": {
+                                "type": "rotation",
+                                "enabled": true,
+                                "interval_sec": 12,
+                                "steps": [
+                                    {
+                                        "duration_sec": null,
+                                        "content": {
+                                            "type": "widget",
+                                            "widget": "ga_transport_overview",
+                                            "widget_version": 1,
+                                            "config": {
+                                                "view": "overview"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "duration_sec": null,
+                                        "content": {
+                                            "type": "widget",
+                                            "widget": "ga_transport_overview",
+                                            "widget_version": 1,
+                                            "config": {
+                                                "view": "transports"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "duration_sec": null,
+                                        "content": {
+                                            "type": "widget",
+                                            "widget": "ga_dispatch_tours",
+                                            "widget_version": 1,
+                                            "config": {
+                                                "view": "tours"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "duration_sec": null,
+                                        "content": {
+                                            "type": "widget",
+                                            "widget": "ga_dispatch_tours",
+                                            "widget_version": 1,
+                                            "config": {
+                                                "view": "resources"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "id": "i-feed",
+                            "x": 9,
+                            "y": 1,
+                            "w": 3,
+                            "h": 11,
+                            "content": {
+                                "type": "widget",
+                                "widget": "ga_activity_feed",
+                                "widget_version": 1,
+                                "config": {
+                                    "area": "logistics"
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "id": "p-compact",
+                    "name": "Disposition kompakt",
+                    "rows": 12,
+                    "items": [
+                        {
+                            "id": "i-head",
+                            "x": 0,
+                            "y": 0,
+                            "w": 12,
+                            "h": 1,
+                            "content": {
+                                "type": "widget",
+                                "widget": "header",
+                                "widget_version": 1,
+                                "config": {
+                                    "title": "Disposition",
+                                    "subtitle": "Disposition, Büro · Logistik-Leitstand"
+                                }
+                            }
+                        },
+                        {
+                            "id": "i-rot",
+                            "x": 0,
+                            "y": 1,
+                            "w": 12,
+                            "h": 11,
+                            "content": {
+                                "type": "rotation",
+                                "enabled": true,
+                                "interval_sec": 12,
+                                "steps": [
+                                    {
+                                        "duration_sec": null,
+                                        "content": {
+                                            "type": "widget",
+                                            "widget": "ga_transport_overview",
+                                            "widget_version": 1,
+                                            "config": {
+                                                "view": "overview"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "duration_sec": null,
+                                        "content": {
+                                            "type": "widget",
+                                            "widget": "ga_transport_overview",
+                                            "widget_version": 1,
+                                            "config": {
+                                                "view": "transports"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "duration_sec": null,
+                                        "content": {
+                                            "type": "widget",
+                                            "widget": "ga_dispatch_tours",
+                                            "widget_version": 1,
+                                            "config": {
+                                                "view": "tours"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "duration_sec": null,
+                                        "content": {
+                                            "type": "widget",
+                                            "widget": "ga_dispatch_tours",
+                                            "widget_version": 1,
+                                            "config": {
+                                                "view": "resources"
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+]

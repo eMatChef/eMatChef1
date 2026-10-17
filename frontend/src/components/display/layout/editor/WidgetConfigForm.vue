@@ -2,7 +2,16 @@
   <div class="cfg">
     <template v-for="(field, key) in def.fields" :key="key">
       <ESelect
-        v-if="field.type === 'enum'"
+        v-if="isFilterField(key)"
+        :model-value="(config[key] as string) || null"
+        :items="filterItems(key)"
+        :label="fieldLabel(key)"
+        clearable
+        hide-details
+        @update:model-value="emit('update', key, $event ?? '')"
+      />
+      <ESelect
+        v-else-if="field.type === 'enum'"
         :model-value="config[key] as string"
         :items="enumItems(key, field.values ?? [])"
         :label="fieldLabel(key)"
@@ -61,11 +70,29 @@
 import { useI18n } from 'vue-i18n'
 import type { WidgetDefinition } from '@/api/displayLayout'
 import { ECheckbox, ESelect, ETextField, ETextarea } from '@/components/form/base'
+import { useGaAuftraegeMock } from '@/views/grossanlass/auftraege/gaAuftraegeMock'
 
 /** Konfigurationsformular, aus dem Schema des Widgets (Registry) erzeugt: nur deklarierte Felder, nie freies HTML. */
 const props = defineProps<{ def: WidgetDefinition; config: Record<string, unknown> }>()
 const emit = defineEmits<{ update: [key: string, value: unknown] }>()
 const { t, te } = useI18n()
+
+const { orders } = useGaAuftraegeMock()
+
+/** GA-Widgets werden nach Ressort, Bereich und Bauauftrag gefiltert (Auswahl aus den Demo-Aufträgen). */
+function isFilterField(key: string): boolean {
+  return props.def.data_source === 'ga_demo' && ['filter_ressort', 'filter_bereich', 'filter_project'].includes(key)
+}
+
+function filterItems(key: string) {
+  const ressort = String(props.config.filter_ressort ?? '')
+  const bereich = String(props.config.filter_bereich ?? '')
+  const rows = orders.value.filter((o) => (key === 'filter_ressort' || !ressort || o.ressort === ressort) && (key !== 'filter_project' || !bereich || o.bereich === bereich))
+  const values = new Set(rows.map((o) => (key === 'filter_ressort' ? o.ressort : key === 'filter_bereich' ? o.bereich : o.build?.project || o.title)))
+  const current = String(props.config[key] ?? '')
+  if (current) values.add(current)
+  return [...values].filter(Boolean).sort().map((v) => ({ value: v, title: v }))
+}
 
 function fieldLabel(key: string): string {
   const specific = `display.layout.field.${props.def.type}.${key}`

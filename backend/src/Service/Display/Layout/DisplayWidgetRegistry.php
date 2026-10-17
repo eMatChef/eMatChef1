@@ -190,6 +190,15 @@ final class DisplayWidgetRegistry
         ];
 
         $defs = [
+            'header' => [
+                'category' => 'general', 'contexts' => self::ALL, 'data_source' => self::SOURCE_CLOCK, 'min_size' => [4, 1], 'default_size' => [12, 1],
+                'fields' => [
+                    'title' => $str(120),
+                    'subtitle' => $str(160),
+                    'show_logo' => ['type' => 'bool', 'default' => true],
+                    'show_clock' => ['type' => 'bool', 'default' => true],
+                ],
+            ],
             'text' => [
                 'category' => 'general', 'contexts' => self::ALL, 'data_source' => self::SOURCE_STATIC, 'min_size' => [2, 1], 'default_size' => [6, 2],
                 'fields' => [
@@ -260,6 +269,7 @@ final class DisplayWidgetRegistry
             'ga_goods_receipt' => $this->ga('material', $filter, ['view' => $enum(['incoming'], 'incoming')], [4, 4], [6, 6]),
             'ga_transport_overview' => $this->ga('logistik', $filter, ['view' => $enum(['material', 'overview', 'transports'], 'transports')], [4, 4], [6, 6]),
             'ga_dispatch_tours' => $this->ga('logistik', $filter, ['view' => $enum(['tours', 'resources'], 'tours')], [4, 4], [6, 6]),
+            'ga_overview' => $this->ga('overall', $filter, [], [6, 5], [8, 8]),
             'ga_projects' => $this->ga('projekt', $filter, ['rotate' => ['type' => 'bool', 'default' => true], 'rotate_sec' => $int(5, 600, 15)], [6, 5], [8, 8]),
             'ga_tasks' => $this->ga('tasks', $filter, ['max_items' => $int(3, 20, 8)], [3, 3], [4, 6]),
             'ga_helpers' => [

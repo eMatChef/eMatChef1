@@ -403,6 +403,16 @@ function buildSettingsChildren(prefix: string): RouteRecordRaw[] {
 
 const routes: RouteRecordRaw[] = [
   {
+    // Entwicklungsansicht: offizielle Infoscreen-Vorlage mit dem echten Renderer (Grundlage der Vorschaubilder).
+    path: '/dev/display-template/:templateId',
+    name: 'DevDisplayTemplate',
+    component: () => import('@/views/dev/DisplayTemplateRenderView.vue'),
+    meta: {
+      requiresAuth: false,
+      ...routeHead('displayLayoutEditor'),
+    },
+  },
+  {
     path: '/display-demo/:screenId',
     name: 'GrossanlassDisplayDemo',
     component: () => import('@/views/grossanlass/displays/GrossanlassDisplayScreen.vue'),
@@ -1817,6 +1827,17 @@ const routes: RouteRecordRaw[] = [
               requiresGrossanlassDepartment: true,
               requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
               ...routeHead('grossanlassDisplays'),
+            },
+          },
+          {
+            // WYSIWYG-Editor für das Layout eines Infoscreens (Entwurf, Vorschau, Veröffentlichung).
+            path: 'displays/:screenId/layout',
+            name: 'GrossanlassDisplayLayoutEditor',
+            component: () => import('@/views/settings/DisplayLayoutEditorView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+              ...routeHead('displayLayoutEditor'),
             },
           },
           {

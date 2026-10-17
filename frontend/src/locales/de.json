@@ -466,6 +466,7 @@
       "previewDraft": "Vorschau: Entwurf",
       "previewPublished": "Vorschau: veröffentlicht",
       "demoData": "Demo-Daten",
+      "templatePreviewAlt": "Vorschau der Vorlage «{name}»",
       "demoDataHint": "Dieses Widget zeigt die Demo-Daten der GA-Anzeigebeispiele, keine Live-Daten.",
       "ga": {
         "noTasks": "Keine offenen Aufgaben.",
@@ -495,6 +496,8 @@
         "ga_projects": "Projekte und Baufortschritt",
         "ga_tasks": "Aufgaben",
         "ga_helpers": "Helferinformationen",
+        "header": "Kopfzeile (Logo, Titel, Uhr)",
+        "ga_overview": "Gesamtübersicht",
         "ga_site_map": "Lageplan / Karte",
         "ga_activity_feed": "Aktivitätenfeed",
         "ga_warnings": "Warnungen"
@@ -529,6 +532,9 @@
         "filter_ressort": "Filter Ressort",
         "filter_bereich": "Filter Bereich",
         "filter_project": "Filter Projekt",
+        "subtitle": "Untertitel",
+        "show_logo": "Logo anzeigen",
+        "show_clock": "Uhr anzeigen",
         "rotate": "Projekte automatisch wechseln",
         "rotate_sec": "Wechsel alle … Sekunden",
         "max_items": "Maximale Anzahl Einträge",
@@ -606,9 +612,9 @@
           "name": "Baubüro",
           "description": "Projekte, Warnungen und Aufgaben, im Wechsel mit dem Lageplan."
         },
-        "ga_holzbau": {
-          "name": "Holzbau",
-          "description": "Projekte und Baufortschritt des Holzbaus mit automatischem Projektwechsel."
+        "ga_projekt": {
+          "name": "Projekt / Bereich",
+          "description": "Projektkarte mit Fortschritt, Material, Helfern, Transporten und Warnungen. Ohne festen Auftrag: Ressort, Bereich oder Bauauftrag im Widget wählen."
         },
         "ga_disposition": {
           "name": "Disposition",
@@ -6273,8 +6279,6 @@
       "organisationNotFound": "Organisation nicht gefunden"
     },
     "displayScreens": {
-      "title": "Infoscreens",
-      "description": "Bildschirme der Abteilung: Anlässe und Werkstatt mit QR. Neue Bildschirme werden per QR-Code mit dem Handy oder Scanner verbunden und bleiben danach angemeldet.",
       "createScreenTitle": "Infoscreen erstellen",
       "createScreenHint": "Anzeige gestalten – auch ohne Fernseher. Leer starten, mit einer Vorlage oder als Kopie.",
       "createScreen": "Infoscreen erstellen",
@@ -6287,6 +6291,8 @@
       "layoutEdit": "Layout bearbeiten",
       "layoutSetup": "Layout einrichten",
       "layoutPreviewDraft": "Entwurf ansehen",
+      "title": "Infoscreens",
+      "description": "Bildschirme der Abteilung: Anlässe und Werkstatt mit QR. Neue Bildschirme werden per QR-Code mit dem Handy oder Scanner verbunden und bleiben danach angemeldet.",
       "descriptionGa": "Bildschirme des Grossanlasses. Neue Bildschirme werden per QR-Code mit dem Scanner verbunden und bleiben danach angemeldet.",
       "pathHint": "Erreichbar über: Sidebar → Konfiguration → Infoscreens (diese Seite).",
       "kioskEntryHint": "Neuen Bildschirm verbinden: display-Adresse am Fernseher öffnen und den QR-Code mit dem Handy scannen. Manuelle Eingabe (ID und Code):",

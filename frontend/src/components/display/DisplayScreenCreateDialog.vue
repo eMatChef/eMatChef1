@@ -23,7 +23,7 @@
           :aria-checked="choice === template.id"
           @click="choice = template.id"
         >
-          <LayoutThumbnail :layout="template.layout" />
+          <TemplatePreview :template="template" />
           <strong>{{ t(`display.layout.templates.${template.id}.name`) }}</strong>
           <small>{{ t(`display.layout.templates.${template.id}.description`) }}</small>
         </button>
@@ -58,7 +58,7 @@ import { useToast } from '@/composables/useToast'
 import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
 import { createDisplayScreen, type DisplayScreenSettings } from '@/api/displayScreens'
 import type { LayoutCatalog } from '@/api/displayLayout'
-import LayoutThumbnail from './layout/LayoutThumbnail.vue'
+import TemplatePreview from './layout/TemplatePreview.vue'
 
 /**
  * „Infoscreen erstellen“: Name und Startpunkt (leer, Vorlage oder Kopie eines vorhandenen Infoscreens). Es wird kein

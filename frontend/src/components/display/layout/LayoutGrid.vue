@@ -24,11 +24,15 @@ const LayoutContent = defineAsyncComponent(() => import('./LayoutContent.vue'))
 .dl-grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: calc(var(--u) * 0.6);
+  gap: calc(var(--u) * 1.2);
   width: 100%;
   height: 100%;
-  padding: calc(var(--u) * 0.6);
+  padding: calc(var(--u) * 1.2) calc(var(--u) * 1.5);
   box-sizing: border-box;
+}
+.dl-cell .dl-grid {
+  gap: calc(var(--u) * 0.6);
+  padding: 0;
 }
 .dl-cell {
   min-width: 0;

@@ -10,7 +10,7 @@
         :data-testid="`template-${template.id}`"
         @click="emit('choose', { template_id: template.id })"
       >
-        <LayoutThumbnail :layout="template.layout" />
+        <TemplatePreview :template="template" />
         <strong>{{ t(`display.layout.templates.${template.id}.name`) }}</strong>
         <small>{{ t(`display.layout.templates.${template.id}.description`) }}</small>
       </button>
@@ -33,7 +33,7 @@ import { useI18n } from 'vue-i18n'
 import { ESelect } from '@/components/form/base'
 import type { LayoutTemplate } from '@/api/displayLayout'
 import type { DisplayScreenSettings } from '@/api/displayScreens'
-import LayoutThumbnail from '../LayoutThumbnail.vue'
+import TemplatePreview from '../TemplatePreview.vue'
 
 /** Startpunkt eines Layouts: leere Anzeige, offizielle Vorlage (unabhängige Kopie) oder Kopie eines anderen Infoscreens. */
 defineProps<{ templates: LayoutTemplate[]; sources: DisplayScreenSettings[] }>()

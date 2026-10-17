@@ -142,7 +142,7 @@ final class DisplayLayoutIntegrationTest extends TestCase
     public function testPublishedRevisionsAreImmutableAndCanBeRestored(): void
     {
         $screen = $this->screen();
-        $state = $this->layouts->initialize($screen, 'ga_holzbau', null, 0);
+        $state = $this->layouts->initialize($screen, 'ga_projekt', null, 0);
         $state = $this->layouts->publish($screen, $state['draft_version'], null);
         $draft = $state['draft'];
         $draft['variants'][0]['name'] = 'Zweite Fassung';
@@ -164,7 +164,7 @@ final class DisplayLayoutIntegrationTest extends TestCase
     public function testRestoreWithoutPublishOnlyReplacesTheDraft(): void
     {
         $screen = $this->screen();
-        $state = $this->layouts->initialize($screen, 'ga_holzbau', null, 0);
+        $state = $this->layouts->initialize($screen, 'ga_projekt', null, 0);
         $state = $this->layouts->publish($screen, $state['draft_version'], null);
         $draft = $state['draft'];
         $draft['variants'][0]['name'] = 'Neu';
@@ -179,7 +179,7 @@ final class DisplayLayoutIntegrationTest extends TestCase
     public function testOptimisticVersionCheckPreventsSilentOverwrite(): void
     {
         $screen = $this->screen();
-        $state = $this->layouts->initialize($screen, 'ga_holzbau', null, 0);
+        $state = $this->layouts->initialize($screen, 'ga_projekt', null, 0);
         $version = $state['draft_version'];
         $this->layouts->saveDraft($screen, $state['draft'], $version);
 
@@ -235,7 +235,7 @@ final class DisplayLayoutIntegrationTest extends TestCase
 
         $this->em->refresh($b);
         self::assertNotSame([], $b->getLayoutDraft()['pages'][0]['items']);
-        self::assertSame(['template_id' => 'ga_disposition', 'template_version' => 1], $stateB['origin']);
+        self::assertSame(['template_id' => 'ga_disposition', 'template_version' => 2], $stateB['origin']);
         self::assertNotSame([], $this->templateLayout('ga_disposition')['pages'][0]['items']);
     }
 
@@ -282,7 +282,7 @@ final class DisplayLayoutIntegrationTest extends TestCase
     public function testDeletingAScreenRemovesItsRevisions(): void
     {
         $screen = $this->screen();
-        $state = $this->layouts->initialize($screen, 'ga_holzbau', null, 0);
+        $state = $this->layouts->initialize($screen, 'ga_projekt', null, 0);
         $this->layouts->publish($screen, $state['draft_version'], null);
         $this->screens->revoke($screen);
         $this->screens->deletePermanently($screen, null);

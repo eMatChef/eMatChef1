@@ -180,6 +180,7 @@
       "previewDraft": "Preview: draft",
       "previewPublished": "Preview: published",
       "demoData": "Demo data",
+      "templatePreviewAlt": "Preview of template \"{name}\"",
       "demoDataHint": "This widget shows the demo data of the major-event display examples, not live data.",
       "ga": {
         "noTasks": "No open tasks.",
@@ -209,6 +210,8 @@
         "ga_projects": "Projects and construction progress",
         "ga_tasks": "Tasks",
         "ga_helpers": "Helper information",
+        "header": "Header (logo, title, clock)",
+        "ga_overview": "Overall overview",
         "ga_site_map": "Site map",
         "ga_activity_feed": "Activity feed",
         "ga_warnings": "Warnings"
@@ -243,6 +246,9 @@
         "filter_ressort": "Filter division",
         "filter_bereich": "Filter area",
         "filter_project": "Filter project",
+        "subtitle": "Subtitle",
+        "show_logo": "Show logo",
+        "show_clock": "Show clock",
         "rotate": "Switch projects automatically",
         "rotate_sec": "Switch every … seconds",
         "max_items": "Maximum number of entries",
@@ -320,9 +326,9 @@
           "name": "Construction office",
           "description": "Projects, warnings and tasks, alternating with the site map."
         },
-        "ga_holzbau": {
-          "name": "Timber construction",
-          "description": "Projects and construction progress with automatic project switching."
+        "ga_projekt": {
+          "name": "Project / area",
+          "description": "Project map with progress, material, helpers, transports and warnings. No fixed order: choose division, area or construction order in the widget."
         },
         "ga_disposition": {
           "name": "Dispatch",
@@ -5291,6 +5297,25 @@
     }
   },
   "settings": {
+    "displayScreens": {
+      "createScreenTitle": "Create infoscreen",
+      "createScreenHint": "Design the display – even without a TV. Start empty, from a template or as a copy.",
+      "createScreen": "Create infoscreen",
+      "addDeviceTitle": "Add screen",
+      "layoutTitle": "Display layout",
+      "layoutPublished": "Published: revision {n}",
+      "layoutNotPublished": "Not published yet",
+      "layoutNone": "No layout yet",
+      "layoutHint": "Connected devices only show the published revision. Until then they show a waiting screen.",
+      "layoutEdit": "Edit layout",
+      "layoutSetup": "Set up layout",
+      "layoutPreviewDraft": "View draft",
+      "add": "Connect screen to a new infoscreen",
+      "addHint": "For a TV that should show something right away: the infoscreen is created while connecting, with step-by-step instructions.",
+      "connectScreen": "Add screen",
+      "connectHint": "Connects another TV or display device to this infoscreen by QR code. An infoscreen can have several devices.",
+      "createTitle": "Create an infoscreen or connect a screen"
+    },
     "myDepartment": {
       "toastPrimaryRemoved": "Primary status removed. The membership remains.",
       "removePrimary": "Remove primary status",
@@ -5618,25 +5643,6 @@
       "eventChildLabelPlaceholder": "e.g. East entrance, parking, tent A",
       "eventChildTypeHint": "Delivery point for J+S, or a free event point with your own label and pin color.",
       "pinColorLabel": "Pin color",
-    "displayScreens": {
-      "createScreenTitle": "Create infoscreen",
-      "createScreenHint": "Design the display – even without a TV. Start empty, from a template or as a copy.",
-      "createScreen": "Create infoscreen",
-      "addDeviceTitle": "Add screen",
-      "layoutTitle": "Display layout",
-      "layoutPublished": "Published: revision {n}",
-      "layoutNotPublished": "Not published yet",
-      "layoutNone": "No layout yet",
-      "layoutHint": "Connected devices only show the published revision. Until then they show a waiting screen.",
-      "layoutEdit": "Edit layout",
-      "layoutSetup": "Set up layout",
-      "layoutPreviewDraft": "View draft",
-      "add": "Connect screen to a new infoscreen",
-      "addHint": "For a TV that should show something right away: the infoscreen is created while connecting, with step-by-step instructions.",
-      "connectScreen": "Add screen",
-      "connectHint": "Connects another TV or display device to this infoscreen by QR code. An infoscreen can have several devices.",
-      "createTitle": "Create an infoscreen or connect a screen"
-    },
       "eventDeliveryAddressHint": "Street, ZIP and city are required for J+S delivery. Also set the drop-off pin on the map — where material is delivered.",
       "fillAddressFromPin": "Address from location",
       "fillAddressFromPinLoading": "Looking up address…",

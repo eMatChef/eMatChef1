@@ -7,6 +7,7 @@ import { computed, defineAsyncComponent, type Component } from 'vue'
 import type { LayoutWidgetContent } from '@/api/displayLayout'
 import WidgetClock from './widgets/WidgetClock.vue'
 import WidgetDivider from './widgets/WidgetDivider.vue'
+import WidgetHeader from './widgets/WidgetHeader.vue'
 import WidgetImage from './widgets/WidgetImage.vue'
 import WidgetKpi from './widgets/WidgetKpi.vue'
 import WidgetList from './widgets/WidgetList.vue'
@@ -23,6 +24,7 @@ const props = defineProps<{ content: LayoutWidgetContent }>()
 const GaWidget = defineAsyncComponent(() => import('./widgets/GaWidget.vue'))
 
 const GENERAL: Record<string, Component> = {
+  header: WidgetHeader,
   text: WidgetText,
   clock: WidgetClock,
   image: WidgetImage,

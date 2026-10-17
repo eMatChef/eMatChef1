@@ -19,10 +19,10 @@ final class DisplayLayoutTemplateCatalog
     {
         return [
             ['id' => self::BLANK, 'version' => 1, 'contexts' => [DisplayWidgetRegistry::CONTEXT_GROSSANLASS, DisplayWidgetRegistry::CONTEXT_DEPARTMENT], 'layout' => $this->blank()],
-            ['id' => 'ga_materiallager', 'version' => 1, 'contexts' => [DisplayWidgetRegistry::CONTEXT_GROSSANLASS], 'layout' => $this->materiallager()],
-            ['id' => 'ga_baubuero', 'version' => 1, 'contexts' => [DisplayWidgetRegistry::CONTEXT_GROSSANLASS], 'layout' => $this->baubuero()],
-            ['id' => 'ga_holzbau', 'version' => 1, 'contexts' => [DisplayWidgetRegistry::CONTEXT_GROSSANLASS], 'layout' => $this->holzbau()],
-            ['id' => 'ga_disposition', 'version' => 1, 'contexts' => [DisplayWidgetRegistry::CONTEXT_GROSSANLASS], 'layout' => $this->disposition()],
+            ['id' => 'ga_materiallager', 'version' => 2, 'contexts' => [DisplayWidgetRegistry::CONTEXT_GROSSANLASS], 'layout' => $this->materiallager()],
+            ['id' => 'ga_baubuero', 'version' => 2, 'contexts' => [DisplayWidgetRegistry::CONTEXT_GROSSANLASS], 'layout' => $this->baubuero()],
+            ['id' => 'ga_projekt', 'version' => 2, 'contexts' => [DisplayWidgetRegistry::CONTEXT_GROSSANLASS], 'layout' => $this->projekt()],
+            ['id' => 'ga_disposition', 'version' => 2, 'contexts' => [DisplayWidgetRegistry::CONTEXT_GROSSANLASS], 'layout' => $this->disposition()],
         ];
     }
 
@@ -123,19 +123,14 @@ final class DisplayLayoutTemplateCatalog
     }
 
     /**
-     * Kopfzeile mit Titel und Uhr.
+     * Kopfzeile wie in den GA-Anzeigebeispielen: Logo, Titel, Untertitel und Uhr.
      *
-     * @return list<array<string, mixed>>
+     * @return array<string, mixed>
      */
-    private function head(string $title): array
+    private function head(string $title, string $subtitle): array
     {
-        return [
-            $this->i('i-title', 0, 0, 9, 1, $this->w('text', ['text' => $title, 'level' => 'title'])),
-            $this->i('i-clock', 9, 0, 3, 1, $this->w('clock', ['format' => 'time'])),
-        ];
+        return $this->i('i-head', 0, 0, 12, 1, $this->w('header', ['title' => $title, 'subtitle' => $subtitle]));
     }
-
-    // --- Vorlagen ------------------------------------------------------------------------------------------
 
     /** @return array<string, mixed> */
     private function blank(): array
@@ -146,7 +141,12 @@ final class DisplayLayoutTemplateCatalog
         );
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * Die vier Vorlagen bilden die GA-Anzeigebeispiele (views/grossanlass/displays) nach: gleiche Komponenten, gleiche
+     * Filter und Rotationsdauern. Die Umschalter der Beispiele werden durch automatische Rotation ersetzt.
+     *
+     * @return array<string, mixed>
+     */
     private function materiallager(): array
     {
         $rotation = $this->rotation(12, [
@@ -156,6 +156,7 @@ final class DisplayLayoutTemplateCatalog
             [$this->w('ga_transport_overview', ['view' => 'material']), null],
             [$this->w('ga_goods_receipt'), null],
         ]);
+        $subtitle = 'Zentrallager, Eingang · Material-Leitstand';
 
         return $this->doc(
             [
@@ -164,12 +165,12 @@ final class DisplayLayoutTemplateCatalog
             ],
             [
                 $this->page('p-main', 'Materiallager', [
-                    ...$this->head('Materiallager'),
-                    $this->i('i-rot', 0, 1, 8, 11, $rotation),
-                    $this->i('i-feed', 8, 1, 4, 11, $this->w('ga_activity_feed', ['area' => 'material'])),
+                    $this->head('Materiallager', $subtitle),
+                    $this->i('i-rot', 0, 1, 9, 11, $rotation),
+                    $this->i('i-feed', 9, 1, 3, 11, $this->w('ga_activity_feed', ['area' => 'material'])),
                 ]),
                 $this->page('p-compact', 'Materiallager kompakt', [
-                    ...$this->head('Materiallager'),
+                    $this->head('Materiallager', $subtitle),
                     $this->i('i-rot', 0, 1, 12, 11, $rotation),
                 ]),
             ],
@@ -179,35 +180,32 @@ final class DisplayLayoutTemplateCatalog
     /** @return array<string, mixed> */
     private function baubuero(): array
     {
+        $rotation = $this->rotation(15, [
+            [$this->w('ga_overview'), null],
+            [$this->w('ga_site_map'), null],
+        ]);
+
         return $this->doc(
-            [$this->variant('v-std', 'Standard 16:9', '16:9', $this->rotation(15, [[$this->ref('p-dashboard'), null], [$this->ref('p-map'), null]]))],
+            [$this->variant('v-std', 'Standard 16:9', '16:9', $this->ref('p-main'))],
             [
-                $this->page('p-dashboard', 'Übersicht', [
-                    ...$this->head('Baubüro'),
-                    $this->i('i-projects', 0, 1, 7, 7, $this->w('ga_projects')),
-                    $this->i('i-warnings', 7, 1, 5, 3, $this->w('ga_warnings')),
-                    $this->i('i-tasks', 7, 4, 5, 4, $this->w('ga_tasks')),
-                    $this->i('i-feed', 0, 8, 12, 4, $this->w('ga_activity_feed')),
-                ]),
-                $this->page('p-map', 'Lageplan', [
-                    ...$this->head('Baubüro'),
-                    $this->i('i-map', 0, 1, 12, 11, $this->w('ga_site_map')),
+                $this->page('p-main', 'Baubüro', [
+                    $this->head('Baubüro', 'Baubüro · Gesamt-Leitstand'),
+                    $this->i('i-rot', 0, 1, 9, 11, $rotation),
+                    $this->i('i-feed', 9, 1, 3, 11, $this->w('ga_activity_feed')),
                 ]),
             ],
         );
     }
 
     /** @return array<string, mixed> */
-    private function holzbau(): array
+    private function projekt(): array
     {
         return $this->doc(
             [$this->variant('v-std', 'Standard 16:9', '16:9', $this->ref('p-main'))],
             [
-                $this->page('p-main', 'Holzbau', [
-                    ...$this->head('Holzbau'),
+                $this->page('p-main', 'Projekt', [
+                    $this->head('Projekt', 'Projektkarte · Ressort, Bereich und Bauauftrag im Widget wählen'),
                     $this->i('i-projects', 0, 1, 12, 11, $this->w('ga_projects', [
-                        'filter_ressort' => 'Demo-Bauten',
-                        'filter_bereich' => 'Bühne & Gerüst',
                         'rotate' => true,
                     ])),
                 ]),
@@ -218,27 +216,28 @@ final class DisplayLayoutTemplateCatalog
     /** @return array<string, mixed> */
     private function disposition(): array
     {
-        $main = [
-            ...$this->head('Disposition'),
-            $this->i('i-transport', 0, 1, 6, 11, $this->w('ga_transport_overview', ['view' => 'transports'])),
-            $this->i('i-tours', 6, 1, 6, 6, $this->w('ga_dispatch_tours', ['view' => 'tours'])),
-            $this->i('i-resources', 6, 7, 6, 5, $this->w('ga_dispatch_tours', ['view' => 'resources'])),
-        ];
+        $rotation = $this->rotation(12, [
+            [$this->w('ga_transport_overview', ['view' => 'overview']), null],
+            [$this->w('ga_transport_overview', ['view' => 'transports']), null],
+            [$this->w('ga_dispatch_tours', ['view' => 'tours']), null],
+            [$this->w('ga_dispatch_tours', ['view' => 'resources']), null],
+        ]);
+        $subtitle = 'Disposition, Büro · Logistik-Leitstand';
 
         return $this->doc(
             [
                 $this->variant('v-std', 'Standard 16:9', '16:9', $this->ref('p-main')),
-                $this->variant('v-compact', 'Kompakt', '16:9', $this->rotation(15, [[$this->ref('p-transport'), null], [$this->ref('p-tours'), null]])),
+                $this->variant('v-compact', 'Kompakt', '16:9', $this->ref('p-compact')),
             ],
             [
-                $this->page('p-main', 'Disposition', $main),
-                $this->page('p-transport', 'Transporte', [
-                    ...$this->head('Disposition'),
-                    $this->i('i-transport', 0, 1, 12, 11, $this->w('ga_transport_overview', ['view' => 'transports'])),
+                $this->page('p-main', 'Disposition', [
+                    $this->head('Disposition', $subtitle),
+                    $this->i('i-rot', 0, 1, 9, 11, $rotation),
+                    $this->i('i-feed', 9, 1, 3, 11, $this->w('ga_activity_feed', ['area' => 'logistics'])),
                 ]),
-                $this->page('p-tours', 'Touren', [
-                    ...$this->head('Disposition'),
-                    $this->i('i-tours', 0, 1, 12, 11, $this->w('ga_dispatch_tours', ['view' => 'tours'])),
+                $this->page('p-compact', 'Disposition kompakt', [
+                    $this->head('Disposition', $subtitle),
+                    $this->i('i-rot', 0, 1, 12, 11, $rotation),
                 ]),
             ],
         );

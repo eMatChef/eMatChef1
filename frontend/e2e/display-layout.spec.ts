@@ -36,6 +36,10 @@ test('Infoscreen ohne Gerät aus Vorlage erstellen und im Editor verändern', as
 
   await page.getByRole('button', { name: 'Infoscreen erstellen' }).first().click()
   await page.getByLabel('Name', { exact: false }).first().fill(screenName)
+  // Vorlagenkarten zeigen echte Vorschaubilder (Screenshots des Renderers), keine nachgezeichneten Raster
+  const previews = page.locator('img.tpl-preview')
+  await expect(previews).toHaveCount(4)
+  expect(await previews.evaluateAll((imgs) => imgs.every((i) => (i as HTMLImageElement).complete && (i as HTMLImageElement).naturalWidth > 0))).toBe(true)
   await page.getByTestId('template-ga_materiallager').or(page.getByRole('radio', { name: /Materiallager/ })).first().click()
   await page.getByRole('button', { name: 'Infoscreen erstellen' }).last().click()
 
@@ -78,7 +82,7 @@ test('Infoscreen ohne Gerät aus Vorlage erstellen und im Editor verändern', as
 
   // Eigenschaften: Titel der Vorlagenkopie ändern
   await page.locator('[data-testid^="layout-item-"]').filter({ hasText: 'Materiallager' }).first().click()
-  await page.getByLabel('Text', { exact: true }).first().fill('Willkommen im Lager')
+  await page.getByLabel('Titel', { exact: true }).first().fill('Willkommen im Lager')
 
   await page.getByTestId('btn-save').click()
   await expect(page.getByText('Entwurf gespeichert.').first()).toBeVisible()
@@ -196,7 +200,7 @@ test('Gerät koppeln, passive Anzeige, Entwurf vs. Veröffentlichung', async ({ 
   // Entwurf ändern und speichern: das Gerät bleibt unverändert.
   await page.goto(`/${gaDept}/ga/displays/${screenId}/layout`)
   await page.locator('[data-testid^="layout-item-"]').filter({ hasText: 'Willkommen im Lager' }).first().click()
-  await page.getByLabel('Text', { exact: true }).first().fill('Neuer Entwurf')
+  await page.getByLabel('Titel', { exact: true }).first().fill('Neuer Entwurf')
   await page.getByTestId('btn-save').click()
   await expect(page.getByText('Entwurf gespeichert.').first()).toBeVisible()
   await tv.reload()
