@@ -12,6 +12,7 @@ use App\Service\Grossanlass\GrossanlassGmailAccountService;
 use App\Service\Grossanlass\GrossanlassInquiryService;
 use App\Service\Grossanlass\GrossanlassMailMergeService;
 use App\Service\Grossanlass\GrossanlassProcurementService;
+use App\Service\Grossanlass\GrossanlassQuantityConfirmationRequiredException;
 use App\Service\Grossanlass\GrossanlassCategoryInUseException;
 use App\Service\GroupAccessService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -317,6 +318,8 @@ class GrossanlassProcurementController extends AbstractController
 
         try {
             $line = $this->procurementService->addWishesToLine($department, $currentUser, $lineId, $wishLineIds, $data);
+        } catch (GrossanlassQuantityConfirmationRequiredException $e) {
+            return new JsonResponse($e->toPayload(), 409);
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
         } catch (\RuntimeException $e) {
@@ -673,8 +676,12 @@ class GrossanlassProcurementController extends AbstractController
         $data = json_decode($request->getContent(), true) ?? [];
         $ids = $data['wish_line_ids'] ?? null;
         $categoryId = $data['category_id'] ?? null;
-        if (!is_array($ids) || !is_string($categoryId) || $categoryId === '') {
-            return new JsonResponse(['error' => 'wish_line_ids und category_id sind erforderlich'], 400);
+        $responsibility = $data['procurement_responsibility'] ?? null;
+        if (!is_array($ids)
+            || ($categoryId !== null && !is_string($categoryId))
+            || ($responsibility !== null && !is_string($responsibility))
+            || (($categoryId === null || $categoryId === '') && ($responsibility === null || $responsibility === ''))) {
+            return new JsonResponse(['error' => 'wish_line_ids sowie category_id oder procurement_responsibility sind erforderlich'], 400);
         }
 
         try {
@@ -684,6 +691,7 @@ class GrossanlassProcurementController extends AbstractController
                 $ids,
                 $categoryId,
                 ($data['overwrite'] ?? false) === true,
+                $responsibility === '' ? null : $responsibility,
             );
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
@@ -692,6 +700,37 @@ class GrossanlassProcurementController extends AbstractController
         }
 
         return new JsonResponse($overview);
+    }
+
+    #[Route('/wishes/similar-lines', name: 'wishes_similar_lines', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function similarLinesForWishes(string $departmentId, Request $request): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $ids = $data['wish_line_ids'] ?? null;
+        if (!is_array($ids)) {
+            return new JsonResponse(['error' => 'wish_line_ids sind erforderlich'], 400);
+        }
+
+        try {
+            $result = $this->procurementService->suggestLinesForWishes($department, $currentUser, $ids);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+
+        return new JsonResponse($result);
     }
 
     #[Route('/collector/{wishId}/to-inquiry', name: 'collector_to_inquiry', methods: ['POST'])]

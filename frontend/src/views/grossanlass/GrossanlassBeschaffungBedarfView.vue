@@ -263,6 +263,13 @@
                 <div class="pool-row__main">
                   <strong>{{ wish.quantity }}× {{ wish.label }}</strong>
                   <span class="kind-tag kind-tag--stage">{{ stageLabel(wish.last_stage) }}</span>
+                  <span
+                    class="kind-tag"
+                    :class="wish.procurement_responsibility === 'central' ? 'kind-tag--stage' : 'kind-tag--enough'"
+                    :data-testid="`pool-responsibility-${wish.id}`"
+                  >
+                    {{ responsibilityLabel(wish.procurement_responsibility) }}
+                  </span>
                   <span v-if="wish.enough_on_hand" class="kind-tag kind-tag--enough">
                     {{ enoughBadge(wish) }}
                   </span>
@@ -313,6 +320,29 @@
             </label>
           </div>
         </div>
+
+        <details
+          v-if="sourceTab === 'material' && departmentWishes.length > 0"
+          class="department-wishes"
+          data-testid="department-wishes"
+        >
+          <summary>
+            {{ t('grossanlass.beschaffung.bedarf.departmentWishesTitle', { count: departmentWishes.length }) }}
+          </summary>
+          <p class="panel-hint">{{ t('grossanlass.beschaffung.bedarf.departmentWishesHint') }}</p>
+          <div v-for="wish in departmentWishes" :key="wish.id" class="pool-row">
+            <div class="pool-row__body">
+              <div class="pool-row__main">
+                <strong>{{ wish.quantity }}× {{ wish.label }}</strong>
+              </div>
+              <div class="pool-row__meta">{{ wish.group_name }} · {{ wish.round_name }}</div>
+              <div v-if="wishCategoryPath(wish)" class="pool-row__meta">{{ wishCategoryPath(wish) }}</div>
+            </div>
+            <button type="button" class="icon-btn" :title="t('common.edit')" @click="openEditWish(wish)">
+              <v-icon icon="mdi-pencil-outline" size="16" />
+            </button>
+          </div>
+        </details>
 
         <div v-if="sourceTab !== 'material'" class="pool-filters">
           <ESelect
@@ -617,6 +647,21 @@
       @category-created="onCategoryCreated"
     />
 
+    <GrossanlassProcurementQuantityConfirmDialog
+      v-model="mergeQuantityDialogOpen"
+      :info="mergeQuantityInfo"
+      @confirm="onMergeQuantityConfirmed"
+    />
+
+    <GrossanlassProcurementSimilarLinesDialog
+      v-model="similarDialogOpen"
+      :department-id="departmentId"
+      :wishes="similarWishes"
+      @added="onSimilarAdded"
+      @view-line="onSimilarViewLine"
+      @create-new="onSimilarCreateNew"
+    />
+
     <EDialog
       v-model="categorizeDialogOpen"
       :title="t('grossanlass.beschaffung.bedarf.categorizeTitle')"
@@ -631,16 +676,29 @@
       <GrossanlassProcurementCategoryPicker
         v-model="categorizeCategoryId"
         class="assign-field"
-        required
         :department-id="departmentId"
         :categories="categories"
         @created="onCategoryCreated"
       />
+      <ESelect
+        v-model="categorizeResponsibility"
+        class="assign-field"
+        :items="categorizeResponsibilityItems"
+        item-title="title"
+        item-value="value"
+        :label="t('grossanlass.beschaffung.bedarf.responsibility.label')"
+        hide-details
+        data-testid="categorize-responsibility"
+      />
+      <p class="panel-hint">{{ t('grossanlass.beschaffung.bedarf.responsibility.categorizeHint') }}</p>
+      <p v-if="responsibilityOverwriteCount > 0" class="panel-hint panel-hint--match" data-testid="responsibility-overwrite-hint">
+        {{ t('grossanlass.beschaffung.bedarf.responsibility.overwriteHint', { count: responsibilityOverwriteCount }) }}
+      </p>
       <template #actions>
         <EButton variant="secondary" @click="categorizeDialogOpen = false">{{ t('common.cancel') }}</EButton>
         <EButton
           variant="primary"
-          :disabled="!categorizeCategoryId || isSaving"
+          :disabled="(!categorizeCategoryId && !categorizeResponsibility) || isSaving"
           :loading="isSaving"
           data-testid="categorize-confirm"
           @click="confirmCategorize"
@@ -689,7 +747,7 @@
           variant="primary"
           :disabled="!mergeTargetLineId || !mergeCategoryId || isSaving"
           :loading="isSaving"
-          @click="confirmMergeIntoLine"
+          @click="confirmMergeIntoLine()"
         >
           {{ t('grossanlass.beschaffung.bedarf.mergeConfirm') }}
         </EButton>
@@ -753,6 +811,8 @@ import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import GrossanlassProcurementLineEditDialog from '@/components/grossanlass/GrossanlassProcurementLineEditDialog.vue'
 import GrossanlassProcurementWishEditDialog from '@/components/grossanlass/GrossanlassProcurementWishEditDialog.vue'
+import GrossanlassProcurementQuantityConfirmDialog from '@/components/grossanlass/GrossanlassProcurementQuantityConfirmDialog.vue'
+import GrossanlassProcurementSimilarLinesDialog from '@/components/grossanlass/GrossanlassProcurementSimilarLinesDialog.vue'
 import GrossanlassProcurementBundleDialog from '@/components/grossanlass/GrossanlassProcurementBundleDialog.vue'
 import GrossanlassProcurementCategoryManager from '@/components/grossanlass/GrossanlassProcurementCategoryManager.vue'
 import GrossanlassCategoryDropdownItem from '@/components/grossanlass/GrossanlassCategoryDropdownItem.vue'
@@ -761,6 +821,7 @@ import GrossanlassDirectProcurePanel from '@/components/grossanlass/GrossanlassD
 import { EAutocomplete, EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
 import {
   categorizeGrossanlassBedarfWishes,
+  getGrossanlassSimilarProcurementLines,
   addWishesToGrossanlassProcurementLine,
   assignGrossanlassCollectorToInquiry,
   assignGrossanlassCollectorToMaterial,
@@ -773,6 +834,7 @@ import {
   type GrossanlassCollectorRoundOption,
   type GrossanlassProcurementBundleSuggestion,
   type GrossanlassProcurementCategory,
+  type GrossanlassProcurementResponsibility,
   type GrossanlassProcurementLine,
   type GrossanlassProcurementPoolWish,
 } from '@/api/grossanlassProcurement'
@@ -783,6 +845,7 @@ import {
   pathLabelOfProcurementCategory,
   procurementCategoryTreeItems,
 } from '@/utils/grossanlassProcurementCategoryTree'
+import { quantityConfirmationFromError, wishesNotReadyForCentral, type QuantityConfirmationInfo } from '@/utils/grossanlassProcurementTakeover'
 import { procurementMatchKind, type ProcurementMatchKind } from '@/utils/grossanlassProcurementMatch'
 import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import { resolveWishNeedPeriod } from '@/utils/grossanlassWishPeriod'
@@ -836,6 +899,10 @@ const mergeTargetLineId = ref<string | null>(null)
 const mergeDialogOpen = ref(false)
 const categorizeDialogOpen = ref(false)
 const categorizeCategoryId = ref<string | null>(null)
+const categorizeResponsibility = ref<GrossanlassProcurementResponsibility | null>(null)
+const similarDialogOpen = ref(false)
+const similarWishes = ref<GrossanlassProcurementPoolWish[]>([])
+const departmentWishes = ref<GrossanlassProcurementPoolWish[]>([])
 const mergeCategoryId = ref<string | null>(null)
 const expandedLineIds = ref<string[]>([])
 const editDialogOpen = ref(false)
@@ -1289,6 +1356,7 @@ function applyBedarfOverview(data: GrossanlassBedarfOverview) {
   companyTips.value = data.company_tips ?? []
   freeIdeas.value = data.free_ideas ?? []
   materialRounds.value = data.material_rounds ?? []
+  departmentWishes.value = data.department_wishes ?? []
 }
 
 function categoryPath(line: GrossanlassProcurementLine): string {
@@ -1343,20 +1411,26 @@ function onCategoryDeleted(categoryId: string, reassignTo?: GrossanlassProcureme
   })
 }
 
-function openBundleFromSelection() {
-  bundleWishes.value = [...selectedPool.value]
-  bundleVehicles.value = [...selectedVehicles.value]
-  bundleSuggestedLabel.value = bundleWishes.value[0]?.label ?? bundleVehicles.value[0]?.vehicle_label ?? ''
-  bundleDialogOpen.value = true
+async function openBundleFromSelection() {
+  const notReady = wishesNotReadyForCentral(selectedPool.value)
+  if (notReady.length > 0) {
+    toast.error(t('grossanlass.beschaffung.bedarf.takeover.notCentral', { count: notReady.length }))
+    return
+  }
+  if (selectedVehicles.value.length === 0) {
+    await startTakeover(selectedPool.value)
+    return
+  }
+  openBundleDialogFor(selectedPool.value, selectedVehicles.value)
 }
 
-function openBundleFromSuggestion(suggestion: GrossanlassProcurementBundleSuggestion) {
-  bundleWishes.value = suggestion.wishes?.length
+async function openBundleFromSuggestion(suggestion: GrossanlassProcurementBundleSuggestion) {
+  const wishes = suggestion.wishes?.length
     ? suggestion.wishes
     : pool.value.filter((w) => suggestion.wish_ids.includes(w.id))
-  bundleVehicles.value = []
-  bundleSuggestedLabel.value = suggestion.suggested_label
-  bundleDialogOpen.value = true
+  // Gleicher Weg wie «Wünsche bündeln»: nur eindeutig zentrale Wünsche, zuerst ähnliche Positionen zeigen.
+  await startTakeover(wishes)
+  if (bundleDialogOpen.value) bundleSuggestedLabel.value = suggestion.suggested_label
 }
 
 async function onBundleSaved(processed: { wishIds: string[]; vehicleIds: string[] }) {
@@ -1389,34 +1463,63 @@ const categorizeOverwriteCount = computed(() =>
     : 0,
 )
 
+const responsibilityOverwriteCount = computed(() =>
+  categorizeResponsibility.value
+    ? selectedPool.value.filter(
+      (wish) => wish.procurement_responsibility && wish.procurement_responsibility !== categorizeResponsibility.value,
+    ).length
+    : 0,
+)
+
+const categorizeResponsibilityItems = computed(() => [
+  { title: t('grossanlass.beschaffung.bedarf.responsibility.unchanged'), value: null },
+  { title: t('grossanlass.beschaffung.bedarf.responsibility.department'), value: 'department' },
+  { title: t('grossanlass.beschaffung.bedarf.responsibility.central'), value: 'central' },
+])
+
+function responsibilityLabel(value: GrossanlassProcurementResponsibility | null | undefined): string {
+  return t(`grossanlass.beschaffung.bedarf.responsibility.${value ?? 'undecided'}`)
+}
+
 function openCategorizeDialog() {
   if (selectedWishIds.value.length === 0) return
   categorizeCategoryId.value = null
+  categorizeResponsibility.value = null
   categorizeDialogOpen.value = true
 }
 
 async function confirmCategorize() {
-  if (!departmentId.value || !categorizeCategoryId.value || selectedPool.value.length === 0) return
-  const overwrite = categorizeOverwriteCount.value > 0
+  if (
+    !departmentId.value
+    || (!categorizeCategoryId.value && !categorizeResponsibility.value)
+    || selectedPool.value.length === 0
+  ) return
+  const overwriteCount = categorizeOverwriteCount.value + responsibilityOverwriteCount.value
+  const overwrite = overwriteCount > 0
   if (overwrite) {
     const ok = await confirm.confirm({
       title: t('grossanlass.beschaffung.bedarf.categorizeOverwriteTitle'),
-      message: t('grossanlass.beschaffung.bedarf.categorizeOverwriteMessage', {
-        count: categorizeOverwriteCount.value,
-      }),
+      message: t('grossanlass.beschaffung.bedarf.categorizeOverwriteMessage', { count: overwriteCount }),
     })
     if (!ok) return
   }
+  const wishIds = selectedPool.value.map((wish) => wish.id)
+  const goCentral = categorizeResponsibility.value === 'central'
   isSaving.value = true
   try {
     const overview = await categorizeGrossanlassBedarfWishes(departmentId.value, {
-      wish_line_ids: selectedPool.value.map((wish) => wish.id),
+      wish_line_ids: wishIds,
       category_id: categorizeCategoryId.value,
+      procurement_responsibility: categorizeResponsibility.value,
       overwrite,
     })
     applyBedarfOverview(overview)
     categorizeDialogOpen.value = false
-    toast.success(t('grossanlass.beschaffung.bedarf.categorizeSuccess', { count: selectedPool.value.length }))
+    toast.success(t('grossanlass.beschaffung.bedarf.categorizeSuccess', { count: wishIds.length }))
+    if (goCentral) {
+      // Kategorisieren übernimmt nichts; passende Positionen werden nur vorgeschlagen.
+      await startTakeover(pool.value.filter((wish) => wishIds.includes(wish.id)))
+    }
   } catch (e: any) {
     toast.error(e.response?.data?.error || t('grossanlass.beschaffung.bedarf.errorCategorize'))
   } finally {
@@ -1424,17 +1527,94 @@ async function confirmCategorize() {
   }
 }
 
-async function confirmMergeIntoLine() {
+/** Zeigt ähnliche bestehende Positionen; ohne Treffer geht es direkt in den Bündeln-Dialog. */
+async function startTakeover(wishes: GrossanlassProcurementPoolWish[]) {
+  if (!departmentId.value || wishes.length === 0) return
+  const notReady = wishesNotReadyForCentral(wishes)
+  if (notReady.length > 0) {
+    toast.error(t('grossanlass.beschaffung.bedarf.takeover.notCentral', { count: notReady.length }))
+    return
+  }
+  let hasMatches = false
+  try {
+    const matches = await getGrossanlassSimilarProcurementLines(departmentId.value, wishes.map((w) => w.id))
+    hasMatches = Object.values(matches).some((list) => list.length > 0)
+  } catch {
+    hasMatches = false
+  }
+  if (hasMatches) {
+    similarWishes.value = [...wishes]
+    similarDialogOpen.value = true
+    return
+  }
+  openBundleDialogFor(wishes, [])
+}
+
+function openBundleDialogFor(
+  wishes: GrossanlassProcurementPoolWish[],
+  vehicles: Array<GaBauprojektVehicleNeed & { group_name: string }>,
+) {
+  bundleWishes.value = [...wishes]
+  bundleVehicles.value = [...vehicles]
+  bundleSuggestedLabel.value = wishes[0]?.label ?? vehicles[0]?.vehicle_label ?? ''
+  bundleDialogOpen.value = true
+}
+
+async function onSimilarAdded(wishId: string) {
+  removeFromSelection([wishId], [])
+  await load()
+}
+
+function onSimilarViewLine(lineId: string) {
+  similarDialogOpen.value = false
+  expandedLineIds.value = expandedLineIds.value.includes(lineId) ? expandedLineIds.value : [...expandedLineIds.value, lineId]
+  void nextTick(() => {
+    document.getElementById(`bedarf-line-${lineId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  })
+}
+
+function onSimilarCreateNew(wishes: GrossanlassProcurementPoolWish[]) {
+  similarDialogOpen.value = false
+  openBundleDialogFor(wishes, [])
+}
+
+const mergeQuantityInfo = ref<QuantityConfirmationInfo | null>(null)
+const mergeQuantityDialogOpen = ref(false)
+
+function onMergeQuantityConfirmed(quantity: number | null) {
+  void confirmMergeIntoLine({ quantity })
+}
+
+async function confirmMergeIntoLine(confirmed?: { quantity: number | null }) {
   if (!departmentId.value || !mergeTargetLineId.value || !mergeCategoryId.value || selectionCount.value === 0) {
+    return
+  }
+  const notReady = wishesNotReadyForCentral(selectedPool.value)
+  if (notReady.length > 0) {
+    toast.error(t('grossanlass.beschaffung.bedarf.takeover.notCentral', { count: notReady.length }))
     return
   }
   isSaving.value = true
   try {
-    await addWishesToGrossanlassProcurementLine(departmentId.value, mergeTargetLineId.value, {
+    const payload = {
       wish_line_ids: selectedWishIds.value,
       vehicle_need_ids: selectedVehicleIds.value,
       category_id: mergeCategoryId.value,
-    })
+    }
+    try {
+      await addWishesToGrossanlassProcurementLine(departmentId.value, mergeTargetLineId.value, {
+        ...payload,
+        ...(confirmed
+          ? { confirm_quantity_change: true, ...(confirmed.quantity !== null ? { quantity: confirmed.quantity } : {}) }
+          : {}),
+      })
+    } catch (e) {
+      const info = quantityConfirmationFromError(e)
+      if (!info || confirmed) throw e
+      mergeQuantityInfo.value = info
+      mergeQuantityDialogOpen.value = true
+      return
+    }
     removeFromSelection(selectedWishIds.value, selectedVehicleIds.value)
     mergeDialogOpen.value = false
     toast.success(t('grossanlass.beschaffung.bedarf.mergeSuccess'))
@@ -1709,6 +1889,16 @@ watch(focusedLineId, () => {
   margin: 0 0 12px;
   font-size: 0.82rem;
   color: #94a3b8;
+}
+
+.department-wishes {
+  margin: 12px 0;
+  font-size: 0.85rem;
+}
+.department-wishes summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #475569;
 }
 
 .panel-hint--match {

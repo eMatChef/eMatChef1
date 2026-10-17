@@ -195,6 +195,77 @@ class GrossanlassProcurementCategorizeTest extends TestCase
         }
     }
 
+    public function testResponsibilityCanBeSetWithoutTouchingTheCategory(): void
+    {
+        $old = $this->category('cat-old');
+        $wish = $this->wish('w1', $old);
+
+        $this->service()->categorizeBedarfWishes($this->department, $this->user, ['w1'], null, false, ActivityGrossanlassWishLine::RESPONSIBILITY_CENTRAL);
+
+        self::assertSame($old, $wish->getCategory());
+        self::assertSame(ActivityGrossanlassWishLine::RESPONSIBILITY_CENTRAL, $wish->getProcurementResponsibility());
+    }
+
+    public function testCategorizeAndResponsibilityTogetherCreateNoProcurementLine(): void
+    {
+        $new = $this->category('cat-new');
+        $wish = $this->wish('w1', null);
+
+        $this->service()->categorizeBedarfWishes($this->department, $this->user, ['w1'], $new->getId(), false, ActivityGrossanlassWishLine::RESPONSIBILITY_DEPARTMENT);
+
+        self::assertSame($new, $wish->getCategory());
+        self::assertSame(ActivityGrossanlassWishLine::RESPONSIBILITY_DEPARTMENT, $wish->getProcurementResponsibility());
+    }
+
+    public function testDifferentExistingResponsibilityNeedsConfirmationAndIsAtomic(): void
+    {
+        $new = $this->category('cat-new');
+        $free = $this->wish('w-free', null);
+        $set = $this->wish('w-set', null);
+        $set->setProcurementResponsibility(ActivityGrossanlassWishLine::RESPONSIBILITY_CENTRAL);
+
+        try {
+            $this->service()->categorizeBedarfWishes($this->department, $this->user, ['w-free', 'w-set'], $new->getId(), false, ActivityGrossanlassWishLine::RESPONSIBILITY_DEPARTMENT);
+            self::fail('Überschreiben der Zuständigkeit ohne Bestätigung muss abgelehnt werden');
+        } catch (\InvalidArgumentException $e) {
+            self::assertStringContainsString('Überschreiben muss bestätigt werden', $e->getMessage());
+        }
+
+        self::assertNull($free->getProcurementResponsibility());
+        self::assertNull($free->getCategory());
+        self::assertSame(ActivityGrossanlassWishLine::RESPONSIBILITY_CENTRAL, $set->getProcurementResponsibility());
+        self::assertSame(0, $this->transactions);
+    }
+
+    public function testDepartmentResponsibilityRejectedForWishAlreadyInPosition(): void
+    {
+        $this->wish('w1', null);
+        $line = $this->createMock(ActivityGrossanlassProcurementLine::class);
+        $line->method('getStatus')->willReturn(ActivityGrossanlassProcurementLine::STATUS_BEDARF);
+        $line->method('getDepartmentId')->willReturn(self::DEPARTMENT_ID);
+        $link = $this->createMock(ActivityGrossanlassProcurementLineWish::class);
+        $link->method('getProcurementLine')->willReturn($line);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('bereits einer Beschaffungsposition zugeordnet');
+        $this->service([$link])->categorizeBedarfWishes($this->department, $this->user, ['w1'], null, false, ActivityGrossanlassWishLine::RESPONSIBILITY_DEPARTMENT);
+    }
+
+    public function testRequiresCategoryOrResponsibilityAndRejectsInvalidResponsibility(): void
+    {
+        $this->wish('w1', null);
+        try {
+            $this->service()->categorizeBedarfWishes($this->department, $this->user, ['w1'], null);
+            self::fail();
+        } catch (\InvalidArgumentException $e) {
+            self::assertStringContainsString('erforderlich', $e->getMessage());
+        }
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Beschaffungszuständigkeit ist ungültig');
+        $this->service()->categorizeBedarfWishes($this->department, $this->user, ['w1'], null, false, 'everyone');
+    }
+
     private function category(string $id, string $departmentId = self::DEPARTMENT_ID): ActivityGrossanlassProcurementCategory
     {
         $category = $this->createMock(ActivityGrossanlassProcurementCategory::class);
@@ -225,6 +296,13 @@ class GrossanlassProcurementCategorizeTest extends TestCase
         $state = new \stdClass();
         $state->category = $category;
         $wish->method('getCategory')->willReturnCallback(static fn () => $state->category);
+        $state->responsibility = null;
+        $wish->method('getProcurementResponsibility')->willReturnCallback(static fn () => $state->responsibility);
+        $wish->method('setProcurementResponsibility')->willReturnCallback(static function (?string $r) use ($state, $wish) {
+            $state->responsibility = $r;
+
+            return $wish;
+        });
         if ($stubSetter) {
             $wish->method('setCategory')->willReturnCallback(static function (?ActivityGrossanlassProcurementCategory $c) use ($state, $wish) {
             $state->category = $c;

@@ -63,6 +63,7 @@ class GrossanlassProcurementService
 
         return [
             'pool' => $pool,
+            'department_wishes' => $this->listDepartmentProcuredWishes($department),
             'lines' => $this->listLines($department),
             'categories' => $this->listCategoryArrays($department),
             'suggestions' => $this->enrichSuggestions($pool),
@@ -104,6 +105,29 @@ class GrossanlassProcurementService
         $this->collector->discard($department, $user, $wishId);
 
         return $this->getBedarfOverview($department, $user);
+    }
+
+    /**
+     * Materialwünsche, die das Ressort selbst beschafft (nicht im zentralen Pool, aber nachvollziehbar).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function listDepartmentProcuredWishes(Department $department): array
+    {
+        $lines = $this->entityManager->getRepository(ActivityGrossanlassWishLine::class)
+            ->createQueryBuilder('w')
+            ->innerJoin('w.round', 'r')
+            ->innerJoin('r.activity', 'a')
+            ->where('a.departmentId = :departmentId')
+            ->andWhere('r.formPurpose = :purpose')
+            ->andWhere('w.selfOrganized = true')
+            ->setParameter('departmentId', $department->getId())
+            ->setParameter('purpose', ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH)
+            ->orderBy('w.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+
+        return array_map(fn (ActivityGrossanlassWishLine $w) => $this->wishToPoolArray($w), $lines);
     }
 
     /**
@@ -197,6 +221,11 @@ class GrossanlassProcurementService
         }
 
         $wishes = $wishLineIds === [] ? [] : $this->loadAndValidatePoolWishes($department, $wishLineIds);
+        $this->assertCentralResponsibility($wishes);
+        $this->assertCompatibleUnits($wishes);
+        if (count($wishes) > 1 && trim((string) ($data['label'] ?? '')) === '') {
+            throw new \InvalidArgumentException('Positionsname muss bei mehreren Wünschen bestätigt werden');
+        }
 
         $line = new ActivityGrossanlassProcurementLine();
         $line->setId(GrossanlassIdGenerator::unique(
@@ -210,31 +239,38 @@ class GrossanlassProcurementService
         $line->setSource(ActivityGrossanlassProcurementLine::SOURCE_FROM_WISH);
         $line->setSelfOrganized(false);
 
-        if ($wishes !== []) {
-            $this->applyWishAggregation($line, $wishes, $data);
-            $this->addVehicleQuantity($line, count($vehicles), $data);
-            if ($vehicles !== []) {
-                $this->mixVehicleKind($line);
+        $this->entityManager->wrapInTransaction(function () use ($line, $wishes, $vehicles, $department, $user, $data): void {
+            if ($wishes !== []) {
+                $this->applyWishAggregation($line, $wishes, $data);
+                $line->setQuantityUnit($wishes[0]->getQuantityUnit());
+                $this->addVehicleQuantity($line, count($vehicles), $data);
+                if ($vehicles !== []) {
+                    $this->mixVehicleKind($line);
+                }
+            } else {
+                $this->applyVehicleAggregation($line, $vehicles, $data);
             }
-        } else {
-            $this->applyVehicleAggregation($line, $vehicles, $data);
-        }
-        $this->applyCategory($line, $department, $data);
-        $this->applySupplyFromKind($line, (string) ($data['cost_kind'] ?? 'loan'));
+            // Kategorie des Wunsches als Vorschlag, falls die Anfrage keine mitgibt.
+            if (!array_key_exists('category_id', $data) && $wishes !== [] && $wishes[0]->getCategory() !== null) {
+                $data['category_id'] = $wishes[0]->getCategory()->getId();
+            }
+            $this->applyCategory($line, $department, $data);
+            $this->applySupplyFromKind($line, (string) ($data['cost_kind'] ?? 'loan'));
 
-        $this->entityManager->persist($line);
-        foreach ($wishes as $wish) {
-            $link = new ActivityGrossanlassProcurementLineWish();
-            $link->setProcurementLine($line);
-            $link->setWishLine($wish);
-            $this->entityManager->persist($link);
-        }
-        $this->attachVehicleNeeds($line, $vehicles);
+            $this->entityManager->persist($line);
+            foreach ($wishes as $wish) {
+                $link = new ActivityGrossanlassProcurementLineWish();
+                $link->setProcurementLine($line);
+                $link->setWishLine($wish);
+                $this->entityManager->persist($link);
+            }
+            $this->attachVehicleNeeds($line, $vehicles);
 
-        $this->entityManager->flush();
-        $this->syncLinkedWishStatus($line, $user);
-        $this->costService->ensureMainForLine($line, $data);
-        $this->entityManager->flush();
+            $this->entityManager->flush();
+            $this->syncLinkedWishStatus($line, $user);
+            $this->costService->ensureMainForLine($line, $data);
+            $this->entityManager->flush();
+        });
 
         return $this->lineToArray($line);
     }
@@ -520,31 +556,40 @@ class GrossanlassProcurementService
 
         $newWishes = $wishLineIds === [] ? [] : $this->loadAndValidatePoolWishes($department, $wishLineIds);
         $existingWishes = $this->loadWishesForLine($line);
+        $this->assertCentralResponsibility($newWishes);
+        $this->assertCompatibleUnits([...$existingWishes, ...$newWishes]);
+        $data = $this->guardManualQuantity($line, $existingWishes, $newWishes, count($vehicles), $data);
+        // Die Position behält ihren eigenen Namen; das Hinzufügen eines Wunsches benennt sie nicht um.
+        if (trim((string) ($data['label'] ?? '')) === '') {
+            $data['label'] = $line->getLabel();
+        }
         $allWishes = array_merge($existingWishes, $newWishes);
 
-        foreach ($newWishes as $wish) {
-            $link = new ActivityGrossanlassProcurementLineWish();
-            $link->setProcurementLine($line);
-            $link->setWishLine($wish);
-            $this->entityManager->persist($link);
-        }
-        $this->attachVehicleNeeds($line, $vehicles);
-        $allVehicles = $this->mergeVehicles($line, $vehicles);
-
-        if ($allWishes !== []) {
-            $this->applyWishAggregation($line, $allWishes, $data);
-            $this->addVehicleQuantity($line, count($allVehicles), $data);
-            if ($allVehicles !== []) {
-                $this->mixVehicleKind($line);
+        $this->entityManager->wrapInTransaction(function () use ($line, $newWishes, $allWishes, $vehicles, $department, $user, $data): void {
+            foreach ($newWishes as $wish) {
+                $link = new ActivityGrossanlassProcurementLineWish();
+                $link->setProcurementLine($line);
+                $link->setWishLine($wish);
+                $this->entityManager->persist($link);
             }
-        } elseif ($allVehicles !== []) {
-            $this->applyVehicleAggregation($line, $allVehicles, $data);
-        }
-        $this->applyCategory($line, $department, $data);
-        $line->touchUpdatedAt();
-        $this->entityManager->flush();
-        $this->syncLinkedWishStatus($line, $user);
-        $this->entityManager->flush();
+            $this->attachVehicleNeeds($line, $vehicles);
+            $allVehicles = $this->mergeVehicles($line, $vehicles);
+
+            if ($allWishes !== []) {
+                $this->applyWishAggregation($line, $allWishes, $data);
+                $this->addVehicleQuantity($line, count($allVehicles), $data);
+                if ($allVehicles !== []) {
+                    $this->mixVehicleKind($line);
+                }
+            } elseif ($allVehicles !== []) {
+                $this->applyVehicleAggregation($line, $allVehicles, $data);
+            }
+            $this->applyCategory($line, $department, $data);
+            $line->touchUpdatedAt();
+            $this->entityManager->flush();
+            $this->syncLinkedWishStatus($line, $user);
+            $this->entityManager->flush();
+        });
 
         return $this->lineToArray($line);
     }
@@ -1639,6 +1684,11 @@ class GrossanlassProcurementService
             }
         }
 
+        if ($link !== null
+            && ($data['procurement_responsibility'] ?? null) === ActivityGrossanlassWishLine::RESPONSIBILITY_DEPARTMENT) {
+            throw new \InvalidArgumentException('Wunsch ist bereits einer Beschaffungsposition zugeordnet; Ressortbeschaffung ist nicht möglich');
+        }
+
         $this->wishService->updateWish($department, $user, $wish->getRoundId(), $wishLineId, $data);
         $this->applyWishCategory($wish, $department, $data);
 
@@ -1646,8 +1696,9 @@ class GrossanlassProcurementService
     }
 
     /**
-     * Setzt ausschliesslich die Beschaffungskategorie für mehrere Materialwünsche (Batch).
-     * Überschreibt eine abweichende vorhandene Kategorie nur mit $overwrite = true.
+     * Setzt Beschaffungskategorie und/oder Beschaffungszuständigkeit für mehrere Materialwünsche (Batch).
+     * Erzeugt nie eine Beschaffungsposition. Abweichende vorhandene Werte werden nur mit $overwrite = true überschrieben;
+     * der Batch ist alles-oder-nichts.
      *
      * @param list<string> $wishLineIds
      *
@@ -1662,8 +1713,9 @@ class GrossanlassProcurementService
         Department $department,
         User $user,
         array $wishLineIds,
-        string $categoryId,
+        ?string $categoryId,
         bool $overwrite = false,
+        ?string $responsibility = null,
     ): array {
         $this->assertCanManageProcurement($department, $user);
 
@@ -1671,7 +1723,17 @@ class GrossanlassProcurementService
         if ($wishLineIds === []) {
             throw new \InvalidArgumentException('Keine Wünsche ausgewählt');
         }
-        $category = $this->findCategoryInDepartment($department, $categoryId);
+        $categoryId = $categoryId === null || $categoryId === '' ? null : $categoryId;
+        if ($categoryId === null && $responsibility === null) {
+            throw new \InvalidArgumentException('Kategorie oder Beschaffungszuständigkeit erforderlich');
+        }
+        if ($responsibility !== null && !in_array($responsibility, [
+            ActivityGrossanlassWishLine::RESPONSIBILITY_DEPARTMENT,
+            ActivityGrossanlassWishLine::RESPONSIBILITY_CENTRAL,
+        ], true)) {
+            throw new \InvalidArgumentException('Beschaffungszuständigkeit ist ungültig');
+        }
+        $category = $categoryId === null ? null : $this->findCategoryInDepartment($department, $categoryId);
 
         $wishes = [];
         $conflicts = 0;
@@ -1687,8 +1749,15 @@ class GrossanlassProcurementService
             if ($link !== null && $link->getProcurementLine()->getStatus() !== ActivityGrossanlassProcurementLine::STATUS_BEDARF) {
                 throw new \InvalidArgumentException('Wunsch gehört zu einer Position, die nicht mehr im Status «Bedarf» ist');
             }
+            if ($link !== null && $responsibility === ActivityGrossanlassWishLine::RESPONSIBILITY_DEPARTMENT) {
+                throw new \InvalidArgumentException('Wunsch ist bereits einer Beschaffungsposition zugeordnet; Ressortbeschaffung ist nicht möglich');
+            }
             $current = $wish->getCategory();
-            if ($current !== null && $current->getId() !== $category->getId()) {
+            if ($category !== null && $current !== null && $current->getId() !== $category->getId()) {
+                ++$conflicts;
+            }
+            $currentResponsibility = $wish->getProcurementResponsibility();
+            if ($responsibility !== null && $currentResponsibility !== null && $currentResponsibility !== $responsibility) {
                 ++$conflicts;
             }
             $wishes[] = $wish;
@@ -1696,18 +1765,161 @@ class GrossanlassProcurementService
 
         if ($conflicts > 0 && !$overwrite) {
             throw new \InvalidArgumentException(sprintf(
-                '%d Wünsche haben bereits eine andere Kategorie; Überschreiben muss bestätigt werden',
+                '%d Wünsche haben bereits eine andere Kategorie oder Zuständigkeit; Überschreiben muss bestätigt werden',
                 $conflicts,
             ));
         }
 
-        $this->entityManager->wrapInTransaction(static function () use ($wishes, $category): void {
+        $this->entityManager->wrapInTransaction(static function () use ($wishes, $category, $responsibility): void {
             foreach ($wishes as $wish) {
-                $wish->setCategory($category);
+                if ($category !== null) {
+                    $wish->setCategory($category);
+                }
+                if ($responsibility !== null) {
+                    $wish->setProcurementResponsibility($responsibility);
+                }
             }
         });
 
         return $this->getBedarfOverview($department, $user);
+    }
+
+    /**
+     * Ähnliche bestehende Beschaffungspositionen je Wunsch (nur Vorschlag, deterministisch).
+     *
+     * @param list<string> $wishLineIds
+     *
+     * @return array{matches: array<string, list<array<string, mixed>>>}
+     */
+    public function suggestLinesForWishes(Department $department, User $user, array $wishLineIds): array
+    {
+        $this->assertCanManageProcurement($department, $user);
+        $wishLineIds = array_values(array_unique(array_filter($wishLineIds, 'is_string')));
+        if ($wishLineIds === []) {
+            throw new \InvalidArgumentException('Keine Wünsche ausgewählt');
+        }
+
+        $addable = array_values(array_filter(
+            $this->listLines($department),
+            static fn (array $l) => in_array($l['status'], [
+                ActivityGrossanlassProcurementLine::STATUS_BEDARF,
+                ActivityGrossanlassProcurementLine::STATUS_OFFERTE,
+                ActivityGrossanlassProcurementLine::STATUS_BUDGETIERT,
+            ], true),
+        ));
+        $linesById = [];
+        foreach ($addable as $l) {
+            $linesById[(string) $l['id']] = $l;
+        }
+
+        $matches = [];
+        foreach ($wishLineIds as $wishId) {
+            $wish = $this->entityManager->getRepository(ActivityGrossanlassWishLine::class)->find($wishId);
+            if (!$wish instanceof ActivityGrossanlassWishLine || !$this->wishBelongsToDepartment($wish, $department)) {
+                throw new \InvalidArgumentException('Wunsch nicht gefunden');
+            }
+            $entries = [];
+            foreach (GrossanlassProcurementLineMatcher::match($this->wishToPoolArray($wish), $addable) as $hit) {
+                $line = $linesById[$hit['line_id']];
+                $entries[] = $hit + [
+                    'label' => $line['label'],
+                    'category_id' => $line['category_id'],
+                    'category_name' => $line['category_name'],
+                    'category_parent_name' => $line['category_parent_name'],
+                    'quantity' => $line['quantity'],
+                    'quantity_unit' => $line['quantity_unit'],
+                    'cost_kind' => $line['cost_kind'],
+                    'supply_mode' => $line['supply_mode'],
+                    'status' => $line['status'],
+                    'merge_frozen' => $line['merge_frozen'],
+                ];
+            }
+            $matches[$wishId] = $entries;
+        }
+
+        return ['matches' => $matches];
+    }
+
+    /**
+     * Zentrale Übernahme nur für eindeutig zentral zu beschaffende Wünsche.
+     *
+     * @param list<ActivityGrossanlassWishLine> $wishes
+     */
+    private function assertCentralResponsibility(array $wishes): void
+    {
+        foreach ($wishes as $wish) {
+            $responsibility = $wish->getProcurementResponsibility();
+            if ($responsibility === ActivityGrossanlassWishLine::RESPONSIBILITY_DEPARTMENT) {
+                throw new \InvalidArgumentException(sprintf('«%s» wird vom Ressort selbst beschafft und nicht zentral übernommen', $wish->getLabel()));
+            }
+            if ($responsibility !== ActivityGrossanlassWishLine::RESPONSIBILITY_CENTRAL) {
+                throw new \InvalidArgumentException(sprintf('Beschaffungszuständigkeit von «%s» ist noch nicht festgelegt', $wish->getLabel()));
+            }
+        }
+    }
+
+    /**
+     * Es ist keine Einheiten-Umrechnung definiert: verschiedene Einheiten werden nie stillschweigend summiert.
+     *
+     * @param list<ActivityGrossanlassWishLine> $wishes
+     */
+    private function assertCompatibleUnits(array $wishes): void
+    {
+        $units = [];
+        foreach ($wishes as $wish) {
+            $units[mb_strtolower(trim($wish->getQuantityUnit()), 'UTF-8')] = $wish->getQuantityUnit();
+        }
+        if (count($units) > 1) {
+            throw new \InvalidArgumentException(sprintf('Einheiten sind nicht kompatibel (%s); es ist keine Umrechnung definiert', implode(', ', array_values($units))));
+        }
+    }
+
+    /**
+     * Manuell festgelegte (Menge ≠ Summe der Wünsche) oder eingefrorene Mengen nur nach Bestätigung ändern.
+     * Bei manueller, nicht eingefrorener Menge wird der neue Bedarf auf die manuelle Menge aufgeschlagen.
+     *
+     * @param list<ActivityGrossanlassWishLine> $existingWishes
+     * @param list<ActivityGrossanlassWishLine> $newWishes
+     * @param array<string, mixed>              $data
+     *
+     * @return array<string, mixed>
+     */
+    private function guardManualQuantity(
+        ActivityGrossanlassProcurementLine $line,
+        array $existingWishes,
+        array $newWishes,
+        int $newVehicleCount,
+        array $data,
+    ): array {
+        $added = array_sum(array_map(static fn (ActivityGrossanlassWishLine $w) => $w->getQuantity(), $newWishes)) + $newVehicleCount;
+        if ($added === 0) {
+            return $data;
+        }
+        $source = array_sum(array_map(static fn (ActivityGrossanlassWishLine $w) => $w->getQuantity(), $existingWishes))
+            + count($this->loadVehiclesForLine($line));
+        $frozen = GrossanlassProcurementQuantityFreeze::isFrozen($line->getQuantityAsked());
+        $manual = $line->getQuantity() !== $source;
+        if (!$frozen && !$manual) {
+            return $data;
+        }
+        if (($data['confirm_quantity_change'] ?? false) !== true) {
+            throw new GrossanlassQuantityConfirmationRequiredException($line->getQuantity(), $source, $added, $frozen);
+        }
+        if ($frozen) {
+            // Eingefrorene Menge wird nie automatisch oder per Übersteuerung geändert; die Abweichung bleibt sichtbar.
+            unset($data['quantity']);
+
+            return $data;
+        }
+        if (isset($data['quantity'])) {
+            if ((int) $data['quantity'] < 1) {
+                throw new \InvalidArgumentException('Anzahl muss mindestens 1 sein');
+            }
+        } else {
+            $data['quantity'] = $line->getQuantity() + $added;
+        }
+
+        return $data;
     }
 
     /**
@@ -2602,6 +2814,8 @@ class GrossanlassProcurementService
             'category_name' => $category?->getName(),
             'category_parent_id' => $categoryParent?->getId(),
             'category_parent_name' => $categoryParent?->getName(),
+            'procurement_responsibility' => $wish->getProcurementResponsibility(),
+            'quantity_unit' => $wish->getQuantityUnit(),
             'group_id' => $wish->getGroupId(),
             'group_name' => $wish->getGroup()->getName(),
             'wish_kind' => $wish->getWishKind(),

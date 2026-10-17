@@ -63,6 +63,8 @@ E2E_USER_EMAIL=ga-mw@demo.ematchef.ch E2E_USER_PASSWORD='<Demo-Passwort aus demo
 npx playwright test e2e/ga-event-demo.spec.ts
 ```
 
+`frontend/e2e/ga-procurement-takeover.spec.ts` prüft den Übernahme-Workflow (`ga-mw`): zwei Wünsche zentral kategorisieren, ähnliche Position finden und zuordnen, zweiten Wunsch in eine neue Position übernehmen, Originalnamen und Mengen bleiben erhalten. Aktiv mit `E2E_GA_TAKEOVER=1`; er **schreibt** (Zuständigkeit, Positionen) und läuft nur gegen die isolierte Wegwerf-Umgebung wie oben (nie `mvdb`).
+
 **Achtung:** Ein Neustart des Backend-Containers der Entwicklungsumgebung führt `doctrine:migrations:migrate` gegen `mvdb` aus (Entrypoint) und würde damit neue Migrationen anwenden.
 
 `frontend/e2e/ga-order-dialog.spec.ts` prüft den `GrossanlassOrderDialog` (`ga-mw`, Bauauftrag «Bar-Tresen West»): offene Dropdowns schliessen bei Klick auf Dialogtitel, Rand und Aktionsleiste (Handler in `EDialog`), Tastatur (Pfeil/Escape) und Mausauswahl bleiben nutzbar, ein anderer `EDialog` (Wunsch bearbeiten im Bedarf-Pool) bleibt unbeeinträchtigt, und das Helferbedarf-Layout hat bei 420 px Breite keine abgeschnittenen Felder. Aktiv mit `E2E_GA_ORDERDIALOG=1`; der Test ist **rein lesend** (Aufgabenblock-Entwurf ohne Titel wird nicht gespeichert, Wunsch-Dialog wird mit «Abbrechen» verlassen). Lokal über HTTPS (`https://app.ematchef.test`, `ignoreHTTPSErrors` ist im Spec gesetzt) mit `E2E_HOST_RESOLVER` wie oben.

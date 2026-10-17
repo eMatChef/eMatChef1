@@ -9,6 +9,8 @@ export type GrossanlassProcurementStatus =
   | 'teilweise_erhalten'
   | 'erhalten'
 
+export type GrossanlassProcurementResponsibility = 'department' | 'central'
+
 export interface GrossanlassProcurementPoolWish {
   id: string
   round_id: string
@@ -27,6 +29,9 @@ export interface GrossanlassProcurementPoolWish {
   category_name?: string | null
   category_parent_id?: string | null
   category_parent_name?: string | null
+  /** null = noch nicht festgelegt */
+  procurement_responsibility?: GrossanlassProcurementResponsibility | null
+  quantity_unit?: string | null
   created_by_user_id?: string
   created_by_name: string
   created_at: string
@@ -204,6 +209,8 @@ export interface GrossanlassCollectorRoundOption {
 
 export interface GrossanlassBedarfOverview {
   pool: GrossanlassProcurementPoolWish[]
+  /** Vom Ressort selbst beschaffte Wünsche (nicht im zentralen Pool). */
+  department_wishes?: GrossanlassProcurementPoolWish[]
   lines: GrossanlassProcurementLine[]
   categories: GrossanlassProcurementCategory[]
   suggestions: GrossanlassProcurementBundleSuggestion[]
@@ -405,7 +412,10 @@ export async function discardGrossanlassCollectorItem(
 export async function updateGrossanlassBedarfWish(
   departmentId: string,
   wishLineId: string,
-  data: Partial<CreateGrossanlassWishPayload> & { category_id?: string | null },
+  data: Partial<CreateGrossanlassWishPayload> & {
+    category_id?: string | null
+    procurement_responsibility?: GrossanlassProcurementResponsibility | null
+  },
 ): Promise<GrossanlassBedarfOverview> {
   const response = await apiClient.put<GrossanlassBedarfOverview>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/wishes/${wishLineId}`,
@@ -416,13 +426,49 @@ export async function updateGrossanlassBedarfWish(
 
 export async function categorizeGrossanlassBedarfWishes(
   departmentId: string,
-  data: { wish_line_ids: string[]; category_id: string; overwrite?: boolean },
+  data: {
+    wish_line_ids: string[]
+    category_id?: string | null
+    procurement_responsibility?: GrossanlassProcurementResponsibility | null
+    overwrite?: boolean
+  },
 ): Promise<GrossanlassBedarfOverview> {
   const response = await apiClient.post<GrossanlassBedarfOverview>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/wishes/categorize`,
     data,
   )
   return response.data
+}
+
+export type GrossanlassProcurementMatchTier = 'exact' | 'similar' | 'possible'
+
+export interface GrossanlassProcurementLineMatch {
+  line_id: string
+  tier: GrossanlassProcurementMatchTier
+  score: number
+  reasons: string[]
+  unit_compatible: boolean
+  label: string
+  category_id: string | null
+  category_name: string | null
+  category_parent_name: string | null
+  quantity: number
+  quantity_unit: string
+  cost_kind: string | null
+  supply_mode: string
+  status: string
+  merge_frozen: boolean
+}
+
+export async function getGrossanlassSimilarProcurementLines(
+  departmentId: string,
+  wishLineIds: string[],
+): Promise<Record<string, GrossanlassProcurementLineMatch[]>> {
+  const response = await apiClient.post<{ matches: Record<string, GrossanlassProcurementLineMatch[]> }>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/wishes/similar-lines`,
+    { wish_line_ids: wishLineIds },
+  )
+  return response.data.matches
 }
 
 export async function getGrossanlassProcurementOverview(
@@ -515,6 +561,7 @@ export async function addWishesToGrossanlassProcurementLine(
     label?: string
     quantity?: number
     category_id?: string | null
+    confirm_quantity_change?: boolean
   },
 ): Promise<GrossanlassProcurementLine> {
   const response = await apiClient.post<GrossanlassProcurementLine>(

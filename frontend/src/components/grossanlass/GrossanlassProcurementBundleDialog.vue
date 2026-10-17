@@ -201,7 +201,10 @@ watch(
     selectedIds.value = props.wishes.map((w) => w.id)
     selectedVehicleIds.value = props.vehicles.map((row) => row.id)
     label.value = (props.suggestedLabel ?? props.wishes[0]?.label ?? props.vehicles[0]?.vehicle_label ?? '').trim()
-    categoryId.value = null
+    // Haben alle Wünsche dieselbe (bereits gesetzte) Kategorie, ist sie der Vorschlag.
+    const wishCategories = new Set(props.wishes.map((w) => w.category_id ?? null))
+    const [sharedCategory] = wishCategories
+    categoryId.value = wishCategories.size === 1 && sharedCategory ? sharedCategory : null
     costKind.value = 'loan'
     errorMessage.value = ''
     if (groups.value.length === 0 && props.departmentId) {

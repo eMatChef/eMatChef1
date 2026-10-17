@@ -163,7 +163,7 @@ final class GrossanlassProcurementBundleSuggester
         return $merged;
     }
 
-    private static function keysAreSimilar(string $a, string $b): bool
+    public static function keysAreSimilar(string $a, string $b): bool
     {
         if ($a === $b) {
             return true;

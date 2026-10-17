@@ -451,6 +451,10 @@ class GrossanlassWishService
         if (array_key_exists('self_organized', $data)) {
             $line->setSelfOrganized(filter_var($data['self_organized'], FILTER_VALIDATE_BOOLEAN));
         }
+        if (array_key_exists('procurement_responsibility', $data)) {
+            $responsibility = $data['procurement_responsibility'];
+            $line->setProcurementResponsibility($responsibility === null || $responsibility === '' ? null : (string) $responsibility);
+        }
         $line->touchUpdatedAt();
         $this->entityManager->flush();
 
@@ -504,6 +508,10 @@ class GrossanlassWishService
         $this->applyPickup($line, $data);
         if (array_key_exists('self_organized', $data)) {
             $line->setSelfOrganized(filter_var($data['self_organized'], FILTER_VALIDATE_BOOLEAN));
+        }
+        if (array_key_exists('procurement_responsibility', $data)) {
+            $responsibility = $data['procurement_responsibility'];
+            $line->setProcurementResponsibility($responsibility === null || $responsibility === '' ? null : (string) $responsibility);
         }
         $line->setCreatedByUser($user);
         $line->setStatus(ActivityGrossanlassWishLine::STATUS_REQUESTED);
@@ -2033,6 +2041,7 @@ class GrossanlassWishService
             'return_needed' => $line->isReturnNeeded(),
             'quantity_unit' => $line->getQuantityUnit(),
             'self_organized' => $line->isSelfOrganized(),
+            'procurement_responsibility' => $line->getProcurementResponsibility(),
             ...$line->enoughOnHandPayload(),
             'status' => $line->getStatus(),
             'last_stage' => $line->getLastStage(),

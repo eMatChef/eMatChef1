@@ -36,6 +36,18 @@
       @created="(category) => emit('category-created', category)"
     />
 
+    <ESelect
+      v-if="!isLoading && roundForm"
+      v-model="responsibility"
+      class="category-block"
+      :items="responsibilityItems"
+      item-title="title"
+      item-value="value"
+      :label="t('grossanlass.beschaffung.bedarf.responsibility.label')"
+      hide-details
+      data-testid="wish-edit-responsibility"
+    />
+
     <GrossanlassWishEnoughOnHandField
       v-if="!isLoading && roundForm"
       v-model="enough"
@@ -71,6 +83,7 @@ import {
   updateGrossanlassBedarfWish,
   type GrossanlassProcurementCategory,
   type GrossanlassProcurementPoolWish,
+  type GrossanlassProcurementResponsibility,
 } from '@/api/grossanlassProcurement'
 import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
 import {
@@ -84,7 +97,7 @@ import GrossanlassWishDynamicForm from '@/components/grossanlass/GrossanlassWish
 import GrossanlassProcurementCategoryPicker from '@/components/grossanlass/GrossanlassProcurementCategoryPicker.vue'
 import GrossanlassWishEnoughOnHandField from '@/components/grossanlass/GrossanlassWishEnoughOnHandField.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
-import { EButton, EDialog } from '@/components/form/base'
+import { EButton, EDialog, ESelect } from '@/components/form/base'
 import {
   emptyEnoughOnHand,
   enoughOnHandFromApi,
@@ -123,6 +136,12 @@ const loadError = ref('')
 const errorMessage = ref('')
 const enough = ref<EnoughOnHandValue>(emptyEnoughOnHand())
 const categoryId = ref<string | null>(null)
+const responsibility = ref<GrossanlassProcurementResponsibility | null>(null)
+const responsibilityItems = computed(() => [
+  { title: t('grossanlass.beschaffung.bedarf.responsibility.undecided'), value: null },
+  { title: t('grossanlass.beschaffung.bedarf.responsibility.department'), value: 'department' },
+  { title: t('grossanlass.beschaffung.bedarf.responsibility.central'), value: 'central' },
+])
 const commitments = ref<GrossanlassCommitment[]>([])
 
 function toWishLine(wish: GrossanlassProcurementPoolWish): GrossanlassWishLine {
@@ -161,6 +180,7 @@ async function loadForm() {
   roundForm.value = null
   enough.value = enoughOnHandFromApi(props.wish)
   categoryId.value = props.wish.category_id ?? null
+  responsibility.value = props.wish.procurement_responsibility ?? null
   try {
     const [form, groupList, zusageList] = await Promise.all([
       getGrossanlassRoundForm(props.departmentId, props.wish.round_id),
@@ -226,6 +246,7 @@ async function submit() {
     const overview = await updateGrossanlassBedarfWish(props.departmentId, props.wish.id, {
       ...payload,
       category_id: categoryId.value,
+      procurement_responsibility: responsibility.value,
       enough_on_hand: enoughFields.enough_on_hand,
       enough_on_hand_source: enoughFields.enough_on_hand_source as 'stock' | 'commitment' | null | undefined,
       enough_on_hand_detail: enoughFields.enough_on_hand_detail,
