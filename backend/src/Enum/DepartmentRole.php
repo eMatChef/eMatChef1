@@ -14,6 +14,7 @@ namespace App\Enum;
  * 5. depchef             - Chef des Departments (Grossanlass: OK-Leitung)
  * 5a. bl                 - Bereichsleitung (Grossanlass, eigener Ast)
  * 5b. komm / spon        - Kommunikation / Sponsoring (Grossanlass, Postfach)
+ * 5d. hv / subhv        - GA-HV / GA-SUBHV (Grossanlass, Helferpool-Zuteilung)
  * 5c. lw / clw           - Logistikwart / Co-Logistikwart (Grossanlass, noch ohne Rechte)
  * 6. leader1             - Hierarchische Leiter-Funktion (Ebene 1)
  * 7. leader2             - Hierarchische Leiter-Funktion (Ebene 2)
@@ -36,6 +37,8 @@ enum DepartmentRole: string
     case SPONSORING = 'spon';
     case LOGISTIKWART = 'lw';
     case CO_LOGISTIKWART = 'clw';
+    case GA_HV = 'hv';
+    case GA_SUBHV = 'subhv';
     case LEADER1 = 'l1';
     case LEADER2 = 'l2';
     case LEADER3 = 'l3';
@@ -66,6 +69,8 @@ enum DepartmentRole: string
             self::SPONSORING => 6,
             self::LOGISTIKWART => 6,
             self::CO_LOGISTIKWART => 6,
+            self::GA_HV => 6,
+            self::GA_SUBHV => 6,
             self::LEADER1 => 7,
             self::LEADER2 => 8,
             self::LEADER3 => 9,
@@ -109,6 +114,7 @@ enum DepartmentRole: string
             self::SPONSORING => 'ROLE_SPONSORING',
             self::LOGISTIKWART => 'ROLE_LOGISTIKWART',
             self::CO_LOGISTIKWART => 'ROLE_CO_LOGISTIKWART',
+            self::GA_HV, self::GA_SUBHV => 'ROLE_USER',
             self::LEADER1 => 'ROLE_LEADER1',
             self::LEADER2 => 'ROLE_LEADER2',
             self::LEADER3 => 'ROLE_LEADER3',
@@ -131,6 +137,8 @@ enum DepartmentRole: string
             self::SPONSORING => 'sponsoring',
             self::LOGISTIKWART => 'logistikwart',
             self::CO_LOGISTIKWART => 'co_logistikwart',
+            self::GA_HV => 'ga_hv',
+            self::GA_SUBHV => 'ga_subhv',
             self::LEADER1 => 'leader1',
             self::LEADER2 => 'leader2',
             self::LEADER3 => 'leader3',

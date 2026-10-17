@@ -1177,6 +1177,8 @@
         "spon": "Sponsoring",
         "lw": "Logistics lead",
         "clw": "Co logistics lead",
+        "hv": "GA-HV",
+        "subhv": "GA-SUBHV",
         "h": "Helper",
         "u": "Member",
         "bl": "Area lead"
@@ -5368,6 +5370,8 @@
         "spon": "Sponsoring",
         "lw": "Logistics lead",
         "clw": "Co logistics lead",
+        "hv": "GA-HV",
+        "subhv": "GA-SUBHV",
         "h": "H - Helper",
         "l1": "L1 – leader 1",
         "l2": "L2 – leader 2",
@@ -5485,6 +5489,8 @@
         "spon": "Sponsoring",
         "lw": "Logistics lead",
         "clw": "Co logistics lead",
+        "hv": "GA-HV",
+        "subhv": "GA-SUBHV",
         "h": "Helper",
         "l1": "Leader 1",
         "l2": "Leader 2",
@@ -7876,6 +7882,8 @@
       "spon": "Sponsoring (spon)",
       "lw": "Logistics lead (lw)",
       "clw": "Co logistics lead (clw)",
+      "hv": "GA-HV (hv)",
+      "subhv": "GA-SUBHV (subhv)",
       "mw": "Materials lead (mw)"
     },
     "errors": {

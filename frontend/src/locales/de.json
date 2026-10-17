@@ -1283,6 +1283,8 @@
         "spon": "Sponsoring",
         "lw": "Logistikwart",
         "clw": "Co-Logistikwart",
+        "hv": "GA-HV",
+        "subhv": "GA-SUBHV",
         "h": "Helfer",
         "u": "Mitglied"
       }
@@ -6806,6 +6808,8 @@
         "spon": "Spon - Sponsoring",
         "lw": "LW - Logistikwart",
         "clw": "CLW - Co-Logistikwart",
+        "hv": "HV - GA-HV",
+        "subhv": "SUBHV - GA-SUBHV",
         "h": "H - Helfer",
         "l1": "L1 - Leader 1",
         "l2": "L2 - Leader 2",
@@ -7107,6 +7111,8 @@
         "spon": "Sponsoring",
         "lw": "Logistikwart",
         "clw": "Co-Logistikwart",
+        "hv": "GA-HV",
+        "subhv": "GA-SUBHV",
         "h": "Helfer",
         "l1": "Leader 1",
         "l2": "Leader 2",
@@ -9694,6 +9700,8 @@
       "spon": "Sponsoring (spon)",
       "lw": "Logistikwart (lw)",
       "clw": "Co-Logistikwart (clw)",
+      "hv": "GA-HV (hv)",
+      "subhv": "GA-SUBHV (subhv)",
       "mw": "Materialchef (mw)"
     },
     "errors": {
