@@ -61,7 +61,7 @@ Grossanlass-Dept: kein Pfadi-`/activities`, kein Pfadi-`/accounting`. Sichtbarke
 | Logistik | Fahrzeuge | `/{deptId}/ga/vehicles` | |
 | Betrieb | Werkstatt | `/{deptId}/ga/workshop` | eigenständig: betrifft Material und Fahrzeuge |
 | Finanzen | Kosten | `/{deptId}/ga/costs` | |
-| Kommunikation | Nachrichten | `/{deptId}/dept/notifications` | |
+| Kommunikation | Nachrichten | `/{deptId}/ga/notifications` | |
 | unten | Grossanlass verwalten | `/{deptId}/ga/activity-settings` | bisher «Einstellungen» |
 | unten | Konfiguration | `/{deptId}/dept/settings` | |
 | unten | UI Sandbox | `/{deptId}/dev/ui-playground` | nur Development |
@@ -526,8 +526,8 @@ Implementierung: `[SidebarNavigation.vue](../../frontend/src/components/layout/S
 | 4   | Materialübersicht | `mdi-truck-delivery-outline` | `/{deptId}/ga/material` | **Ist** — Bestand, Wareneingang, Ausgabe, Pack, Retour. Einsätze/Konflikte unter Planung |
 | 5   | **Beschaffung**   | `mdi-cart-outline`           | `/{deptId}/ga/procurement`         | **Ist** — Inhalt [§0.5](#05-beschaffung-anfragen-wareneingang-kosten), keine Shell |
 | —   | *Divider*         |                              |                                 |                                             |
-| 6   | **Aufgaben**      | `mdi-clipboard-list`         | `/{deptId}/dept/tasks`               | ab Phase 2 (Runden-Inbox, MW-Tasks)         |
-| 7   | **Nachrichten**   | `mdi-bell-outline`           | `/{deptId}/dept/notifications`       | ab Phase 2                                  |
+| 6   | **Aufgaben**      | `mdi-clipboard-list`         | `/{deptId}/ga/tasks`                 | ab Phase 2 (Runden-Inbox, MW-Tasks)         |
+| 7   | **Nachrichten**   | `mdi-bell-outline`           | `/{deptId}/ga/notifications`       | ab Phase 2                                  |
 | 8   | Kontakte          | `mdi-account-group`          | `/{deptId}/dept/contacts`            | optional (CM; RL vorerst aus)               |
 | 9   | **Einstellungen** | `mdi-cog-outline`            | `/{deptId}/dept/settings`            | immer                                       |
 | 10  | Hilfe             | `mdi-help-circle-outline`    | `/{deptId}/dept/help/department`    | optional wie Pfadi                          |

@@ -1202,6 +1202,48 @@ const routes: RouteRecordRaw[] = [
             },
           },
           {
+            path: 'notifications',
+            name: 'GrossanlassNotificationsCenter',
+            component: () => import('@/views/NotificationsCenterView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              ...routeHead('notificationsCenter'),
+            },
+          },
+          {
+            path: 'tasks',
+            component: () => import('@/views/TasksShellView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              ...routeHead('tasks'),
+            },
+            children: [
+              {
+                path: '',
+                name: 'TasksGaMaster',
+                component: () => import('@/views/grossanlass/aufgaben/GrossanlassAufgabenMasterView.vue'),
+                beforeEnter: () => {
+                  const authStore = useAuthStore()
+                  if (gaIsGrossanlassHelper(authStore.currentDepartmentRole)) return { name: 'TasksGaMine', replace: true }
+                  return true
+                },
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  ...routeHead('tasksGaMaster'),
+                },
+              },
+              {
+                path: 'mine',
+                name: 'TasksGaMine',
+                component: () => import('@/views/grossanlass/aufgaben/GrossanlassMeineAufgabenView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  ...routeHead('tasksGaMine'),
+                },
+              },
+            ],
+          },
+          {
             path: 'department-material',
             name: 'GrossanlassAbteilungsmat',
             component: () => import('@/views/grossanlass/GrossanlassAbteilungsmatView.vue'),

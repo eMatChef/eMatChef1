@@ -189,7 +189,7 @@
       </router-link>
       <router-link
         v-if="true"
-        :to="getLink('/dept/tasks')"
+        :to="tasksLink"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('tasks') }"
         :title="tasksNavTitle"
@@ -264,7 +264,7 @@
       </div>
       <router-link
         v-if="true"
-        :to="getLink('/dept/notifications')"
+        :to="notificationsLink"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('notifications') }"
       >
@@ -448,7 +448,7 @@
       <!-- Aufgaben -->
       <router-link
         v-if="!isPendingAssignmentRoute && !useGroupedGaNav && (showGrossanlassHelperNav ? showGrossanlassHelperSidebarLinks : showDeptContextSidebarLinks)"
-        :to="getLink('/dept/tasks')"
+        :to="tasksLink"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('tasks') }"
         data-onboarding="nav-tasks"
@@ -469,7 +469,7 @@
       <!-- Nachrichtenzentrale (unter Aufgaben) -->
       <router-link
         v-if="!isPendingAssignmentRoute && !useGroupedGaNav && showDeptContextSidebarLinks && !showGrossanlassHelperNav"
-        :to="getLink('/dept/notifications')"
+        :to="notificationsLink"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('notifications') }"
         data-onboarding="nav-notifications"
@@ -1236,6 +1236,18 @@ function isDeptSectionNavActive(section: string): boolean {
   if (path.includes('/settings')) return false
   return path.includes(`/${section}`)
 }
+
+/** GA-Aufgaben liegen unter /ga/tasks, die allgemeine Aufgabenverwaltung bleibt unter /dept/tasks. */
+const tasksLink = computed(() => {
+  const id = (route.params.departmentId as string) || authStore.activeDepartmentId || ''
+  return getLink(id && authStore.isDepartmentGrossanlass(id) ? '/ga/tasks' : '/dept/tasks')
+})
+
+/** Nachrichtenzentrale: Grossanlass unter /ga/notifications, sonst /dept/notifications. */
+const notificationsLink = computed(() => {
+  const id = (route.params.departmentId as string) || authStore.activeDepartmentId || ''
+  return getLink(id && authStore.isDepartmentGrossanlass(id) ? '/ga/notifications' : '/dept/notifications')
+})
 
 const tasksNavTitle = computed(() => {
   const n = printCartCount.value

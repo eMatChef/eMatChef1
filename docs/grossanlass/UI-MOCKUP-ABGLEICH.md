@@ -35,7 +35,7 @@ Eine einzige Sidebar (`components/layout/SidebarNavigation.vue`). MW/CMW sehen d
 | Logistik | Logistik | `/{deptId}/ga/logistics` → `dispatch` | `mdi-truck-fast-outline` |
 | Betrieb | Werkstatt | `/{deptId}/ga/workshop` | `mdi-wrench` |
 | Finanzen | Kosten | `/{deptId}/ga/costs` | `mdi-cash-multiple` |
-| Kommunikation | Nachrichten | `/{deptId}/dept/notifications` | `mdi-bell-outline` |
+| Kommunikation | Nachrichten | `/{deptId}/ga/notifications` | `mdi-bell-outline` |
 | Kommunikation | Displays | `/{deptId}/ga/displays` | `mdi-television` |
 | unten | Grossanlass verwalten | `/{deptId}/ga/activity-settings` | `mdi-tune` |
 | unten | Konfiguration | `/{deptId}/ga/settings` | – |
@@ -357,7 +357,7 @@ Kurzformen: *Route* = unter `/{deptId}/`; *Komp.* = Vue-Datei unter `frontend/sr
 | Feld | Inhalt |
 | --- | --- |
 | Mockup-Quelle | [../nachrichtenzentrale.md](../nachrichtenzentrale.md) |
-| Route / Komp. | `dept/notifications` · `views/NotificationsCenterView.vue` |
+| Route / Komp. | `ga/notifications` (Department: `dept/notifications`) · `views/NotificationsCenterView.vue` |
 | Backend | Bestehende Nachrichtenzentrale |
 | UI-Stand | vorhanden (geteilte Department-Seite) |
 | Abweichungen | – |

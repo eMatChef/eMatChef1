@@ -176,6 +176,7 @@ import {
   type PublicFoundMessageStatus,
 } from '@/api/publicFoundMessages'
 import { ActivityDepartmentInviteDecisionModal, InboxQrDetailModal } from '@/components/notifications'
+import { notificationsCenterPath } from '@/utils/notificationsRoute'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton } from '@/components/form/base'
@@ -378,7 +379,7 @@ function goToMessageForQr(msg: PublicFoundItemMessage) {
     return
   }
   void router.push({
-    path: `/${departmentId.value}/dept/notifications`,
+    path: notificationsCenterPath(departmentId.value, isGrossanlass.value),
     query: { highlight: msg.id },
   })
 }
@@ -432,14 +433,14 @@ function openGaEinsatzTask(task: DepartmentTaskItem) {
 
 function goToMessageForDeptInvite(inv: ReceivedDepartmentInviteNotification) {
   void router.push({
-    path: `/${departmentId.value}/dept/notifications`,
+    path: notificationsCenterPath(departmentId.value, isGrossanlass.value),
     query: { openDeptInvite: inv.id },
   })
 }
 
 function goToMessageForCampInvite(inv: PendingDepartmentActivityInvite) {
   void router.push({
-    path: `/${departmentId.value}/dept/notifications`,
+    path: notificationsCenterPath(departmentId.value, isGrossanlass.value),
     query: {
       openCampInvite: `${inv.activity_id}:${inv.source_department_id}`,
     },

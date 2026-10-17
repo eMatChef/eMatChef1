@@ -18,6 +18,7 @@ use Doctrine\ORM\EntityManagerInterface;
 class InboxMessageService
 {
     use InboxMessageKindsTrait;
+    use InboxMessageQueryTrait;
 
     public function __construct(
         protected EntityManagerInterface $entityManager,
@@ -77,9 +78,7 @@ class InboxMessageService
      */
     public function listUserInbox(string $departmentId, string $recipientUserId, string $bucket = 'all', int $limit = 100): array
     {
-        $qb = $this->baseUserInboxQuery($departmentId, $recipientUserId);
-        $this->applyReadBucket($qb, $bucket);
-        $rows = $qb->setMaxResults(max(1, min($limit, 200)))->getQuery()->getResult();
+        $rows = $this->findInboxMessages(InboxMessage::CATEGORY_USER_MESSAGE, self::userFilter($departmentId, $recipientUserId), $bucket, $limit, 200);
 
         return array_map(fn (InboxMessage $m) => $this->toUserMessageArray($m), $rows);
     }
@@ -108,30 +107,32 @@ class InboxMessageService
 
     public function countUnreadUserMessages(string $departmentId, string $recipientUserId): int
     {
-        return (int) $this->entityManager->createQueryBuilder()
-            ->select('COUNT(m.id)')
-            ->from(InboxMessage::class, 'm')
-            ->where('IDENTITY(m.department) = :deptId')
-            ->andWhere('m.category = :cat')
-            ->andWhere('m.recipientUserId = :userId')
-            ->andWhere('m.readAt IS NULL')
-            ->setParameter('deptId', $departmentId)
-            ->setParameter('cat', InboxMessage::CATEGORY_USER_MESSAGE)
-            ->setParameter('userId', $recipientUserId)
-            ->getQuery()
-            ->getSingleScalarResult();
+        return $this->countUnreadInboxMessages(InboxMessage::CATEGORY_USER_MESSAGE, self::userFilter($departmentId, $recipientUserId));
     }
 
     public function markUserMessageRead(string $departmentId, string $recipientUserId, string $messageId): bool
     {
-        $row = $this->findUserInboxMessage($departmentId, $recipientUserId, $messageId);
-        if (!$row) {
-            return false;
-        }
-        $row->setReadAt(new \DateTime());
-        $this->entityManager->flush();
+        return $this->markInboxMessageRead(InboxMessage::CATEGORY_USER_MESSAGE, self::userFilter($departmentId, $recipientUserId), $messageId);
+    }
 
-        return true;
+    /**
+     * Empfänger-Filter einer persönlichen Zeile im Department.
+     *
+     * @return array{departmentId: string, userId: string}
+     */
+    private static function userFilter(string $departmentId, string $userId): array
+    {
+        return ['departmentId' => $departmentId, 'userId' => $userId];
+    }
+
+    /**
+     * Empfänger-Filter der Aktivitätsmeldungen an die Materialwart-Rolle (departmentweit).
+     *
+     * @return array{departmentId: string, recipientScope: string}
+     */
+    private static function materialManagerFilter(string $departmentId): array
+    {
+        return ['departmentId' => $departmentId, 'recipientScope' => InboxMessage::RECIPIENT_DEPARTMENT_MW];
     }
 
     public function notifyActivitySubmitted(Activity $activity, User $actor): void
@@ -592,50 +593,19 @@ class InboxMessageService
      */
     public function listActivityMw(string $departmentId, string $bucket = 'all', int $limit = 100): array
     {
-        $qb = $this->entityManager->createQueryBuilder()
-            ->select('m')
-            ->from(InboxMessage::class, 'm')
-            ->where('IDENTITY(m.department) = :deptId')
-            ->andWhere('m.category = :cat')
-            ->andWhere('m.recipientScope = :scope')
-            ->setParameter('deptId', $departmentId)
-            ->setParameter('cat', InboxMessage::CATEGORY_ACTIVITY_MW)
-            ->setParameter('scope', InboxMessage::RECIPIENT_DEPARTMENT_MW)
-            ->orderBy('m.createdAt', 'DESC');
-
-        $this->applyReadBucket($qb, $bucket);
-
-        $rows = $qb->setMaxResults(max(1, min($limit, 200)))->getQuery()->getResult();
+        $rows = $this->findInboxMessages(InboxMessage::CATEGORY_ACTIVITY_MW, self::materialManagerFilter($departmentId), $bucket, $limit, 200);
 
         return array_map(fn (InboxMessage $m) => $this->toActivityNotificationArray($m), $rows);
     }
 
     public function countUnreadActivityMw(string $departmentId): int
     {
-        return (int) $this->entityManager->createQueryBuilder()
-            ->select('COUNT(m.id)')
-            ->from(InboxMessage::class, 'm')
-            ->where('IDENTITY(m.department) = :deptId')
-            ->andWhere('m.category = :cat')
-            ->andWhere('m.recipientScope = :scope')
-            ->andWhere('m.readAt IS NULL')
-            ->setParameter('deptId', $departmentId)
-            ->setParameter('cat', InboxMessage::CATEGORY_ACTIVITY_MW)
-            ->setParameter('scope', InboxMessage::RECIPIENT_DEPARTMENT_MW)
-            ->getQuery()
-            ->getSingleScalarResult();
+        return $this->countUnreadInboxMessages(InboxMessage::CATEGORY_ACTIVITY_MW, self::materialManagerFilter($departmentId));
     }
 
     public function markActivityMwRead(string $departmentId, string $notificationId): bool
     {
-        $row = $this->findActivityMwMessage($departmentId, $notificationId);
-        if (!$row) {
-            return false;
-        }
-        $row->setReadAt(new \DateTime());
-        $this->entityManager->flush();
-
-        return true;
+        return $this->markInboxMessageRead(InboxMessage::CATEGORY_ACTIVITY_MW, self::materialManagerFilter($departmentId), $notificationId);
     }
 
     /**
@@ -643,63 +613,19 @@ class InboxMessageService
      */
     public function listActivityUser(string $departmentId, string $userId, string $bucket = 'all', int $limit = 100): array
     {
-        $qb = $this->entityManager->createQueryBuilder()
-            ->select('m')
-            ->from(InboxMessage::class, 'm')
-            ->where('IDENTITY(m.department) = :deptId')
-            ->andWhere('m.category = :cat')
-            ->andWhere('m.recipientUserId = :userId')
-            ->setParameter('deptId', $departmentId)
-            ->setParameter('cat', InboxMessage::CATEGORY_ACTIVITY_USER)
-            ->setParameter('userId', $userId)
-            ->orderBy('m.createdAt', 'DESC');
-
-        $this->applyReadBucket($qb, $bucket);
-
-        $rows = $qb->setMaxResults(max(1, min($limit, 200)))->getQuery()->getResult();
+        $rows = $this->findInboxMessages(InboxMessage::CATEGORY_ACTIVITY_USER, self::userFilter($departmentId, $userId), $bucket, $limit, 200);
 
         return array_map(fn (InboxMessage $m) => $this->toActivityNotificationArray($m), $rows);
     }
 
     public function countUnreadActivityUser(string $departmentId, string $userId): int
     {
-        return (int) $this->entityManager->createQueryBuilder()
-            ->select('COUNT(m.id)')
-            ->from(InboxMessage::class, 'm')
-            ->where('IDENTITY(m.department) = :deptId')
-            ->andWhere('m.category = :cat')
-            ->andWhere('m.recipientUserId = :userId')
-            ->andWhere('m.readAt IS NULL')
-            ->setParameter('deptId', $departmentId)
-            ->setParameter('cat', InboxMessage::CATEGORY_ACTIVITY_USER)
-            ->setParameter('userId', $userId)
-            ->getQuery()
-            ->getSingleScalarResult();
+        return $this->countUnreadInboxMessages(InboxMessage::CATEGORY_ACTIVITY_USER, self::userFilter($departmentId, $userId));
     }
 
     public function markActivityUserRead(string $departmentId, string $userId, string $notificationId): bool
     {
-        $row = $this->entityManager->createQueryBuilder()
-            ->select('m')
-            ->from(InboxMessage::class, 'm')
-            ->where('m.id = :id')
-            ->andWhere('IDENTITY(m.department) = :deptId')
-            ->andWhere('m.category = :cat')
-            ->andWhere('m.recipientUserId = :userId')
-            ->setParameter('id', $notificationId)
-            ->setParameter('deptId', $departmentId)
-            ->setParameter('cat', InboxMessage::CATEGORY_ACTIVITY_USER)
-            ->setParameter('userId', $userId)
-            ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
-        if (!$row) {
-            return false;
-        }
-        $row->setReadAt(new \DateTime());
-        $this->entityManager->flush();
-
-        return true;
+        return $this->markInboxMessageRead(InboxMessage::CATEGORY_ACTIVITY_USER, self::userFilter($departmentId, $userId), $notificationId);
     }
 
     /**
@@ -886,69 +812,7 @@ class InboxMessageService
         $qb->getQuery()->execute();
     }
 
-    private function findUserInboxMessage(string $departmentId, string $recipientUserId, string $messageId): ?InboxMessage
-    {
-        return $this->entityManager->createQueryBuilder()
-            ->select('m')
-            ->from(InboxMessage::class, 'm')
-            ->where('m.id = :id')
-            ->andWhere('IDENTITY(m.department) = :deptId')
-            ->andWhere('m.category = :cat')
-            ->andWhere('m.recipientUserId = :userId')
-            ->setParameter('id', $messageId)
-            ->setParameter('deptId', $departmentId)
-            ->setParameter('cat', InboxMessage::CATEGORY_USER_MESSAGE)
-            ->setParameter('userId', $recipientUserId)
-            ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
-    }
 
-    private function findActivityMwMessage(string $departmentId, string $messageId): ?InboxMessage
-    {
-        return $this->entityManager->createQueryBuilder()
-            ->select('m')
-            ->from(InboxMessage::class, 'm')
-            ->where('m.id = :id')
-            ->andWhere('IDENTITY(m.department) = :deptId')
-            ->andWhere('m.category = :cat')
-            ->andWhere('m.recipientScope = :scope')
-            ->setParameter('id', $messageId)
-            ->setParameter('deptId', $departmentId)
-            ->setParameter('cat', InboxMessage::CATEGORY_ACTIVITY_MW)
-            ->setParameter('scope', InboxMessage::RECIPIENT_DEPARTMENT_MW)
-            ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
-    }
 
-    /**
-     * @return \Doctrine\ORM\QueryBuilder
-     */
-    private function baseUserInboxQuery(string $departmentId, string $recipientUserId)
-    {
-        return $this->entityManager->createQueryBuilder()
-            ->select('m')
-            ->from(InboxMessage::class, 'm')
-            ->where('IDENTITY(m.department) = :deptId')
-            ->andWhere('m.category = :cat')
-            ->andWhere('m.recipientUserId = :userId')
-            ->setParameter('deptId', $departmentId)
-            ->setParameter('cat', InboxMessage::CATEGORY_USER_MESSAGE)
-            ->setParameter('userId', $recipientUserId)
-            ->orderBy('m.createdAt', 'DESC');
-    }
 
-    /**
-     * @param \Doctrine\ORM\QueryBuilder $qb
-     */
-    private function applyReadBucket($qb, string $bucket): void
-    {
-        $bucket = strtolower(trim($bucket));
-        if ($bucket === 'unread') {
-            $qb->andWhere('m.readAt IS NULL');
-        } elseif ($bucket === 'read') {
-            $qb->andWhere('m.readAt IS NOT NULL');
-        }
-    }
 }

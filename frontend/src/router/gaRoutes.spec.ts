@@ -31,6 +31,15 @@ describe('grossanlass routes under /:departmentId/ga', () => {
     expect(resolved.name ?? resolved.matched[resolved.matched.length - 1].name).toBeDefined()
   })
 
+  it('serves the shared notifications center canonically under /ga and /dept', () => {
+    const ga = router.resolve('/dep-1/ga/notifications')
+    const dept = router.resolve('/dep-1/dept/notifications')
+    expect(ga.name).toBe('GrossanlassNotificationsCenter')
+    expect(ga.matched.some((r) => r.meta.requiresGrossanlassDepartment)).toBe(true)
+    expect(dept.name).toBe('NotificationsCenter')
+    expect(dept.matched.some((r) => r.meta.requiresGrossanlassDepartment)).toBe(false)
+  })
+
   it('has no route for the removed procurement tab «Erhalten» (goods receipt lives under Material)', () => {
     expect(router.resolve('/dep-1/ga/procurement/received').name).toBeUndefined()
   })

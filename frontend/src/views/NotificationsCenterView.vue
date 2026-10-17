@@ -359,48 +359,41 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import {
-  getPendingDepartmentActivityInvites,
   decidePendingDepartmentInvite,
-  getReceivedDepartmentInvites,
   markReceivedDepartmentInviteRead,
   acceptDepartmentInvite,
   declineDepartmentInvite,
-  getInviteNotifications,
   markInviteNotificationRead,
   type InviteAcceptedNotification,
   type PendingDepartmentActivityInvite,
   type ReceivedDepartmentInviteNotification,
   type GrossanlassMwAssignedNotification,
   type GrossanlassRoundOpenedNotification,
-  type ReceivedUserInboxNotification,
 } from '@/api/joinRequests'
 import { useAuthStore } from '@/stores/auth'
 import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
 import {
-  getPublicFoundMessages,
   updatePublicFoundMessageStatus,
   type PublicFoundItemMessage,
   type PublicFoundMessageStatus,
 } from '@/api/publicFoundMessages'
 import {
-  getActivityMwNotifications,
   markActivityMwNotificationRead,
   type ActivityMwNotification,
 } from '@/api/activityNotifications'
 import {
-  getUserActivityStatusNotifications,
   markUserActivityStatusNotificationRead,
 } from '@/api/activityUserNotifications'
 import { routeForInboxActivityNotification } from '@/utils/inboxPackJourneyDeepLink'
 import { useActivityNotificationText } from '@/composables/useActivityNotificationText'
 import {
-  getUserDirectMessages,
   getUserDirectMessagesSent,
   markUserDirectMessageRead,
   type UserDirectMessage,
   type UserDirectMessageSent,
 } from '@/api/inboxMessages'
 import { getDepartmentMembers, type DepartmentMember } from '@/api/departments'
+import { loadInboxSources } from '@/utils/inboxSources'
 import {
   ActivityDepartmentInviteDecisionModal,
   InboxComposeModal,
@@ -848,83 +841,36 @@ async function load() {
   }
   isLoading.value = true
   try {
-    const invPromise = getPendingDepartmentActivityInvites(departmentId.value).catch(() => ({
-      count: 0,
-      items: [] as PendingDepartmentActivityInvite[],
-    }))
-    const deptInvPromise = getReceivedDepartmentInvites({ bucket: 'all', limit: 200 }).catch(() => ({
-      count: 0,
-      unread_count: 0,
-      items: [] as ReceivedUserInboxNotification[],
-    }))
-    const foundPromise = canManageQrContact.value
-      ? getPublicFoundMessages(departmentId.value, { bucket: 'all', limit: 200 }).catch(() => ({
-          items: [] as PublicFoundItemMessage[],
-        }))
-      : Promise.resolve({ items: [] as PublicFoundItemMessage[] })
-
-    const activityMwPromise = canManageMaterials.value
-      ? getActivityMwNotifications(departmentId.value, { bucket: 'all', limit: 200 }).catch(() => ({
-          unread_count: 0,
-          items: [] as ActivityMwNotification[],
-        }))
-      : Promise.resolve({ unread_count: 0, items: [] as ActivityMwNotification[] })
-
-    const userMsgPromise = getUserDirectMessages(departmentId.value, { bucket: 'all', limit: 200 }).catch(() => ({
-      unread_count: 0,
-      items: [] as UserDirectMessage[],
-    }))
+    const sourcesPromise = loadInboxSources(departmentId.value, {
+      bucket: 'all',
+      limit: 200,
+      qrBucket: 'all',
+      includeQr: canManageQrContact.value,
+      includeActivityMw: canManageMaterials.value,
+      includeInviteAccepted: !isUserRole.value,
+      includeCampInvites: true,
+    })
     const userSentPromise = getUserDirectMessagesSent(departmentId.value, { limit: 200 }).catch(() => ({
       count: 0,
       items: [] as UserDirectMessageSent[],
     }))
-    const activityUserPromise = getUserActivityStatusNotifications(departmentId.value, {
-      bucket: 'all',
-      limit: 200,
-    }).catch(() => ({ unread_count: 0, items: [] as ActivityMwNotification[] }))
     const membersPromise = getDepartmentMembers(departmentId.value).catch(() => [] as DepartmentMember[])
 
-    const inviteAcceptedPromise = !isUserRole.value
-      ? getInviteNotifications(departmentId.value, { bucket: 'all', limit: 200 }).catch(
-          () => [] as InviteAcceptedNotification[],
-        )
-      : Promise.resolve([] as InviteAcceptedNotification[])
-
-    const [inv, found, activityMw, deptInv, userMsg, userSent, activityUser, members, inviteAccepted] =
-      await Promise.all([
-      invPromise,
-      foundPromise,
-      activityMwPromise,
-      deptInvPromise,
-      userMsgPromise,
-      userSentPromise,
-      activityUserPromise,
-      membersPromise,
-      inviteAcceptedPromise,
-    ])
-    inviteItems.value = inv.items || []
-    const receivedItems = deptInv.items || []
-    departmentInviteAll.value = receivedItems.filter(
-      (i): i is ReceivedDepartmentInviteNotification =>
-        i.type === 'department_invite' &&
-        !authStore.departments.some((d) => d.department_id === i.department_id),
+    const [sources, userSent, members] = await Promise.all([sourcesPromise, userSentPromise, membersPromise])
+    inviteItems.value = sources.campInvites
+    departmentInviteAll.value = sources.departmentInvites.filter(
+      (i) => !authStore.departments.some((d) => d.department_id === i.department_id),
     )
-    grossanlassMwAssignedAll.value = receivedItems.filter(
-      (i): i is GrossanlassMwAssignedNotification => i.type === 'grossanlass_mw_assigned',
-    )
-    grossanlassRoundOpenedAll.value = receivedItems.filter(
-      (i): i is GrossanlassRoundOpenedNotification => i.type === 'grossanlass_round_opened',
-    )
-    departmentInviteUnreadCount.value =
-      typeof deptInv.unread_count === 'number' ? deptInv.unread_count : 0
-    allFoundMessages.value = found.items || []
-    activityMwAll.value = activityMw.items || []
-    activityMwUnreadCount.value =
-      typeof activityMw.unread_count === 'number' ? activityMw.unread_count : 0
-    userMessagesAll.value = userMsg.items || []
+    grossanlassMwAssignedAll.value = sources.grossanlassMwAssigned
+    grossanlassRoundOpenedAll.value = sources.grossanlassRoundOpened
+    departmentInviteUnreadCount.value = sources.receivedInvites.unreadCount ?? 0
+    allFoundMessages.value = sources.found.items
+    activityMwAll.value = sources.activityMw.items
+    activityMwUnreadCount.value = sources.activityMw.unreadCount ?? 0
+    userMessagesAll.value = sources.userMessages.items
     userMessagesSent.value = userSent.items || []
-    activityUserStatusAll.value = activityUser.items || []
-    inviteAcceptedAll.value = inviteAccepted || []
+    activityUserStatusAll.value = sources.activityUser.items
+    inviteAcceptedAll.value = sources.inviteAccepted
     departmentMembers.value = members || []
   } catch {
     inviteItems.value = []

@@ -179,25 +179,12 @@ trait InboxMessageKindsTrait
      */
     public function listDepartmentInvitesForUser(string $userId, string $bucket = 'all', int $limit = 50): array
     {
-        $qb = $this->entityManager->createQueryBuilder()
-            ->select('m')
-            ->from(InboxMessage::class, 'm')
-            ->where('m.recipientUserId = :userId')
-            ->andWhere('m.category = :cat')
-            ->andWhere('m.workflowStatus = :pending')
-            ->setParameter('userId', $userId)
-            ->setParameter('cat', InboxMessage::CATEGORY_DEPARTMENT_INVITE)
-            ->setParameter('pending', InboxMessage::WORKFLOW_PENDING)
-            ->orderBy('m.createdAt', 'DESC')
-            ->setMaxResults(max(1, min($limit, 100)));
-
-        if ($bucket === 'unread') {
-            $qb->andWhere('m.readAt IS NULL');
-        } elseif ($bucket === 'read') {
-            $qb->andWhere('m.readAt IS NOT NULL');
-        }
-
-        $rows = $qb->getQuery()->getResult();
+        $rows = $this->findInboxMessages(
+            InboxMessage::CATEGORY_DEPARTMENT_INVITE,
+            ['userId' => $userId, 'workflowStatus' => InboxMessage::WORKFLOW_PENDING],
+            $bucket,
+            $limit,
+        );
         $rows = $this->pruneStaleDepartmentInviteMessages($rows);
 
         return array_map(fn (InboxMessage $m) => $this->toDepartmentInviteArray($m), $rows);
@@ -210,26 +197,7 @@ trait InboxMessageKindsTrait
 
     public function markDepartmentInviteRead(string $userId, string $notificationId): bool
     {
-        $row = $this->entityManager->createQueryBuilder()
-            ->select('m')
-            ->from(InboxMessage::class, 'm')
-            ->where('m.id = :id')
-            ->andWhere('m.recipientUserId = :userId')
-            ->andWhere('m.category = :cat')
-            ->setParameter('id', $notificationId)
-            ->setParameter('userId', $userId)
-            ->setParameter('cat', InboxMessage::CATEGORY_DEPARTMENT_INVITE)
-            ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        if (!$row) {
-            return false;
-        }
-        $row->setReadAt(new \DateTime());
-        $this->entityManager->flush();
-
-        return true;
+        return $this->markInboxMessageRead(InboxMessage::CATEGORY_DEPARTMENT_INVITE, ['userId' => $userId], $notificationId);
     }
 
     public function removeDepartmentInvite(string $departmentId, string $userId, string $inviteId): void
@@ -342,63 +310,19 @@ trait InboxMessageKindsTrait
      */
     public function listGrossanlassRoundOpenedForUser(string $userId, string $bucket = 'all', int $limit = 50): array
     {
-        $qb = $this->entityManager->createQueryBuilder()
-            ->select('m')
-            ->from(InboxMessage::class, 'm')
-            ->where('m.recipientUserId = :userId')
-            ->andWhere('m.category = :cat')
-            ->setParameter('userId', $userId)
-            ->setParameter('cat', InboxMessage::CATEGORY_GROSSANLASS_ROUND_OPENED)
-            ->orderBy('m.createdAt', 'DESC')
-            ->setMaxResults(max(1, min($limit, 100)));
-
-        if ($bucket === 'unread') {
-            $qb->andWhere('m.readAt IS NULL');
-        } elseif ($bucket === 'read') {
-            $qb->andWhere('m.readAt IS NOT NULL');
-        }
-
-        $rows = $qb->getQuery()->getResult();
+        $rows = $this->findInboxMessages(InboxMessage::CATEGORY_GROSSANLASS_ROUND_OPENED, ['userId' => $userId], $bucket, $limit);
 
         return array_map(fn (InboxMessage $m) => $this->toGrossanlassRoundOpenedArray($m), $rows);
     }
 
     public function countUnreadGrossanlassRoundOpened(string $userId): int
     {
-        return (int) $this->entityManager->createQueryBuilder()
-            ->select('COUNT(m.id)')
-            ->from(InboxMessage::class, 'm')
-            ->where('m.recipientUserId = :userId')
-            ->andWhere('m.category = :cat')
-            ->andWhere('m.readAt IS NULL')
-            ->setParameter('userId', $userId)
-            ->setParameter('cat', InboxMessage::CATEGORY_GROSSANLASS_ROUND_OPENED)
-            ->getQuery()
-            ->getSingleScalarResult();
+        return $this->countUnreadInboxMessages(InboxMessage::CATEGORY_GROSSANLASS_ROUND_OPENED, ['userId' => $userId]);
     }
 
     public function markGrossanlassRoundOpenedRead(string $userId, string $notificationId): bool
     {
-        $row = $this->entityManager->createQueryBuilder()
-            ->select('m')
-            ->from(InboxMessage::class, 'm')
-            ->where('m.id = :id')
-            ->andWhere('m.recipientUserId = :userId')
-            ->andWhere('m.category = :cat')
-            ->setParameter('id', $notificationId)
-            ->setParameter('userId', $userId)
-            ->setParameter('cat', InboxMessage::CATEGORY_GROSSANLASS_ROUND_OPENED)
-            ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        if (!$row) {
-            return false;
-        }
-        $row->setReadAt(new \DateTime());
-        $this->entityManager->flush();
-
-        return true;
+        return $this->markInboxMessageRead(InboxMessage::CATEGORY_GROSSANLASS_ROUND_OPENED, ['userId' => $userId], $notificationId);
     }
 
     /**
@@ -406,15 +330,7 @@ trait InboxMessageKindsTrait
      */
     public function toGrossanlassRoundOpenedArray(InboxMessage $m): array
     {
-        $p = $m->getPayload();
-
-        return array_merge($p, [
-            'id' => $m->getId(),
-            'type' => 'grossanlass_round_opened',
-            'read' => $m->isRead(),
-            'read_at' => $m->getReadAt()?->format(\DateTimeInterface::ATOM),
-            'created_at' => $m->getCreatedAt()->format(\DateTimeInterface::ATOM),
-        ]);
+        return $this->toPayloadNotificationArray($m);
     }
 
     // --- Grossanlass Chief-MW assigned ---
@@ -456,63 +372,19 @@ trait InboxMessageKindsTrait
      */
     public function listGrossanlassMwAssignedForUser(string $userId, string $bucket = 'all', int $limit = 50): array
     {
-        $qb = $this->entityManager->createQueryBuilder()
-            ->select('m')
-            ->from(InboxMessage::class, 'm')
-            ->where('m.recipientUserId = :userId')
-            ->andWhere('m.category = :cat')
-            ->setParameter('userId', $userId)
-            ->setParameter('cat', InboxMessage::CATEGORY_GROSSANLASS_MW_ASSIGNED)
-            ->orderBy('m.createdAt', 'DESC')
-            ->setMaxResults(max(1, min($limit, 100)));
-
-        if ($bucket === 'unread') {
-            $qb->andWhere('m.readAt IS NULL');
-        } elseif ($bucket === 'read') {
-            $qb->andWhere('m.readAt IS NOT NULL');
-        }
-
-        $rows = $qb->getQuery()->getResult();
+        $rows = $this->findInboxMessages(InboxMessage::CATEGORY_GROSSANLASS_MW_ASSIGNED, ['userId' => $userId], $bucket, $limit);
 
         return array_map(fn (InboxMessage $m) => $this->toGrossanlassMwAssignedArray($m), $rows);
     }
 
     public function countUnreadGrossanlassMwAssigned(string $userId): int
     {
-        return (int) $this->entityManager->createQueryBuilder()
-            ->select('COUNT(m.id)')
-            ->from(InboxMessage::class, 'm')
-            ->where('m.recipientUserId = :userId')
-            ->andWhere('m.category = :cat')
-            ->andWhere('m.readAt IS NULL')
-            ->setParameter('userId', $userId)
-            ->setParameter('cat', InboxMessage::CATEGORY_GROSSANLASS_MW_ASSIGNED)
-            ->getQuery()
-            ->getSingleScalarResult();
+        return $this->countUnreadInboxMessages(InboxMessage::CATEGORY_GROSSANLASS_MW_ASSIGNED, ['userId' => $userId]);
     }
 
     public function markGrossanlassMwAssignedRead(string $userId, string $notificationId): bool
     {
-        $row = $this->entityManager->createQueryBuilder()
-            ->select('m')
-            ->from(InboxMessage::class, 'm')
-            ->where('m.id = :id')
-            ->andWhere('m.recipientUserId = :userId')
-            ->andWhere('m.category = :cat')
-            ->setParameter('id', $notificationId)
-            ->setParameter('userId', $userId)
-            ->setParameter('cat', InboxMessage::CATEGORY_GROSSANLASS_MW_ASSIGNED)
-            ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        if (!$row) {
-            return false;
-        }
-        $row->setReadAt(new \DateTime());
-        $this->entityManager->flush();
-
-        return true;
+        return $this->markInboxMessageRead(InboxMessage::CATEGORY_GROSSANLASS_MW_ASSIGNED, ['userId' => $userId], $notificationId);
     }
 
     /**
@@ -520,15 +392,7 @@ trait InboxMessageKindsTrait
      */
     public function toGrossanlassMwAssignedArray(InboxMessage $m): array
     {
-        $p = $m->getPayload();
-
-        return array_merge($p, [
-            'id' => $m->getId(),
-            'type' => 'grossanlass_mw_assigned',
-            'read' => $m->isRead(),
-            'read_at' => $m->getReadAt()?->format(\DateTimeInterface::ATOM),
-            'created_at' => $m->getCreatedAt()->format(\DateTimeInterface::ATOM),
-        ]);
+        return $this->toPayloadNotificationArray($m);
     }
 
     // --- Invite accepted (for inviter) ---
@@ -566,78 +430,25 @@ trait InboxMessageKindsTrait
         $this->entityManager->flush();
     }
 
-    /**
-     * @return list<array<string, mixed>>
-     */
     public function listInviteAcceptedForInviter(
         string $departmentId,
         string $inviterUserId,
         string $bucket = 'all',
         int $limit = 50,
     ): array {
-        $qb = $this->entityManager->createQueryBuilder()
-            ->select('m')
-            ->from(InboxMessage::class, 'm')
-            ->where('IDENTITY(m.department) = :deptId')
-            ->andWhere('m.recipientUserId = :userId')
-            ->andWhere('m.category = :cat')
-            ->setParameter('deptId', $departmentId)
-            ->setParameter('userId', $inviterUserId)
-            ->setParameter('cat', InboxMessage::CATEGORY_INVITE_ACCEPTED)
-            ->orderBy('m.createdAt', 'DESC')
-            ->setMaxResults(max(1, min($limit, 100)));
-
-        if ($bucket === 'unread') {
-            $qb->andWhere('m.readAt IS NULL');
-        } elseif ($bucket === 'read') {
-            $qb->andWhere('m.readAt IS NOT NULL');
-        }
-
-        $rows = $qb->getQuery()->getResult();
+        $rows = $this->findInboxMessages(InboxMessage::CATEGORY_INVITE_ACCEPTED, self::userFilter($departmentId, $inviterUserId), $bucket, $limit);
 
         return array_map(fn (InboxMessage $m) => $this->toInviteAcceptedArray($m), $rows);
     }
 
     public function countUnreadInviteAccepted(string $departmentId, string $inviterUserId): int
     {
-        return (int) $this->entityManager->createQueryBuilder()
-            ->select('COUNT(m.id)')
-            ->from(InboxMessage::class, 'm')
-            ->where('IDENTITY(m.department) = :deptId')
-            ->andWhere('m.recipientUserId = :userId')
-            ->andWhere('m.category = :cat')
-            ->andWhere('m.readAt IS NULL')
-            ->setParameter('deptId', $departmentId)
-            ->setParameter('userId', $inviterUserId)
-            ->setParameter('cat', InboxMessage::CATEGORY_INVITE_ACCEPTED)
-            ->getQuery()
-            ->getSingleScalarResult();
+        return $this->countUnreadInboxMessages(InboxMessage::CATEGORY_INVITE_ACCEPTED, self::userFilter($departmentId, $inviterUserId));
     }
 
     public function markInviteAcceptedRead(string $departmentId, string $inviterUserId, string $notificationId): bool
     {
-        $row = $this->entityManager->createQueryBuilder()
-            ->select('m')
-            ->from(InboxMessage::class, 'm')
-            ->where('m.id = :id')
-            ->andWhere('IDENTITY(m.department) = :deptId')
-            ->andWhere('m.recipientUserId = :userId')
-            ->andWhere('m.category = :cat')
-            ->setParameter('id', $notificationId)
-            ->setParameter('deptId', $departmentId)
-            ->setParameter('userId', $inviterUserId)
-            ->setParameter('cat', InboxMessage::CATEGORY_INVITE_ACCEPTED)
-            ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        if (!$row) {
-            return false;
-        }
-        $row->setReadAt(new \DateTime());
-        $this->entityManager->flush();
-
-        return true;
+        return $this->markInboxMessageRead(InboxMessage::CATEGORY_INVITE_ACCEPTED, self::userFilter($departmentId, $inviterUserId), $notificationId);
     }
 
     // --- Activity department invite (camp/event) ---
