@@ -57,11 +57,19 @@ Berechtigung serverseitig: Mitglied des Departments (kleinste Demo-/Dev-Berechti
 
 ## Aufgabenverwaltung (Frontend)
 
-Aufgaben-Ansichten (`views/grossanlass/aufgaben`) nehmen «Heute», «Später», «Überfällig», «Meine Aufgaben», Zeitraum-/Status-Filter und KPI-Zählung aus `useGaNow()` (`gaAufgabenUi.ts`): im Demo-/Dev-Modus `businessClock.displayNow` (Offset des Departments), sonst die normale aktuelle Zeit. Keine eigene Uhr.
+Aufgaben-Ansichten (`views/grossanlass/aufgaben`) nehmen «Heute», «Später», «Überfällig», «Meine Einsätze», Zeitraum-/Status-Filter und KPI-Zählung aus `useGaNow()` (`gaAufgabenUi.ts`): im Demo-/Dev-Modus `businessClock.displayNow` (Offset des Departments), sonst die normale aktuelle Zeit. Keine eigene Uhr.
 
 ## Migrierte Zeitstellen
 
 `GrossanlassPlanningRoundService` (Auto-Schedule, Runde öffnen/schliessen), `GrossanlassProcurementProgress` (laufende Aufgaben/Schichten), `GrossanlassUebersichtService` (heute/morgen-Buckets, Fahrt-Freigabe), `GrossanlassUserCardService` (Karte gedruckt, Fahrausweis verifiziert), `GrossanlassWishService` (Standard-Zeitraum), `GrossanlassPackService` (Fahrt-Freigabe). Alles andere (inkl. `GmailOAuthState`, Auth, Token) ist bewusst unverändert.
+
+## Fachliche Ereigniszeiten
+
+Verlaufseinträge, die der Benutzer als Zeitpunkt der Arbeit sieht, tragen die Fachzeit des Departments: Aufgabenverlauf (`DepartmentGrossanlassTaskEvent`), Abhaken und Blockieren von Aufgaben, Bauauftrag-Abnahme, Dispositionsprotokoll und Tourprotokoll (zusammen mit den bereits migrierten Tourbestätigung/-abschluss und Fahrt-Freigabe). `created_at`/`updated_at` der übrigen Zeilen, Audit und Security bleiben reale Systemzeit. Services ohne `BusinessClock` (Unit-Tests) fallen auf die Erfassungszeit zurück. Ein Zeitsprung ändert nur den Offset; er bucht nichts und setzt keinen Status zurück.
+
+## Infoscreen
+
+Das zentrale Infoscreen-Modul erhält die Fachzeit seines Departments über `clock` in den Display-Antworten, nur bei `demo_mode`; siehe [../devices/infoscreen.md](../devices/infoscreen.md).
 
 ## Phase 2 (NICHT gebaut): Side-Effect-Sandbox
 

@@ -41,7 +41,7 @@ Artikel            Gruppierung von Chargen (UI), kein eigener Datensatz
   → Charge         department_grossanlass_commitment — Menge, Herkunft, Zeitfenster
     → Einsatz      department_grossanlass_einsatz — bucht Menge einer Charge für Zeitraum/Ressort
       → Pack       department_grossanlass_pack (+ _pack_line) — Transportidentität mit QR
-        → Ort      department_grossanlass_place — GA-Ort, Matplatz (Lager), Unterlager
+        → Ort      department_grossanlass_place — GA-Ort, Lagerplatz (Lager), Unterlager
 ```
 
 ### 2.1 Charge (IST)
@@ -207,7 +207,7 @@ Der Wareneingang ist die physische Annahme, nicht die Bestellung oder die Zusage
 
 **IST:**
 
-- Materialübersicht → Wareneingang bucht pro Charge eine Teil- oder Restmenge mit optionalem Annahmeort (Matplatz / Unterlager) und Notiz: `POST …/beschaffung/zusagen/{commitmentId}/movements` (`kind=received`). Person und Zeitpunkt werden gespeichert.
+- Materialübersicht → Wareneingang bucht pro Charge eine Teil- oder Restmenge mit optionalem Annahmeort (Lagerplatz / Unterlager) und Notiz: `POST …/beschaffung/zusagen/{commitmentId}/movements` (`kind=received`). Person und Zeitpunkt werden gespeichert.
 - Erhaltene Menge, Fehlmenge und Stand (`none` \| `partial` \| `complete`) werden berechnet und mit der Charge ausgeliefert (`received_quantity`, `missing_quantity`, `inbound_state`).
 - Menge muss > 0 sein. Überlieferung über die Charge-Menge wird abgelehnt (keine stille Mengenkorrektur). Parallele Buchungen sperren die Charge.
 - Beschaffung: `POST …/beschaffung/lines/{id}/received` bucht als Bewegung an der Kauf-Charge **einer Bestellung** (`order_id`, bei mehreren Bestellungen Pflicht): `quantity` (diese Lieferung), `full` (Rest der Bestellung) oder `allocations` (Gesamtstand mit bewusster Zuteilung auf Wünsche). Eingänge gehören so immer der tatsächlichen Beschaffungsquelle.
@@ -306,7 +306,7 @@ Der Einsatz ist die Reservierung. Der Server entscheidet verbindlich (`Grossanla
 | `POST …/uebersicht/einsaetze` | Reservierung |
 | `PATCH …/uebersicht/einsaetze/{id}` | Reservierung bei Änderung von Charge, Menge, Zeitraum, Art oder Status (auch Freigabe `pending_approval` → `planned`, Wiederöffnen eines zurückgenommenen Einsatzes); Ausgabe bei `status=issued`. Reine Pack-/Fahrt-Änderungen lösen keine Prüfung aus |
 | `POST …/uebersicht/einsaetze/{id}/issue` | Ausgabe |
-| `POST …/packs/{id}/scan-start` | Ausgabe (der Pack-Scan gibt den Einsatz aus) |
+| `POST …/packs/{id}/scan-start` | zugeteilter Chauffeur oder Logistik (`canReleaseTrip`); der Pack-Scan gibt den Einsatz aus |
 | `PATCH …/beschaffung/zusagen/{id}` | Verringern der Charge-Menge nur bis zur höchsten gleichzeitig reservierten Menge; gilt auch für die Kauf-Charge, die eine Bestellung (`ensureBuyChargeFromOrder`) anlegt oder anpasst (eigene Transaktion mit Chargensperre). Menge 0 gibt die Reservierungen wie bisher frei |
 
 **Antwort bei Konflikt:** HTTP 409 (`GrossanlassAvailabilityConflict` ist keine `RuntimeException`, viele Controller würden sie sonst als 403 melden; Controller ohne eigene Behandlung übernimmt `GrossanlassAvailabilityConflictSubscriber`) mit `error` (verständlicher Text), `code: availability_conflict` und `conflict` (`kind` = `overbooked` \| `unique_overlap` \| `not_on_hand` \| `below_booked`, dazu Charge, Bestand, Spitzenmenge, beteiligte `einsatz_ids` bzw. vorhandene und bereits ausgegebene Menge). Der Server speichert dann nichts.

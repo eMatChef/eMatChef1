@@ -20,11 +20,11 @@ Ein **Bauprojekt** (Bühne, Wasserstelle) ist Ort + grobes Zeitfenster + zwei Li
 
 | Welt | Gegenstand | QR |
 | --- | --- | --- |
-| **Lager** | **Lagerstandort** (Matplatz), Regal, Fach | `/i/l/`, `/i/r/`, `/i/s/` |
+| **Lager** | **Lagerstandort** (Lagerplatz), Regal, Fach | `/i/l/`, `/i/r/`, `/i/s/` |
 | **Adresse** | Event, Zustellpunkt, `event_poi` in Kontakten | kein Pack-Ziel |
 | **GA-Ort** | Standorte **im** Anlass | kanonisch `/i/ga/{code}`, Alias `/i/p/{code}` |
 
-**Matplatz = Lagerstandort** (`Address` `type=storage`), nichts Neues und kein GA-Ort-`kind`. Ausgabe und Selbstabholung laufen über diesen bestehenden Standort. Fahrauftrag, Helferauftrag und Bauprojekt zielen nur auf **GA-Ort**. Lager-QR und Kontakt-POI nicht als Bühnen-Schild verwenden.
+**Lagerplatz = Lagerstandort** (`Address` `type=storage`, `department_grossanlass_place.kind=lagerplatz`, gespiegelt per `storage_address_id`). Nicht manuell als Event-GA-Ort anlegen. Ausgabe und Selbstabholung laufen über diesen bestehenden Standort. Fahrauftrag, Helferauftrag und Bauprojekt zielen nur auf **GA-Ort** (andere `kind`). Lager-QR und Kontakt-POI nicht als Bühnen-Schild verwenden.
 
 `kind: order` am Einsatz bleibt **Nachbedarf**, nicht Bauauftrag und nicht Fahrt.
 
@@ -38,7 +38,7 @@ GA-Ort ─────────────────┬── kind (baupro
                         ├── unterlager_id?
                         └── Position: WGS84; Stern = auf Stammdaten; map_x / map_y auf dem Geländeplan
 
-Lagerstandort (Matplatz)  Address type=storage · QR /i/l/ sichtbar am Standort — kein GA-Ort
+Lagerstandort (Lagerplatz)  Address type=storage · QR /i/l/ sichtbar am Standort — kein Event-GA-Ort
 
 Bauprojekt (Group, teilbereich)
   grobes Fenster (von–bis)
@@ -64,7 +64,7 @@ Ein Typ, aufgeschlüsselt über `kind`:
 | `anfahrt` | Anfahrpunkt / Tor für Fahrten | Ziel-Ort für Fahrauftrag |
 | `poi` | Tor, Infopoint | ohne Projekt |
 
-Kein `kind: matplatz`. Zentraler Materialplatz = **Lagerstandort** unter Standorte (bereits da). Alte GA-Orte mit diesem kind bleiben lesbar, neue legt ihr nicht an.
+`kind: lagerplatz` nur über Lagerstandort-Sync, nicht im GA-Ort-Dialog. Zentraler Materialplatz = **Lagerstandort** unter Standorte (bereits da).
 
 **IDs:** intern 12-stellig wie bisher (`pl…` bleibt gültig). **Neue public_codes** Prefix `ga` (12 Zeichen). Lookup akzeptiert alte `pl…`-Codes.
 
@@ -138,6 +138,15 @@ Kein paralleles Trip-Objekt für «Helfer hinschicken». Helfer zu Fuss: gedruck
 
 ---
 
+### 3.5 Freigaberegel der Aufgabenübersicht (`/{departmentId}/ga/tasks`)
+
+Die Aufgabenübersicht ist die operative Ansicht und zeigt nur freigegebene Arbeiten und Fahraufträge. Die Freigabe wird im Backend entschieden, nicht aus UI-Bezeichnungen abgeleitet:
+
+- **Arbeit** (`DepartmentGrossanlassTask`): freigegeben, wenn der Bauauftrag (`Group::isBuildReleased()`) den Status `build`, `use`, `teardown` oder `done` hat. Fehlender, `planned`-, `quoted`- oder `aborted`-Status gilt nicht als freigegeben. Die Aufgabe trägt das Feld `released`.
+- **Fahrauftrag** (`DepartmentGrossanlassEinsatz::isReleasedForExecution()`): freigegeben bei Status `issued`/`returned` oder gesetztem «Fahrt frei», nie bei `pending_approval`. Die Übersichtszeilen tragen das Feld `released`.
+- **Durchsetzung:** Für Helfer (`GrossanlassAccessService::seesOnlyReleasedWork`) filtern `GET …/groups/tasks`, `GET …/groups/{id}/tasks`, `GET …/uebersicht/meine-einsaetze` und `GET …/uebersicht/scan-context` nicht freigegebene Einträge heraus; einzelne Aufgaben eines nicht freigegebenen Bauauftrags liefern «nicht gefunden». Planungsrollen (`mw`, `cmw`, Anlassübersicht) erhalten weiterhin alle Status; die Aufgabenübersicht filtert zusätzlich im Frontend auf `released`.
+- Freigegebene Einträge öffnen weiterhin im bestehenden Aufgaben- und Fahrauftragsdialog.
+
 ## 4. Ein Scan, zwei Bedeutungen
 
 Dieselbe Ort-Seite (`PublicGrossanlassPlaceView`):
@@ -199,7 +208,7 @@ Der Ablauf oben ist Ist, soweit P1–P8 abgehakt sind. Bauvorhaben-Status, Polyg
 - Material als Einsatz **und** als Wunsch pflegen
 - Wünsche automatisch aus jedem Einsatz
 - `Address.event_poi` oder Lager-QR als Event-Standort
-- Matplatz als zweiten GA-Ort-Typ (das ist der Lagerstandort)
+- Lagerplatz manuell als Event-GA-Ort anlegen (das ist der gespiegelte Lagerstandort)
 - OSM/Swissimage **ohne** Overlay als einzige Helfer-Geländekarte (Hintergrund bleibt das hochgeladene Bild, jetzt auf der Stammdaten-Karte)
 - Aufgaben in den Bedarf-Pool
 
@@ -236,7 +245,7 @@ Stand: Datenmodell, Services, REST-API und Oberfläche ([§3.1e](#31e-helferpool
 
 **Bedarf.** Gehört immer zu einer Aufgabe. Bedarf am Bauprojekt selbst hängt an der lazy angelegten Standardaufgabe «Allgemein» (`task.is_default`, höchstens eine je Gruppe), die in der Aufgabenübersicht und über die Aufgaben-API nicht erscheint. Fenster = Aufgabenzeit, sonst Bauprojekt-Fenster (`window_end` inklusiv, intern exklusives Ende), sonst undatiert: ein undatierter Bedarf ist nicht zuteilbar. Die bisherige Eingabe «Gesamtzahl + Funktionen» (`helper_need` an Aufgabe und Gruppe) ist das *Bündel* der Bedarfe mit dem Fenster der Aufgabe; weitere Bedarfe mit eigenem Fenster bleiben davon unberührt. Ändern sich Aufgabenzeit oder Bauprojekt-Fenster, folgt das Bündel. Eine Änderung, die Zuteilungen aus dem Fenster schiebt, wird mit 409 `outside_need_window` abgelehnt.
 
-**Helfer und Verfügbarkeit** (`GrossanlassHelperPoolService`). Helfer gehören zum GA-Host (`department_id`, optional `origin_department_id`), brauchen kein Login, V1 erfasst nur Name, E-Mail, Telefon, Notiz. Archivieren statt löschen. Verfügbarkeit sind explizite Fenster pro Helfer, die sich nicht überschneiden dürfen (direkt anschliessende sind erlaubt). Eine Änderung, die eine aktive Zuteilung ungedeckt liesse, ergibt 409 `in_use`.
+**Helfer und Verfügbarkeit** (`GrossanlassHelperPoolService`). Helfer gehören zum GA-Host (`department_id`, optional `origin_department_id`), brauchen kein Login. Archivieren statt löschen. Das Profil (Migration `Version20261101090000`): Beruf (`occupation`), Ressort (`area`), Fähigkeiten (`skills`, Namen), Qualifikationen (`qualifications`: Bezeichnung, optional Gültigkeit) und für externe Helfer Führerausweis-/Bedienklassen (`drive_classes`, `drive_valid_until`, Werte aus `GrossanlassDriveCategories`). **Verknüpfte Helfer** (`user_id`, Konto muss Mitglied des GA sein; höchstens ein Helfer je Konto, keine doppelte E-Mail im GA) beziehen Name, E-Mail und Führerausweis aus dem zentralen Profil (`UserDriveLicense`, `drive_license.source = profile`, nur lesend; GA schreibt nie ins Profil). Fähigkeiten, Qualifikationen, Telefon, Notiz und Verfügbarkeit bleiben GA-lokal und werden beim Verknüpfen nicht überschrieben. Konten mit Helferrolle erscheinen über `GrossanlassHelperAccountSync` auch bei weiteren Rollen genau einmal; fällt die Rolle weg, wird ein vom Abgleich angelegter Eintrag (`source = api`) archiviert (Zuteilungshistorie bleibt); im Helferpool bewusst verknüpfte Helfer (`source = manual`/`import`) bleiben aktiv. Dasselbe Formular (`GrossanlassHelferFormDialog`, fünf Accordions) dient dem Helferpool und dem Unterreiter «Helfer» der GA-Benutzerverwaltung; Detail ist überall `GrossanlassHelferDrawer`. **Fähigkeitenkatalog** pro GA (`department_grossanlass_skill`, Präfix `sk`): Helferprofil und Funktionswunsch des Personalbedarfs wählen aus derselben Liste (Katalog plus bereits verwendete `label`); neue Namen werden beim Speichern aufgenommen. Fähigkeiten sind Wünsche, nie Voraussetzung der Zuteilung; im Zuteilungsdialog stehen passende Helfer oben. Der Funktionswunsch bleibt ein `label` des Bedarfs, der Gesamtbedarf wird dadurch nicht erhöht. Verfügbarkeit sind explizite Fenster pro Helfer, die sich nicht überschneiden dürfen (direkt anschliessende sind erlaubt). Eine Änderung, die eine aktive Zuteilung ungedeckt liesse, ergibt 409 `in_use`.
 
 **Zuteilung** (`GrossanlassStaffingAssignmentService`). Ganz oder teilweise (eigenes Fenster im Bedarfsfenster, z. B. 08–10 und 10–12). Jeder Schreibweg läuft in einer Transaktion unter `SELECT … FOR UPDATE` auf dem Helfer (`GrossanlassStaffingLocks`) und prüft alle aktiven Zuteilungen des Helfers:
 
@@ -263,6 +272,8 @@ Alle Endpunkte unter `/api/departments/{id}/grossanlass/` (`GrossanlassStaffingC
 | Endpunkt | Wer | Zweck |
 | --- | --- | --- |
 | `GET/POST helpers`, `GET/PATCH helpers/{id}`, `POST helpers/{id}/archive`, `…/restore` | hv/subhv | Helfer (Query: `status` active/archived/all, `q`) |
+| `GET/POST helper-skills` | Lesen: Mitglied, Anlegen: hv/subhv (+ mw/dc nach Freigabe) | Fähigkeitenkatalog (Liste von Namen) |
+| `GET helper-linkable-users` | Verwaltung | Konten des GA für die Verknüpfung (`helper_id` = bereits verknüpft) |
 | `GET/POST helpers/{id}/availability`, `PATCH/DELETE helper-availability/{id}` | hv/subhv | Verfügbarkeitsfenster `starts_at`/`ends_at` |
 | `GET staffing/overview?group_ids=&from=&to=` | hv/subhv, mw/cmw/dc | Bedarf, Deckung, Gruppensummen **ohne Helfernamen** |
 | `GET staffing/needs/{id}` | hv/subhv | Bedarf mit zugeteilten Helfern (Namen) |
@@ -275,3 +286,18 @@ Konflikt-`kind`: `double_booking` (mit `override_possible`; Wiederholung mit `ov
 **Ablauf.** (1) GA-HV/GA-SUBHV (oder GA-MW/GA-OK, sofern freigegeben) erfasst Helfer und deren Verfügbarkeit im Drawer. (2) Der Personalbedarf entsteht bei den Aufgaben und Bauprojekten (Zeitfenster der Aufgabe oder des Bauprojekts). (3) Im Tab «Personalbedarf» «Helfer zuteilen»: Helfer wählen, Fenster bei Teilzeit kürzen. (4) Bei Doppelbuchung zeigt der Dialog die Überschneidung und verlangt eine Begründung, fehlende Verfügbarkeit lässt sich nicht übergehen. (5) Die Deckung rechnet der Server aus den Zuteilungen; Lücken stehen je Zeitabschnitt am Bedarf. Das Frontend nutzt `api/grossanlassStaffing.ts` (Axios-`apiClient`), Rollenprüfung `gaCanManageStaffing()`/`gaCanSeeStaffing()` in `utils/grossanlassAccess.ts` (Tabs und Aktionen der Helferpool-Ansicht folgen `can_manage` aus der Übersicht); Router und Sidebar zeigen den Helferpool für `hv`, `subhv`, `mw`, `cmw`, `dc` (Bereichsleitung nicht mehr). Tests: `backend/tests/Integration/GrossanlassStaffingApiTest.php`, `frontend/src/api/grossanlassStaffing.spec.ts`, `…/helferpool/gaHelferUi.spec.ts`.
 
 **Lokaler Migrationsstatus:** «Executed Unavailable» (3) betrifft die in `mvdb` angewendeten Versionen `20260805120000`, `20260813190000` und `20260813210000`, deren Dateien in diesem Branch fehlen (von einem anderen Stand ausgeführt). Sie sind für diese Arbeit ohne Wirkung.
+
+**Helferrolle → Helferpool.** `GrossanlassHelperAccountSync` gleicht aktive Konten mit Helferrolle (`membership.is_helper` oder Rolle `h`, auch neben anderen Rollen) mit dem Pool ab: beim Lesen der Poolliste und bei Mitgliedschaftsänderungen. Fehlende Konten werden angelegt (`source=api`, `user_id`), ein Eintrag ohne Konto mit gleicher E-Mail wird verknüpft statt dupliziert, Wegfall der Rolle archiviert (Verfügbarkeit, Zuteilungen und Historie bleiben; neue Zuteilung gesperrt). Erneute Rollenvergabe über die Benutzerverwaltung reaktiviert; reines Lesen reaktiviert nie. Externe Helfer ohne Konto bleiben unberührt.
+
+## 9. API-Daten (externe Helferpools)
+
+Reiter «API-Daten» im Helferpool (nur GA-HV/GA-SUBHV bzw. wer den Helferpool verwalten darf). Controller `GrossanlassExternalSourceController` unter `/api/departments/{id}/grossanlass/external-sources`; Services `GrossanlassExternalSourceService` (Verbindung, Originalantworten, Mapping), `GrossanlassExternalSyncService` (Vorschau und Synchronisation), reine Logik in `GrossanlassExternalMapping`, HTTP in `GrossanlassExternalHttpFetcher`. Migration `Version20261102090000`.
+
+- **Keine erfundene Schnittstelle.** Es gibt kein fest verdrahtetes Mission-Control-Format. Jede Quelle hat eine frei konfigurierbare Zuordnung (Punktpfade wie `person.name` je Zielfeld). Ohne API-Zugang wird eine JSON-Testantwort eingespielt.
+- **Zugangsschlüssel** liegen mit `SecretBox` (AES-256-GCM) verschlüsselt in `secret_enc`; das API gibt nur `has_secret` zurück. Abruf: nur https, keine Weiterleitungen, keine privaten Netze, 5 MB / 30 s.
+- **Speicherung:** `ext_payload` (Original-JSON je Abruf, identische Antworten nur als erneut gesehen), `ext_record` (je Quelle und externer Buchungs-ID genau ein Datensatz mit letztem Zustand, erstem Import, letzter Synchronisation, Helfer), `ext_change` (alter/neuer Wert), `ext_run` (Historie mit Zählern und Fehlern, ohne Zugangsdaten).
+- **Helferpool:** pro externem Helferschlüssel (Quelle + `helper_key`, sonst E-Mail innerhalb der Quelle) ein Helfer mit `source = api`, nie per Namen zusammengeführt; eine gleiche E-Mail eines anderen Helfers wird nicht übernommen (Hinweis). Jede aktive Buchung ist ein Verfügbarkeitsfenster (`ext_record_id`).
+- **Konflikte:** Wird eine Buchung verschoben, storniert oder entfernt, werden Zuteilungen des Helfers, die nicht mehr in seiner Verfügbarkeit liegen, auf Status `conflict` gesetzt (Protokolleintrag `conflict`). Sie zählen nicht zur Deckung, erscheinen als Konflikt `external_booking_invalid` und lösen sich beim Wiederpassen (`resolved`) oder durch Neuzuteilung.
+- **Entfernte Buchungen** nur, wenn die Quelle als vollständig bestätigt ist, `total_path`/`next_path` nicht widersprechen, keine ungültigen Einträge vorliegen und die Antwort nicht leer ist.
+- **Vorschau** führt dieselbe Synchronisation in einer zurückgerollten Transaktion aus. Eine Synchronisation läuft atomar; bei Fehlern bleiben die bestehenden Daten unverändert, nur der fehlgeschlagene Lauf wird festgehalten.
+- Bewusst nicht: Veröffentlichen von eMatChef-Aufträgen in der Quelle, Ändern externer Schichten, mehrseitiger Abruf (Paginierung), automatischer Zeitplan.

@@ -30,6 +30,25 @@ Lokal: `docker compose up` im Repo-Root (Postgres, Backend, Frontend, Nginx). Ho
 
 Kein paralleles Modul, wenn Controller, Service oder View für dasselbe Thema schon existieren.
 
+## Namenskonvention Grossanlass / GA
+
+Fachlich heisst es «Grossanlass». Das Kürzel `Ga`/`GA` ist nur dort zulässig, wo die Tabelle es erlaubt.
+
+| Bereich | Konvention |
+| --- | --- |
+| Vue-Komponenten und Views | `Grossanlass*` |
+| Gemeinsam genutzte Composables (`src/composables/`) | `useGrossanlass*` |
+| View-lokale Composables und Mock-Hilfen (neben der View) | `useGa*` / `ga*` zulässig |
+| Frontend-Types / Interfaces | `Ga*` |
+| API- und Utility-Dateien | `grossanlass*` |
+| Interne Funktionen / Variablen | `ga*` zulässig |
+| Konstanten | `GA_*` zulässig |
+| i18n | `grossanlass.*` |
+| Backend, Entities, Services | `Grossanlass*` (bestehend) |
+| UI-Texte | «Grossanlass»; fachliche Kürzel (`GA-HV`, `GA-MW`) zulässig |
+
+Persistente und öffentliche Kennungen bleiben unverändert und werden nicht umbenannt: API-Pfade (`/api/departments/grossanlass/…`), Router-URLs (`/ga/…`, `/i/ga/:placeCode`, `help/ga/…`), QR-Adressen, Tabellen, Spalten und Migrationen, Activity-Kinds (`grossanlass*`), Display-Template- und Widget-IDs (`ga_*`), gespeicherte Layouts und Konfigurationen, Demo-Konten (`ga-mw`) und E2E-Variablen (`E2E_GA_*`). E2E-Dateien heissen bewusst in der Kurzform `ga-*.spec.ts`. `GaUserCard` (Prototyp-Typ im Chain-Preview-Store) und `GrossanlassUserCard` (API-Typ) sind verschiedene Typen und bleiben nebeneinander bestehen. Neue Dateien folgen der Tabelle; bestehende Abweichungen werden nur gezielt bereinigt, nicht per Massenumbenennung.
+
 ## Commands
 
 Backend im Compose-Container (`backend` ist der Service-Name):

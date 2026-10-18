@@ -123,10 +123,10 @@ Kurzformen: *Route* = unter `/{deptId}/`; *Komp.* = Vue-Datei unter `frontend/sr
 | Feld | Inhalt |
 | --- | --- |
 | Mockup-Quelle | #298 `aufgaben/` |
-| Route / Komp. | `ga/tasks`, `ga/tasks/mine` (Tabs Allgemein/Inventur/Drucken bleiben unter `dept/tasks`) · `aufgaben/GrossanlassAufgabenMasterView.vue`, `GrossanlassMeineAufgabenView.vue`, `views/TasksShellView.vue` |
+| Route / Komp. | `ga/tasks` (Meine Einsätze), `ga/tasks/all` (Alle Aufgaben) (Tabs Allgemein/Inventur/Drucken bleiben unter `dept/tasks`) · `aufgaben/GrossanlassAufgabenMasterView.vue`, `GrossanlassMeineAufgabenView.vue`, `views/TasksShellView.vue` |
 | Backend | – (Demo-Daten `gaAufgabenMock.ts`) |
 | UI-Stand | **Prototyp** |
-| Abweichungen | Keine; GA-Aufgaben liegen unter `ga/tasks`, die gemeinsame Shell `TasksShellView` wird von `dept/tasks` und `ga/tasks` genutzt |
+| Abweichungen | Keine; GA-Aufgaben liegen unter `ga/tasks`, die gemeinsame Shell `TasksShellView` wird von `dept/tasks` und `ga/tasks` genutzt; die Master-Ansicht zeigt zusätzlich echte Fahraufträge (Einsätze mit `delivery=trip` aus der Übersicht-API, dieselben wie `ga/planning/transports`) als Logistik-Kacheln mit Filter Alle/Arbeiten/Fahrten. Ein Klick öffnet den bestehenden Fahrauftragsdialog (`GrossanlassHelperAssignmentDetailDialog`); es gibt keine zweite Verwaltung (`gaFahrauftragTasks.ts`) |
 | Fachfragen | Aufgabe vs. Auftrag vs. Fahrauftrag; Rollen-Sichten |
 | Abhängigkeiten | Aufträge, Helferpool, Packen, Logistik |
 | Nächster Schritt | Nach Planung/Aufträge |
@@ -284,8 +284,8 @@ Kurzformen: *Route* = unter `/{deptId}/`; *Komp.* = Vue-Datei unter `frontend/sr
 | --- | --- |
 | Mockup-Quelle | #298 `logistik/` |
 | Route / Komp. | `ga/logistics/dispatch` · `GrossanlassLogistikView` (Shell), `logistik/GrossanlassDispositionView.vue`, `…DispoTourDialog`, `…DispoBedarfDialog` |
-| Backend | – für Disposition (`gaDispoMock.ts`); Transporte unter Planung angebunden |
-| UI-Stand | **Prototyp** |
+| Backend | `GET /api/departments/{id}/grossanlass/logistics/dispatch` (`GrossanlassDispatchService`): Fahraufträge (Einsatz `delivery = trip`), Packs, Standorte, Fahrzeugwünsche, Chauffeure (Fahrausweis) und Fahrzeuge. Touren: `…/logistics/tours` (`GrossanlassTourService`). Frontend: `useGaDispo.ts` |
+| UI-Stand | **Echte Daten, Touren bearbeitbar** (Phase 2, [logistik-disposition.md](./logistik-disposition.md)): Entwurf/bestätigt, Stopps, Fahrzeug/Chauffeur, Konflikte, Vorschläge. Freigabe, Ablieferung ohne QR (begründet), Tourabschluss und Änderungswünsche (Phase 3); `gaDispoMock.ts` speist weiter nur Live-Ansicht und Aufträge-Demo |
 | Abweichungen | – |
 | Fachfragen | Später; keine eigenen Rechte vorgesehen |
 | Abhängigkeiten | Transporte, Packen, Fahrzeuge, Budget (Logistik) |
@@ -344,7 +344,7 @@ Kurzformen: *Route* = unter `/{deptId}/`; *Komp.* = Vue-Datei unter `frontend/sr
 #### Live-Ansichten
 | Feld | Inhalt |
 | --- | --- |
-| Mockup-Quelle | #298 `live/gaLiveModel.ts`, `gaLiveEvents.ts`, `gaSitePlaces.ts`; `GaSiteMap` |
+| Mockup-Quelle | #298 `live/gaLiveModel.ts`, `gaLiveEvents.ts`, `gaSitePlaces.ts`; `GrossanlassSiteMap` |
 | Route / Komp. | Kein Sidebar-Punkt. Öffentliche Ortsseite `/i/ga/:placeCode` · `views/public/PublicGrossanlassPlaceView.vue`; Live-Modell speist die Display-Prototypen |
 | Backend | QR-/Ortscodes (`GrossanlassPlaceCodes`), `PublicLookup` |
 | UI-Stand | offen als eigener Menüpunkt; Modell nur in Display-Prototypen |
@@ -383,7 +383,7 @@ Kurzformen: *Route* = unter `/{deptId}/`; *Komp.* = Vue-Datei unter `frontend/sr
 | Feld | Inhalt |
 | --- | --- |
 | Mockup-Quelle | Help-Modal/FAQ (#301) |
-| Route / Komp. | `ga/help/ga/:topic?` · `GrossanlassHilfeView.vue`; `components/grossanlass/GaHelp{Modal,Faq,Hint}.vue`, `composables/useGaHelp.ts` |
+| Route / Komp. | `ga/help/ga/:topic?` · `GrossanlassHilfeView.vue`; `components/grossanlass/GaHelp{Modal,Faq,Hint}.vue`, `composables/useGrossanlassHelp.ts` |
 | Backend | – (Texte i18n) |
 | UI-Stand | vorhanden |
 | Abweichungen | – |
