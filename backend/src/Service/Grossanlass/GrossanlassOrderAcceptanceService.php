@@ -9,7 +9,9 @@ use App\Entity\DepartmentGrossanlassOrderEvent;
 use App\Entity\DepartmentGrossanlassTask;
 use App\Entity\Group;
 use App\Entity\User;
+use App\Service\Clock\BusinessClock;
 use App\Util\GrossanlassIdGenerator;
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -30,7 +32,7 @@ final class GrossanlassOrderAcceptanceService
     public const REVIEW = 'review';
     public const ACCEPTED = 'accepted';
 
-    public function __construct(private EntityManagerInterface $entityManager) {}
+    public function __construct(private EntityManagerInterface $entityManager, private ?BusinessClock $clock = null) {}
 
     /** Nur echte Bauaufträge (Bauprojekt/Auftrag), keine Ressort-/Bereichs-Knoten. */
     public static function isOrderGroup(Group $group): bool
@@ -56,6 +58,31 @@ final class GrossanlassOrderAcceptanceService
         );
 
         return self::statusFromLastType($type === false ? null : (string) $type);
+    }
+
+    /**
+     * Abnahmezustand mehrerer Bauaufträge in einer Abfrage (letztes Ereignis je Gruppe); Gruppen ohne Ereignis sind `open`.
+     *
+     * @param list<string> $groupIds
+     * @return array<string, string>
+     */
+    public function statuses(array $groupIds): array
+    {
+        $out = array_fill_keys($groupIds, self::OPEN);
+        if ($groupIds === []) {
+            return $out;
+        }
+        $rows = $this->entityManager->getConnection()->fetchAllAssociative(
+            'SELECT e.group_id, e.type FROM department_grossanlass_order_event e
+             WHERE e.group_id IN (?) AND e.seq = (SELECT MAX(l.seq) FROM department_grossanlass_order_event l WHERE l.group_id = e.group_id)',
+            [$groupIds],
+            [ArrayParameterType::STRING],
+        );
+        foreach ($rows as $row) {
+            $out[trim((string) $row['group_id'])] = self::statusFromLastType((string) $row['type']);
+        }
+
+        return $out;
     }
 
     public function isAccepted(string $groupId): bool
@@ -323,6 +350,7 @@ final class GrossanlassOrderAcceptanceService
             $type,
             $user->getId(),
             $note,
+            $this->clock?->now($department),
         );
         $this->entityManager->persist($event);
         $this->entityManager->flush(); // sofort sichtbar für Folgeabfragen (Status)

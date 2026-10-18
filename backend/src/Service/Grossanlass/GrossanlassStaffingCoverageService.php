@@ -47,7 +47,7 @@ final class GrossanlassStaffingCoverageService
              FROM department_grossanlass_staffing_assignment a
              JOIN department_grossanlass_staffing_need n ON n.id = a.need_id
              JOIN department_grossanlass_task t ON t.id = n.task_id
-             WHERE $where AND a.status <> 'cancelled'",
+             WHERE $where AND a.status NOT IN ('cancelled', 'conflict')",
             $params,
             $types,
         ) as $row) {
@@ -147,7 +147,7 @@ final class GrossanlassStaffingCoverageService
             throw new \InvalidArgumentException('Personalbedarf nicht gefunden');
         }
         $assignments = $conn->fetchAllAssociative(
-            "SELECT a.id, a.helper_id, a.starts_at, a.ends_at, a.status, a.override_reason, a.version, h.first_name, h.last_name
+            "SELECT a.id, a.helper_id, a.starts_at, a.ends_at, a.status, a.conflict_info, a.override_reason, a.version, h.first_name, h.last_name
              FROM department_grossanlass_staffing_assignment a
              JOIN department_grossanlass_helper h ON h.id = a.helper_id
              WHERE a.need_id = ? AND a.status <> 'cancelled' ORDER BY a.starts_at, h.last_name, h.first_name",
@@ -169,7 +169,10 @@ final class GrossanlassStaffingCoverageService
                 (int) $need['required_count'],
                 new \DateTime($need['starts_at']),
                 new \DateTime($need['ends_at']),
-                array_map(static fn (array $a) => [new \DateTime($a['starts_at']), new \DateTime($a['ends_at'])], $assignments),
+                array_map(
+                    static fn (array $a) => [new \DateTime($a['starts_at']), new \DateTime($a['ends_at'])],
+                    array_values(array_filter($assignments, static fn (array $a) => $a['status'] !== 'conflict')),
+                ),
             ) : null,
             'assignments' => array_map(static fn (array $a) => [
                 'id' => trim((string) $a['id']),
@@ -178,6 +181,7 @@ final class GrossanlassStaffingCoverageService
                 'starts_at' => (new \DateTime($a['starts_at']))->format('Y-m-d\TH:i:s'),
                 'ends_at' => (new \DateTime($a['ends_at']))->format('Y-m-d\TH:i:s'),
                 'status' => $a['status'],
+                'conflict' => $a['status'] === 'conflict' ? json_decode((string) ($a['conflict_info'] ?? 'null'), true) : null,
                 'override_reason' => $a['override_reason'],
                 'version' => (int) $a['version'],
             ], $assignments),
@@ -195,7 +199,7 @@ final class GrossanlassStaffingCoverageService
         $this->assertCanManage($department, $user);
         $conn = $this->entityManager->getConnection();
         $assignments = $conn->fetchAllAssociative(
-            "SELECT a.id, a.need_id, a.helper_id, a.starts_at, a.ends_at, a.override_reason, n.starts_at AS n_from, n.ends_at AS n_to
+            "SELECT a.id, a.status, a.conflict_info, a.need_id, a.helper_id, a.starts_at, a.ends_at, a.override_reason, n.starts_at AS n_from, n.ends_at AS n_to
              FROM department_grossanlass_staffing_assignment a JOIN department_grossanlass_staffing_need n ON n.id = a.need_id
              WHERE a.department_id = ? AND a.status <> 'cancelled' ORDER BY a.helper_id, a.starts_at",
             [$department->getId()],
@@ -215,6 +219,22 @@ final class GrossanlassStaffingCoverageService
         }
         $fmt = static fn (\DateTimeInterface $d): string => $d->format('Y-m-d\TH:i:s');
         foreach ($byHelper as $helperId => $rows) {
+            // Ungültig gewordene Buchung eines externen Helfers: eigener Konflikt, kein Teil der Doppelbuchungsprüfung.
+            foreach ($rows as $a) {
+                if ($a['status'] === 'conflict') {
+                    $info = json_decode((string) ($a['conflict_info'] ?? 'null'), true);
+                    $out[] = [
+                        'kind' => 'external_booking_invalid',
+                        'helper_id' => $helperId,
+                        'assignment_ids' => [trim((string) $a['id'])],
+                        'need_id' => trim((string) $a['need_id']),
+                        'starts_at' => (new \DateTime($a['starts_at']))->format('Y-m-d\TH:i:s'),
+                        'ends_at' => (new \DateTime($a['ends_at']))->format('Y-m-d\TH:i:s'),
+                        'detail' => is_array($info) ? ($info['detail'] ?? null) : null,
+                    ];
+                }
+            }
+            $rows = array_values(array_filter($rows, static fn (array $a) => $a['status'] !== 'conflict'));
             foreach ($rows as $i => $a) {
                 $aFrom = new \DateTime($a['starts_at']);
                 $aTo = new \DateTime($a['ends_at']);

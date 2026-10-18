@@ -270,11 +270,11 @@ class DepartmentGrossanlassTask
         return $this->blockedAt;
     }
 
-    public function block(string $reason, string $userId): self
+    public function block(string $reason, string $userId, ?\DateTime $at = null): self
     {
         $this->blockedReason = $reason;
         $this->blockedByUserId = $userId;
-        $this->blockedAt = new \DateTime();
+        $this->blockedAt = $at ?? new \DateTime();
 
         return $this;
     }

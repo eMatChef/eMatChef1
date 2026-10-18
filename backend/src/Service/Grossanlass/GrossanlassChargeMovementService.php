@@ -36,6 +36,7 @@ final class GrossanlassChargeMovementService
     public function __construct(
         private EntityManagerInterface $entityManager,
         private GrossanlassAccessService $access,
+        private GrossanlassStorageLagerplatzService $storageLagerplatz,
     ) {}
 
     /**
@@ -76,13 +77,13 @@ final class GrossanlassChargeMovementService
             throw new \InvalidArgumentException('Diese Bewegungsart ist noch nicht verfügbar');
         }
 
-        $place = null;
         $placeId = trim((string) ($data['place_id'] ?? ''));
+        if ($kind === DepartmentGrossanlassChargeMovement::KIND_RECEIVED && $placeId === '') {
+            throw new \InvalidArgumentException('Annahmeort (Lagerstandort) ist erforderlich');
+        }
+        $place = null;
         if ($placeId !== '') {
-            $place = $this->entityManager->getRepository(DepartmentGrossanlassPlace::class)->find($placeId);
-            if (!$place instanceof DepartmentGrossanlassPlace || $place->getDepartmentId() !== $department->getId()) {
-                throw new \InvalidArgumentException('Ort nicht gefunden');
-            }
+            $place = $this->resolveStoragePlace($department, $placeId);
         }
         $occurredAt = null;
         $rawAt = trim((string) ($data['occurred_at'] ?? ''));
@@ -133,6 +134,66 @@ final class GrossanlassChargeMovementService
             'movement' => $this->serialize($movement),
             'inbound' => $this->inboundSummaryFor($commitment),
         ];
+    }
+
+    /**
+     * Mehrere Wareneingänge in einer Transaktion (z. B. Tour-Annahme).
+     *
+     * @param list<array{commitment_id: string, quantity: int, note?: string|null, skip?: bool, place_id?: string|null}> $lines
+     *
+     * @return list<array{movement: array<string, mixed>, inbound: array<string, mixed>}>
+     */
+    public function recordBatch(Department $department, User $user, string $defaultPlaceId, array $lines): array
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        if (!$this->access->canOperateAusgabe($user, $department)) {
+            throw new \RuntimeException('Keine Berechtigung für den Wareneingang');
+        }
+        $defaultPlaceId = trim($defaultPlaceId);
+
+        return $this->entityManager->wrapInTransaction(function () use ($department, $user, $defaultPlaceId, $lines): array {
+            $out = [];
+            foreach ($lines as $line) {
+                if (!empty($line['skip'])) {
+                    continue;
+                }
+                $commitmentId = trim((string) ($line['commitment_id'] ?? ''));
+                if ($commitmentId === '') {
+                    throw new \InvalidArgumentException('commitment_id fehlt');
+                }
+                $quantity = (int) ($line['quantity'] ?? 0);
+                if ($quantity <= 0) {
+                    continue;
+                }
+                $linePlaceId = trim((string) ($line['place_id'] ?? ''));
+                $effectivePlaceId = $linePlaceId !== '' ? $linePlaceId : $defaultPlaceId;
+                if ($effectivePlaceId === '') {
+                    throw new \InvalidArgumentException('Annahmeort (Lagerstandort) ist erforderlich');
+                }
+                $place = $this->resolveStoragePlace($department, $effectivePlaceId);
+                $commitment = $this->findCommitment($department, $commitmentId);
+                $this->lockCommitment($commitment);
+                $note = trim((string) ($line['note'] ?? ''));
+                $movement = $this->recordReceived(
+                    $commitment,
+                    $quantity,
+                    $user,
+                    $place,
+                    $note !== '' ? $note : null,
+                );
+                $this->syncProcurementLine($commitment);
+                $out[] = [
+                    'movement' => $this->serialize($movement),
+                    'inbound' => $this->inboundSummaryFor($commitment),
+                ];
+            }
+            if ($out === []) {
+                throw new \InvalidArgumentException('Keine Menge zum Buchen');
+            }
+            $this->entityManager->flush();
+
+            return $out;
+        });
     }
 
     /**
@@ -499,6 +560,19 @@ final class GrossanlassChargeMovementService
             'created_by_name' => $row->getCreatedByUser()?->getProfile()?->getDisplayName(),
             'created_at' => $row->getCreatedAt()->format(\DateTimeInterface::ATOM),
         ];
+    }
+
+    private function resolveStoragePlace(Department $department, string $placeId): DepartmentGrossanlassPlace
+    {
+        $place = $this->entityManager->getRepository(DepartmentGrossanlassPlace::class)->find($placeId);
+        if (!$place instanceof DepartmentGrossanlassPlace
+            || $place->getDepartmentId() !== $department->getId()
+            || !$this->storageLagerplatz->isLagerplatzActiveForInbound($place)
+        ) {
+            throw new \InvalidArgumentException('Ungültiger Lagerstandort');
+        }
+
+        return $place;
     }
 
     private function syncProcurementLine(DepartmentGrossanlassCommitment $commitment): void

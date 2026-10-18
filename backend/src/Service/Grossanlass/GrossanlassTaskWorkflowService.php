@@ -10,6 +10,7 @@ use App\Entity\DepartmentGrossanlassTaskStep;
 use App\Entity\Group;
 use App\Entity\GroupMembership;
 use App\Entity\User;
+use App\Service\Clock\BusinessClock;
 use App\Util\GrossanlassIdGenerator;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\ORM\EntityManagerInterface;
@@ -30,7 +31,13 @@ use Doctrine\ORM\EntityManagerInterface;
  */
 final class GrossanlassTaskWorkflowService
 {
-    public function __construct(private EntityManagerInterface $entityManager) {}
+    public function __construct(private EntityManagerInterface $entityManager, private ?BusinessClock $clock = null) {}
+
+    /** Fachzeit des Task-Departments (Demo: simulierte Zeit); ohne Clock Erfassungszeit. */
+    private function businessNow(DepartmentGrossanlassTask $task): ?\DateTime
+    {
+        return $this->clock?->now($task->getDepartmentId());
+    }
 
     /**
      * @return array{edit: bool, check: bool, report: bool, unblock: bool, approve: bool}
@@ -71,7 +78,7 @@ final class GrossanlassTaskWorkflowService
              FROM department_grossanlass_staffing_assignment a
              JOIN department_grossanlass_staffing_need n ON n.id = a.need_id
              JOIN department_grossanlass_helper h ON h.id = a.helper_id
-             WHERE a.department_id = ? AND h.user_id = ? AND a.status <> 'cancelled'",
+             WHERE a.department_id = ? AND h.user_id = ? AND a.status NOT IN ('cancelled', 'conflict')",
             [$departmentId, $user->getId()],
         );
 
@@ -292,7 +299,7 @@ final class GrossanlassTaskWorkflowService
             }
             $done = (bool) $data['done'];
             if ($done !== $step->isDone()) {
-                $step->markDone($done, $user->getId());
+                $step->markDone($done, $user->getId(), $this->businessNow($task));
             }
         }
 
@@ -338,7 +345,7 @@ final class GrossanlassTaskWorkflowService
         if (in_array($task->getStatus(), [DepartmentGrossanlassTask::STATUS_REVIEW, DepartmentGrossanlassTask::STATUS_DONE], true)) {
             throw new \InvalidArgumentException('Eine fertig gemeldete oder erledigte Aufgabe kann nicht blockiert werden');
         }
-        $task->block($reason, $user->getId());
+        $task->block($reason, $user->getId(), $this->businessNow($task));
     }
 
     public function unblock(DepartmentGrossanlassTask $task): void
@@ -361,6 +368,7 @@ final class GrossanlassTaskWorkflowService
             $type,
             $user->getId(),
             $note,
+            $this->businessNow($task),
         );
         $this->entityManager->persist($event);
 

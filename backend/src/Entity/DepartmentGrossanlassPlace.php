@@ -37,9 +37,17 @@ class DepartmentGrossanlassPlace
     #[ORM\Column(name: 'unterlager_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $unterlagerId = null;
 
-    /** bauprojekt | unterlager | anfahrt | poi | area — Event-Standort. matplatz nur Altbestand; neu = Lagerstandort */
+    /** bauprojekt | unterlager | anfahrt | poi | area — Event-Standort. lagerplatz = Lagerstandort (siehe storage_address_id). */
     #[ORM\Column(type: 'string', length: 16, options: ['default' => 'poi'])]
     private string $kind = 'poi';
+
+    /** Führende Lageradresse (address.type=storage); 1:1 für Wareneingang und Bewegungen. */
+    #[ORM\Column(name: 'storage_address_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $storageAddressId = null;
+
+    #[ORM\ManyToOne(targetEntity: Address::class)]
+    #[ORM\JoinColumn(name: 'storage_address_id', referencedColumnName: 'id', nullable: true, onDelete: 'RESTRICT')]
+    private ?Address $storageAddress = null;
 
     #[ORM\Column(name: 'map_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $mapId = null;
@@ -104,6 +112,18 @@ class DepartmentGrossanlassPlace
 
     public function getKind(): string { return $this->kind; }
     public function setKind(string $kind): self { $this->kind = $kind; return $this; }
+
+    public function getStorageAddressId(): ?string { return $this->storageAddressId; }
+
+    public function setStorageAddress(?Address $address): self
+    {
+        $this->storageAddress = $address;
+        $this->storageAddressId = $address?->getId();
+
+        return $this;
+    }
+
+    public function getStorageAddress(): ?Address { return $this->storageAddress; }
 
     public function getMapId(): ?string { return $this->mapId; }
     public function getMap(): ?DepartmentGrossanlassMap { return $this->map; }

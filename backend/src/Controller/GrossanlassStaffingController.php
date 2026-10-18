@@ -62,6 +62,27 @@ class GrossanlassStaffingController extends AbstractController
         return $this->handle($departmentId, fn (Department $d, User $u) => $this->helpers->create($d, $u, $this->body($request)), 201);
     }
 
+    #[Route('/helper-skills', name: 'helper_skills_list', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function listSkills(string $departmentId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->helpers->listSkills($d));
+    }
+
+    #[Route('/helper-skills', name: 'helper_skills_create', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function addSkill(string $departmentId, Request $request): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->helpers->addSkill($d, $u, $this->body($request)['name'] ?? ''), 201);
+    }
+
+    #[Route('/helper-linkable-users', name: 'helper_linkable_users', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function linkableUsers(string $departmentId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->helpers->linkableUsers($d, $u));
+    }
+
     #[Route('/helpers/{helperId}', name: 'helpers_get', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]
     public function getHelper(string $departmentId, string $helperId): JsonResponse

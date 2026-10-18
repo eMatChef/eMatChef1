@@ -179,6 +179,14 @@ class GrossanlassAccessService
         return \in_array($this->membershipRole($user, $department) ?? '', ['u', 'h'], true);
     }
 
+    /** Helfer sehen operative Arbeiten und Fahraufträge erst nach der Freigabe; Planungsrollen sehen alle Status. */
+    public function seesOnlyReleasedWork(User $user, Department $department): bool
+    {
+        return $this->isGrossanlassHelper($user, $department)
+            && !$this->canManagePlanung($user, $department)
+            && !$this->canSeeAnlassOverview($user, $department);
+    }
+
     public function canSeeOwnEinsaetze(User $user, Department $department): bool
     {
         return $this->isGrossanlassHelper($user, $department);

@@ -21,6 +21,8 @@ class DepartmentGrossanlassStaffingAssignment
     public const STATUS_PLANNED = 'planned';
     public const STATUS_CONFIRMED = 'confirmed';
     public const STATUS_CANCELLED = 'cancelled';
+    /** Durch eine Änderung der externen Buchung ungültig; zählt nicht zur Personaldeckung. */
+    public const STATUS_CONFLICT = 'conflict';
 
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
@@ -56,6 +58,16 @@ class DepartmentGrossanlassStaffingAssignment
     #[ORM\Column(name: 'created_by_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $createdByUserId = null;
 
+    #[ORM\Column(name: 'status_before_conflict', type: 'string', length: 12, nullable: true)]
+    private ?string $statusBeforeConflict = null;
+
+    /** @var ?array<string, mixed> */
+    #[ORM\Column(name: 'conflict_info', type: 'json', nullable: true)]
+    private ?array $conflictInfo = null;
+
+    #[ORM\Column(name: 'conflict_at', type: 'datetime', nullable: true)]
+    private ?\DateTime $conflictAt = null;
+
     #[ORM\Version]
     #[ORM\Column(type: 'integer', options: ['default' => 1])]
     private int $version = 1;
@@ -85,6 +97,10 @@ class DepartmentGrossanlassStaffingAssignment
     public function getEndsAt(): \DateTime { return $this->endsAt; }
     public function getStatus(): string { return $this->status; }
     public function isActive(): bool { return $this->status !== self::STATUS_CANCELLED; }
+    public function isConflict(): bool { return $this->status === self::STATUS_CONFLICT; }
+    /** @return ?array<string, mixed> */
+    public function getConflictInfo(): ?array { return $this->conflictInfo; }
+    public function getConflictAt(): ?\DateTime { return $this->conflictAt; }
     public function getOverrideReason(): ?string { return $this->overrideReason; }
     public function getOverrideByUserId(): ?string { return $this->overrideByUserId; }
     public function getOverrideAt(): ?\DateTime { return $this->overrideAt; }
@@ -110,6 +126,31 @@ class DepartmentGrossanlassStaffingAssignment
     public function setStatus(string $status): self
     {
         $this->status = $status;
+        $this->updatedAt = new \DateTime();
+
+        return $this;
+    }
+
+    /** @param array<string, mixed> $info */
+    public function markConflict(array $info): self
+    {
+        if ($this->status !== self::STATUS_CONFLICT) {
+            $this->statusBeforeConflict = $this->status;
+            $this->conflictAt = new \DateTime();
+        }
+        $this->status = self::STATUS_CONFLICT;
+        $this->conflictInfo = $info;
+        $this->updatedAt = new \DateTime();
+
+        return $this;
+    }
+
+    public function resolveConflict(): self
+    {
+        $this->status = $this->statusBeforeConflict ?? self::STATUS_PLANNED;
+        $this->statusBeforeConflict = null;
+        $this->conflictInfo = null;
+        $this->conflictAt = null;
         $this->updatedAt = new \DateTime();
 
         return $this;

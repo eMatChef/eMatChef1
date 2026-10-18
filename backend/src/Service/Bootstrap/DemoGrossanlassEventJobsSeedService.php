@@ -39,6 +39,9 @@ final class DemoGrossanlassEventJobsSeedService
     public const DEFAULT_DEPARTMENT_NAME = 'Demo-Grossanlass-Event';
     public const SEED_TAG = '[demo:event-jobs:v1]';
 
+    /** Freigegebene Bauaufträge (Aufbau): ihre Aufgaben sind unter /ga/tasks sichtbar, unabhängig von einer Helferzuteilung. */
+    private const RELEASED_JOBS = ['Hauptbühnen-Podest', 'Ticket-Häuschen Eingang', 'Bar-Tresen West', 'Crew-Hütte Backstage', 'Bauzaun Perimeter', 'FOH-Erweiterung', 'Catering-Zelt 20×30', 'Notstromaggregat', 'Wegeleuchten Gelände'];
+
     public function __construct(
         private EntityManagerInterface $entityManager,
         private GrossanlassRoundFormService $formService,
@@ -281,6 +284,7 @@ final class DemoGrossanlassEventJobsSeedService
                     'sort' => (int) $jobDef['sort'],
                     'description' => (string) $jobDef['description'],
                     'window' => $this->windowFor((string) $jobDef['name']),
+                    'build_status' => \in_array($jobDef['name'], self::RELEASED_JOBS, true) ? Group::BUILD_STATUS_BUILD : Group::BUILD_STATUS_PLANNED,
                 ], $version);
                 if (!$job instanceof Group) {
                     continue;
@@ -392,7 +396,7 @@ final class DemoGrossanlassEventJobsSeedService
             'description' => $def['description'],
             'window_start' => $def['window'][0],
             'window_end' => $def['window'][1],
-            'build_status' => Group::BUILD_STATUS_PLANNED,
+            'build_status' => $def['build_status'] ?? Group::BUILD_STATUS_PLANNED,
         ];
         $entity = $this->applier->ensure($context, $report, new ManagedSpec(
             seedKey: $seedKey,
@@ -571,6 +575,7 @@ final class DemoGrossanlassEventJobsSeedService
             'sort' => (int) $def['sort'],
             'starts_at' => sprintf('%s %02d:%02d:00', $def['date'], (int) $def['hour'], (int) ($def['minute'] ?? 0)),
             'duration' => (int) $def['duration'],
+            'assignee_user_id' => isset($def['assignee']) ? $this->userFor((string) $def['assignee'])?->getId() : null,
         ];
         $this->applier->ensure($context, $report, new ManagedSpec(
             seedKey: $seedKey,
@@ -591,10 +596,12 @@ final class DemoGrossanlassEventJobsSeedService
                 'sort' => $t->getSortOrder(),
                 'starts_at' => $t->getStartsAt()?->format('Y-m-d H:i:s'),
                 'duration' => $t->getDurationMinutes(),
+                'assignee_user_id' => $t->getAssigneeUserId(),
             ],
             write: static function (object $t, array $d): void {
                 $t->setTitle($d['title'])->setDescription($d['description'])->setSortOrder($d['sort'])
-                    ->setStartsAt(new \DateTime($d['starts_at']))->setDurationMinutes($d['duration']);
+                    ->setStartsAt(new \DateTime($d['starts_at']))->setDurationMinutes($d['duration'])
+                    ->setAssigneeUserId($d['assignee_user_id']);
             },
             desired: $desired,
             resettable: true,
@@ -611,6 +618,7 @@ final class DemoGrossanlassEventJobsSeedService
             'sort' => (int) $def['sort'],
             'starts_at' => sprintf('%s %02d:%02d:00', $def['date'], (int) $def['hour'], (int) ($def['minute'] ?? 0)),
             'duration' => (int) $def['duration'],
+            'purpose' => (string) ($def['purpose'] ?? DepartmentGrossanlassVehicleNeed::PURPOSE_TRANSPORT),
         ];
         $this->applier->ensure($context, $report, new ManagedSpec(
             seedKey: $seedKey,
@@ -631,10 +639,11 @@ final class DemoGrossanlassEventJobsSeedService
                 'sort' => $n->getSortOrder(),
                 'starts_at' => $n->getStartsAt()?->format('Y-m-d H:i:s'),
                 'duration' => $n->getDurationMinutes(),
+                'purpose' => $n->getPurpose(),
             ],
             write: static function (object $n, array $d): void {
                 $n->setVehicleLabel($d['vehicle'])->setTaskLabel($d['task'])->setSortOrder($d['sort'])
-                    ->setStartsAt(new \DateTime($d['starts_at']))->setDurationMinutes($d['duration']);
+                    ->setStartsAt(new \DateTime($d['starts_at']))->setDurationMinutes($d['duration'])->setPurpose($d['purpose']);
             },
             desired: $desired,
             resettable: true,
@@ -765,12 +774,35 @@ final class DemoGrossanlassEventJobsSeedService
         return [
             ['key' => 'ticket-staenderwerk', 'job' => 'Ticket-Häuschen Eingang', 'title' => 'Ständerwerk aufstellen', 'description' => 'Rahmen nach Bauplan zusammenbauen und ausrichten.', 'sort' => 1, 'date' => '2027-05-20', 'hour' => 8, 'duration' => 120],
             ['key' => 'ticket-dach', 'job' => 'Ticket-Häuschen Eingang', 'title' => 'Dach eindecken', 'description' => 'OSB-Beplankung verlegen und Schindeln aufbringen.', 'sort' => 2, 'date' => '2027-05-26', 'hour' => 8, 'duration' => 180],
-            ['key' => 'podest-montage', 'job' => 'Hauptbühnen-Podest', 'title' => 'Podest montieren', 'description' => 'Podest-Elemente verschrauben, Höhe und Waage prüfen.', 'sort' => 1, 'date' => '2027-06-01', 'hour' => 8, 'duration' => 480],
+            ['key' => 'podest-montage', 'job' => 'Hauptbühnen-Podest', 'assignee' => 'ga-helfer', 'title' => 'Podest montieren', 'description' => 'Podest-Elemente verschrauben, Höhe und Waage prüfen.', 'sort' => 1, 'date' => '2027-06-01', 'hour' => 8, 'duration' => 480],
             ['key' => 'podest-demontage', 'job' => 'Hauptbühnen-Podest', 'title' => 'Podest demontieren', 'description' => 'Elemente lösen, zählen und für die Rücklieferung verladen.', 'sort' => 2, 'date' => '2027-06-07', 'hour' => 8, 'duration' => 360],
             ['key' => 'zaun-felder', 'job' => 'Bauzaun Perimeter', 'title' => 'Zaunfelder stellen', 'description' => 'Zaunfelder entlang des Perimeters stellen und verklammern.', 'sort' => 1, 'date' => '2027-06-01', 'hour' => 7, 'minute' => 30, 'duration' => 240],
             ['key' => 'zaun-abbau', 'job' => 'Bauzaun Perimeter', 'title' => 'Zaunfelder abbauen', 'description' => 'Felder und Klammern einsammeln, Vollständigkeit prüfen.', 'sort' => 2, 'date' => '2027-06-08', 'hour' => 8, 'duration' => 300],
             ['key' => 'foh-dach', 'job' => 'FOH-Erweiterung', 'title' => 'Dach', 'description' => 'Dach zusammenschrauben und für den Kran vorbereiten.', 'sort' => 1, 'date' => '2027-05-31', 'hour' => 8, 'duration' => 120],
             ['key' => 'foh-seiten', 'job' => 'FOH-Erweiterung', 'title' => 'Seiten zusammenbauen', 'description' => '', 'sort' => 2, 'date' => '2027-05-31', 'hour' => 8, 'duration' => 240],
+            // Preset «Aufbau» (31.05.2027 14:00): heutige und kommende Aufgaben der freigegebenen Holzbau-Aufträge mit Verantwortlichen
+            // (alle offen; Fortschritt entsteht im Betrieb)
+            ['key' => 'ticket-schild', 'job' => 'Ticket-Häuschen Eingang', 'assignee' => 'ga-helfer', 'title' => 'Beschilderung montieren', 'description' => 'Hinweisschilder und Preisliste am Ticket-Häuschen montieren.', 'sort' => 3, 'date' => '2027-05-31', 'hour' => 15, 'duration' => 90],
+            ['key' => 'huette-boden', 'job' => 'Crew-Hütte Backstage', 'assignee' => 'ga-bereich', 'title' => 'Bodenrahmen legen', 'description' => 'Rahmen auf Unterlagsbalken legen und Höhen prüfen.', 'sort' => 1, 'date' => '2027-05-31', 'hour' => 15, 'minute' => 30, 'duration' => 120],
+            ['key' => 'huette-waende', 'job' => 'Crew-Hütte Backstage', 'assignee' => 'ga-mw', 'title' => 'Wandelemente stellen', 'description' => 'Wandelemente aufrichten, verschrauben und mit Winkeln sichern.', 'sort' => 2, 'date' => '2027-06-01', 'hour' => 8, 'duration' => 240],
+            ['key' => 'tresen-rahmen', 'job' => 'Bar-Tresen West', 'assignee' => 'ga-mw', 'title' => 'Tresenrahmen bauen', 'description' => 'Paletten zum Tresenrahmen verbinden und ausrichten.', 'sort' => 1, 'date' => '2027-05-31', 'hour' => 16, 'duration' => 120],
+            ['key' => 'tresen-platte', 'job' => 'Bar-Tresen West', 'title' => 'Arbeitsplatte montieren', 'description' => 'Buchenplatte auflegen, verschrauben und versiegeln.', 'sort' => 2, 'date' => '2027-06-02', 'hour' => 8, 'duration' => 120],
+            // Durchführung (Preset «Während Event», 05.06.2027 17:00): Betriebsaufgaben
+            ['key' => 'betrieb-podest', 'job' => 'Hauptbühnen-Podest', 'assignee' => 'ga-helfer', 'title' => 'Podest im Betrieb kontrollieren', 'description' => 'Verschraubungen, Absperrungen und Lasten während der Veranstaltung prüfen.', 'sort' => 3, 'date' => '2027-06-05', 'hour' => 16, 'minute' => 30, 'duration' => 60],
+            ['key' => 'betrieb-tresen', 'job' => 'Bar-Tresen West', 'assignee' => 'ga-bereich', 'title' => 'Kühlung und Gebinde nachfüllen', 'description' => 'Kühlung prüfen, leere Gebinde tauschen, Tresen reinigen.', 'sort' => 3, 'date' => '2027-06-05', 'hour' => 17, 'minute' => 30, 'duration' => 90],
+            ['key' => 'betrieb-zelt', 'job' => 'Catering-Zelt 20×30', 'assignee' => 'ga-mw', 'title' => 'Zeltabspannung kontrollieren', 'description' => 'Abspannseile und Heringe bei Wind kontrollieren.', 'sort' => 2, 'date' => '2027-06-05', 'hour' => 17, 'duration' => 60],
+            ['key' => 'betrieb-aggregat', 'job' => 'Notstromaggregat', 'assignee' => 'ga-helfer', 'title' => 'Dieseltank kontrollieren', 'description' => 'Füllstand ablesen und im Protokoll festhalten.', 'sort' => 1, 'date' => '2027-06-05', 'hour' => 18, 'duration' => 30],
+            ['key' => 'betrieb-zaun', 'job' => 'Bauzaun Perimeter', 'title' => 'Perimeter-Rundgang', 'description' => 'Zaunfelder, Tore und Klammern auf Beschädigung prüfen.', 'sort' => 3, 'date' => '2027-06-05', 'hour' => 19, 'duration' => 60],
+            // Abbau (Preset «Abbau», 08.06.2027 08:00): Rückbau
+            ['key' => 'rueck-foh', 'job' => 'FOH-Erweiterung', 'assignee' => 'ga-bereich', 'title' => 'FOH-Erweiterung zurückbauen', 'description' => 'Seiten und Dach demontieren, Elemente für den Rücktransport bereitstellen.', 'sort' => 3, 'date' => '2027-06-08', 'hour' => 9, 'duration' => 240],
+            ['key' => 'rueck-tresen', 'job' => 'Bar-Tresen West', 'assignee' => 'ga-mw', 'title' => 'Tresen demontieren', 'description' => 'Arbeitsplatte lösen, Paletten stapeln, Elemente zählen.', 'sort' => 4, 'date' => '2027-06-08', 'hour' => 10, 'duration' => 180],
+            ['key' => 'rueck-zelt', 'job' => 'Catering-Zelt 20×30', 'assignee' => 'ga-helfer', 'title' => 'Zelt abbauen', 'description' => 'Zelthülle abspannen, Böden aufnehmen, Material verladen.', 'sort' => 3, 'date' => '2027-06-08', 'hour' => 13, 'duration' => 360],
+            ['key' => 'rueck-aggregat', 'job' => 'Notstromaggregat', 'title' => 'Aggregat abklemmen und verladen', 'description' => 'Verbraucher trennen, Tank prüfen, Aggregat für die Rückgabe verladen.', 'sort' => 2, 'date' => '2027-06-08', 'hour' => 14, 'duration' => 60],
+            ['key' => 'rueck-huette', 'job' => 'Crew-Hütte Backstage', 'assignee' => 'ga-bereich', 'title' => 'Crew-Hütte räumen und zerlegen', 'description' => 'Hütte leeren, Wände lösen und das Holz sortieren.', 'sort' => 3, 'date' => '2027-06-09', 'hour' => 8, 'duration' => 300],
+            // Abschluss (Preset «2 Monate danach»): offene Restarbeiten
+            ['key' => 'rest-leuchten', 'job' => 'Wegeleuchten Gelände', 'assignee' => 'ga-mw', 'title' => 'Wegeleuchten einsammeln und zählen', 'description' => 'Fehlende oder defekte Leuchten dem Eigentümer melden.', 'sort' => 1, 'date' => '2027-06-12', 'hour' => 9, 'duration' => 120],
+            ['key' => 'rest-begehung', 'job' => 'Bauzaun Perimeter', 'assignee' => 'ga-mw', 'title' => 'Schlussbegehung Gelände', 'description' => 'Gelände auf Restschäden und liegengebliebenes Material prüfen.', 'sort' => 4, 'date' => '2027-06-16', 'hour' => 10, 'duration' => 120],
+            ['key' => 'rest-schaeden', 'job' => 'Crew-Hütte Backstage', 'title' => 'Restschäden dokumentieren', 'description' => 'Schäden fotografieren und dem Eigentümer des Leihmaterials melden.', 'sort' => 4, 'date' => '2027-06-09', 'hour' => 15, 'duration' => 60],
             ['key' => 'zelt-aufbau', 'job' => 'Catering-Zelt 20×30', 'title' => 'Zelt aufstellen', 'description' => 'Zelthülle aufrichten, abspannen und Böden verlegen.', 'sort' => 1, 'date' => '2027-06-02', 'hour' => 8, 'duration' => 360],
         ];
     }
@@ -784,8 +816,12 @@ final class DemoGrossanlassEventJobsSeedService
     {
         return [
             ['key' => 'tresen-liefern', 'job' => 'Bar-Tresen West', 'vehicle' => 'Lieferwagen', 'task' => 'Tresen-Elemente liefern', 'sort' => 1, 'date' => '2027-05-21', 'hour' => 9, 'duration' => 45],
+            ['key' => 'rampe-material-liefern', 'job' => 'Rollstuhlrampe Haupteingang', 'vehicle' => 'Transporter 3,5 t', 'task' => 'Rampenhölzer liefern', 'sort' => 1, 'date' => '2027-06-01', 'hour' => 8, 'duration' => 60],
+            ['key' => 'nachschub-getraenke', 'job' => 'Bar-Tresen West', 'vehicle' => 'Lieferwagen', 'task' => 'Getränkenachschub liefern', 'sort' => 2, 'date' => '2027-06-05', 'hour' => 18, 'minute' => 30, 'duration' => 45],
+            ['key' => 'tresen-retour', 'job' => 'Bar-Tresen West', 'vehicle' => 'Lieferwagen', 'task' => 'Tresen-Elemente zurückbringen', 'sort' => 3, 'date' => '2027-06-08', 'hour' => 11, 'duration' => 60],
+            ['key' => 'lader-rueckgabe', 'job' => 'Hauptbühnen-Podest', 'vehicle' => 'Teleskoplader', 'task' => 'Teleskoplader zurückgeben', 'sort' => 2, 'date' => '2027-06-09', 'hour' => 8, 'duration' => 60],
             ['key' => 'aggregat-anliefern', 'job' => 'Notstromaggregat', 'vehicle' => 'Lieferwagen mit Hebebühne', 'task' => 'Dieselaggregat anliefern', 'sort' => 1, 'date' => '2027-05-30', 'hour' => 8, 'duration' => 60],
-            ['key' => 'podest-entladen', 'job' => 'Hauptbühnen-Podest', 'vehicle' => 'Teleskoplader', 'task' => 'Podest-Elemente entladen', 'sort' => 1, 'date' => '2027-05-31', 'hour' => 7, 'minute' => 30, 'duration' => 90],
+            ['key' => 'podest-entladen', 'job' => 'Hauptbühnen-Podest', 'vehicle' => 'Teleskoplader', 'task' => 'Podest-Elemente entladen', 'purpose' => 'site_use', 'sort' => 1, 'date' => '2027-05-31', 'hour' => 7, 'minute' => 30, 'duration' => 90],
             ['key' => 'zelt-abholen', 'job' => 'Catering-Zelt 20×30', 'vehicle' => '7,5-t-Lastwagen', 'task' => 'Zeltmaterial abholen', 'sort' => 1, 'date' => '2027-06-01', 'hour' => 13, 'duration' => 60],
             ['key' => 'aggregat-retour', 'job' => 'Notstromaggregat', 'vehicle' => 'Lieferwagen mit Hebebühne', 'task' => 'Dieselaggregat zurückbringen', 'sort' => 2, 'date' => '2027-06-14', 'hour' => 8, 'duration' => 60],
             ['key' => 'zelt-retour', 'job' => 'Catering-Zelt 20×30', 'vehicle' => '7,5-t-Lastwagen', 'task' => 'Zeltmaterial zurückbringen', 'sort' => 2, 'date' => '2027-06-15', 'hour' => 9, 'duration' => 60],
@@ -834,6 +870,14 @@ final class DemoGrossanlassEventJobsSeedService
         }
 
         throw new \RuntimeException('Ressort Bauten fehlt im Demo-Event.');
+    }
+
+    private function userFor(string $account): ?User
+    {
+        $profile = $this->entityManager->getRepository(Profile::class)->findOneBy(['email' => DemoAccounts::email($account)]);
+        $user = $profile instanceof Profile ? $this->entityManager->getRepository(User::class)->findOneBy(['profileId' => $profile->getId()]) : null;
+
+        return $user instanceof User ? $user : null;
     }
 
     private function resolveActor(): User

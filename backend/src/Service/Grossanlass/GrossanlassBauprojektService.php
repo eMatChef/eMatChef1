@@ -249,7 +249,7 @@ final class GrossanlassBauprojektService
     {
         $this->assertBauprojekt($department, $group);
         $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar oder ausführbar
-        $task = $this->findTask($department, $group, $taskId);
+        $task = $this->findTask($department, $user, $group, $taskId);
         $perms = $this->taskWorkflow->permissionsFor($user, $task, $this->canEdit($department, $user, $group));
         if (!$perms['edit']) {
             // Verantwortliche ohne Bearbeitungsrecht dürfen nur den Arbeitsfortschritt (Status) melden.
@@ -525,7 +525,7 @@ final class GrossanlassBauprojektService
         $this->assertBauprojekt($department, $group);
         $this->assertCanSee($department, $user, $group);
 
-        return $this->dependencyPayload($this->findTask($department, $group, $taskId), $department, $user);
+        return $this->dependencyPayload($this->findTask($department, $user, $group, $taskId), $department, $user);
     }
 
     /**
@@ -665,7 +665,7 @@ final class GrossanlassBauprojektService
         $this->assertBauprojekt($department, $group);
         $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar oder ausführbar
         $this->assertCanEdit($department, $user, $group);
-        $task = $this->findTask($department, $group, $taskId);
+        $task = $this->findTask($department, $user, $group, $taskId);
         $this->acceptance->assertTasksMutable($group->getId());
         if ($task->getReworkEventId() !== null) {
             throw new \InvalidArgumentException('Nachbesserungsaufgaben können nicht gelöscht werden; sie müssen abgenommen werden, bevor der Bauauftrag erneut gemeldet werden kann');
@@ -707,7 +707,7 @@ final class GrossanlassBauprojektService
         $this->assertBauprojekt($department, $group);
         $this->assertCanEdit($department, $user, $group);
         $taskId = trim((string) ($data['task_id'] ?? ''));
-        $task = $taskId === '' ? $this->staffingNeeds->ensureDefaultTask($department, $group) : $this->findTask($department, $group, $taskId);
+        $task = $taskId === '' ? $this->staffingNeeds->ensureDefaultTask($department, $group) : $this->findTask($department, $user, $group, $taskId);
 
         return $this->staffingNeeds->serialize($this->staffingNeeds->create($department, $task, $group, $data));
     }
@@ -779,6 +779,7 @@ final class GrossanlassBauprojektService
         $row->setVehicleLabel($vehicle);
         $row->setTaskLabel($task);
         $row->setCategoryLabel($this->categoryLabel($data));
+        $row->setPurpose((string) ($data['purpose'] ?? DepartmentGrossanlassVehicleNeed::PURPOSE_SITE_USE));
         $row->setSortOrder($max + 1);
         $this->applyVehicleSchedule($row, $data);
         $this->entityManager->persist($row);
@@ -806,6 +807,9 @@ final class GrossanlassBauprojektService
         }
         if (array_key_exists('category_label', $data)) {
             $row->setCategoryLabel($this->categoryLabel($data));
+        }
+        if (array_key_exists('purpose', $data)) {
+            $row->setPurpose((string) $data['purpose']);
         }
         if (trim($row->getVehicleLabel()) === '' && trim($row->getTaskLabel()) === '') {
             throw new \InvalidArgumentException('Fahrzeug oder Aufgabe ist erforderlich');
@@ -1181,12 +1185,20 @@ final class GrossanlassBauprojektService
         $steps = $this->taskWorkflow->stepsByTask($taskIds);
         $events = $this->taskWorkflow->eventsByTask($taskIds);
         $canEditByGroup = [];
+        $onlyReleased = $this->access->seesOnlyReleasedWork($user, $department);
         $out = [];
         foreach ($rows as $row) {
+            if ($onlyReleased && !$row->getGroup()->isBuildReleased()) {
+                continue; // Helfer sehen nur freigegebene Arbeiten, auch bei direktem API-Abruf
+            }
             $groupId = $row->getGroupId();
             $canEditByGroup[$groupId] ??= $this->canEdit($department, $user, $row->getGroup());
             $perms = $this->taskWorkflow->permissionsFor($user, $row, $canEditByGroup[$groupId], $helperTaskIds);
-            $out[] = $this->serializeTask($row, $steps[trim($row->getId())] ?? [], $perms, $events[trim($row->getId())] ?? [], $this->dependencyPayload($row, $department, $user));
+            $serialized = $this->serializeTask($row, $steps[trim($row->getId())] ?? [], $perms, $events[trim($row->getId())] ?? [], $this->dependencyPayload($row, $department, $user));
+            // «Meine Einsätze»: verantwortlich oder über die Helferzuteilung eingeteilt, unabhängig vom Freigabestatus.
+            $serialized['assigned_to_me'] = ($row->getAssigneeUserId() !== null && $row->getAssigneeUserId() === $user->getId())
+                || in_array(trim($row->getId()), $helperTaskIds, true);
+            $out[] = $serialized;
         }
 
         return $out;
@@ -1297,7 +1309,7 @@ final class GrossanlassBauprojektService
     {
         $this->assertBauprojekt($department, $group);
         $this->archive->assertNotArchived($group); // archivierte Bauaufträge sind nicht mehr bearbeitbar oder ausführbar
-        $task = $this->findTask($department, $group, $taskId);
+        $task = $this->findTask($department, $user, $group, $taskId);
         $perms = $this->taskWorkflow->permissionsFor($user, $task, $this->canEdit($department, $user, $group));
         if (!$perms[$action]) {
             throw new \RuntimeException('Keine Berechtigung für diese Aktion an der Aufgabe');
@@ -1326,6 +1338,7 @@ final class GrossanlassBauprojektService
             'blocked' => GrossanlassTaskWorkflowService::serializeBlock($task),
             'permissions' => $permissions,
             'events' => $events,
+            'released' => $task->getGroup()->isBuildReleased(),
             'order_status' => $this->acceptance->status($task->getGroupId()),
             'rework' => $task->getReworkEventId() === null ? null : ['event_id' => trim($task->getReworkEventId())] + ($this->acceptance->reworkReasons([$task->getReworkEventId()])[trim($task->getReworkEventId())] ?? ['reason' => null, 'at' => null]),
             ...$dependencyPayload,
@@ -1385,6 +1398,7 @@ final class GrossanlassBauprojektService
             'vehicle_label' => $row->getVehicleLabel(),
             'task_label' => $row->getTaskLabel(),
             'category_label' => $row->getCategoryLabel(),
+            'purpose' => $row->getPurpose(),
             'sort_order' => $row->getSortOrder(),
             'starts_at' => $row->getStartsAt()?->format('Y-m-d\TH:i:s'),
             'duration_minutes' => $row->getDurationMinutes(),
@@ -1432,7 +1446,7 @@ final class GrossanlassBauprojektService
         return $row;
     }
 
-    private function findTask(Department $department, Group $group, string $taskId): DepartmentGrossanlassTask
+    private function findTask(Department $department, User $user, Group $group, string $taskId): DepartmentGrossanlassTask
     {
         $task = $this->entityManager->getRepository(DepartmentGrossanlassTask::class)->find($taskId);
         if (
@@ -1442,6 +1456,9 @@ final class GrossanlassBauprojektService
             || $task->isDefault() // Standardaufgabe «Allgemein» gehört nur zum Personalbedarf, nicht zur Aufgabenübersicht
         ) {
             throw new \InvalidArgumentException('Aufgabe nicht gefunden');
+        }
+        if ($this->access->seesOnlyReleasedWork($user, $department) && !$group->isBuildReleased()) {
+            throw new \InvalidArgumentException('Aufgabe nicht gefunden'); // nicht freigegeben: für Helfer nicht abrufbar
         }
 
         return $task;

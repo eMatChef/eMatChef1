@@ -10,6 +10,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'department_grossanlass_einsatz')]
 #[ORM\Index(name: 'idx_ga_einsatz_dept', columns: ['department_id'])]
 #[ORM\Index(name: 'idx_ga_einsatz_commitment', columns: ['commitment_id'])]
+#[ORM\UniqueConstraint(name: 'uq_ga_einsatz_vehicle_need', columns: ['vehicle_need_id'], options: ['where' => '(vehicle_need_id IS NOT NULL)'])]
 class DepartmentGrossanlassEinsatz
 {
     public const KIND_EINSATZ = 'einsatz';
@@ -47,6 +48,10 @@ class DepartmentGrossanlassEinsatz
 
     #[ORM\Column(name: 'wish_line_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $wishLineId = null;
+
+    /** Direkte Verknüpfung zum Fahrzeugwunsch, aus dem dieser Fahrauftrag überführt wurde (höchstens ein Fahrauftrag je Wunsch). */
+    #[ORM\Column(name: 'vehicle_need_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $vehicleNeedId = null;
 
     #[ORM\Column(name: 'group_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $groupId = null;
@@ -138,6 +143,14 @@ class DepartmentGrossanlassEinsatz
         return $this;
     }
 
+    public function getVehicleNeedId(): ?string { return $this->vehicleNeedId; }
+    public function setVehicleNeedId(?string $id): self
+    {
+        $this->vehicleNeedId = $id ?: null;
+        $this->touch();
+        return $this;
+    }
+
     public function getWishLineId(): ?string { return $this->wishLineId; }
     public function setWishLineId(?string $wishLineId): self
     {
@@ -204,6 +217,19 @@ class DepartmentGrossanlassEinsatz
     public function isTripReleased(): bool
     {
         return $this->tripReleasedAt !== null;
+    }
+
+    /**
+     * Zur Ausführung freigegeben: ausgegeben/zurückgegeben oder «Fahrt frei» gesetzt. Geplante Einsätze und
+     * Einsätze mit ausstehender Freigabe zählen nie.
+     */
+    public function isReleasedForExecution(): bool
+    {
+        if ($this->status === self::STATUS_ISSUED || $this->status === self::STATUS_RETURNED) {
+            return true;
+        }
+
+        return $this->status !== self::STATUS_PENDING && $this->isTripReleased();
     }
 
     public function getChauffeurUserId(): ?string { return $this->chauffeurUserId; }

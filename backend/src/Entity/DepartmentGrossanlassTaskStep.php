@@ -50,11 +50,11 @@ class DepartmentGrossanlassTaskStep
     public function getDoneByUserId(): ?string { return $this->doneByUserId; }
     public function getDoneAt(): ?\DateTime { return $this->doneAt; }
 
-    public function markDone(bool $done, ?string $userId): self
+    public function markDone(bool $done, ?string $userId, ?\DateTime $at = null): self
     {
         $this->done = $done;
         $this->doneByUserId = $done ? $userId : null;
-        $this->doneAt = $done ? new \DateTime() : null;
+        $this->doneAt = $done ? ($at ?? new \DateTime()) : null;
 
         return $this;
     }

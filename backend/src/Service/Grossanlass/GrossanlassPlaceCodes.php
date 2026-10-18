@@ -11,7 +11,7 @@ final class GrossanlassPlaceCodes
 {
     public const KIND_BAUPROJEKT = 'bauprojekt';
     public const KIND_UNTERLAGER = 'unterlager';
-    public const KIND_MATPLATZ = 'matplatz';
+    public const KIND_LAGERPLATZ = 'lagerplatz';
     public const KIND_ANFAHRT = 'anfahrt';
     public const KIND_POI = 'poi';
     public const KIND_AREA = 'area';
@@ -19,7 +19,7 @@ final class GrossanlassPlaceCodes
     public const KINDS = [
         self::KIND_BAUPROJEKT,
         self::KIND_UNTERLAGER,
-        self::KIND_MATPLATZ,
+        self::KIND_LAGERPLATZ,
         self::KIND_ANFAHRT,
         self::KIND_POI,
         self::KIND_AREA,
@@ -28,7 +28,7 @@ final class GrossanlassPlaceCodes
     public const POLYGON_MIN_POINTS = 3;
     public const POLYGON_MAX_POINTS = 32;
 
-    /** Neu anlegbar. Matplatz ist der Lagerstandort, kein GA-Ort. */
+    /** Neu anlegbar. Lagerplatz ist der Lagerstandort, kein GA-Ort. */
     public const CREATE_KINDS = [
         self::KIND_BAUPROJEKT,
         self::KIND_UNTERLAGER,

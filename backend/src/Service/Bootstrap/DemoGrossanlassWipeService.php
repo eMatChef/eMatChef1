@@ -219,6 +219,7 @@ final class DemoGrossanlassWipeService
             // Nach den Aufgaben: deren Löschung entfernt Bedarf und Zuteilungen; erst dann sind die Helfer frei.
             'department_grossanlass_staffing_log',
             'department_grossanlass_helper',
+            'department_grossanlass_skill',
             'department_grossanlass_user_card',
             'department_grossanlass_place',
             'department_grossanlass_map',

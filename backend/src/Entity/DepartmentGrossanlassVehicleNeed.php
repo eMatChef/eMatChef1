@@ -30,6 +30,13 @@ class DepartmentGrossanlassVehicleNeed
     #[ORM\JoinColumn(name: 'group_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
     private Group $group;
 
+    public const PURPOSE_SITE_USE = 'site_use';
+    public const PURPOSE_TRANSPORT = 'transport';
+
+    /** `site_use`: Fahrzeug wird auf der Baustelle gebraucht. `transport`: das Fahrzeug soll etwas transportieren (überführbar in einen Fahrauftrag). */
+    #[ORM\Column(type: 'string', length: 16, options: ['default' => self::PURPOSE_SITE_USE])]
+    private string $purpose = self::PURPOSE_SITE_USE;
+
     #[ORM\Column(name: 'vehicle_label', type: 'string', length: 255)]
     private string $vehicleLabel = '';
 
@@ -102,6 +109,18 @@ class DepartmentGrossanlassVehicleNeed
     {
         $this->group = $group;
         $this->groupId = $group->getId();
+
+        return $this;
+    }
+
+    public function getPurpose(): string
+    {
+        return $this->purpose;
+    }
+
+    public function setPurpose(string $purpose): self
+    {
+        $this->purpose = $purpose === self::PURPOSE_TRANSPORT ? self::PURPOSE_TRANSPORT : self::PURPOSE_SITE_USE;
 
         return $this;
     }

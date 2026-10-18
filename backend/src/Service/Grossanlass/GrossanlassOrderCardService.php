@@ -26,6 +26,7 @@ final class GrossanlassOrderCardService
         private GrossanlassMaterialProgressService $materialProgress,
         private BusinessClock $clock,
         private GrossanlassStaffingNeedService $staffingNeeds,
+        private GrossanlassOrderAcceptanceService $acceptance,
     ) {}
 
     /**
@@ -70,7 +71,7 @@ final class GrossanlassOrderCardService
         $needs = $this->helperNeeds(array_keys($groups));
         $members = $this->assignedHelpers(array_keys($groups));
 
-        return self::summarize(array_keys($groups), $items, $tasks, $this->clock->now($department->getId()), $needs, $members);
+        return self::summarize(array_keys($groups), $items, $tasks, $this->clock->now($department->getId()), $needs, $members, $this->acceptance->statuses(array_keys($groups)));
     }
 
     /**
@@ -106,7 +107,7 @@ final class GrossanlassOrderCardService
              FROM department_grossanlass_staffing_assignment a
              JOIN department_grossanlass_staffing_need n ON n.id = a.need_id
              JOIN department_grossanlass_task t ON t.id = n.task_id
-             WHERE t.group_id IN (?) AND a.status <> 'cancelled'",
+             WHERE t.group_id IN (?) AND a.status NOT IN ('cancelled', 'conflict')",
             [$groupIds],
             [ArrayParameterType::STRING],
         );
@@ -124,16 +125,18 @@ final class GrossanlassOrderCardService
      * @param list<array{group_id: string, assignee: ?string, starts_at: ?\DateTimeInterface, duration: ?int, status?: string}> $tasks
      * @param array<string, int> $needs Gesamtbedarf an Helfern je Gruppe
      * @param array<string, list<string>> $members zugeteilte Helfer je Gruppe
+     * @param array<string, string> $orderStatuses Fertigmeldung/Abnahme je Gruppe (`open`|`review`|`accepted`); unabhängig vom Aufgabenfortschritt
      * @return list<array<string, mixed>>
      */
-    public static function summarize(array $groupIds, array $items, array $tasks, \DateTimeInterface $now, array $needs = [], array $members = []): array
+    public static function summarize(array $groupIds, array $items, array $tasks, \DateTimeInterface $now, array $needs = [], array $members = [], array $orderStatuses = []): array
     {
         $out = [];
         foreach ($groupIds as $id) {
             $out[$id] = [
                 'group_id' => $id,
+                'order_status' => $orderStatuses[$id] ?? GrossanlassOrderAcceptanceService::OPEN,
                 'material' => ['items' => 0, 'covered_items' => 0, 'at_place_items' => 0],
-                'tasks' => ['total' => 0, 'scheduled' => 0, 'done' => 0],
+                'tasks' => ['total' => 0, 'scheduled' => 0, 'done' => 0, 'planned' => 0, 'in_window' => 0, 'overdue' => 0],
                 'staffing' => ['need' => $needs[$id] ?? null, 'assigned' => 0],
             ];
         }
@@ -166,11 +169,26 @@ final class GrossanlassOrderCardService
             if ($task['assignee'] !== null && $task['assignee'] !== '') {
                 $assignees[$id][$task['assignee']] = true;
             }
-            if ($task['starts_at'] !== null && $task['duration'] !== null) {
+            $scheduled = $task['starts_at'] !== null && $task['duration'] !== null;
+            if ($scheduled) {
                 ++$out[$id]['tasks']['scheduled'];
             }
             if (($task['status'] ?? null) === DepartmentGrossanlassTask::STATUS_DONE) {
                 ++$out[$id]['tasks']['done'];
+                continue;
+            }
+            // Offene Aufgaben nach Fachzeit (BusinessClock): geplant, im Terminfenster oder überfällig (Ende überschritten).
+            if ($task['starts_at'] === null) {
+                continue;
+            }
+            $start = \DateTimeImmutable::createFromInterface($task['starts_at']);
+            $end = $start->modify(sprintf('+%d minutes', max(0, (int) ($task['duration'] ?? 0))));
+            if ($now < $start) {
+                ++$out[$id]['tasks']['planned'];
+            } elseif ($now <= $end) {
+                ++$out[$id]['tasks']['in_window'];
+            } else {
+                ++$out[$id]['tasks']['overdue'];
             }
         }
         foreach ($assignees as $id => $users) {

@@ -18,6 +18,11 @@ final class DisplayWidgetRegistry
     public const SOURCE_CLOCK = 'clock';
     /** Bestehende Demo-/Seed-Daten der GA-Anzeigebeispiele (keine Live-Daten). */
     public const SOURCE_GA_DEMO = 'ga_demo';
+    /** Echte GA-Daten (Orte, Bereiche, Pläne) über die Geräte-API, siehe DisplayMapDataService. */
+    public const SOURCE_GA_LIVE = 'ga_live';
+
+    /** Objektarten der GA-Karte (GrossanlassPlaceCodes::KINDS). */
+    private const MAP_KINDS = ['bauprojekt', 'anfahrt', 'lagerplatz', 'unterlager', 'poi', 'area'];
 
     private const ALL = [self::CONTEXT_GROSSANLASS, self::CONTEXT_DEPARTMENT];
     private const GA = [self::CONTEXT_GROSSANLASS];
@@ -129,6 +134,28 @@ final class DisplayWidgetRegistry
                 }
 
                 return $value;
+            case 'float':
+                if (!\is_int($value) && !\is_float($value) && !(\is_string($value) && is_numeric($value))) {
+                    return $invalid('config_invalid_value', 'Zahl erwartet.');
+                }
+                $value = (float) $value;
+                if (!is_finite($value) || $value < $field['min'] || $value > $field['max']) {
+                    return $invalid('config_out_of_range', 'Wert ausserhalb des erlaubten Bereichs.');
+                }
+
+                return round($value, 6);
+            case 'set':
+                if (!\is_array($value) || !array_is_list($value)) {
+                    return $invalid('config_invalid_value', 'Liste erwartet.');
+                }
+                foreach ($value as $entry) {
+                    if (!\is_string($entry) || !\in_array($entry, $field['values'], true)) {
+                        return $invalid('config_invalid_value', 'Ungültige Auswahl.');
+                    }
+                }
+
+                // feste Reihenfolge, keine Duplikate
+                return array_values(array_intersect($field['values'], $value));
             case 'bool':
                 if (!\is_bool($value)) {
                     return $invalid('config_invalid_value', 'Wahrheitswert erwartet.');
@@ -279,12 +306,28 @@ final class DisplayWidgetRegistry
                     'lines' => ['type' => 'lines', 'max' => 200, 'max_items' => 12, 'default' => []],
                 ],
             ],
-            'ga_site_map' => $this->ga('map', $filter, [], [4, 4], [6, 6]),
+            // Echte Karte: dieselben Orte, Bereiche und Pläne wie die GA-Planung. filter_* bleiben nur für bestehende Layouts erlaubt.
+            'ga_site_map' => [
+                'category' => 'ga', 'family' => 'map', 'contexts' => self::GA, 'data_source' => self::SOURCE_GA_LIVE, 'min_size' => [4, 4], 'default_size' => [6, 6],
+                'fields' => $filter + [
+                    'base_layer' => $enum(['osm', 'swisstopo', 'swissimage'], 'osm'),
+                    'show_plans' => ['type' => 'bool', 'default' => true],
+                    'kinds' => ['type' => 'set', 'values' => self::MAP_KINDS, 'default' => self::MAP_KINDS],
+                    'group_id' => $str(12),
+                    'show_labels' => ['type' => 'bool', 'default' => true],
+                    'view' => $enum(['auto', 'fixed'], 'auto'),
+                    'center_lat' => ['type' => 'float', 'min' => -90, 'max' => 90, 'default' => 46.8182],
+                    'center_lng' => ['type' => 'float', 'min' => -180, 'max' => 180, 'default' => 8.2275],
+                    'zoom' => $int(3, 19, 15),
+                ],
+            ],
             'ga_activity_feed' => $this->ga('feed', $filter, ['area' => $enum(['all', 'material', 'logistics', 'task', 'sale', 'problem'], 'all'), 'max_items' => $int(3, 20, 8)], [3, 3], [4, 6]),
             'ga_warnings' => $this->ga('warnings', $filter, ['max_items' => $int(1, 12, 5)], [3, 2], [4, 3]),
         ];
 
         foreach ($defs as $type => &$def) {
+            // «live»: das Widget hat eine echte Datenanbindung (siehe DisplayLiveDataService); sonst wäre nur Demo möglich.
+            $def['live'] ??= ($def['data_source'] ?? '') !== self::SOURCE_GA_DEMO;
             $def['version'] = 1;
             $def['supported_versions'] = [1];
         }
@@ -307,6 +350,7 @@ final class DisplayWidgetRegistry
             'family' => $family,
             'contexts' => self::GA,
             'data_source' => self::SOURCE_GA_DEMO,
+            'live' => true,
             'min_size' => $min,
             'default_size' => $default,
             'fields' => $filter + $extra,

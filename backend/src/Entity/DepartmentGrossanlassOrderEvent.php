@@ -55,7 +55,7 @@ class DepartmentGrossanlassOrderEvent
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
 
-    public function __construct(string $id, Department $department, Group $group, int $seq, string $type, string $userId, ?string $note)
+    public function __construct(string $id, Department $department, Group $group, int $seq, string $type, string $userId, ?string $note, ?\DateTime $at = null)
     {
         $this->id = $id;
         $this->department = $department;
@@ -66,7 +66,7 @@ class DepartmentGrossanlassOrderEvent
         $this->type = $type;
         $this->userId = $userId;
         $this->note = $note;
-        $this->createdAt = new \DateTime();
+        $this->createdAt = $at ?? new \DateTime();
     }
 
     public function getId(): string { return $this->id; }

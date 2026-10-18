@@ -20,9 +20,11 @@ use App\Service\Demo\Organisation\ManagedSeedApplier;
 use App\Service\Demo\Organisation\ManagedSpec;
 use App\Service\Demo\Organisation\SyncReport;
 use App\Service\Demo\Scenario\SeedContext;
+use App\Entity\DepartmentGrossanlassPlace;
 use App\Service\Grossanlass\GrossanlassCommitmentService;
 use App\Service\Grossanlass\GrossanlassCostService;
 use App\Service\Grossanlass\GrossanlassDriveCategories;
+use App\Service\Grossanlass\GrossanlassPlaceCodes;
 use App\Service\Public\PublicCodeService;
 use App\Util\DemoAccounts;
 use App\Util\GrossanlassIdGenerator;
@@ -78,6 +80,7 @@ final class DemoGrossanlassEventLogisticsSeedService
         }
         if (($def['racks'] ?? []) !== []) {
             $keys[] = $scenarioKey . ':lager:qr';
+            $keys[] = $scenarioKey . ':lager:matplatz';
         }
 
         return $keys;
@@ -115,6 +118,7 @@ final class DemoGrossanlassEventLogisticsSeedService
 
         $this->syncBudget($context, $report, $department, $actor, $key, $def['budget'] ?? [], $version);
         $this->syncStorage($context, $report, $department, $actor, $key, $def['racks'] ?? [], $version);
+        $this->syncLagerplatz($context, $report, $department, $key, $version);
         foreach ($def['vehicles'] ?? [] as $vehicle) {
             $this->syncVehicle($context, $report, $department, $key . ':fahrzeug:' . $vehicle['key'], $vehicle, $version);
         }
@@ -158,6 +162,59 @@ final class DemoGrossanlassEventLogisticsSeedService
             $this->entityManager->flush();
             $this->costs->upsertBudget($department, $actor, ['payer_group_id' => null, 'rahmen_chf' => $sum > 0 ? number_format($sum, 2, '.', '') : null]);
         }
+    }
+
+    private function syncLagerplatz(SeedContext $context, SyncReport $report, Department $department, string $key, string $version): void
+    {
+        $addressRecord = $context->findRecord($key . ':storage-address');
+        $address = $addressRecord !== null ? $this->entityManager->find(Address::class, $addressRecord->getEntityId()) : null;
+        if (!$address instanceof Address) {
+            return;
+        }
+        $name = trim((string) $address->getName());
+        if ($name === '') {
+            $name = 'Lagerplatz Gelände';
+        }
+        $this->applier->ensure($context, $report, new ManagedSpec(
+            seedKey: $key . ':lager:matplatz',
+            create: function () use ($department, $name, $address): object {
+                $place = new DepartmentGrossanlassPlace();
+                $place->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::PLACE, DepartmentGrossanlassPlace::class));
+                $place->setDepartment($department);
+                $place->setName($name);
+                $place->setKind(GrossanlassPlaceCodes::KIND_LAGERPLATZ);
+                $place->setStorageAddress($address);
+                $place->setLatitude($address->getLatitude());
+                $place->setLongitude($address->getLongitude());
+                $this->entityManager->persist($place);
+
+                return $place;
+            },
+            find: fn (string $id): ?object => $this->entityManager->find(DepartmentGrossanlassPlace::class, $id),
+            idOf: static fn (object $p): string => $p->getId(),
+            read: static fn (object $p): array => [
+                'name' => $p->getName(),
+                'kind' => $p->getKind(),
+                'storage_address_id' => $p->getStorageAddressId(),
+            ],
+            write: function (object $p, array $d) use ($address): void {
+                $p->setName((string) $d['name']);
+                $p->setKind((string) $d['kind']);
+                if (!empty($d['storage_address_id'])) {
+                    $p->setStorageAddress($address);
+                }
+            },
+            desired: [
+                'name' => $name,
+                'kind' => GrossanlassPlaceCodes::KIND_LAGERPLATZ,
+                'storage_address_id' => $address->getId(),
+            ],
+            adopt: fn (): ?object => $this->entityManager->getRepository(DepartmentGrossanlassPlace::class)->findOneBy([
+                'departmentId' => $department->getId(),
+                'kind' => GrossanlassPlaceCodes::KIND_LAGERPLATZ,
+            ]),
+            resettable: true,
+        ), $version);
     }
 
     /** @param list<array<string, mixed>> $racks */

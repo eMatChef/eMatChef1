@@ -79,8 +79,18 @@ final class GrossanlassEventScenario extends AbstractCatalogScenario
         $report = new SyncReport();
         $context = $context->withDepartment($department);
         $this->content->syncScenario($context, $report, $this->catalog->version());
-        $this->process->syncScenario($context, $report, $this->mapDef(), $this->catalog->version());
         $this->logistics->syncScenario($context, $report, $this->logisticsDef(), $this->catalog->version());
+        $this->process->syncScenario($context, $report, $this->mapDef(), $this->catalog->version());
+        $this->process->syncChargeProcurementBindings($context, $report, $this->catalog->version());
+        $this->process->repairCommitmentInboundModesFromChains($context);
+        $this->process->repairEinsatzDestinationsFromSeed($context);
+        $this->process->repairTripDeliveryForDispositionEinsaetze($context);
+        // Disposition (Tour, Freigabe) braucht Fahrkarten und Orte aus dem Logistik-Seed
+        $this->process->syncDisposition($context, $report, $this->catalog->version());
+        $this->process->repairAnlieferungLaderDisposition($context);
+        $this->process->syncPlannedPickup($context, $report, $this->catalog->version());
+        $this->process->syncReadyTransport($context, $report, $this->catalog->version());
+        $this->process->syncBuildPhase($context, $report, $this->catalog->version());
         $this->initialiseClock($context, $department, $report);
 
         return SeedResult::ok(

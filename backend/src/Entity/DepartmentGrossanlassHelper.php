@@ -61,6 +61,35 @@ class DepartmentGrossanlassHelper
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $note = null;
 
+    #[ORM\Column(type: 'string', length: 120, nullable: true)]
+    private ?string $occupation = null;
+
+    /** Ressort / Bereich (Freitext). */
+    #[ORM\Column(type: 'string', length: 100, nullable: true)]
+    private ?string $area = null;
+
+    /** @var list<string> Namen aus dem Fähigkeitenkatalog (GA-spezifisch, ergänzt das zentrale Profil nicht). */
+    #[ORM\Column(type: 'json', options: ['default' => '[]'])]
+    private array $skills = [];
+
+    /** @var list<string> Führerausweis-/Bedienklassen externer Helfer; bei verknüpftem Konto gilt das zentrale Profil. */
+    #[ORM\Column(name: 'drive_classes', type: 'json', options: ['default' => '[]'])]
+    private array $driveClasses = [];
+
+    #[ORM\Column(name: 'drive_valid_until', type: 'date', nullable: true)]
+    private ?\DateTime $driveValidUntil = null;
+
+    /** @var list<array{label: string, valid_until: ?string}> */
+    #[ORM\Column(type: 'json', options: ['default' => '[]'])]
+    private array $qualifications = [];
+
+    /** Externe Datenquelle (API-Daten) und Schlüssel der Person dort; nie per Namen zusammengeführt. */
+    #[ORM\Column(name: 'ext_source_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $extSourceId = null;
+
+    #[ORM\Column(name: 'ext_key', type: 'string', length: 190, nullable: true)]
+    private ?string $extKey = null;
+
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
 
@@ -96,6 +125,27 @@ class DepartmentGrossanlassHelper
     public function getArchivedAt(): ?\DateTime { return $this->archivedAt; }
     public function getNote(): ?string { return $this->note; }
     public function setNote(?string $v): self { $this->note = $v; return $this->touch(); }
+    public function getOccupation(): ?string { return $this->occupation; }
+    public function setOccupation(?string $v): self { $this->occupation = $v; return $this->touch(); }
+    public function getArea(): ?string { return $this->area; }
+    public function setArea(?string $v): self { $this->area = $v; return $this->touch(); }
+    /** @return list<string> */
+    public function getSkills(): array { return $this->skills; }
+    /** @param list<string> $v */
+    public function setSkills(array $v): self { $this->skills = $v; return $this->touch(); }
+    /** @return list<string> */
+    public function getDriveClasses(): array { return $this->driveClasses; }
+    /** @param list<string> $v */
+    public function setDriveClasses(array $v): self { $this->driveClasses = $v; return $this->touch(); }
+    public function getDriveValidUntil(): ?\DateTime { return $this->driveValidUntil; }
+    public function setDriveValidUntil(?\DateTime $v): self { $this->driveValidUntil = $v; return $this->touch(); }
+    /** @return list<array{label: string, valid_until: ?string}> */
+    public function getQualifications(): array { return $this->qualifications; }
+    /** @param list<array{label: string, valid_until: ?string}> $v */
+    public function setQualifications(array $v): self { $this->qualifications = $v; return $this->touch(); }
+    public function getExtSourceId(): ?string { return $this->extSourceId; }
+    public function getExtKey(): ?string { return $this->extKey; }
+    public function setExternal(?string $sourceId, ?string $key): self { $this->extSourceId = $sourceId; $this->extKey = $key; return $this; }
     public function getCreatedAt(): \DateTime { return $this->createdAt; }
     public function getUpdatedAt(): \DateTime { return $this->updatedAt; }
 

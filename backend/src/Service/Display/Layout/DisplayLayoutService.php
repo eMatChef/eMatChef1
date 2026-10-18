@@ -28,7 +28,9 @@ final class DisplayLayoutService
         private DisplayWidgetRegistry $registry,
         private DisplayDeviceProfileService $profiles,
         private DepartmentDisplayScreenService $screenService,
+        private ?DisplayBlockCatalog $blocks = null,
     ) {
+        $this->blocks ??= new DisplayBlockCatalog();
     }
 
     public function contextOf(string $departmentId): string
@@ -58,6 +60,7 @@ final class DisplayLayoutService
             'context' => $context,
             'limits' => [
                 'columns' => DisplayLayoutValidator::COLUMNS,
+                'max_columns' => DisplayLayoutValidator::MAX_COLUMNS,
                 'default_rows' => DisplayLayoutValidator::DEFAULT_ROWS,
                 'max_rows' => DisplayLayoutValidator::MAX_ROWS,
                 'max_depth' => DisplayLayoutValidator::MAX_DEPTH,
@@ -71,6 +74,7 @@ final class DisplayLayoutService
             ],
             'widgets' => $enabled ? $this->registry->forContext($context) : [],
             'templates' => $enabled ? $this->templates->forContext($context) : [],
+            'blocks' => $enabled ? $this->blocks->forContext($context) : [],
         ];
     }
 

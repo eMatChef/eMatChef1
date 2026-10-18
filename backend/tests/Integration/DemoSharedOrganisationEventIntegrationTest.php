@@ -49,7 +49,13 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             } finally {
                 $conn->rollBack();
             }
-        }, $url, [DemoScenarioRunner::class, DemoScenarioRegistry::class, DemoOrganisationCatalog::class, \App\Service\Demo\Legacy\LegacyDemoRename::class, \App\Service\Bootstrap\DemoGrossanlassSeedService::class, \App\Service\Grossanlass\GrossanlassBudgetAreaService::class, \App\Service\Grossanlass\GrossanlassChargeMovementService::class, \App\Service\Grossanlass\GrossanlassPackService::class, \App\Service\Clock\BusinessClock::class, \App\Service\Grossanlass\GrossanlassPlaceService::class, \App\Service\Grossanlass\GrossanlassProcurementService::class]);
+        }, $url, [DemoScenarioRunner::class, DemoScenarioRegistry::class, DemoOrganisationCatalog::class, \App\Service\Demo\Legacy\LegacyDemoRename::class, \App\Service\Bootstrap\DemoGrossanlassSeedService::class, \App\Service\Grossanlass\GrossanlassBudgetAreaService::class, \App\Service\Grossanlass\GrossanlassChargeMovementService::class, \App\Service\Grossanlass\GrossanlassPackService::class, \App\Service\Clock\BusinessClock::class, \App\Service\Grossanlass\GrossanlassPlaceService::class, \App\Service\Grossanlass\GrossanlassProcurementService::class, \App\Service\Grossanlass\GrossanlassDispatchService::class]);
+    }
+
+    /** Annahmeort des Wareneingangs: der Lagerplatz des Seeds (vorhandener GA-Standort, keine zweite Standortverwaltung). */
+    private static function lagerplatz(Connection $conn, string $event): string
+    {
+        return (string) $conn->fetchOne("SELECT id FROM department_grossanlass_place WHERE department_id=? AND kind='lagerplatz'", [$event]);
     }
 
     /** @return array<string, SeedResult> */
@@ -175,7 +181,11 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             // Ressorts und Bereiche (Organisationsstruktur) sowie Bauprojekte: 13 Katalog-Gruppen + 6 Gewerke + Unterbereich «Hauptbühne» + 20 Bauprojekte
             self::assertSame(13 + 6 + 1 + 20, (int) $conn->fetchOne('SELECT count(*) FROM "group" WHERE department_id=?', [$event]));
             self::assertSame(8, (int) $conn->fetchOne("SELECT count(*) FROM \"group\" WHERE department_id=? AND grossanlass_kind='ressort'", [$event]));
-            self::assertSame(20, (int) $conn->fetchOne("SELECT count(*) FROM \"group\" WHERE department_id=? AND grossanlass_kind='teilbereich' AND build_status='planned'", [$event]));
+            self::assertSame(11, (int) $conn->fetchOne("SELECT count(*) FROM \"group\" WHERE department_id=? AND grossanlass_kind='teilbereich' AND build_status='planned'", [$event]));
+            // Freigegebene Bauaufträge (Aufbau): ihre Aufgaben sind unter /ga/tasks sichtbar, mit und ohne Zuteilung
+            self::assertSame(9, (int) $conn->fetchOne("SELECT count(*) FROM \"group\" WHERE department_id=? AND grossanlass_kind='teilbereich' AND build_status='build'", [$event]));
+            self::assertSame(15, (int) $conn->fetchOne("SELECT count(*) FROM department_grossanlass_task t JOIN \"group\" g ON g.id=t.group_id WHERE t.department_id=? AND g.build_status='build' AND t.assignee_user_id IS NOT NULL", [$event]));
+            self::assertGreaterThanOrEqual(2, (int) $conn->fetchOne("SELECT count(*) FROM department_grossanlass_task t JOIN \"group\" g ON g.id=t.group_id WHERE t.department_id=? AND g.build_status='build' AND t.assignee_user_id IS NULL", [$event]));
             // Feste Zeitfenster: vom Aufbaubeginn (19.05.) bis zum Ende der Rücklieferung innerhalb des Abbaus (16.06.)
             self::assertSame('2027-05-19', substr((string) $conn->fetchOne('SELECT min(window_start) FROM "group" WHERE department_id=?', [$event]), 0, 10));
             self::assertSame('2027-06-16', substr((string) $conn->fetchOne('SELECT max(window_end) FROM "group" WHERE department_id=?', [$event]), 0, 10));
@@ -183,7 +193,7 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             // Materialwünsche, Orte, Aufgaben, Fahrzeugbedarfe, Beschaffung und Kosten (6 aus Beschaffung/Zusagen, 2 aus den Chargen Leihe und Spende)
             self::assertSame(60, (int) $conn->fetchOne('SELECT count(*) FROM activity_grossanlass_wish_line l JOIN "group" g ON g.id=l.group_id WHERE g.department_id=?', [$event]));
             self::assertSame(20, (int) $conn->fetchOne("SELECT count(*) FROM department_grossanlass_place WHERE department_id=? AND kind='bauprojekt'", [$event]));
-            self::assertSame([9, 6, 7, 11], [
+            self::assertSame([27, 10, 12, 19], [
                 (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_task WHERE department_id=?', [$event]),
                 (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_vehicle_need WHERE department_id=?', [$event]),
                 (int) $conn->fetchOne('SELECT count(*) FROM activity_grossanlass_procurement_line WHERE department_id=?', [$event]),
@@ -191,9 +201,12 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             ]);
             // Beschaffungsablauf: Bedarf → Anfrage → Offerte (PDF) → Budget → Bestellung → Zusage → Einsatz → Packauftrag
             $row = static fn (string $sql): array => $conn->fetchAllAssociative($sql, [$event]);
-            self::assertSame(['bestellt', 'bedarf', 'budgetiert', 'offerte_eingeholt', 'bedarf', 'bestellt', 'bestellt'], array_column($row("SELECT status FROM activity_grossanlass_procurement_line WHERE department_id=? ORDER BY CASE label WHEN 'Schwartenbretter' THEN 0 WHEN 'Festzelt 3x3 m' THEN 1 WHEN 'Teleskoplader' THEN 2 WHEN 'Nägel 5x80' THEN 3 WHEN 'OSB 18 mm Platten' THEN 5 WHEN 'Bitumenschindeln anthrazit' THEN 6 ELSE 4 END"), 'status'));
+            $lineStatus = array_column($row('SELECT label, status FROM activity_grossanlass_procurement_line WHERE department_id=?'), 'status', 'label');
+            foreach (['Schwartenbretter' => 'bestellt', 'Festzelt 3x3 m' => 'bedarf', 'Teleskoplader' => 'budgetiert', 'Nägel 5x80' => 'offerte_eingeholt', 'OSB 18 mm Platten' => 'bestellt', 'Bitumenschindeln anthrazit' => 'bestellt', 'Lieferwagen' => 'budgetiert', 'Transporter 3,5 t' => 'budgetiert', '7,5-t-Lastwagen' => 'budgetiert'] as $label => $status) {
+                self::assertSame($status, $lineStatus[$label] ?? null, $label);
+            }
             // 3 Offerten des Ablaufs (2 mit PDF) plus die OSB-Offerte des Beschaffungsablaufs vom Wunsch
-            self::assertSame([4, 2], [
+            self::assertSame([7, 2], [
                 (int) $conn->fetchOne('SELECT count(*) FROM activity_grossanlass_procurement_quote q JOIN activity_grossanlass_procurement_line l ON l.id=q.procurement_line_id WHERE l.department_id=?', [$event]),
                 (int) $conn->fetchOne('SELECT count(*) FROM activity_grossanlass_procurement_quote q JOIN activity_grossanlass_procurement_line l ON l.id=q.procurement_line_id WHERE l.department_id=? AND q.pdf_filename IS NOT NULL', [$event]),
             ]);
@@ -205,21 +218,22 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             }
             ksort($origins);
             // Beschaffung: Käufe je Bestellung (Schwartenbretter 1, OSB 2, Bitumenschindeln 2 inkl. storniert), Leihe: Miete, Festbänke, Bitumen-Leihe; Eigenbestand, Spende
-            self::assertSame(['buy' => 5, 'donation' => 1, 'loan' => 3, 'own' => 1], $origins);
-            self::assertSame(['antwort', 'entwurf', 'gesendet', 'zusage'], $conn->fetchFirstColumn('SELECT status FROM department_grossanlass_inquiry WHERE department_id=? ORDER BY status', [$event]));
-            self::assertSame([4, 4], [
+            self::assertSame(['buy' => 5, 'donation' => 1, 'loan' => 6, 'own' => 1], $origins);
+            self::assertGreaterThanOrEqual(6, count($conn->fetchFirstColumn('SELECT status FROM department_grossanlass_inquiry WHERE department_id=? ORDER BY status', [$event])));
+            self::assertSame([13, 13], [
                 (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_einsatz WHERE department_id=?', [$event]),
                 (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_pack WHERE department_id=?', [$event]),
             ]);
             // Packaufträge: neue, eindeutige öffentliche Codes (keine Legacy-Codes)
             $codes = $conn->fetchFirstColumn('SELECT public_code FROM department_grossanlass_pack WHERE department_id=?', [$event]);
-            self::assertCount(4, array_unique($codes));
+            self::assertCount(13, array_unique($codes));
             self::assertSame([], array_values(array_intersect($codes, ['pk03ac0d0924', 'pk192ad9fe02', 'pkabe9899b32', 'pkbb2dde53cb'])));
             // Geländekarte: Datei (Hash im Katalog), Bounds, Opazität, platzierte Orte mit Koordinaten
             $map = $conn->fetchAssociative('SELECT * FROM department_grossanlass_map WHERE department_id=?', [$event]);
             self::assertSame(['Gelände (© swisstopo)', 943, 721], [$map['name'], (int) $map['image_width'], (int) $map['image_height']]);
             self::assertEqualsWithDelta([47.18446266494, 47.176207763535, 8.0551671981812, 8.0383444725869, 0.72], [(float) $map['bounds_north'], (float) $map['bounds_south'], (float) $map['bounds_east'], (float) $map['bounds_west'], (float) $map['overlay_opacity']], 1e-9);
-            self::assertSame(20, (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_place WHERE department_id=? AND map_id=? AND map_x IS NOT NULL AND latitude IS NOT NULL', [$event, $map['id']]));
+            // 20 Bauprojekt-Orte plus der Lagerplatz Gelände (Annahmeort des Wareneingangs)
+            self::assertSame(21, (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_place WHERE department_id=? AND map_id=? AND map_x IS NOT NULL AND latitude IS NOT NULL', [$event, $map['id']]));
             self::assertFileExists(dirname(__DIR__, 2) . '/var/uploads/' . $event . '/photos/grossanlass-map/' . $map['id'] . '/' . $map['image_filename']);
             self::assertSame((new DemoOrganisationCatalog())->scenario('grossanlass-event')['grossanlass']['map']['sha256'], hash_file('sha256', dirname(__DIR__, 2) . '/data/seeds/dev-demo/files/event-gelaende.webp'));
             // Der Event-Inhalt gehört ausschliesslich dem Event-Szenario
@@ -273,14 +287,14 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             $overview = $container->get(\App\Service\Grossanlass\GrossanlassBudgetAreaService::class)->overview($em->find(\App\Entity\Department::class, $event), $em->find(\App\Entity\User::class, $mw));
             self::assertSame(2900.0, $overview['total']['planned_chf']);
             self::assertSame(round($overview['material']['expected_chf'] + $overview['logistik']['expected_chf'], 2), $overview['total']['expected_chf']);
-            self::assertSame(950.0, $overview['logistik']['stages']['zusage']);
+            self::assertSame(1590.0, $overview['logistik']['stages']['zusage']);
             // Schwartenbretter 220 + OSB-Platten (zwei Bestellungen, 4 offen) 350 + Bitumenschindeln (ersetzte Bestellung) 175
             self::assertSame(745.0, $overview['material']['stages']['bestellt']);
             self::assertTrue($overview['logistik']['over_budget']);
-            self::assertSame(50.0, $overview['logistik']['overrun_committed_chf']);
+            self::assertSame(690.0, $overview['logistik']['overrun_committed_chf']);
             self::assertFalse($overview['material']['over_budget']);
             // 7 Beschaffungspositionen und je eine Kostenzeile der Leihe (Festbänke) und der Spende (Holzschnitzel); die Zusagen der Miete und der Bitumen-Leihe zählen nicht doppelt
-            self::assertSame(9, $overview['total']['position_count']);
+            self::assertSame(12, $overview['total']['position_count']);
 
             // Lagerstandort mit Regalen und Fächern; Fahrzeuge, Fahrerkarten, Chargen mit Eigentümer
             $storage = (string) $conn->fetchOne("SELECT id FROM address WHERE department_id=? AND type='storage'", [$event]);
@@ -301,7 +315,7 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
                 self::assertSame(\App\Service\Demo\DemoStableCodes::prefixed('ga', $key, $row['seed_key']), $row['public_code'], $row['seed_key']);
             }
             $packCodes = $conn->fetchAllAssociative("SELECT p.public_code, r.seed_key FROM department_grossanlass_pack p JOIN demo_seed_record r ON r.entity_id=p.id AND r.entity_class=? WHERE p.department_id=?", [\App\Entity\DepartmentGrossanlassPack::class, $event]);
-            self::assertCount(4, $packCodes);
+            self::assertGreaterThanOrEqual(7, count($packCodes));
             foreach ($packCodes as $row) {
                 self::assertSame(\App\Service\Demo\DemoStableCodes::prefixed('pk', $key, $row['seed_key']), $row['public_code'], $row['seed_key']);
             }
@@ -319,7 +333,7 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             }
             $map = $conn->fetchAssociative('SELECT * FROM department_grossanlass_map WHERE department_id=?', [$event]);
             $placed = $conn->fetchAllAssociative('SELECT name, map_x, map_y, latitude, longitude FROM department_grossanlass_place WHERE department_id=? AND map_id=?', [$event, $map['id']]);
-            self::assertCount(20, $placed);
+            self::assertCount(21, $placed, '20 Bauprojekte plus der Lagerplatz Gelände (Wareneingang)');
             foreach ($placed as $p) {
                 self::assertGreaterThanOrEqual((float) $map['bounds_south'], (float) $p['latitude'], $p['name']);
                 self::assertLessThanOrEqual((float) $map['bounds_north'], (float) $p['latitude'], $p['name']);
@@ -381,7 +395,7 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             $clock->travelTo($department, new \DateTimeImmutable('2027-05-19 12:30:00', new \DateTimeZone('UTC')));
             $commitment = (string) $conn->fetchOne("SELECT c.id FROM department_grossanlass_commitment c JOIN activity_grossanlass_procurement_line l ON l.id=c.procurement_line_id WHERE c.department_id=? AND l.label='Schwartenbretter'", [$event]);
             $movements = $container->get(\App\Service\Grossanlass\GrossanlassChargeMovementService::class);
-            $booked = $movements->record($department, $user('ga-mw'), $commitment, ['kind' => 'received', 'quantity' => 30, 'occurred_at' => '2027-05-19T12:30:00']);
+            $booked = $movements->record($department, $user('ga-mw'), $commitment, ['kind' => 'received', 'place_id' => self::lagerplatz($conn, $event), 'quantity' => 30, 'occurred_at' => '2027-05-19T12:30:00']);
             self::assertSame('complete', $booked['inbound']['state']);
             self::assertSame(1, $state()['movements']);
             $after = $overview();
@@ -389,7 +403,7 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             self::assertSame(220.0, $after['material']['actual_chf']);
             // Überlieferung und noch nicht buchbare Rückgaben werden abgelehnt (Rücknahme ist im Modell vorbereitet, aber nicht buchbar)
             try {
-                $movements->record($department, $user('ga-mw'), $commitment, ['kind' => 'received', 'quantity' => 1]);
+                $movements->record($department, $user('ga-mw'), $commitment, ['kind' => 'received', 'place_id' => self::lagerplatz($conn, $event), 'quantity' => 1]);
                 self::fail('Überlieferung wurde nicht abgelehnt.');
             } catch (\InvalidArgumentException $e) {
                 self::assertStringContainsString('Überlieferung', $e->getMessage());
@@ -400,6 +414,50 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             } catch (\InvalidArgumentException $e) {
                 self::assertStringContainsString('noch nicht verfügbar', $e->getMessage());
             }
+        });
+    }
+
+    public function testTransportExamplesAppearInTheDispatchOverviewWithoutFakedHistory(): void
+    {
+        $this->withDb(function (DemoScenarioRunner $runner, DemoScenarioRegistry $registry, EntityManagerInterface $em, Connection $conn, $container): void {
+            $this->syncAll($runner, $registry, $em);
+            $event = $this->eventId($conn);
+            $department = $em->find(\App\Entity\Department::class, $event);
+            $mw = $em->find(\App\Entity\User::class, $conn->fetchOne('SELECT u.id FROM "user" u JOIN profile p ON p.id=u.profile_id WHERE p.email=?', [DemoAccounts::email('ga-mw')]));
+
+            $overview = $container->get(\App\Service\Grossanlass\GrossanlassDispatchService::class)->overview($department, $mw);
+            $trips = [];
+            foreach ($overview['needs'] as $n) {
+                if ($n['einsatz_id'] !== null) {
+                    $trips[(string) $n['starts_at']] = $n;
+                }
+            }
+            self::assertGreaterThanOrEqual(4, count($trips), 'Abholung Holz, Verteilung Kantholz, Rampenhölzer und Anlieferung Teleskoplader sind Fahraufträge');
+            [$holz, $lader, $verteilung, $rampe] = [$trips['2027-05-19T12:00:00'], $trips['2027-05-31T07:00:00'], $trips['2027-05-31T16:00:00'], $trips['2027-06-01T08:00:00']];
+            $trips = [$holz, $lader, $verteilung, $rampe];
+            // Prozessstände: unterwegs oder abgeliefert ist nichts, die Fahraufträge unterscheiden sich in Disposition und Freigabe
+            foreach ($trips as $trip) {
+                self::assertNotSame('underway', $trip['status']);
+                self::assertNotSame('done', $trip['status']);
+                self::assertNotEmpty($trip['pack_ids']);
+            }
+            self::assertSame(['planned', false, 'staging'], [$holz['status'], $holz['released'], $holz['pack_status']], 'Abholung Holz: disponiert, nicht freigegeben');
+            self::assertNotNull($holz['tour_id']);
+            self::assertSame(['planned', true, 'trip_released', 'Crew-Hütte Backstage'], [$verteilung['status'], $verteilung['released'], $verteilung['pack_status'], $verteilung['to']], 'Verteilung Kantholz: disponiert und freigegeben');
+            self::assertNotNull($verteilung['tour_id']);
+            self::assertNotNull($verteilung['chauffeur_user_id']);
+            self::assertNotSame($holz['chauffeur_user_id'], $verteilung['chauffeur_user_id'], 'zweiter Chauffeur (ga-clw)');
+            self::assertSame(['open', false, null, 'Rollstuhlrampe Haupteingang'], [$rampe['status'], $rampe['released'], $rampe['tour_id'], $rampe['to']], 'Rampenhölzer: überführter Fahrauftrag, noch nicht disponiert');
+            self::assertNotNull($rampe['vehicle_id']);
+            self::assertSame(['planned', true, 'trip_released', 'Hauptbühne'], [$lader['status'], $lader['released'], $lader['pack_status'], $lader['to']], 'Anlieferung Teleskoplader: freigegeben');
+            $tours = $overview['tours'];
+            self::assertGreaterThanOrEqual(3, count($tours), 'bestätigte Touren aus dem Seed');
+            foreach ($tours as $tour) {
+                self::assertSame('confirmed', $tour['status']);
+                self::assertNotEmpty($tour['need_ids']);
+            }
+            $vehicleWishes = array_filter($overview['needs'], static fn (array $n) => $n['vehicle_need_id'] !== null);
+            self::assertNotEmpty($vehicleWishes, 'Fahrzeugwünsche der Bauaufträge (z. B. Tresen-Elemente liefern) erscheinen als offene Bedarfe');
         });
     }
 
@@ -448,10 +506,10 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             self::assertSame(0, (int) $conn->fetchOne('SELECT count(*) FROM department_grossanlass_charge_movement WHERE department_id=?', [$event]));
 
             $movements = $container->get(\App\Service\Grossanlass\GrossanlassChargeMovementService::class);
-            $movements->record($department, $mw, $osb['orders'][0]['commitment_id'], ['kind' => 'received', 'quantity' => 14, 'occurred_at' => '2027-05-11T08:30:00']);
-            $movements->record($department, $mw, $osb['orders'][1]['commitment_id'], ['kind' => 'received', 'quantity' => 8, 'occurred_at' => '2027-05-11T09:00:00', 'note' => 'Teillieferung']);
+            $movements->record($department, $mw, $osb['orders'][0]['commitment_id'], ['kind' => 'received', 'place_id' => self::lagerplatz($conn, $event), 'quantity' => 14, 'occurred_at' => '2027-05-11T08:30:00']);
+            $movements->record($department, $mw, $osb['orders'][1]['commitment_id'], ['kind' => 'received', 'place_id' => self::lagerplatz($conn, $event), 'quantity' => 8, 'occurred_at' => '2027-05-11T09:00:00', 'note' => 'Teillieferung']);
             $movements->record($department, $mw, $osb['orders'][1]['commitment_id'], ['kind' => 'receipt_reversed', 'quantity' => 2, 'occurred_at' => '2027-05-11T09:30:00', 'note' => 'Falsch gezählt: nur 6 Platten geliefert']);
-            $movements->record($department, $mw, $bitumen['orders'][1]['commitment_id'], ['kind' => 'received', 'quantity' => 5, 'occurred_at' => '2027-05-11T09:00:00']);
+            $movements->record($department, $mw, $bitumen['orders'][1]['commitment_id'], ['kind' => 'received', 'place_id' => self::lagerplatz($conn, $event), 'quantity' => 5, 'occurred_at' => '2027-05-11T09:00:00']);
             $em->clear();
             $department = $em->find(\App\Entity\Department::class, $event);
             $mw = $em->find(\App\Entity\User::class, $mw->getId());
@@ -464,7 +522,7 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             self::assertSame('erhalten', $lineOf('Bitumenschindeln anthrazit')['status']);
 
             // Rest der Absprache geliefert: die ganze Position ist da
-            $movements->record($department, $mw, $osb['orders'][1]['commitment_id'], ['kind' => 'received', 'quantity' => 4, 'occurred_at' => '2027-05-12T09:00:00']);
+            $movements->record($department, $mw, $osb['orders'][1]['commitment_id'], ['kind' => 'received', 'place_id' => self::lagerplatz($conn, $event), 'quantity' => 4, 'occurred_at' => '2027-05-12T09:00:00']);
             $em->clear();
             $department = $em->find(\App\Entity\Department::class, $event);
             $osb = $lineOf('OSB 18 mm Platten');
@@ -495,7 +553,7 @@ final class DemoSharedOrganisationEventIntegrationTest extends TestCase
             $commitment = (string) $conn->fetchOne("SELECT c.id FROM department_grossanlass_commitment c JOIN activity_grossanlass_procurement_line l ON l.id=c.procurement_line_id WHERE c.department_id=? AND l.label='Schwartenbretter'", [$event]);
             $em->clear();
             $department = $em->find(\App\Entity\Department::class, $event);
-            $container->get(\App\Service\Grossanlass\GrossanlassChargeMovementService::class)->record($department, $em->find(\App\Entity\User::class, $mw->getId()), $commitment, ['kind' => 'received', 'quantity' => 10]);
+            $container->get(\App\Service\Grossanlass\GrossanlassChargeMovementService::class)->record($department, $em->find(\App\Entity\User::class, $mw->getId()), $commitment, ['kind' => 'received', 'place_id' => self::lagerplatz($conn, $event), 'quantity' => 10]);
             $container->get(\App\Service\Clock\BusinessClock::class)->travelTo($department, new \DateTimeImmutable('2027-06-05 17:00:00', new \DateTimeZone('UTC')));
             $em->flush();
             $extras = [

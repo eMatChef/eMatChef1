@@ -44,6 +44,7 @@ final class GrossanlassIdGenerator
     public const CHARGE_MOVEMENT = 'charge_movement';
     public const HELPER = 'helper';
     public const HELPER_AVAILABILITY = 'helper_availability';
+    public const SKILL = 'skill';
     public const STAFFING_NEED = 'staffing_need';
     public const STAFFING_ASSIGNMENT = 'staffing_assignment';
     public const STAFFING_LOG = 'staffing_log';
@@ -52,6 +53,17 @@ final class GrossanlassIdGenerator
     public const DEPENDENCY = 'dependency';
     public const ORDER_EVENT = 'order_event';
     public const ARCHIVE_LOG = 'archive_log';
+    public const TOUR = 'tour';
+    public const TOUR_ITEM = 'tour_item';
+    public const TOUR_STOP = 'tour_stop';
+    public const TOUR_EVENT = 'tour_event';
+    public const DISPATCH_EVENT = 'dispatch_event';
+    public const CHANGE_REQUEST = 'change_request';
+    public const EXT_SOURCE = 'ext_source';
+    public const EXT_PAYLOAD = 'ext_payload';
+    public const EXT_RECORD = 'ext_record';
+    public const EXT_RUN = 'ext_run';
+    public const EXT_CHANGE = 'ext_change';
 
     /** @var array<string, string> */
     public const PREFIXES = [
@@ -86,6 +98,7 @@ final class GrossanlassIdGenerator
         self::CHARGE_MOVEMENT => 'cm',
         self::HELPER => 'gh',
         self::HELPER_AVAILABILITY => 'gi',
+        self::SKILL => 'sk',
         self::STAFFING_NEED => 'sn',
         self::STAFFING_ASSIGNMENT => 'sz',
         self::STAFFING_LOG => 'sl',
@@ -94,6 +107,17 @@ final class GrossanlassIdGenerator
         self::DEPENDENCY => 'gy',
         self::ORDER_EVENT => 'gz',
         self::ARCHIVE_LOG => 'gx',
+        self::TOUR => 'tu',
+        self::TOUR_ITEM => 'tj',
+        self::TOUR_STOP => 'tp',
+        self::TOUR_EVENT => 'tv',
+        self::DISPATCH_EVENT => 'dv',
+        self::CHANGE_REQUEST => 'dq',
+        self::EXT_SOURCE => 'xs',
+        self::EXT_PAYLOAD => 'xp',
+        self::EXT_RECORD => 'xr',
+        self::EXT_RUN => 'xu',
+        self::EXT_CHANGE => 'xc',
     ];
 
     public static function prefix(string $kind): string

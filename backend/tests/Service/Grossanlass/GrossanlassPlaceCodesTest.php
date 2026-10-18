@@ -26,8 +26,8 @@ class GrossanlassPlaceCodesTest extends TestCase
             GrossanlassPlaceCodes::inferKind('poi', 'ul1', false),
         );
         self::assertSame(
-            GrossanlassPlaceCodes::KIND_MATPLATZ,
-            GrossanlassPlaceCodes::inferKind('matplatz', null, true),
+            GrossanlassPlaceCodes::KIND_LAGERPLATZ,
+            GrossanlassPlaceCodes::inferKind('lagerplatz', null, true),
         );
         self::assertSame(
             GrossanlassPlaceCodes::KIND_BAUPROJEKT,
@@ -41,7 +41,7 @@ class GrossanlassPlaceCodesTest extends TestCase
             GrossanlassPlaceCodes::KIND_ANFAHRT,
             GrossanlassPlaceCodes::normalizeKind('anfahrt'),
         );
-        self::assertFalse(GrossanlassPlaceCodes::isCreateKind(GrossanlassPlaceCodes::KIND_MATPLATZ));
+        self::assertFalse(GrossanlassPlaceCodes::isCreateKind(GrossanlassPlaceCodes::KIND_LAGERPLATZ));
         self::assertTrue(GrossanlassPlaceCodes::isCreateKind(GrossanlassPlaceCodes::KIND_ANFAHRT));
         self::assertTrue(GrossanlassPlaceCodes::isKind(GrossanlassPlaceCodes::KIND_AREA));
         self::assertFalse(GrossanlassPlaceCodes::isCreateKind(GrossanlassPlaceCodes::KIND_AREA));

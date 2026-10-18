@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\DepartmentDisplayScreen;
 use App\Entity\User;
 use App\Service\Display\DepartmentDisplayScreenService;
+use App\Service\Display\Layout\DisplayBlockService;
 use App\Service\Display\Layout\DisplayLayoutException;
 use App\Service\Display\Layout\DisplayLayoutService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -27,6 +28,7 @@ class DepartmentDisplayLayoutController extends AbstractController
         private EntityManagerInterface $entityManager,
         private DepartmentDisplayScreenService $screenService,
         private DisplayLayoutService $layoutService,
+        private DisplayBlockService $blockService,
     ) {
     }
 
@@ -35,6 +37,46 @@ class DepartmentDisplayLayoutController extends AbstractController
     public function catalog(string $departmentId): JsonResponse
     {
         return $this->run($departmentId, null, fn () => $this->layoutService->catalog($departmentId));
+    }
+
+    /** Eigene Bausteine des Departments (Widgets und Gruppen); offizielle Bausteine liegen im Katalog. */
+    #[Route('/display-blocks', name: 'blocks_list', methods: ['GET'])]
+    public function blocks(string $departmentId): JsonResponse
+    {
+        return $this->run($departmentId, null, fn () => ['blocks' => $this->blockService->list($departmentId)]);
+    }
+
+    #[Route('/display-blocks', name: 'blocks_create', methods: ['POST'])]
+    public function createBlock(string $departmentId, Request $request): JsonResponse
+    {
+        $data = $this->body($request);
+
+        return $this->run($departmentId, null, fn ($s, User $u) => $this->blockService->create(
+            $departmentId,
+            $u,
+            \is_string($data['name'] ?? null) ? $data['name'] : '',
+            $data['content'] ?? null,
+            $data['default_w'] ?? null,
+            $data['default_h'] ?? null,
+        ), 201);
+    }
+
+    #[Route('/display-blocks/{blockId}', name: 'blocks_rename', methods: ['PATCH'])]
+    public function renameBlock(string $departmentId, string $blockId, Request $request): JsonResponse
+    {
+        $data = $this->body($request);
+
+        return $this->run($departmentId, null, fn () => $this->blockService->rename($departmentId, $blockId, \is_string($data['name'] ?? null) ? $data['name'] : ''));
+    }
+
+    #[Route('/display-blocks/{blockId}', name: 'blocks_delete', methods: ['DELETE'])]
+    public function deleteBlock(string $departmentId, string $blockId): JsonResponse
+    {
+        return $this->run($departmentId, null, function () use ($departmentId, $blockId) {
+            $this->blockService->delete($departmentId, $blockId);
+
+            return ['deleted' => true];
+        });
     }
 
     #[Route('/display-screens/{screenId}/layout', name: 'state', methods: ['GET'])]
@@ -121,7 +163,7 @@ class DepartmentDisplayLayoutController extends AbstractController
     /**
      * @param callable $action fn (?DepartmentDisplayScreen, User)
      */
-    private function run(string $departmentId, ?string $screenId, callable $action): JsonResponse
+    private function run(string $departmentId, ?string $screenId, callable $action, int $status = 200): JsonResponse
     {
         $user = $this->getUser();
         if (!$user instanceof User || !$this->screenService->canManageDepartment($user, $departmentId)) {
@@ -137,7 +179,7 @@ class DepartmentDisplayLayoutController extends AbstractController
         }
 
         try {
-            return new JsonResponse($action($screen, $user));
+            return new JsonResponse($action($screen, $user), $status);
         } catch (DisplayLayoutException $e) {
             return new JsonResponse(['error' => $e->getMessage(), 'code' => $e->errorCode, 'errors' => $e->errors] + $e->extra, $e->httpStatus);
         }

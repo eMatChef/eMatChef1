@@ -6,6 +6,8 @@ use App\Entity\Department;
 use App\Entity\User;
 use App\Service\Grossanlass\GrossanlassAvailabilityConflict;
 use App\Service\Grossanlass\GrossanlassBauprojektService;
+use App\Service\Grossanlass\GrossanlassDispatchService;
+use App\Service\Grossanlass\GrossanlassInboundService;
 use App\Service\Grossanlass\GrossanlassMapService;
 use App\Service\Grossanlass\GrossanlassPackService;
 use App\Service\Grossanlass\GrossanlassPlaceService;
@@ -28,7 +30,175 @@ class GrossanlassLogisticsController extends AbstractController
         private GrossanlassMapService $maps,
         private GrossanlassPackService $packs,
         private GroupAccessService $groupAccess,
+        private GrossanlassDispatchService $dispatch,
+        private GrossanlassInboundService $inbound,
     ) {}
+
+    #[Route('/logistics/dispatch', name: 'dispatch_overview', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function dispatchOverview(string $departmentId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->dispatch->overview($d, $u));
+    }
+
+    #[Route('/inbound/workspace', name: 'inbound_workspace', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function inboundWorkspace(string $departmentId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->inbound->workspace($d, $u));
+    }
+
+    #[Route('/inbound/receive', name: 'inbound_receive', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function inboundReceive(string $departmentId, Request $request): JsonResponse
+    {
+        $data = $this->body($request);
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $d, User $u) => $this->inbound->receiveBatch($d, $u, $data),
+            201,
+        );
+    }
+
+    #[Route('/logistics/tours', name: 'tours_create', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function createTour(string $departmentId, Request $request): JsonResponse
+    {
+        $data = $this->body($request);
+
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->dispatch->createTour($d, $u, $data), 201);
+    }
+
+    #[Route('/logistics/tours/{tourId}', name: 'tours_update', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function updateTour(string $departmentId, string $tourId, Request $request): JsonResponse
+    {
+        $data = $this->body($request);
+
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->dispatch->updateTour($d, $u, $tourId, $data));
+    }
+
+    #[Route('/logistics/tours/{tourId}', name: 'tours_delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function deleteTour(string $departmentId, string $tourId): JsonResponse
+    {
+        return $this->handle($departmentId, function (Department $d, User $u) use ($tourId) {
+            $this->dispatch->deleteTour($d, $u, $tourId);
+
+            return ['deleted' => true];
+        });
+    }
+
+    #[Route('/logistics/tours/{tourId}/needs', name: 'tours_need_add', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function addTourNeed(string $departmentId, string $tourId, Request $request): JsonResponse
+    {
+        $needId = (string) ($this->body($request)['need_id'] ?? '');
+
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->dispatch->addTourNeed($d, $u, $tourId, $needId));
+    }
+
+    #[Route('/logistics/tours/{tourId}/needs/{needId}', name: 'tours_need_remove', methods: ['DELETE'], requirements: ['needId' => '.+'])]
+    #[IsGranted('ROLE_USER')]
+    public function removeTourNeed(string $departmentId, string $tourId, string $needId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->dispatch->removeTourNeed($d, $u, $tourId, $needId));
+    }
+
+    #[Route('/logistics/tours/{tourId}/stops', name: 'tours_stops', methods: ['PUT'])]
+    #[IsGranted('ROLE_USER')]
+    public function replaceTourStops(string $departmentId, string $tourId, Request $request): JsonResponse
+    {
+        $stops = $this->body($request)['stops'] ?? [];
+
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->dispatch->replaceTourStops($d, $u, $tourId, is_array($stops) ? array_values(array_filter($stops, 'is_array')) : []));
+    }
+
+    #[Route('/logistics/tours/{tourId}/confirm', name: 'tours_confirm', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function confirmTour(string $departmentId, string $tourId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->dispatch->confirmTour($d, $u, $tourId));
+    }
+
+    #[Route('/logistics/tours/{tourId}/unconfirm', name: 'tours_unconfirm', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function unconfirmTour(string $departmentId, string $tourId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->dispatch->unconfirmTour($d, $u, $tourId));
+    }
+
+    #[Route('/logistics/needs/{needId}/release', name: 'need_release', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function releaseNeed(string $departmentId, string $needId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->dispatch->releaseNeed($d, $u, $needId));
+    }
+
+    #[Route('/logistics/needs/{needId}/convert', name: 'need_convert', methods: ['POST'], requirements: ['needId' => '.+'])]
+    #[IsGranted('ROLE_USER')]
+    public function convertNeed(string $departmentId, string $needId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->dispatch->convertVehicleNeed($d, $u, $needId), 201);
+    }
+
+    #[Route('/logistics/needs/{needId}/revoke-release', name: 'need_revoke_release', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function revokeNeedRelease(string $departmentId, string $needId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->dispatch->revokeNeedRelease($d, $u, $needId));
+    }
+
+    #[Route('/logistics/needs/{needId}/change-requests', name: 'need_change_request', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function requestChange(string $departmentId, string $needId, Request $request): JsonResponse
+    {
+        $data = $this->body($request);
+
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->dispatch->requestChange($d, $u, $needId, $data), 201);
+    }
+
+    #[Route('/logistics/change-requests', name: 'change_requests_list', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function changeRequests(string $departmentId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->dispatch->changeRequests($d, $u));
+    }
+
+    #[Route('/logistics/change-requests/{requestId}/decision', name: 'change_requests_decide', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function decideChangeRequest(string $departmentId, string $requestId, Request $request): JsonResponse
+    {
+        $data = $this->body($request);
+
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->dispatch->decideChangeRequest($d, $u, $requestId, $data));
+    }
+
+    #[Route('/logistics/tours/{tourId}/release', name: 'tours_release', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function releaseTour(string $departmentId, string $tourId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->dispatch->releaseTour($d, $u, $tourId));
+    }
+
+    #[Route('/logistics/tours/{tourId}/close', name: 'tours_close', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function closeTour(string $departmentId, string $tourId, Request $request): JsonResponse
+    {
+        $note = (string) ($this->body($request)['note'] ?? '');
+
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->dispatch->closeTour($d, $u, $tourId, $note));
+    }
+
+    #[Route('/packs/{packId}/arrive-manual', name: 'pack_arrive_manual', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function arriveManually(string $departmentId, string $packId, Request $request): JsonResponse
+    {
+        $reason = (string) ($this->body($request)['reason'] ?? '');
+
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->packs->arriveManually($d, $u, $packId, $reason));
+    }
 
     #[Route('/places', name: 'places_list', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]
@@ -214,6 +384,14 @@ class GrossanlassLogisticsController extends AbstractController
             $departmentId,
             fn (Department $d, User $u) => $this->packs->scanArrive($d, $u, $packId, $placeId),
         );
+    }
+
+    /** @return array<string, mixed> */
+    private function body(Request $request): array
+    {
+        $data = json_decode($request->getContent(), true);
+
+        return is_array($data) ? $data : [];
     }
 
     /**

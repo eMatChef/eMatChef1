@@ -226,6 +226,36 @@ final class GrossanlassStaffingIntegrationTest extends TestCase
         });
     }
 
+    public function testAccountsWithHelperRoleAppearInPoolWithoutDuplicates(): void
+    {
+        $this->withDb(function (Ctx $x): void {
+            $ext = (string) $x->pool->create($x->dept, $x->hv, ['first_name' => 'Extern', 'last_name' => 'Ohne Konto'])['id'];
+            $pre = (string) $x->pool->create($x->dept, $x->hv, ['first_name' => 'Vor', 'last_name' => 'Handen', 'email' => 'ushsa000000u@example.org'])['id'];
+            // Helferrolle als Flag zusätzlich zur Rolle (mw) und als Flag an einem Mitglied mit Rolle u
+            $x->conn->executeStatement("UPDATE membership SET is_helper = TRUE WHERE department_id = ? AND user_id IN ('ushsa00000mw','ushsa000000u')", [self::D]);
+            $x->em->clear();
+
+            $rows = $x->pool->list($x->dept, $x->hv);
+            self::assertCount(3, $rows);
+            $byId = array_column($rows, null, 'id');
+            self::assertFalse($byId[$ext]['has_login']);
+            self::assertTrue($byId[$pre]['has_login'], 'vorhandener Datensatz wird verknüpft statt dupliziert');
+            self::assertCount(1, array_filter($rows, static fn (array $r) => $r['has_login'] && $r['id'] !== $pre), 'mw neu angelegt');
+            self::assertCount(3, $x->pool->list($x->dept, $x->hv), 'wiederholter Abgleich erzeugt keine Duplikate');
+
+            // Rolle entfernt: archiviert, Verfügbarkeit/Historie bleiben, keine neue Zuteilung
+            $mwId = (string) array_values(array_filter($rows, static fn (array $r) => $r['has_login'] && $r['id'] !== $pre))[0]['id'];
+            $x->pool->addAvailability($x->dept, $x->hv, $mwId, self::at('07:00'), self::at('18:00'));
+            $x->conn->executeStatement("UPDATE membership SET is_helper = FALSE WHERE department_id = ? AND user_id = 'ushsa00000mw'", [self::D]);
+            $x->em->clear();
+            self::assertCount(2, $x->pool->list($x->dept, $x->hv));
+            $archived = $x->pool->list($x->dept, $x->hv, ['status' => 'archived']);
+            self::assertSame([$mwId], array_column($archived, 'id'));
+            self::assertCount(1, $x->pool->listAvailability($x->dept, $x->hv, $mwId));
+            self::conflict(fn () => $x->assignments->assign($x->dept, $x->hv, ['need_id' => self::need($x, 1), 'helper_id' => $mwId, 'starts_at' => self::at('08:00'), 'ends_at' => self::at('10:00')]), 'helper_archived');
+        });
+    }
+
     public function testAvailabilityIntervalsMayTouchButNotOverlap(): void
     {
         $this->withDb(function (Ctx $x): void {

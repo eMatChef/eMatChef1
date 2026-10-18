@@ -14,6 +14,7 @@ use App\Entity\DepartmentGrossanlassCommitment;
 use App\Entity\DepartmentGrossanlassEinsatz;
 use App\Entity\DepartmentGrossanlassPack;
 use App\Entity\DepartmentGrossanlassPlace;
+use App\Entity\DepartmentGrossanlassVehicleNeed;
 use App\Entity\Group;
 use App\Entity\User;
 use App\Service\GroupHierarchyService;
@@ -33,6 +34,7 @@ final class GrossanlassUebersichtService
         private GrossanlassProcurementService $procurement,
         private GrossanlassAvailabilityService $availability,
         private BusinessClock $clock,
+        private GrossanlassTourService $tours,
     ) {}
 
     /**
@@ -40,6 +42,9 @@ final class GrossanlassUebersichtService
      */
     public function overview(Department $department, User $user): array
     {
+        if (!$this->access->canSeeMaterialUebersicht($user, $department)) {
+            return $this->ownTripsOverview($department, $user);
+        }
         $this->assertSee($department, $user);
         $commitments = $this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)
             ->findBy(['departmentId' => $department->getId()], ['name' => 'ASC']);
@@ -82,6 +87,84 @@ final class GrossanlassUebersichtService
             'issued_by_object' => $issued,
             'places' => $this->places->list($department, $user),
         ];
+    }
+
+    /**
+     * Mitglieder ohne Materialübersicht (z. B. Logistikwart als Chauffeur) erhalten nur die eigenen, zur Ausführung freigegebenen
+     * Fahraufträge für «Meine Einsätze». Alles Übrige bleibt leer; die Freigaberegel wird nicht aufgeweicht.
+     *
+     * @return array<string, mixed>
+     */
+    private function ownTripsOverview(Department $department, User $user): array
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        if ($this->access->membershipRole($user, $department) === null) {
+            throw new \RuntimeException('Keine Berechtigung für die Materialübersicht');
+        }
+        $own = array_values(array_filter(
+            $this->entityManager->getRepository(DepartmentGrossanlassEinsatz::class)->findBy(['departmentId' => $department->getId()], ['startsAt' => 'ASC']),
+            static fn (DepartmentGrossanlassEinsatz $row) => $row->isTrip() && $row->getChauffeurUserId() === $user->getId() && $row->isReleasedForExecution(),
+        ));
+
+        return [
+            'einsaetze' => array_map(fn (DepartmentGrossanlassEinsatz $row) => $this->serializeEinsatz($row), $own),
+            'orders' => [],
+            'conflicts' => [],
+            'issues' => [],
+            'pack' => [],
+            'returns' => [],
+            'cards' => [],
+            'wishes' => [],
+            'issued_by_object' => [],
+            'places' => [],
+        ];
+    }
+
+    /**
+     * Legt den Fahrauftrag (Einsatz `delivery = trip`) zu einem Fahrzeugwunsch an: nicht freigegeben, ohne Chauffeur,
+     * mit direkter Verknüpfung zum Wunsch. Das Objekt ist das Fahrzeug der Beschaffungslinie; Menge 1.
+     */
+    public function createTripForVehicleNeed(
+        Department $department,
+        DepartmentGrossanlassVehicleNeed $need,
+        DepartmentGrossanlassCommitment $vehicle,
+    ): DepartmentGrossanlassEinsatz {
+        $from = clone $need->getStartsAt();
+        $to = (clone $from)->modify(sprintf('+%d minutes', max(15, (int) $need->getDurationMinutes())));
+        $row = new DepartmentGrossanlassEinsatz();
+        $row->setId(GrossanlassIdGenerator::unique(
+            $this->entityManager,
+            GrossanlassIdGenerator::EINSATZ,
+            DepartmentGrossanlassEinsatz::class,
+        ));
+        $row->setDepartment($department);
+        $row->setKind(DepartmentGrossanlassEinsatz::KIND_EINSATZ);
+        $row->setQty(1);
+        $row->setStartsAt($from);
+        $row->setEndsAt($to);
+        $row->setWho($need->getGroup()->getName());
+        $row->setDelivery(DepartmentGrossanlassEinsatz::DELIVERY_TRIP);
+        $row->setGroup($need->getGroup());
+        $row->setVehicleNeedId($need->getId());
+        $place = $this->places->findForGroup($department, $need->getGroupId());
+        if ($place instanceof DepartmentGrossanlassPlace) {
+            $row->setDestinationPlaceId($place->getId());
+        }
+        $row->setStatus(DepartmentGrossanlassEinsatz::STATUS_PLANNED);
+        $row->setPlace(DepartmentGrossanlassEinsatz::PLACE_ASSIGNED);
+        $row->setPackPhase($this->phaseFor($from));
+        $row->setCommitment($vehicle);
+
+        $this->availability->transactional(function () use ($vehicle, $row, $from, $to): void {
+            $this->availability->lock($vehicle);
+            $this->availability->assertWithinCapacity($vehicle, null, $from, $to, 1);
+            $this->entityManager->persist($row);
+            $this->syncPlaceFromPack($row);
+            $this->packs->ensureDefaultPack($row);
+            $this->entityManager->flush();
+        });
+
+        return $row;
     }
 
     /**
@@ -160,6 +243,7 @@ final class GrossanlassUebersichtService
                 && $kind === DepartmentGrossanlassEinsatz::KIND_EINSATZ
                 && $row->getChauffeurUserId() === null
                 && !$pending
+                && empty($data['chauffeur_deferred']) // Planung erfasst nur; den Chauffeur teilt die Logistik-Disposition zu
             ) {
                 throw new \InvalidArgumentException('Fahrauftrag braucht einen Chauffeur');
             }
@@ -263,12 +347,16 @@ final class GrossanlassUebersichtService
         $einsaetze = [];
         $fahrauftraege = [];
         $bauauftraege = [];
+        $onlyReleased = $this->access->seesOnlyReleasedWork($user, $department);
         foreach ($this->allEinsatzRows($department) as $row) {
             if (!$this->access->canOperateAssignedEinsatz($user, $department, $row)) {
                 continue;
             }
             $serialized = $this->serializeHelperEinsatz($department, $user, $row, $groupsById, $destinationPlaceNames);
             $taskKind = $serialized['task_kind'];
+            if ($taskKind === 'fahrauftrag' && $onlyReleased && !$row->isReleasedForExecution()) {
+                continue; // Helfer sehen nur freigegebene Fahraufträge
+            }
             if ($taskKind === 'fahrauftrag') {
                 $fahrauftraege[] = $serialized;
             } elseif ($taskKind === 'bauauftrag') {
@@ -355,9 +443,13 @@ final class GrossanlassUebersichtService
         $einsaetze = [];
         $fahrauftraege = [];
         $bauauftraege = [];
+        $onlyReleased = $this->access->seesOnlyReleasedWork($user, $department);
         foreach ($matched as $row) {
             $serialized = $this->serializeHelperEinsatz($department, $user, $row, $groupsById, $destinationPlaceNames);
             $taskKind = $serialized['task_kind'];
+            if ($taskKind === 'fahrauftrag' && $onlyReleased && !$row->isReleasedForExecution()) {
+                continue; // Helfer sehen nur freigegebene Fahraufträge
+            }
             if ($taskKind === 'fahrauftrag') {
                 $fahrauftraege[] = $serialized;
             } elseif ($taskKind === 'bauauftrag') {
@@ -1042,9 +1134,11 @@ final class GrossanlassUebersichtService
             'issued_to_user_id' => $row->getIssuedToUserId(),
             'delivery' => $row->getDelivery(),
             'trip_released' => $row->isTripReleased(),
+            'released' => $row->isReleasedForExecution(),
             'trip_released_at' => $row->getTripReleasedAt()?->format(\DateTimeInterface::ATOM),
             'destination_place_id' => $row->getDestinationPlaceId(),
             'packs' => $this->packs->serializePacks($row),
+            'tour' => $row->isTrip() ? $this->tours->tourInfo($row->getDepartmentId(), $row->getId()) : null,
             'bar_role' => 'einsatz',
         ];
     }

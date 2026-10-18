@@ -32,6 +32,10 @@ class DepartmentGrossanlassHelperAvailability
     #[ORM\Column(name: 'ends_at', type: 'datetime')]
     private \DateTime $endsAt;
 
+    /** Gesetzt, wenn das Fenster aus einer externen Buchung (API-Daten) stammt; dann pflegt es nur die Synchronisation. */
+    #[ORM\Column(name: 'ext_record_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $extRecordId = null;
+
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
 
@@ -50,6 +54,9 @@ class DepartmentGrossanlassHelperAvailability
     public function getHelperId(): string { return $this->helperId; }
     public function getStartsAt(): \DateTime { return $this->startsAt; }
     public function getEndsAt(): \DateTime { return $this->endsAt; }
+
+    public function getExtRecordId(): ?string { return $this->extRecordId; }
+    public function setExtRecordId(?string $id): self { $this->extRecordId = $id; return $this; }
 
     public function setWindow(\DateTime $startsAt, \DateTime $endsAt): self
     {

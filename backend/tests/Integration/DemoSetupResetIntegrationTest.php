@@ -375,7 +375,7 @@ final class DemoSetupResetIntegrationTest extends TestCase
                 'department_grossanlass_charge_movement', 'department_grossanlass_commitment', 'department_grossanlass_cost', 'department_grossanlass_dependency', 'department_grossanlass_einsatz',
                 'department_grossanlass_gmail_account', 'department_grossanlass_gmail_unmatched', 'department_grossanlass_guest_share', 'department_grossanlass_helper', 'department_grossanlass_helper_availability', 'department_grossanlass_inquiry',
                 'department_grossanlass_mail_template', 'department_grossanlass_map', 'department_grossanlass_order_archive_log', 'department_grossanlass_order_event', 'department_grossanlass_pack', 'department_grossanlass_participant', 'department_grossanlass_staffing_assignment', 'department_grossanlass_staffing_log', 'department_grossanlass_staffing_need', 'department_grossanlass_task',
-                'department_grossanlass_unterlager', 'department_grossanlass_vehicle_need', 'department_grossanlass_workshop_case', 'department_print_preset', 'department_repair_template',
+                'department_grossanlass_change_request', 'department_grossanlass_dispatch_event', 'department_grossanlass_skill', 'department_grossanlass_tour', 'department_grossanlass_unterlager', 'department_grossanlass_vehicle_need', 'department_grossanlass_workshop_case', 'department_print_preset', 'department_repair_template',
                 'department_vehicle', 'external_structure_identity', 'inbox_message', 'inventory_task', 'material_item', 'material_template', 'onboarding_sandbox_state', 'print_layout',
                 'print_task_item', 'public_code', 'public_found_item_message', 'storage_rack', 'supplier_delivery', 'workshop_ticket',
             ];

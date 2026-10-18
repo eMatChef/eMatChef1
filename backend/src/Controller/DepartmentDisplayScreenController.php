@@ -6,6 +6,8 @@ use App\Entity\DepartmentDisplayScreen;
 use App\Entity\User;
 use App\Service\Display\DepartmentDisplayDataService;
 use App\Service\Display\DepartmentDisplayScreenService;
+use App\Service\Display\DisplayLiveDataService;
+use App\Service\Display\DisplayMapDataService;
 use App\Service\Display\DisplayPairingService;
 use App\Service\Display\Layout\DisplayLayoutException;
 use App\Service\Display\Layout\DisplayLayoutService;
@@ -25,6 +27,8 @@ class DepartmentDisplayScreenController extends AbstractController
         private DepartmentDisplayDataService $displayDataService,
         private DisplayPairingService $pairingService,
         private DisplayLayoutService $layoutService,
+        private DisplayMapDataService $mapData,
+        private DisplayLiveDataService $liveData,
     ) {
     }
 
@@ -114,6 +118,40 @@ class DepartmentDisplayScreenController extends AbstractController
         }
 
         return new JsonResponse($this->displayScreenService->serializeForSettings($outcome['screen']), 201);
+    }
+
+    /** Kartendaten für die Vorschau/den Editor (Verwalter): dieselben Daten wie auf dem Gerät, Pläne über die normale Medienroute. */
+    #[Route('/{screenId}/map-data', name: 'map_data', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function mapDataPreview(string $departmentId, string $screenId): JsonResponse
+    {
+        $user = $this->requireManager($departmentId);
+        if ($user instanceof JsonResponse) {
+            return $user;
+        }
+        $screen = $this->findScreen($departmentId, $screenId);
+        if ($screen instanceof JsonResponse) {
+            return $screen;
+        }
+
+        return new JsonResponse($this->mapData->forScreen($screen, false));
+    }
+
+    /** Live-Daten für die Editor-Live-Vorschau (Verwalter): dieselben Daten wie auf dem Gerät. */
+    #[Route('/{screenId}/live-data', name: 'live_data', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function liveDataPreview(string $departmentId, string $screenId): JsonResponse
+    {
+        $user = $this->requireManager($departmentId);
+        if ($user instanceof JsonResponse) {
+            return $user;
+        }
+        $screen = $this->findScreen($departmentId, $screenId);
+        if ($screen instanceof JsonResponse) {
+            return $screen;
+        }
+
+        return new JsonResponse($this->liveData->forScreen($screen));
     }
 
     /**

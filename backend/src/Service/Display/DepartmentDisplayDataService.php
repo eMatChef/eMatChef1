@@ -25,6 +25,7 @@ final class DepartmentDisplayDataService
         private ActivityAccessService $activityAccess,
         private DepartmentDisplayScreenService $displayScreenService,
         private DisplayLayoutService $layoutService,
+        private DisplayClockPayload $clockPayload,
     ) {
     }
 
@@ -54,6 +55,7 @@ final class DepartmentDisplayDataService
             // Grossanlass ist ein Department; Inhalte kommen künftig vom jeweiligen Scope-Provider.
             'scope' => $department?->isGrossanlass() ? 'grossanlass' : 'department',
             'layout' => $this->layoutService->payload($screen, $device, $layoutSource, $variantOverride),
+            'clock' => $this->clockPayload->for($department),
             'department_name' => $departmentName,
             'screen_name' => $screen->getName(),
             'subtitle_text' => $screen->getSubtitleText(),

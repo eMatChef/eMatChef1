@@ -39,6 +39,7 @@ class DemoEventResetter
         'department_grossanlass_charge_movement' => 'Wareneingänge und Bewegungen',
         'department_grossanlass_einsatz' => 'Einsätze',
         'department_grossanlass_pack' => 'Packaufträge',
+        'department_grossanlass_tour' => 'Transporttouren',
         'department_grossanlass_commitment' => 'Chargen / Zusagen',
         'department_grossanlass_inquiry' => 'Anfragen',
         'activity_grossanlass_procurement_line' => 'Beschaffungspositionen',

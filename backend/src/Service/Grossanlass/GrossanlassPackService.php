@@ -9,6 +9,7 @@ use App\Entity\ActivityGrossanlassWishLine;
 use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassCommitment;
 use App\Entity\DepartmentGrossanlassEinsatz;
+use App\Entity\DepartmentGrossanlassDispatchEvent;
 use App\Entity\DepartmentGrossanlassPack;
 use App\Entity\DepartmentGrossanlassPackLine;
 use App\Entity\DepartmentGrossanlassPlace;
@@ -25,6 +26,7 @@ final class GrossanlassPackService
         private GrossanlassUserCardService $cards,
         private BusinessClock $clock,
         private GrossanlassAvailabilityService $availability,
+        private GrossanlassDispatchEventLog $eventLog,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $appFrontendUrl,
         #[Autowire('%env(APP_PUBLIC_QR_URL)%')] private string $appPublicQrUrl,
     ) {}
@@ -142,6 +144,7 @@ final class GrossanlassPackService
         $this->assertScanActor($department, $user);
         $pack = $this->findPack($department, $packId);
         $einsatz = $pack->getEinsatz();
+        $this->assertDriverOrLogistics($department, $user, $einsatz);
         $this->assertTripStartable($einsatz, $pack);
         $vehicle = $einsatz->getCommitment()?->getFamily() === DepartmentGrossanlassCommitment::FAMILY_VEHICLE;
         $this->cards->assertMayDrive($department, $einsatz->getChauffeurUserId(), $vehicle);
@@ -159,6 +162,7 @@ final class GrossanlassPackService
             $pack->setStatus(DepartmentGrossanlassPack::STATUS_IN_TRANSIT);
             $this->entityManager->flush();
         });
+        $this->eventLog->record($department, $user, DepartmentGrossanlassDispatchEvent::SUBJECT_TRIP, $einsatz->getId(), 'departed');
 
         return $this->serializePack($pack);
     }
@@ -173,6 +177,7 @@ final class GrossanlassPackService
         $this->assertScanActor($department, $user);
         $pack = $this->findPack($department, $packId);
         $einsatz = $pack->getEinsatz();
+        $this->assertDriverOrLogistics($department, $user, $einsatz);
         $place = $this->entityManager->getRepository(DepartmentGrossanlassPlace::class)->find($placeId);
         if (!$place instanceof DepartmentGrossanlassPlace || $place->getDepartmentId() !== $department->getId()) {
             throw new \InvalidArgumentException('Ort nicht gefunden');
@@ -189,8 +194,54 @@ final class GrossanlassPackService
         $pack->setCurrentPlaceId($place->getId());
         $pack->setStatus(DepartmentGrossanlassPack::STATUS_AT_PLACE);
         $this->entityManager->flush();
+        $this->eventLog->record($department, $user, DepartmentGrossanlassDispatchEvent::SUBJECT_TRIP, $einsatz->getId(), 'delivered');
 
         return $this->serializePack($pack);
+    }
+
+    /**
+     * Ablieferung ohne lesbaren Ziel-QR: begründete Ausnahme für den Chauffeur des Fahrauftrags oder Logistikverantwortliche.
+     * Wirkt wie `scanArrive` (Pack am Ziel-Standort), wird aber mit Begründung protokolliert.
+     *
+     * @return array<string, mixed>
+     */
+    public function arriveManually(Department $department, User $user, string $packId, string $reason): array
+    {
+        $this->assertScanActor($department, $user);
+        $pack = $this->findPack($department, $packId);
+        $einsatz = $pack->getEinsatz();
+        $this->assertDriverOrLogistics($department, $user, $einsatz, 'Nur der Chauffeur oder die Logistik darf ohne QR abliefern');
+        $reason = trim($reason);
+        if (mb_strlen($reason) < 5) {
+            throw new \InvalidArgumentException('Begründung für die Ablieferung ohne QR fehlt');
+        }
+        $placeId = $einsatz->getDestinationPlaceId();
+        if ($placeId === null) {
+            throw new \InvalidArgumentException('Ziel-Ort fehlt');
+        }
+        if ($pack->getStatus() !== DepartmentGrossanlassPack::STATUS_IN_TRANSIT
+            && $einsatz->getStatus() !== DepartmentGrossanlassEinsatz::STATUS_ISSUED
+        ) {
+            throw new \InvalidArgumentException('Pack zuerst scannen (unterwegs)');
+        }
+        $pack->setCurrentPlaceId($placeId);
+        $pack->setStatus(DepartmentGrossanlassPack::STATUS_AT_PLACE);
+        $this->entityManager->flush();
+        $this->eventLog->record($department, $user, DepartmentGrossanlassDispatchEvent::SUBJECT_TRIP, $einsatz->getId(), 'delivered_manually', $reason);
+
+        return $this->serializePack($pack);
+    }
+
+    /**
+     * Nimmt die Ausführungsfreigabe eines noch nicht gestarteten Packs zurück (Pack wieder bereitgestellt).
+     */
+    public function revokeTripRelease(DepartmentGrossanlassPack $pack): void
+    {
+        if (in_array($pack->getStatus(), [DepartmentGrossanlassPack::STATUS_IN_TRANSIT, DepartmentGrossanlassPack::STATUS_AT_PLACE], true)) {
+            throw new \InvalidArgumentException('Das Material ist unterwegs oder abgeliefert; die Freigabe lässt sich nicht mehr zurücknehmen');
+        }
+        $pack->setTripReleasedAt(null);
+        $pack->setStatus(DepartmentGrossanlassPack::STATUS_STAGING);
     }
 
     public function findByCode(string $code): ?DepartmentGrossanlassPack
@@ -650,6 +701,19 @@ final class GrossanlassPackService
         $this->access->assertGrossanlassDepartment($department);
         if ($this->access->membershipRole($user, $department) === null) {
             throw new \RuntimeException('Keine Berechtigung zum Scannen');
+        }
+    }
+
+    /** Transportstatus ändern darf nur der zugeteilte Chauffeur oder die Logistik (Fahrt-Frei-Berechtigung). */
+    private function assertDriverOrLogistics(
+        Department $department,
+        User $user,
+        DepartmentGrossanlassEinsatz $einsatz,
+        string $message = 'Nur der zugeteilte Chauffeur oder die Logistik darf diesen Transport buchen',
+    ): void {
+        $driver = $einsatz->getChauffeurUserId();
+        if (($driver === null || $driver !== $user->getId()) && !$this->access->canReleaseTrip($user, $department)) {
+            throw new \RuntimeException($message);
         }
     }
 }

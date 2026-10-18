@@ -142,6 +142,145 @@ final class GrossanlassStaffingApiTest extends TestCase
         });
     }
 
+    public function testHelperProfileFieldsSkillsAndQualificationsRoundTrip(): void
+    {
+        $this->withApi(function (Api $a): void {
+            $a->as('ushsa00000hv');
+            [$status, $helper] = self::out($a->call('createHelper', [self::D, $a->json([
+                'first_name' => 'Ben', 'last_name' => 'Extern', 'email' => 'Ben@Example.org',
+                'occupation' => 'Zimmermann', 'area' => 'Bühne',
+                'skills' => ['Gabelstapler', ' gabelstapler ', 'Elektro'],
+                'drive_classes' => ['b', 'r1', 'unbekannt'], 'drive_valid_until' => '2030-05-01',
+                'qualifications' => [['label' => 'Erste-Hilfe-Kurs', 'valid_until' => '2028-01-31'], ['label' => ''], ['label' => 'SUVA-Kran', 'valid_until' => null]],
+            ])]));
+            self::assertSame(201, $status);
+            [, $loaded] = self::out($a->call('getHelper', [self::D, $helper['id']]));
+            self::assertSame('Zimmermann', $loaded['occupation']);
+            self::assertSame('Bühne', $loaded['area']);
+            self::assertSame(['Gabelstapler', 'Elektro'], $loaded['skills'], 'Duplikate (Schreibweise) entfallen');
+            self::assertSame(['classes' => ['b', 'r1'], 'valid_until' => '2030-05-01', 'source' => 'local'], $loaded['drive_license']);
+            self::assertSame([['label' => 'Erste-Hilfe-Kurs', 'valid_until' => '2028-01-31'], ['label' => 'SUVA-Kran', 'valid_until' => null]], $loaded['qualifications']);
+
+            // Teil-Update lässt andere Felder unberührt
+            [, $patched] = self::out($a->call('updateHelper', [self::D, $helper['id'], $a->json(['skills' => ['Elektro']])]));
+            self::assertSame(['Elektro'], $patched['skills']);
+            self::assertSame('Zimmermann', $patched['occupation']);
+            self::assertSame(400, $a->call('updateHelper', [self::D, $helper['id'], $a->json(['qualifications' => [['label' => 'X', 'valid_until' => 'morgen']]])])->getStatusCode());
+
+            // Katalog: verwendete Fähigkeiten stehen darin; Neuaufnahme ist idempotent
+            self::assertSame(['Elektro', 'Gabelstapler'], self::out($a->call('listSkills', [self::D]))[1]);
+            [$status, $catalog] = self::out($a->call('addSkill', [self::D, $a->json(['name' => 'Schweissen'])]));
+            self::assertSame(201, $status);
+            self::assertSame(['Elektro', 'Gabelstapler', 'Schweissen'], $catalog);
+            self::assertSame($catalog, self::out($a->call('addSkill', [self::D, $a->json(['name' => 'schweissen'])]))[1]);
+            self::assertSame(400, $a->call('addSkill', [self::D, $a->json(['name' => '  '])])->getStatusCode());
+
+            // Funktionswünsche des Personalbedarfs erscheinen im selben Katalog
+            $a->connection()->executeStatement("INSERT INTO department_grossanlass_staffing_need (id,department_id,task_id,label,required_count,created_at,updated_at,sort_order) VALUES ('snsa00000001',?,'gtsa00000001','Kranführer',1,now(),now(),0)", [self::D]);
+            self::assertContains('Kranführer', self::out($a->call('listSkills', [self::D]))[1]);
+
+            // Lesen für Mitglieder (Bedarfsdialog), Schreiben nur Helferpool-Verwaltung, Fremde gar nicht
+            $a->as('ushsa000000u');
+            self::assertSame(200, $a->call('listSkills', [self::D])->getStatusCode());
+            self::assertSame(403, $a->call('addSkill', [self::D, $a->json(['name' => 'Hack'])])->getStatusCode());
+            self::assertSame(403, $a->call('linkableUsers', [self::D])->getStatusCode());
+            $a->as('ushsa000nomb');
+            self::assertSame(403, $a->call('listSkills', [self::D])->getStatusCode());
+        });
+    }
+
+    public function testLinkedUserReferencesProfileAndAvoidsDuplicates(): void
+    {
+        $this->withApi(function (Api $a): void {
+            $conn = $a->connection();
+            $conn->executeStatement("UPDATE profile SET first_name='Mia', last_name='Konto' WHERE id='pshsa000000u'");
+            $conn->executeStatement("INSERT INTO user_drive_license (user_id, drive_classes, valid_until, document_filename, document_original_name, updated_at) VALUES ('ushsa000000u', '[\"b\",\"be\"]', '2031-02-03', '', '', now())");
+            $a->clear();
+            $a->as('ushsa00000hv');
+
+            [, $ext] = self::out($a->call('createHelper', [self::D, $a->json(['first_name' => 'Mia', 'last_name' => 'Lokal', 'phone' => '079', 'skills' => ['Elektro'], 'drive_classes' => ['c']])]));
+            self::assertContains('ushsa000000u', array_column(self::out($a->call('linkableUsers', [self::D]))[1], 'user_id'));
+
+            // Verknüpfen: lokale Fähigkeiten bleiben, Name/E-Mail/Führerausweis kommen aus dem Profil (nur lesend)
+            [$status, $linked] = self::out($a->call('updateHelper', [self::D, $ext['id'], $a->json(['user_id' => 'ushsa000000u', 'first_name' => 'Überschrieben', 'drive_classes' => ['d']])]));
+            self::assertSame(200, $status);
+            self::assertTrue($linked['has_login']);
+            self::assertSame(['Mia', 'Konto'], [$linked['first_name'], $linked['last_name']]);
+            self::assertSame('ushsa000000u@example.org', $linked['email']);
+            self::assertSame(['Elektro'], $linked['skills']);
+            self::assertSame('079', $linked['phone']);
+            self::assertSame(['classes' => ['b', 'be'], 'valid_until' => '2031-02-03', 'source' => 'profile'], $linked['drive_license']);
+            self::assertSame('Mia', $conn->fetchOne("SELECT first_name FROM profile WHERE id='pshsa000000u'"), 'zentrales Profil bleibt unberührt');
+            self::assertSame(['c'], json_decode((string) $conn->fetchOne('SELECT drive_classes FROM department_grossanlass_helper WHERE id = ?', [$ext['id']]), true), 'GA schreibt keine Führerausweis-Daten verknüpfter Helfer');
+
+            // Neuer Helfer direkt aus einem Konto: Name kommt aus dem Profil, kein Namenszwang im Formular
+            [$status, $fromAccount] = self::out($a->call('createHelper', [self::D, $a->json(['user_id' => 'ushsa0000sub', 'skills' => ['Koch']])]));
+            self::assertSame(201, $status);
+            self::assertTrue($fromAccount['has_login']);
+            self::assertSame(['T', 'T'], [$fromAccount['first_name'], $fromAccount['last_name']]);
+            self::assertSame(['Koch'], $fromAccount['skills']);
+
+            // Kein zweiter Helfer für dasselbe Konto, keine Verknüpfung mit Fremden
+            [, $second] = self::out($a->call('createHelper', [self::D, $a->json(['first_name' => 'Zweit', 'last_name' => 'Helfer'])]));
+            self::assertSame(400, $a->call('updateHelper', [self::D, $second['id'], $a->json(['user_id' => 'ushsa000000u'])])->getStatusCode());
+            self::assertSame(404, $a->call('updateHelper', [self::D, $second['id'], $a->json(['user_id' => 'ushsa000nomb'])])->getStatusCode());
+            // Doppelte E-Mail (extern oder zum verknüpften Profil) wird abgelehnt
+            self::assertSame(400, $a->call('createHelper', [self::D, $a->json(['first_name' => 'Dup', 'email' => 'ushsa000000u@example.org'])])->getStatusCode());
+            // Bewusst verknüpfter Helfer ohne Helferrolle bleibt aktiv (Konten-Abgleich archiviert nur eigene Einträge)
+            $a->call('listHelpers', [self::D, new Request()]); // löst den Konten-Abgleich aus
+            self::assertSame('active', self::out($a->call('getHelper', [self::D, $fromAccount['id']]))[1]['status']);
+            // Konten-Sync erzeugt für das verknüpfte Konto keinen zweiten Eintrag
+            $conn->executeStatement("UPDATE membership SET is_helper = true WHERE user_id='ushsa000000u' AND department_id=?", [self::D]);
+            $a->clear();
+            $a->as('ushsa00000hv');
+            $rows = array_filter(self::out($a->call('listHelpers', [self::D, new Request()]))[1], static fn (array $h) => $h['user_id'] === 'ushsa000000u');
+            self::assertCount(1, $rows);
+            self::assertSame($ext['id'], array_values($rows)[0]['id']);
+        });
+    }
+
+    public function testGaUserWithHelperRoleAppearsAlongsideOtherRolesAndKeepsExternalHelpers(): void
+    {
+        $this->withApi(function (Api $a): void {
+            $conn = $a->connection();
+            // Konto mit weiterer Rolle (dc) und zusätzlicher Helferrolle
+            $conn->executeStatement("UPDATE membership SET is_helper = true WHERE user_id='ushsa00000dc' AND department_id=?", [self::D]);
+            $a->clear();
+            $a->as('ushsa00000hv');
+            self::out($a->call('createHelper', [self::D, $a->json(['first_name' => 'Extern', 'last_name' => 'Ohne Konto'])]));
+            $rows = self::out($a->call('listHelpers', [self::D, new Request()]))[1];
+            $byUser = array_values(array_filter($rows, static fn (array $h) => $h['user_id'] === 'ushsa00000dc'));
+            self::assertCount(1, $byUser, 'Konto mit Helferrolle und weiteren Rollen erscheint genau einmal');
+            self::assertCount(1, array_filter($rows, static fn (array $h) => $h['user_id'] === null && $h['last_name'] === 'Ohne Konto'));
+
+            // Fällt die Helferrolle weg, wird archiviert (nicht gelöscht); der externe Helfer bleibt
+            $conn->executeStatement("UPDATE membership SET is_helper = false WHERE user_id='ushsa00000dc' AND department_id=?", [self::D]);
+            $a->clear();
+            $a->as('ushsa00000hv');
+            $active = self::out($a->call('listHelpers', [self::D, new Request()]))[1];
+            self::assertCount(0, array_filter($active, static fn (array $h) => $h['user_id'] === 'ushsa00000dc'));
+            self::assertCount(1, array_filter($active, static fn (array $h) => $h['last_name'] === 'Ohne Konto'));
+            $all = self::out($a->call('listHelpers', [self::D, new Request(['status' => 'all'])]))[1];
+            self::assertCount(1, array_filter($all, static fn (array $h) => $h['user_id'] === 'ushsa00000dc' && $h['status'] === 'archived'));
+        });
+    }
+
+    public function testSkillCatalogAndHelpersAreIsolatedPerDepartment(): void
+    {
+        $this->withApi(function (Api $a): void {
+            $other = 'deptsa000002';
+            $a->connection()->executeStatement("INSERT INTO membership (user_id,department_id,role,is_primary) VALUES ('ushsa00000hv',?,'u',false)", [$other]);
+            $a->clear();
+            $a->as('ushsa00000hv');
+            [, $helper] = self::out($a->call('createHelper', [self::D, $a->json(['first_name' => 'A', 'skills' => ['Nur-D']])]));
+            // Als reines Mitglied des anderen Departments: kein Zugriff auf Helfer, Katalog enthält nichts aus D
+            self::assertSame(403, $a->call('addSkill', [$other, $a->json(['name' => 'Fremd'])])->getStatusCode());
+            self::assertSame([], self::out($a->call('listSkills', [$other]))[1]);
+            self::assertSame(403, $a->call('getHelper', [$other, $helper['id']])->getStatusCode());
+            self::assertContains('Nur-D', self::out($a->call('listSkills', [self::D]))[1]);
+        });
+    }
+
     public function testNeedsAssignmentsConflictsAndNameFreeOverview(): void
     {
         $this->withApi(function (Api $a): void {

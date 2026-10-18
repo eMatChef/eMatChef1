@@ -103,6 +103,9 @@ final class GrossanlassStaffingAssignmentService
             );
             $override = $this->check($helper, $need, $from, $to, $row->getId(), $data, $user);
             $row->setWindow($from, $to);
+            if ($row->isConflict()) {
+                $row->resolveConflict(); // geprüft: die neue Zeit ist wieder durch die Verfügbarkeit gedeckt
+            }
             if ($override !== null) {
                 $row->applyOverride($override['reason'], $user->getId());
                 $this->log($row, DepartmentGrossanlassStaffingLog::ACTION_OVERRIDE, $user, $override['reason'], ['conflicts' => $override['conflict_ids']]);
@@ -193,7 +196,7 @@ final class GrossanlassStaffingAssignmentService
             "SELECT a.id, a.need_id, n.task_id, a.starts_at, a.ends_at
              FROM department_grossanlass_staffing_assignment a
              JOIN department_grossanlass_staffing_need n ON n.id = a.need_id
-             WHERE a.helper_id = ? AND a.status <> 'cancelled' AND a.starts_at < ? AND a.ends_at > ? AND a.id <> ?
+             WHERE a.helper_id = ? AND a.status NOT IN ('cancelled', 'conflict') AND a.starts_at < ? AND a.ends_at > ? AND a.id <> ?
              ORDER BY a.starts_at",
             [$helperId, $to->format('Y-m-d H:i:s'), $from->format('Y-m-d H:i:s'), $exceptId ?? ''],
         );
@@ -237,7 +240,7 @@ final class GrossanlassStaffingAssignmentService
     {
         $out = [];
         $rows = $this->entityManager->getConnection()->fetchAllAssociative(
-            "SELECT starts_at, ends_at FROM department_grossanlass_staffing_assignment WHERE need_id = ? AND status <> 'cancelled'",
+            "SELECT starts_at, ends_at FROM department_grossanlass_staffing_assignment WHERE need_id = ? AND status NOT IN ('cancelled', 'conflict')",
             [$need->getId()],
         );
         $coverage = GrossanlassStaffingTime::coverage(
@@ -326,6 +329,7 @@ final class GrossanlassStaffingAssignmentService
             'starts_at' => $a->getStartsAt()->format('Y-m-d\TH:i:s'),
             'ends_at' => $a->getEndsAt()->format('Y-m-d\TH:i:s'),
             'status' => $a->getStatus(),
+            'conflict' => $a->isConflict() ? $a->getConflictInfo() : null,
             'has_override' => $a->hasOverride(),
             'override_reason' => $a->getOverrideReason(),
             'version' => $a->getVersion(),

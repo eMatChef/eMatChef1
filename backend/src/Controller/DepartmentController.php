@@ -55,6 +55,7 @@ class DepartmentController extends AbstractController
         private DepartmentAccessGuard $departmentAccess,
         private UserPickerScope $userPickerScope,
         private DepartmentRoleLabelService $departmentRoleLabelService,
+        private \App\Service\Grossanlass\GrossanlassHelperAccountSync $helperAccountSync,
         private DepartmentDefaultCoachSyncService $departmentDefaultCoachSync,
         private UserEmailAliasService $emailAliases,
         private MembershipNotificationEmailResolver $notificationEmails,
@@ -892,6 +893,7 @@ class DepartmentController extends AbstractController
                 $this->departmentDefaultCoachSync->refreshDefaultAfterFlagChange($department, $user->getId());
             }
             $this->entityManager->flush();
+            $this->helperAccountSync->sync($department, true);
         } catch (\Exception $e) {
             return new JsonResponse([
                 'error' => 'Fehler beim Hinzufügen: ' . $e->getMessage()
@@ -1082,6 +1084,7 @@ class DepartmentController extends AbstractController
         }
 
         $this->entityManager->flush();
+        $this->helperAccountSync->sync($membership->getDepartment(), true);
 
         $user = $membership->getUser();
         $profile = $user->getProfile();

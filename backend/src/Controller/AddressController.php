@@ -7,6 +7,7 @@ use App\Entity\Department;
 use App\Entity\Membership;
 use App\Entity\User;
 use App\Service\ActivitySharedVenueService;
+use App\Service\Grossanlass\GrossanlassStorageLagerplatzService;
 use App\Service\Onboarding\OnboardingSandboxService;
 use App\Service\Onboarding\OnboardingSandboxVisibility;
 use App\Service\MaterialWizardSupplierService;
@@ -33,6 +34,7 @@ class AddressController extends AbstractController
         private MaterialWizardSupplierService $materialWizardSupplierService,
         private ActivitySharedVenueService $activitySharedVenueService,
         private \App\Service\Onboarding\OnboardingSandboxService $onboardingSandbox,
+        private GrossanlassStorageLagerplatzService $storageLagerplatz,
     ) {}
 
     /**
@@ -237,6 +239,7 @@ class AddressController extends AbstractController
             
             $this->entityManager->persist($address);
             $this->entityManager->flush();
+            $this->syncStorageLagerplatzIfNeeded($address);
 
             $user = $this->getUser();
             if ($address->isOnboardingSandbox() && $user instanceof User) {
@@ -301,6 +304,7 @@ class AddressController extends AbstractController
             
             $this->entityManager->flush();
             $this->activitySharedVenueService->syncSharedVenueFromAddressUpdate($address);
+            $this->syncStorageLagerplatzIfNeeded($address);
 
             $user = $this->getUser();
             if ($address->isOnboardingSandbox() && $user instanceof User) {
@@ -343,6 +347,14 @@ class AddressController extends AbstractController
         }
 
         try {
+            if ($address->getType() === 'storage') {
+                $blockers = $this->storageLagerplatz->deletionBlockers($address);
+                if ($blockers !== []) {
+                    return new JsonResponse([
+                        'error' => 'Lagerstandort kann nicht gelöscht werden: ' . implode(' ', $blockers),
+                    ], 409);
+                }
+            }
             $user = $this->getUser();
             $address->setDeletedAt(new \DateTime());
             $address->setDeletedByUserId($user instanceof User ? $user->getId() : null);
@@ -388,6 +400,7 @@ class AddressController extends AbstractController
         $address->setDeletedByUserId(null);
         $address->updateTimestamps();
         $this->entityManager->flush();
+        $this->syncStorageLagerplatzIfNeeded($address);
 
         return new JsonResponse([
             'message' => 'Adresse wiederhergestellt',
@@ -810,6 +823,18 @@ class AddressController extends AbstractController
                 $parent = $this->entityManager->getRepository(Address::class)->find((string) $parentId);
                 $address->setParent($parent instanceof Address ? $parent : null);
             }
+        }
+    }
+
+    private function syncStorageLagerplatzIfNeeded(Address $address): void
+    {
+        if ($address->getType() !== 'storage' || $address->isDeleted()) {
+            return;
+        }
+        try {
+            $this->storageLagerplatz->syncStorageAddress($address);
+        } catch (\InvalidArgumentException $e) {
+            throw new \RuntimeException($e->getMessage(), 0, $e);
         }
     }
 }

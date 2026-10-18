@@ -22,6 +22,7 @@ final class GrossanlassPlaceService
     public function __construct(
         private EntityManagerInterface $entityManager,
         private GrossanlassAccessService $access,
+        private GrossanlassStorageLagerplatzService $storageLagerplatz,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $appFrontendUrl,
         #[Autowire('%env(APP_PUBLIC_QR_URL)%')] private string $appPublicQrUrl,
     ) {}
@@ -208,6 +209,27 @@ final class GrossanlassPlaceService
     {
         return $this->entityManager->getRepository(DepartmentGrossanlassPlace::class)
             ->findBy(['departmentId' => $department->getId()], ['name' => 'ASC']);
+    }
+
+    /**
+     * Lagerstandorte (Lagerplatz) für Wareneingang und Bestandsbuchungen — dieselben Orte wie in der Standortverwaltung.
+     *
+     * @return list<array{id: string, name: string}>
+     */
+    public function listLagerplaetze(Department $department): array
+    {
+        $out = [];
+        foreach ($this->rows($department) as $row) {
+            if ($row->getKind() !== GrossanlassPlaceCodes::KIND_LAGERPLATZ) {
+                continue;
+            }
+            if (!$this->storageLagerplatz->isLagerplatzActiveForInbound($row)) {
+                continue;
+            }
+            $out[] = ['id' => $row->getId(), 'name' => $row->getName()];
+        }
+
+        return $out;
     }
 
     /**
@@ -777,13 +799,13 @@ final class GrossanlassPlaceService
 
     private function assertWritableKind(string $kind, ?string $existing): void
     {
-        if ($kind !== GrossanlassPlaceCodes::KIND_MATPLATZ) {
+        if ($kind !== GrossanlassPlaceCodes::KIND_LAGERPLATZ) {
             return;
         }
-        if ($existing === GrossanlassPlaceCodes::KIND_MATPLATZ) {
+        if ($existing === GrossanlassPlaceCodes::KIND_LAGERPLATZ) {
             return;
         }
-        throw new \InvalidArgumentException('Matplatz ist der Lagerstandort — kein GA-Ort');
+        throw new \InvalidArgumentException('Lagerplatz ist der Lagerstandort — kein GA-Ort');
     }
 
     /**

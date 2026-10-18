@@ -273,6 +273,20 @@ class Group
         return $this->buildStatus;
     }
 
+    /**
+     * Freigabe für die operative Ausführung: erst Aufbau, Betrieb, Abbau oder abgeschlossen. Fehlender,
+     * geplanter, offerierter oder abgebrochener Status gilt nicht als freigegeben.
+     */
+    public function isBuildReleased(): bool
+    {
+        return in_array($this->buildStatus, [
+            self::BUILD_STATUS_BUILD,
+            self::BUILD_STATUS_USE,
+            self::BUILD_STATUS_TEARDOWN,
+            self::BUILD_STATUS_DONE,
+        ], true);
+    }
+
     public function setBuildStatus(?string $buildStatus): self
     {
         $trimmed = $buildStatus !== null ? strtolower(trim($buildStatus)) : '';

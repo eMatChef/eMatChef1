@@ -17,6 +17,8 @@ class DepartmentGrossanlassStaffingLog
     public const ACTION_CHANGED = 'changed';
     public const ACTION_CANCELLED = 'cancelled';
     public const ACTION_OVERRIDE = 'override';
+    public const ACTION_CONFLICT = 'conflict';
+    public const ACTION_CONFLICT_RESOLVED = 'resolved';
 
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]

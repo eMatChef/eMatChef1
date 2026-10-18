@@ -206,14 +206,15 @@ final class GrossanlassAvailabilityIntegrationTest extends TestCase
             $e = self::expectConflict(fn () => $ueb->issueEinsatz($d, $u, (string) $ids[0], []), 'not_on_hand');
             self::assertSame(0, $e->toPayload()['conflict']['on_hand']);
 
-            $movements->record($d, $u, $loan, ['kind' => 'received', 'quantity' => 3]);
+            $conn->executeStatement("INSERT INTO department_grossanlass_place (id, department_id, name, kind, public_code, created_at) VALUES ('plga00000001', 'deptga000001', 'Lager', 'lagerplatz', 'plgacode1', now())");
+            $movements->record($d, $u, $loan, ['kind' => 'received', 'place_id' => 'plga00000001', 'quantity' => 3]);
             $ueb->issueEinsatz($d, $u, (string) $ids[0], []);
             // schon ausgegeben (2) zählt einmal: 3 vorhanden − 2 ausgegeben = 1 frei, der zweite Einsatz braucht 2
             $e = self::expectConflict(fn () => $ueb->issueEinsatz($d, $u, (string) $ids[1], []), 'not_on_hand');
             self::assertSame(2, $e->toPayload()['conflict']['already_issued']);
             // erneutes Ausgeben des bereits ausgegebenen Einsatzes ändert nichts
             $ueb->issueEinsatz($d, $u, (string) $ids[0], []);
-            $movements->record($d, $u, $loan, ['kind' => 'received', 'quantity' => 1]);
+            $movements->record($d, $u, $loan, ['kind' => 'received', 'place_id' => 'plga00000001', 'quantity' => 1]);
             $ueb->issueEinsatz($d, $u, (string) $ids[1], []);
             self::assertSame(['issued', 'issued'], array_column(self::activeEinsaetze($conn, $loan), 'status'));
 

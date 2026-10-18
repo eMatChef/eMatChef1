@@ -19,6 +19,9 @@ final class DisplayLayoutValidator
     public const SCHEMA_VERSION = 1;
     public const COLUMNS = 12;
     public const MAX_ROWS = 48;
+    public const MAX_COLUMNS = 48;
+    public const DATA_MODES = ['live', 'demo'];
+    public const DEFAULT_DATA_MODE = 'live';
     public const DEFAULT_ROWS = 12;
     public const MAX_DEPTH = 6;
     public const MAX_VARIANTS = 6;
@@ -38,6 +41,7 @@ final class DisplayLayoutValidator
     private array $errors = [];
     private bool $strict = false;
     private string $context = '';
+    private string $dataMode = self::DEFAULT_DATA_MODE;
     /** @var array<string, array{refs: list<array{0: string, 1: int}>, depth: int, nodes: int}> */
     private array $pageInfo = [];
     /** @var list<array{refs: list<array{0: string, 1: int}>, depth: int, nodes: int}> */
@@ -71,7 +75,13 @@ final class DisplayLayoutValidator
         if ($encoded === false || \strlen($encoded) > self::MAX_JSON_BYTES) {
             return $this->fail('layout', 'layout_too_large', 'Layout ist zu gross.');
         }
-        $this->checkKeys($layout, ['schema_version', 'default_variant_id', 'variants', 'pages'], 'layout');
+        $this->checkKeys($layout, ['schema_version', 'default_variant_id', 'variants', 'pages', 'data_mode'], 'layout');
+        $dataMode = $layout['data_mode'] ?? self::DEFAULT_DATA_MODE;
+        if (!\is_string($dataMode) || !\in_array($dataMode, self::DATA_MODES, true)) {
+            $this->error('layout.data_mode', 'data_mode_invalid', 'Datenmodus muss «live» oder «demo» sein.');
+            $dataMode = self::DEFAULT_DATA_MODE;
+        }
+        $this->dataMode = $dataMode;
         if (($layout['schema_version'] ?? null) !== self::SCHEMA_VERSION) {
             return $this->fail('layout.schema_version', 'schema_version_unsupported', 'Nicht unterstützte Schemaversion.');
         }
@@ -92,15 +102,44 @@ final class DisplayLayoutValidator
             return ['layout' => null, 'errors' => $errors];
         }
 
-        return [
-            'layout' => [
-                'schema_version' => self::SCHEMA_VERSION,
-                'default_variant_id' => $defaultId,
-                'variants' => $variants,
-                'pages' => $pages,
-            ],
-            'errors' => [],
+        $normalized = [
+            'schema_version' => self::SCHEMA_VERSION,
+            'default_variant_id' => $defaultId,
+            'variants' => $variants,
+            'pages' => $pages,
         ];
+        // «live» ist der Standard und wird nicht gespeichert; nur der ausdrückliche Demomodus steht im Dokument.
+        if ($dataMode !== self::DEFAULT_DATA_MODE) {
+            $normalized['data_mode'] = $dataMode;
+        }
+
+        return ['layout' => $normalized, 'errors' => []];
+    }
+
+    /**
+     * Prüft einen einzelnen Baustein (Widget oder Gruppe) für die Bausteinbibliothek. Verweise auf Seiten und
+     * Rotationen sind dort nicht erlaubt, damit ein Baustein in jedem Layout eigenständig einsetzbar ist.
+     *
+     * @return array{content: ?array<string, mixed>, errors: list<array{path: string, code: string, message: string}>}
+     */
+    public function validateBlock(mixed $content, string $context): array
+    {
+        $this->errors = [];
+        $this->strict = false;
+        $this->context = $context;
+        $this->dataMode = self::DEFAULT_DATA_MODE;
+        $this->acc = ['refs' => [], 'depth' => 0, 'nodes' => 0, 'widgets' => 0];
+
+        $normalized = $this->normalizeContent($content, 'block', 0);
+        if (!\in_array($normalized['type'], ['widget', 'group', 'rotation'], true) || $this->acc['refs'] !== []) {
+            $this->error('block', 'block_type_invalid', 'Ein Baustein darf nur Widgets, Gruppen und Rotationen enthalten (keine Verweise auf Seiten).');
+        }
+        if ($this->acc['widgets'] === 0) {
+            $this->error('block', 'block_empty', 'Der Baustein enthält kein Widget.');
+        }
+        $errors = \array_slice($this->errors, 0, self::MAX_ERRORS);
+
+        return ['content' => $errors === [] ? $normalized : null, 'errors' => $errors];
     }
 
     /**
@@ -176,7 +215,7 @@ final class DisplayLayoutValidator
                 $this->error($path, 'page_invalid', 'Seite ist ungültig.');
                 continue;
             }
-            $this->checkKeys($page, ['id', 'name', 'rows', 'items'], $path);
+            $this->checkKeys($page, ['id', 'name', 'rows', 'columns', 'items'], $path);
             $id = $this->validId($page['id'] ?? null, "$path.id");
             if ($id !== null) {
                 if (isset($seen[$id])) {
@@ -185,12 +224,18 @@ final class DisplayLayoutValidator
                 $seen[$id] = true;
             }
             $rows = $this->rows($page['rows'] ?? self::DEFAULT_ROWS, "$path.rows");
+            $columns = $this->columns($page['columns'] ?? self::COLUMNS, "$path.columns");
             $this->acc = ['refs' => [], 'depth' => 1, 'nodes' => 0, 'widgets' => 0];
-            $items = $this->normalizeItems($page['items'] ?? [], $rows, "$path.items", 1);
+            $items = $this->normalizeItems($page['items'] ?? [], $rows, $columns, "$path.items", 1);
             if ($id !== null) {
                 $this->pageInfo[$id] = ['refs' => $this->acc['refs'], 'depth' => $this->acc['depth'], 'nodes' => $this->acc['nodes'], 'widgets' => $this->acc['widgets']];
             }
-            $pages[] = ['id' => $id ?? '', 'name' => $this->name($page['name'] ?? '', "$path.name"), 'rows' => $rows, 'items' => $items];
+            $normalizedPage = ['id' => $id ?? '', 'name' => $this->name($page['name'] ?? '', "$path.name"), 'rows' => $rows];
+            if ($columns !== self::COLUMNS) {
+                $normalizedPage['columns'] = $columns;
+            }
+            $normalizedPage['items'] = $items;
+            $pages[] = $normalizedPage;
         }
 
         return $pages;
@@ -253,10 +298,21 @@ final class DisplayLayoutValidator
         return $value;
     }
 
+    private function columns(mixed $value, string $path): int
+    {
+        if (!\is_int($value) || $value < 1 || $value > self::MAX_COLUMNS) {
+            $this->error($path, 'columns_invalid', 'Spaltenanzahl muss zwischen 1 und ' . self::MAX_COLUMNS . ' liegen.');
+
+            return self::COLUMNS;
+        }
+
+        return $value;
+    }
+
     /**
      * @return list<array<string, mixed>>
      */
-    private function normalizeItems(mixed $raw, int $rows, string $path, int $depth): array
+    private function normalizeItems(mixed $raw, int $rows, int $columns, string $path, int $depth): array
     {
         if (!\is_array($raw) || !array_is_list($raw)) {
             $this->error($path, 'items_invalid', 'Elemente müssen eine Liste sein.');
@@ -290,7 +346,7 @@ final class DisplayLayoutValidator
                     $item[$k] = 0;
                 }
             }
-            if ($item['x'] < 0 || $item['w'] < 1 || $item['x'] + $item['w'] > self::COLUMNS
+            if ($item['x'] < 0 || $item['w'] < 1 || $item['x'] + $item['w'] > $columns
                 || $item['y'] < 0 || $item['h'] < 1 || $item['y'] + $item['h'] > $rows) {
                 $this->error($p, 'out_of_bounds', 'Element liegt ausserhalb des Rasters.');
             }
@@ -368,6 +424,10 @@ final class DisplayLayoutValidator
                     $this->error("$path.config", 'config_invalid', 'Konfiguration muss ein Objekt sein.');
                     $config = [];
                 }
+                // Live-Anzeige: Widgets ohne echte Datenanbindung werden nie stillschweigend durch Demodaten ersetzt.
+                if ($this->strict && $this->dataMode === self::DEFAULT_DATA_MODE && ($def['live'] ?? false) !== true) {
+                    $this->error("$path.widget", 'widget_live_unsupported', "Das Widget «{$widget}» hat noch keine Live-Anbindung. Demodaten für die Anzeige aktivieren oder das Widget entfernen.");
+                }
                 ++$this->acc['widgets'];
 
                 return [
@@ -378,10 +438,21 @@ final class DisplayLayoutValidator
                 ];
 
             case 'group':
-                $this->checkKeys($raw, ['type', 'rows', 'items'], $path);
+                $this->checkKeys($raw, ['type', 'name', 'rows', 'columns', 'items'], $path);
                 $rows = $this->rows($raw['rows'] ?? self::DEFAULT_ROWS, "$path.rows");
+                $columns = $this->columns($raw['columns'] ?? self::COLUMNS, "$path.columns");
+                $group = ['type' => 'group'];
+                $groupName = $this->name($raw['name'] ?? '', "$path.name");
+                if ($groupName !== '') {
+                    $group['name'] = $groupName;
+                }
+                $group['rows'] = $rows;
+                if ($columns !== self::COLUMNS) {
+                    $group['columns'] = $columns;
+                }
+                $group['items'] = $this->normalizeItems($raw['items'] ?? [], $rows, $columns, "$path.items", $depth + 1);
 
-                return ['type' => 'group', 'rows' => $rows, 'items' => $this->normalizeItems($raw['items'] ?? [], $rows, "$path.items", $depth + 1)];
+                return $group;
 
             case 'page':
                 $this->checkKeys($raw, ['type', 'page_id'], $path);
@@ -410,11 +481,17 @@ final class DisplayLayoutValidator
                         $this->error($p, 'rotation_steps_invalid', 'Schritt ist ungültig.');
                         continue;
                     }
-                    $this->checkKeys($step, ['duration_sec', 'content'], $p);
+                    $this->checkKeys($step, ['name', 'duration_sec', 'content'], $p);
                     $duration = \array_key_exists('duration_sec', $step) && $step['duration_sec'] !== null
                         ? $this->interval($step['duration_sec'], "$p.duration_sec")
                         : null;
-                    $out[] = ['duration_sec' => $duration, 'content' => $this->normalizeContent($step['content'] ?? null, "$p.content", $depth + 1)];
+                    // Rotationsseite: optionaler Name (Studio), nur gespeichert wenn gesetzt; bestehende Schritte bleiben unverändert.
+                    $stepName = \array_key_exists('name', $step) ? $this->name($step['name'], "$p.name") : '';
+                    $entry = ['duration_sec' => $duration, 'content' => $this->normalizeContent($step['content'] ?? null, "$p.content", $depth + 1)];
+                    if ($stepName !== '') {
+                        $entry = ['name' => $stepName] + $entry;
+                    }
+                    $out[] = $entry;
                 }
 
                 return ['type' => 'rotation', 'enabled' => $enabled, 'interval_sec' => $interval, 'steps' => $out];
