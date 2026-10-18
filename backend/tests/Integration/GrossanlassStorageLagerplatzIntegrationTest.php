@@ -7,6 +7,7 @@ namespace App\Tests\Integration;
 use App\Entity\Address;
 use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassPlace;
+use App\Entity\Profile;
 use App\Entity\User;
 use App\Service\Grossanlass\GrossanlassPlaceCodes;
 use App\Service\Grossanlass\GrossanlassPlaceService;
@@ -43,7 +44,8 @@ final class GrossanlassStorageLagerplatzIntegrationTest extends TestCase
             $conn->setNestTransactionsWithSavepoints(true);
             $conn->beginTransaction();
             try {
-                $user = $em->getRepository(User::class)->findOneBy(['email' => 'ga-mw@demo.ematchef.ch']);
+                $profile = $em->getRepository(Profile::class)->findOneByEmailInsensitive('ga-mw@demo.ematchef.ch');
+                $user = $profile === null ? null : $em->getRepository(User::class)->findOneBy(['profile' => $profile]);
                 self::assertInstanceOf(User::class, $user);
                 $test(
                     $em,
