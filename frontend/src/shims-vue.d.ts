@@ -15,6 +15,8 @@ declare module 'vue-router' {
     /** vue-i18n-Key; fehlt → `router.meta.routeDescriptionDefault` */
     pageDescriptionKey?: string
     requiresAuth?: boolean
+    /** Vollflächige Arbeitsansicht ohne Sidebar und Header (Infoscreen-Studio) */
+    studio?: boolean
     /** Öffentliche Start-/Infoseiten (Hauptdomain); auf App-Origin ggf. zur Hauptdomain oder Login umleiten */
     publicMarketing?: boolean
     /** Nur ROLE_SUPERADMIN / ROLE_WEBADMIN */

@@ -33,3 +33,18 @@ export function hourLabel(hour: number): string {
   const m = Math.round((hour - h) * 60)
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
+
+export const TOUR_STATUS_COLOR: Record<'draft' | 'confirmed' | 'underway' | 'done' | 'closed', string> = {
+  closed: 'grey',
+  draft: 'warning',
+  confirmed: 'info',
+  underway: 'primary',
+  done: 'success',
+}
+
+export const REQUEST_COLOR: Record<'open' | 'accepted' | 'adjusted' | 'rejected', string> = {
+  open: 'warning',
+  accepted: 'success',
+  adjusted: 'info',
+  rejected: 'error',
+}

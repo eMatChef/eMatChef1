@@ -1,11 +1,11 @@
 /**
  * Sichtbare Tabs der Aufgaben-Shell (`TasksShellView`).
- * Im GA-Aufgabenbereich (`/ga/tasks`) gibt es nur «Aufgaben» und «Meine Aufgaben»; «Allgemein», «Inventur» und «Drucken»
+ * Im GA-Aufgabenbereich (`/ga/tasks`) gibt es nur «Meine Einsätze» und «Alle Aufgaben»; «Allgemein», «Inventur» und «Drucken»
  * sind Department-Funktionen unter `/dept/tasks` und erscheinen dort unverändert.
  */
 export type TasksShellTabInput = {
   isGrossanlass: boolean
-  /** Aktuelle Route liegt im GA-Aufgabenbereich (`TasksGaMaster` / `TasksGaMine`). */
+  /** Aktuelle Route liegt im GA-Aufgabenbereich (`TasksGaMine` / `TasksGaMaster`). */
   isGaTasksArea: boolean
   canManagePrintTasks: boolean
 }

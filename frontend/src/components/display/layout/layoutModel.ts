@@ -1,7 +1,7 @@
 import type { LayoutContent, LayoutDocument, LayoutItem, LayoutPage, LayoutVariant } from '@/api/displayLayout'
 
 /** Elemente, die ein Variantenvorschaubild zeigt: die erste Seite bzw. Zone, die vom Wurzelinhalt aus erreichbar ist. */
-export function firstVisibleItems(doc: LayoutDocument, variant: LayoutVariant | undefined): { rows: number; items: LayoutItem[] } {
+export function firstVisibleItems(doc: LayoutDocument, variant: LayoutVariant | undefined): { rows: number; columns: number; items: LayoutItem[] } {
   const pages = new Map<string, LayoutPage>(doc.pages.map((p) => [p.id, p]))
   let content: LayoutContent | undefined = variant?.root
   for (let depth = 0; content && depth < 8; depth++) {
@@ -9,14 +9,14 @@ export function firstVisibleItems(doc: LayoutDocument, variant: LayoutVariant | 
       content = content.steps[0]?.content
     } else if (content.type === 'page') {
       const page = pages.get(content.page_id)
-      return page ? { rows: page.rows, items: page.items } : { rows: 12, items: [] }
+      return page ? { rows: page.rows, columns: page.columns ?? 12, items: page.items } : { rows: 12, columns: 12, items: [] }
     } else if (content.type === 'group') {
-      return { rows: content.rows, items: content.items }
+      return { rows: content.rows, columns: content.columns ?? 12, items: content.items }
     } else {
-      return { rows: 12, items: [{ id: 'w', x: 0, y: 0, w: 12, h: 12, content }] }
+      return { rows: 12, columns: 12, items: [{ id: 'w', x: 0, y: 0, w: 12, h: 12, content }] }
     }
   }
-  return { rows: 12, items: [] }
+  return { rows: 12, columns: 12, items: [] }
 }
 
 export function newId(prefix: string, taken: Iterable<string>): string {

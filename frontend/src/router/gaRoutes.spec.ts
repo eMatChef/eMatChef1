@@ -18,7 +18,7 @@ describe('grossanlass routes under /:departmentId/ga', () => {
 
   it.each([
     'ga/my-unit', 'ga/my-assignments', 'ga/planning/requests', 'ga/planning/jobs',
-    'ga/notifications', 'ga/planning/transports', 'ga/planning/occupancy', 'ga/planning/conflicts', 'ga/helper-pool', 'ga/tasks', 'ga/tasks/mine', 'dept/tasks',
+    'ga/notifications', 'ga/planning/transports', 'ga/planning/occupancy', 'ga/planning/conflicts', 'ga/helper-pool', 'ga/tasks', 'ga/tasks/all', 'dept/tasks',
     'ga/procurement/demand', 'ga/procurement/inquiries', 'ga/procurement/offers', 'ga/procurement/commitments',
     'ga/procurement/orders', 'ga/procurement/budget', 'ga/material/stock', 'ga/material/goods-receipt',
     'ga/material/issue', 'ga/material/pack', 'ga/material/teardown', 'ga/material/resale',
@@ -38,6 +38,12 @@ describe('grossanlass routes under /:departmentId/ga', () => {
     expect(ga.matched.some((r) => r.meta.requiresGrossanlassDepartment)).toBe(true)
     expect(dept.name).toBe('NotificationsCenter')
     expect(dept.matched.some((r) => r.meta.requiresGrossanlassDepartment)).toBe(false)
+  })
+
+  it('opens «Meine Einsätze» by default under ga/tasks, «Alle Aufgaben» under ga/tasks/all, and redirects the old mine path', () => {
+    expect(router.resolve('/dep-1/ga/tasks').name).toBe('TasksGaMine')
+    expect(router.resolve('/dep-1/ga/tasks/all').name).toBe('TasksGaMaster')
+    expect(router.resolve('/dep-1/ga/tasks/mine').matched.length).toBeGreaterThan(0)
   })
 
   it('has no route for the removed procurement tab «Erhalten» (goods receipt lives under Material)', () => {

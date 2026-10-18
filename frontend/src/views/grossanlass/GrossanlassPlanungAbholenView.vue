@@ -26,12 +26,12 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
-import { useGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
-import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { useGrossanlassCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
+import { useGrossanlassUebersicht } from '@/views/grossanlass/gaUebersicht'
 
 const { t } = useI18n()
-const uebersicht = useGaUebersicht()
-const catalog = useGaCommitmentCatalog()
+const uebersicht = useGrossanlassUebersicht()
+const catalog = useGrossanlassCommitmentCatalog()
 
 const loading = computed(() => uebersicht.loading.value || catalog.loading.value)
 

@@ -43,7 +43,7 @@ test.describe('GA Aufgaben Checkliste und Blockierung', () => {
     page.on('response', (res) => res.url().includes('/api/') && res.status() >= 400 && problems.push(`${res.status()} ${res.request().method()} ${res.url()}`))
 
     try {
-      await page.goto(`/${DEPT}/ga/tasks`)
+      await page.goto(`/${DEPT}/ga/tasks/all`)
       await expect(page.locator('.ga-card').first()).toBeVisible()
 
       await page.getByRole('button', { name: /Neue Aufgabe/i }).click()

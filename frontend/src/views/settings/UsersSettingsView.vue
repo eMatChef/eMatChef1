@@ -199,6 +199,13 @@
       <EButton variant="secondary" class="mt-3" @click="loadMembers">{{ t('common.retry') }}</EButton>
     </div>
 
+    <!-- GA-Helfer: Der Helferpool (Konto- und externe Helfer) ersetzt die Mitgliederliste. -->
+    <slot
+      v-else-if="memberScope === 'helpers' && $slots.helpers"
+      name="helpers"
+      :open-add-user="openAddModal"
+    />
+
     <component
       :is="gaTable ? 'div' : 'details'"
       v-else

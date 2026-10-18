@@ -63,6 +63,9 @@
           <v-chip size="x-small" variant="flat" :color="STATUS_COLOR[order.status]">
             {{ t(gaBuildStatusI18nKey(order.status)) }}
           </v-chip>
+          <v-chip v-if="order.card?.order_status === 'review' || (order.card?.order_status === 'accepted' && order.status !== 'done')" size="x-small" variant="flat" color="info" data-testid="order-reported-chip">
+            {{ t(`grossanlass.aufgaben.acceptance.status.${order.card.order_status}`) }}
+          </v-chip>
         </header>
         <v-chip v-if="order.group.archived" size="x-small" variant="tonal" color="warning" prepend-icon="mdi-archive-outline" data-testid="order-archived-chip">
           {{ t('grossanlass.aufgaben.archive.chip') }}
@@ -105,7 +108,7 @@
           <v-progress-linear :model-value="tasksPercent(order.card) ?? 0" height="6" rounded color="success" />
           <small>
             {{ order.card && order.card.tasks.total
-              ? t('grossanlass.planung.auftraege.tasksDetail', { done: order.card.tasks.done, total: order.card.tasks.total })
+              ? t('grossanlass.planung.auftraege.tasksDetail', { done: order.card.tasks.done, total: order.card.tasks.total }) + tasksTimingSuffix(order.card)
               : t('grossanlass.planung.auftraege.tasksNone') }}
           </small>
         </div>
@@ -157,6 +160,15 @@ import {
 } from './gaAuftraegeModel'
 
 const { t } = useI18n()
+
+/** Termin-Hinweis nur aus den Fachzeit-Zählern des Servers: überfällig nur bei offener Aufgabe mit überschrittenem Ende. */
+function tasksTimingSuffix(card: GrossanlassOrderCard): string {
+  const { overdue = 0, in_window: current = 0, planned = 0 } = card.tasks
+  if (overdue > 0) return `, ${t('grossanlass.planung.auftraege.tasksOverdue', { n: overdue })}`
+  if (current > 0) return `, ${t('grossanlass.planung.auftraege.tasksInWindow', { n: current })}`
+  if (planned > 0) return `, ${t('grossanlass.planung.auftraege.tasksPlanned', { n: planned })}`
+  return ''
+}
 const route = useRoute()
 const router = useRouter()
 

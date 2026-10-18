@@ -116,6 +116,10 @@ export type GaBauprojektTask = {
   /** Anzahl offener Abhängigkeiten, deren Vorgänger der Benutzer nicht sehen darf. */
   waiting_hidden?: number
   /** Gesamtabnahme-Zustand des Bauauftrags dieser Aufgabe. */
+  /** Freigabe zur Ausführung (Backend: Bauauftrag im Aufbau, Betrieb, Abbau oder abgeschlossen). */
+  released?: boolean
+  /** Der angemeldete Benutzer ist verantwortlich oder als Helfer eingeteilt («Meine Einsätze»). */
+  assigned_to_me?: boolean
   order_status?: 'open' | 'review' | 'accepted'
   /** Nachbesserung: verknüpft mit der Rückweisung der Gesamtabnahme (Grund, Zeitpunkt). */
   rework?: { event_id: string; reason: string | null; at: string | null } | null
@@ -406,6 +410,8 @@ export type GaBauprojektVehicleNeed = {
   vehicle_label: string
   task_label: string
   category_label?: string | null
+  /** `transport`: Fahrzeug soll etwas transportieren (überführbar in einen Fahrauftrag); `site_use`: Einsatz auf der Baustelle. */
+  purpose?: 'site_use' | 'transport'
   sort_order: number
   starts_at?: string | null
   duration_minutes?: number | null
@@ -416,7 +422,7 @@ export type GaBauprojektVehicleNeed = {
 export async function createGrossanlassBauprojektVehicle(
   departmentId: string,
   groupId: string,
-  payload: { vehicle_label: string; task_label: string; category_label?: string | null; starts_at?: string | null; duration_minutes?: number | null },
+  payload: { vehicle_label: string; task_label: string; category_label?: string | null; purpose?: 'site_use' | 'transport'; starts_at?: string | null; duration_minutes?: number | null },
 ): Promise<GaBauprojektVehicleNeed> {
   const { data } = await apiClient.post<GaBauprojektVehicleNeed>(
     `/api/departments/${departmentId}/grossanlass/groups/${groupId}/vehicles`,
@@ -429,7 +435,7 @@ export async function updateGrossanlassBauprojektVehicle(
   departmentId: string,
   groupId: string,
   needId: string,
-  payload: { vehicle_label?: string; task_label?: string; category_label?: string | null; starts_at?: string | null; duration_minutes?: number | null },
+  payload: { vehicle_label?: string; task_label?: string; category_label?: string | null; purpose?: 'site_use' | 'transport'; starts_at?: string | null; duration_minutes?: number | null },
 ): Promise<GaBauprojektVehicleNeed> {
   const { data } = await apiClient.patch<GaBauprojektVehicleNeed>(
     `/api/departments/${departmentId}/grossanlass/groups/${groupId}/vehicles/${needId}`,

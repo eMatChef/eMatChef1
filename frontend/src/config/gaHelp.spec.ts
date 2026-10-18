@@ -17,9 +17,9 @@ const FIELDS = ['enoughOnHand', 'cash', 'netto']
 const LOCALES = ['de', 'en', 'fr', 'it', 'de-pfadi', 'de-cevi', 'de-jubla', 'fr-pfadi', 'it-cevi', 'ch-rm']
 
 function keysOf(): string[] {
-  const keys = ['gaHelp.modal.eyebrow', 'gaHelp.modal.faqTitle', 'gaHelp.modal.more', 'gaHelp.modal.close']
-  keys.push('gaHelp.page.title', 'gaHelp.page.subtitle', 'gaHelp.page.openPage', 'gaHelp.hint.aria')
-  for (const group of GA_HELP_GROUPS) keys.push(`gaHelp.groups.${group}`)
+  const keys = ['grossanlass.help.modal.eyebrow', 'grossanlass.help.modal.faqTitle', 'grossanlass.help.modal.more', 'grossanlass.help.modal.close']
+  keys.push('grossanlass.help.page.title', 'grossanlass.help.page.subtitle', 'grossanlass.help.page.openPage', 'grossanlass.help.hint.aria')
+  for (const group of GA_HELP_GROUPS) keys.push(`grossanlass.help.groups.${group}`)
   for (const field of FIELDS) keys.push(gaHelpKey.field(field))
   for (const topic of GA_HELP_TOPICS) {
     keys.push(gaHelpKey.title(topic.id), gaHelpKey.summary(topic.id))
@@ -83,11 +83,11 @@ describe('GA help texts', () => {
   })
 
   it('let an organisation variant override a single key and fall back for the rest', () => {
-    i18n.global.mergeLocaleMessage('de-pfadi', { gaHelp: { modal: { close: 'Zu' } } })
+    i18n.global.mergeLocaleMessage('de-pfadi', { grossanlass: { help: { modal: { close: 'Zu' } } } })
     i18n.global.locale.value = 'de-pfadi' as never
-    expect(i18n.global.t('gaHelp.modal.close')).toBe('Zu')
-    expect(i18n.global.t('gaHelp.modal.more')).toBe(i18n.global.t('gaHelp.modal.more', {}, { locale: 'de' }))
+    expect(i18n.global.t('grossanlass.help.modal.close')).toBe('Zu')
+    expect(i18n.global.t('grossanlass.help.modal.more')).toBe(i18n.global.t('grossanlass.help.modal.more', {}, { locale: 'de' }))
     i18n.global.locale.value = 'de'
-    i18n.global.mergeLocaleMessage('de-pfadi', { gaHelp: { modal: { close: undefined } } })
+    i18n.global.mergeLocaleMessage('de-pfadi', { grossanlass: { help: { modal: { close: undefined } } } })
   })
 })

@@ -48,13 +48,13 @@ import { EButton } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import GrossanlassEinsatzPreviewPanel from '@/views/grossanlass/GrossanlassEinsatzPreviewPanel.vue'
 import GrossanlassConflictResolveDialog from '@/views/grossanlass/GrossanlassConflictResolveDialog.vue'
-import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
-import { useGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
+import { useGrossanlassUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { useGrossanlassCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
 import type { GaUebersichtConflict } from '@/api/grossanlassUebersicht'
 
 const { t } = useI18n()
-const uebersicht = useGaUebersicht()
-const catalog = useGaCommitmentCatalog()
+const uebersicht = useGrossanlassUebersicht()
+const catalog = useGrossanlassCommitmentCatalog()
 
 const dialogOpen = ref(false)
 const activeConflict = ref<GaUebersichtConflict | null>(null)

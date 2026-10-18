@@ -78,7 +78,7 @@ import {
   watchGrossanlassBuildPeriods,
 } from '@/utils/grossanlassBuildStatus'
 
-defineOptions({ name: 'GaBuildMetaFields' })
+defineOptions({ name: 'GrossanlassBuildMetaFields' })
 
 const start = defineModel<string>('start', { default: '' })
 const end = defineModel<string>('end', { default: '' })

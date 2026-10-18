@@ -108,7 +108,7 @@ import { useActivityDatePickerPaneMonth } from '@/composables/useActivityDatePic
 import { useActivityDatePresets } from '@/composables/useActivityDatePresets'
 import { useActivityDateRangePicker } from '@/composables/useActivityDateRangePicker'
 import { useToast } from '@/composables/useToast'
-import { useGaEventPeriod } from '@/composables/useGaEventPeriod'
+import { useGrossanlassEventPeriod } from '@/composables/useGrossanlassEventPeriod'
 import { formatActivityDateRangeDe } from '@/utils/activityDateIso'
 import { rangeContainsDepartmentClosedDate, withDepartmentClosedPresetFlags } from '@/utils/activityDatePickerModel'
 import { calendarPeriodViewDate, type ActivityDatePresetItem } from '@/utils/activityDatePresets'
@@ -209,7 +209,7 @@ const {
   blockClosedDates: () => props.blockClosedDates,
 })
 
-const eventPeriod = useGaEventPeriod()
+const eventPeriod = useGrossanlassEventPeriod()
 const derivedViewDate = computed(
   () =>
     (props.viewDate && Number.isFinite(props.viewDate.getTime()) ? props.viewDate : null) ??

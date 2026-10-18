@@ -77,7 +77,7 @@
       />
 
       <EEmptyState
-        v-else-if="!sections.length && !unassignedTrips.length"
+        v-else-if="!sortedTrips.length && !wishTiles.length"
         icon="mdi-truck-delivery-outline"
         :title="emptyTitle"
         :description="emptyText"
@@ -87,41 +87,35 @@
         </template>
       </EEmptyState>
 
-      <template v-else>
-        <section v-if="unassignedTrips.length" class="ga-fahrauftraege__loose">
-          <h3>{{ t('grossanlass.material.unassignedFahrauftraege') }}</h3>
-          <GrossanlassFahrauftragList
-            :rows="unassignedTrips"
-            :busy-id="busyId"
-            :can-start-trip="canStartTrip"
-            :read-only="!canOperateTrips"
-            clickable
-            :show-title="false"
-            @toggle-packed="onTogglePacked"
-            @release="onReleaseTrip"
-            @issue="onIssueTrip"
-            @open="openFromPreview"
-          />
-        </section>
-
-        <v-expansion-panels v-model="openIds" multiple class="e-accordions ga-fahrauftraege__tree">
-          <GrossanlassFahrauftragBranch
-            v-for="section in sections"
-            :key="section.group.id"
-            :section="section"
-            :kind-label="kindLabel"
-            :busy-id="busyId"
-            :can-start-trip="canStartTrip"
-            :read-only="!canOperateTrips"
-            @toggle-packed="onTogglePacked"
-            @release="onReleaseTrip"
-            @issue="onIssueTrip"
-            @open="openFromPreview"
-            @open-vehicle="openVehicle"
-          />
-        </v-expansion-panels>
-      </template>
+      <GrossanlassFahrauftragTiles
+        v-else
+        :trips="sortedTrips"
+        :wishes="wishTiles"
+        :busy-id="busyId"
+        :read-only="!canOperateTrips"
+        :can-start-trip="canStartTrip"
+        :department-id="departmentId"
+        :can-open-dispatch="canOpenDispatch"
+        :request-of="requestOf"
+        :chauffeur-of="chauffeurNameOf"
+        :vehicle-of="vehicleNameOf"
+        :destination-of="destinationNameOf"
+        @open="openFromPreview"
+        @open-vehicle="openVehicle"
+        @toggle-packed="onTogglePacked"
+        @request-change="onRequestChange"
+        @issue="onIssueTrip"
+      />
     </template>
+
+    <GrossanlassTripChangeRequestDialog
+      v-model="changeOpen"
+      :department-id="departmentId"
+      :need-id="changeRow?.id ?? null"
+      :from-iso="changeRow?.fromIso"
+      :to-iso="changeRow?.toIso"
+      @sent="onChangeSent"
+    />
 
     <GrossanlassEinsatzBookPreviewDialog
       v-model="dialogOpen"
@@ -129,11 +123,11 @@
       mode="einsatz"
       preset-delivery="trip"
       lock-delivery
+      hide-chauffeur
       :wishes="wishes"
       :free-picks="freePicks"
       :rows="bookingRows"
       :resources="resources"
-      :chauffeurs="chauffeurs"
       :places="places"
       :groups="visibleGroups"
       :default-scope="bookDefaultScope"
@@ -174,22 +168,21 @@ import { EButton } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { gaCanManagePlanung, gaCanOperateAusgabe, gaIsMaterialwart } from '@/utils/grossanlassAccess'
-import { nestTreeWithLevel, type NestedTreeNode } from '@/utils/grossanlassGroupHierarchy'
-import { grossanlassGroupNodeKindKey } from '@/utils/grossanlassGroupNode'
+import { buildGrossanlassGroupPathLabel } from '@/utils/grossanlassGroupHierarchy'
+import { listGrossanlassChangeRequests, type GaDispatchChangeRequest } from '@/api/grossanlassLogistics'
+import GrossanlassTripChangeRequestDialog from '@/views/grossanlass/GrossanlassTripChangeRequestDialog.vue'
 import { listGrossanlassVehicleNeeds, type GaBauprojektVehicleNeed } from '@/api/grossanlassBauprojekt'
 import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
 import type { GaUebersichtCreatePayload } from '@/api/grossanlassUebersicht'
-import { useGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
-import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { useGrossanlassCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
+import { useGrossanlassUebersicht } from '@/views/grossanlass/gaUebersicht'
 import { gaFahrauftragComposerKey } from '@/views/grossanlass/gaFahrauftragComposer'
 import GrossanlassEinsatzBookPreviewDialog, {
   type GaBookPreviewDraft,
 } from '@/views/grossanlass/GrossanlassEinsatzBookPreviewDialog.vue'
-import GrossanlassFahrauftragBranch, {
-  type GaFahrauftragSection,
-  type GaFahrauftragVehicleRow,
-} from '@/views/grossanlass/GrossanlassFahrauftragBranch.vue'
-import GrossanlassFahrauftragList from '@/views/grossanlass/GrossanlassFahrauftragList.vue'
+import GrossanlassFahrauftragTiles, {
+  type GaFahrauftragWishTile,
+} from '@/views/grossanlass/GrossanlassFahrauftragTiles.vue'
 import GrossanlassEinsatzProgrammCalendar from '@/views/grossanlass/GrossanlassEinsatzProgrammCalendar.vue'
 import GrossanlassHelperAssignmentDetailDialog from '@/views/grossanlass/GrossanlassHelperAssignmentDetailDialog.vue'
 import GrossanlassVehicleNeedDialog from '@/components/grossanlass/GrossanlassVehicleNeedDialog.vue'
@@ -210,8 +203,8 @@ const router = useRouter()
 const { t, locale } = useI18n()
 const authStore = useAuthStore()
 const toast = useToast()
-const { articles, commitments } = useGaCommitmentCatalog()
-const uebersicht = useGaUebersicht()
+const { articles, commitments } = useGrossanlassCommitmentCatalog()
+const uebersicht = useGrossanlassUebersicht()
 
 const groups = ref<GrossanlassGroup[]>([])
 const vehicleNeeds = ref<Array<GaBauprojektVehicleNeed & { group_name: string }>>([])
@@ -226,7 +219,6 @@ const showAllOrders = computed({
 })
 const subtab = ref<'liste' | 'kalender' | 'wuensche'>('liste')
 const groupsLoading = ref(true)
-const openIds = ref<string[]>([])
 const dialogOpen = ref(false)
 const draft = ref<GaBookPreviewDraft | null>(null)
 const busyId = ref<string | null>(null)
@@ -283,10 +275,6 @@ function onVehicleSaved(row: GaBauprojektVehicleNeed) {
   vehicleNeeds.value = vehicleNeeds.value.map((item) =>
     item.id === row.id ? { ...item, ...row, group_name: item.group_name } : item,
   )
-}
-
-function kindLabel(group: GrossanlassGroup): string {
-  return t(grossanlassGroupNodeKindKey(group.node_type))
 }
 
 function tr(key: string, values?: Record<string, string | number>): string {
@@ -358,10 +346,6 @@ const shownTrips = computed(() =>
   listMode.value === 'all' ? visibleTrips.value : visibleTrips.value.filter(tripStillAhead),
 )
 
-function tripsOf(groupId: string): GaPreviewEinsatz[] {
-  return shownTrips.value.filter((row) => row.groupId === groupId)
-}
-
 function needCommitted(need: GaBauprojektVehicleNeed): boolean {
   const label = need.vehicle_label.trim().toLowerCase()
   return commitments.value.some((row) => {
@@ -384,9 +368,14 @@ function needWhen(need: GaBauprojektVehicleNeed): string {
   return `${start} – ${formatGaIsoLabel(endIso, locale.value)}`
 }
 
-function vehiclesOf(groupId: string): GaFahrauftragVehicleRow[] {
-  return shownNeeds.value
-    .filter((need) => need.group_id === groupId)
+const sortedTrips = computed(() =>
+  [...shownTrips.value].sort((x, y) => x.fromIso.localeCompare(y.fromIso)),
+)
+
+/** Fahrzeugwünsche sind keine Fahraufträge: eigene Kacheln, bis ein Fahrauftrag erfasst ist. */
+const wishTiles = computed<GaFahrauftragWishTile[]>(() =>
+  [...shownNeeds.value]
+    .sort((x, y) => (x.starts_at ?? '').localeCompare(y.starts_at ?? ''))
     .map((need) => ({
       id: need.id,
       vehicle_label: need.vehicle_label,
@@ -394,36 +383,26 @@ function vehiclesOf(groupId: string): GaFahrauftragVehicleRow[] {
       category: need.category_label || '',
       when: needWhen(need),
       committed: needCommitted(need),
-    }))
-}
-
-function toSection(node: NestedTreeNode<GrossanlassGroup>): GaFahrauftragSection {
-  return {
-    group: node,
-    trips: tripsOf(node.id),
-    vehicles: vehiclesOf(node.id),
-    children: node.children.map(toSection),
-  }
-}
-
-function pruneSection(section: GaFahrauftragSection): GaFahrauftragSection | null {
-  const children = section.children
-    .map(pruneSection)
-    .filter((child): child is GaFahrauftragSection => child !== null)
-  if (!section.trips.length && !section.vehicles.length && !children.length) return null
-  return { ...section, children }
-}
-
-const sections = computed(() =>
-  nestTreeWithLevel(scopeGroups.value)
-    .map(toSection)
-    .map(pruneSection)
-    .filter((section): section is GaFahrauftragSection => section !== null),
+      origin: buildGrossanlassGroupPathLabel(need.group_id, groups.value) || need.group_name,
+    })),
 )
 
-const unassignedTrips = computed(() =>
-  shownTrips.value.filter((row) => !row.groupId),
+const einsatzApiById = computed(
+  () => new Map((uebersicht.data.value?.einsaetze ?? []).map((item) => [item.id, item])),
 )
+
+function chauffeurNameOf(row: GaPreviewEinsatz): string {
+  return cards.value.find((card) => card.user_id === row.chauffeurUserId)?.name ?? ''
+}
+
+function vehicleNameOf(row: GaPreviewEinsatz): string {
+  const api = einsatzApiById.value.get(row.id)
+  return api?.object_family === 'vehicle' ? api.object_name : ''
+}
+
+function destinationNameOf(row: GaPreviewEinsatz): string {
+  return places.value.find((place) => place.id === row.destinationPlaceId)?.name ?? ''
+}
 
 const calendarTrips = computed(() =>
   shownTrips.value.map((row) => ({
@@ -450,17 +429,18 @@ const calendarNeeds = computed(() =>
 )
 
 const wishGroups = computed(() => {
-  const buckets = new Map<string, GaFahrauftragVehicleRow[]>()
+  const buckets = new Map<string, GaFahrauftragWishTile[]>()
   for (const need of shownNeeds.value) {
     const category = need.category_label?.trim() || t('grossanlass.planung.transporteNoCategory')
     const groupName = groups.value.find((group) => group.id === need.group_id)?.name || need.group_name
-    const row: GaFahrauftragVehicleRow & { groupName: string } = {
+    const row: GaFahrauftragWishTile & { groupName: string } = {
       id: need.id,
       vehicle_label: need.vehicle_label,
       task_label: need.task_label,
       category,
       when: needWhen(need),
       committed: needCommitted(need),
+      origin: groupName,
       groupName,
     }
     const list = buckets.get(category) ?? []
@@ -486,17 +466,6 @@ const emptyText = computed(() =>
   listMode.value === 'upcoming' && hasAnything.value
     ? t('grossanlass.material.emptyUpcomingFahrauftraegeText')
     : t('grossanlass.material.emptyFahrauftraegeText'),
-)
-
-const chauffeurs = computed(() =>
-  cards.value.map((card) => ({
-    value: card.user_id,
-    title: card.name,
-    subtitle: card.may_drive
-      ? t('grossanlass.material.chauffeurMayDrive')
-      : t('grossanlass.material.chauffeurNoLicenseShort'),
-    mayDrive: card.may_drive,
-  })),
 )
 
 const canTogglePackedSelected = computed(() => {
@@ -540,7 +509,8 @@ function payloadFromDraft(
     from: current.fromIso,
     to: current.toIso,
     who: current.objectName || current.label || current.who,
-    chauffeur_user_id: current.chauffeurUserId || null,
+    chauffeur_user_id: null,
+    chauffeur_deferred: true,
     delivery: 'trip',
     destination_place_id: current.destinationPlaceId || null,
     group_id: current.groupId || null,
@@ -569,10 +539,30 @@ async function onTogglePackedAssignment(assignment: GaHelperAssignment) {
   await onTogglePacked(assignment)
 }
 
-async function onReleaseTrip(row: GaPreviewEinsatz) {
-  await withBusy(row.id, () => uebersicht.updateEinsatz(row.id, { trip_released: true }))
-  toast.success(t('grossanlass.material.tripsReleasedToast'))
+// Fahrt freigeben und Touren disponieren gehören zur zentralen Logistik-Disposition; hier nur Status, Zuordnung und Änderungswünsche.
+const changeOpen = ref(false)
+const changeRow = ref<GaPreviewEinsatz | null>(null)
+function onRequestChange(row: GaPreviewEinsatz) {
+  changeRow.value = row
+  changeOpen.value = true
 }
+const changeRequests = ref<GaDispatchChangeRequest[]>([])
+async function loadChangeRequests() {
+  try {
+    changeRequests.value = await listGrossanlassChangeRequests(departmentId.value)
+  } catch {
+    changeRequests.value = []
+  }
+}
+function requestOf(row: GaPreviewEinsatz): GaDispatchChangeRequest | undefined {
+  return changeRequests.value.find((item) => item.need_id === row.id && item.status === 'open') ?? changeRequests.value.find((item) => item.need_id === row.id)
+}
+const canOpenDispatch = computed(() => gaCanManagePlanung(authStore.currentDepartmentRole) || gaCanOperateAusgabe(authStore.currentDepartmentRole))
+function onChangeSent() {
+  toast.success(t('grossanlass.material.changeRequest.sent'))
+  void loadChangeRequests()
+}
+onMounted(loadChangeRequests)
 
 async function onIssueTrip(row: GaPreviewEinsatz) {
   await withBusy(row.id, () => uebersicht.issue(row.id, row.chauffeurUserId || undefined))
@@ -644,7 +634,6 @@ onMounted(() => {
     .then(([rows, needs]) => {
       groups.value = rows
       vehicleNeeds.value = needs
-      openIds.value = sections.value.map((section) => section.group.id)
     })
     .catch(() => { groups.value = [] })
     .finally(() => { groupsLoading.value = false })
@@ -722,12 +711,5 @@ onBeforeUnmount(() => {
 .ga-fahrauftraege__wish-empty {
   color: #64748b;
   font-size: 0.85rem;
-}
-.ga-fahrauftraege__tree {
-  border-radius: 10px;
-}
-.ga-fahrauftraege__loose h3 {
-  margin: 0 0 8px;
-  font-size: 0.95rem;
 }
 </style>

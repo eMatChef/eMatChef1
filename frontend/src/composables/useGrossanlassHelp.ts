@@ -10,7 +10,7 @@ const modalOpen = ref(false)
  * Kontext der Grossanlass-Hilfe. Ein Kapitel gibt es nur in einem Grossanlass-Department und auf GA-Seiten;
  * sonst ist `topicId` null und die Department-Hilfe bleibt unverändert zuständig.
  */
-export function useGaHelp() {
+export function useGrossanlassHelp() {
   const route = useRoute()
   const authStore = useAuthStore()
 

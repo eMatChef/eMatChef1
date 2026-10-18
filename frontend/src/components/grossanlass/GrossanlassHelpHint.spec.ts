@@ -31,14 +31,14 @@ vi.mock('vuetify/components/VIcon', async () => {
   return { VIcon: { render: () => h('i') } }
 })
 
-import GaHelpHint from './GaHelpHint.vue'
+import GrossanlassHelpHint from './GrossanlassHelpHint.vue'
 
 const mounted: Array<() => void> = []
 
 function mount() {
   const host = document.createElement('div')
   document.body.appendChild(host)
-  const app = createApp({ render: () => h('div', { class: 'field' }, [h(GaHelpHint, { field: 'cash', label: 'Cash' })]) })
+  const app = createApp({ render: () => h('div', { class: 'field' }, [h(GrossanlassHelpHint, { field: 'cash', label: 'Cash' })]) })
   app.use(createI18n({ legacy: false, locale: 'de', messages: { de } }))
   app.mount(host)
   mounted.push(() => {
@@ -57,7 +57,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('GaHelpHint', () => {
+describe('GrossanlassHelpHint', () => {
   it('opens on hover and keyboard focus with a mouse', () => {
     mockHover(true)
     const tip = mount().querySelector('[data-testid="tip"]')!

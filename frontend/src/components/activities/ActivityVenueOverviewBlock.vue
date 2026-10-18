@@ -765,7 +765,7 @@ const childModalDefaultName = computed(() => {
   return base ? `${base} – Zustellung` : ''
 })
 
-function kindLabelKey(kind: GaPlaceKind): 'Bauprojekt' | 'Unterlager' | 'Matplatz' | 'Anfahrt' | 'Poi' | 'Area' {
+function kindLabelKey(kind: GaPlaceKind): 'Bauprojekt' | 'Unterlager' | 'Lagerplatz' | 'Anfahrt' | 'Poi' | 'Area' {
   return gaPlaceKindLabelKey(kind)
 }
 

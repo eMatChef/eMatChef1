@@ -34,6 +34,7 @@ export type GaPreviewEinsatz = {
   barRole?: GaEinsatzBarRole
   delivery?: 'trip' | 'pickup'
   tripReleased?: boolean
+  tour?: { id: string; name: string; status: 'draft' | 'confirmed' | 'closed' } | null
   packed?: boolean
   chauffeurUserId?: string | null
   destinationPlaceId?: string | null

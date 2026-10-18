@@ -67,7 +67,7 @@ import { useRoute } from 'vue-router'
 import { EButton } from '@/components/form/base'
 import GrossanlassPackenPlanner from '@/views/grossanlass/packen/GrossanlassPackenPlanner.vue'
 import { useToast } from '@/composables/useToast'
-import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { useGrossanlassUebersicht } from '@/views/grossanlass/gaUebersicht'
 import {
   addGrossanlassPack,
   releaseGrossanlassPack,
@@ -77,7 +77,7 @@ import {
 const { t, locale } = useI18n()
 const toast = useToast()
 const route = useRoute()
-const uebersicht = useGaUebersicht()
+const uebersicht = useGrossanlassUebersicht()
 const busyId = ref<string | null>(null)
 const departmentId = computed(() => String(route.params.departmentId || ''))
 const lines = computed(() => uebersicht.data.value?.pack ?? [])

@@ -39,6 +39,13 @@
             {{ t('public.lookup.packStart') }}
           </EButton>
           <p v-else class="muted">{{ t('public.lookup.packLoginHint') }}</p>
+          <section v-if="authStore.isLoggedIn && data.status === 'in_transit' && data.department?.id" class="manual" data-testid="pack-manual">
+            <p class="muted">{{ t('public.lookup.packManualHint') }}</p>
+            <textarea v-model="manualReason" rows="2" :placeholder="t('public.lookup.packManualReason')" data-testid="pack-manual-reason" />
+            <EButton variant="secondary" :loading="busy" :disabled="manualReason.trim().length < 5" data-testid="pack-manual-action" @click="arriveManually">
+              {{ t('public.lookup.packManualAction') }}
+            </EButton>
+          </section>
         </section>
       </template>
     </main>
@@ -59,6 +66,7 @@ import { useToast } from '@/composables/useToast'
 import { getPublicGaPackByCode } from '@/api/public/publicLookup'
 import {
   rememberActivePack,
+  arriveGrossanlassPackManually,
   scanStartGrossanlassPack,
   type GaLogisticsPack,
 } from '@/api/grossanlassLogistics'
@@ -91,6 +99,26 @@ async function load() {
     error.value = err.response?.data?.error || t('public.lookup.notFound')
   } finally {
     loading.value = false
+  }
+}
+
+const manualReason = ref('')
+/** Ziel-QR nicht lesbar: Ablieferung mit Begründung (nur Chauffeur des Fahrauftrags oder Logistik, serverseitig protokolliert). */
+async function arriveManually() {
+  const pack = data.value
+  const departmentId = pack?.department?.id
+  if (!pack || !departmentId || busy.value) return
+  busy.value = true
+  try {
+    const next = await arriveGrossanlassPackManually(departmentId, pack.id, manualReason.value)
+    data.value = { ...pack, ...next }
+    manualReason.value = ''
+    toast.success(t('public.lookup.packManualDone'))
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('public.lookup.scanError'))
+  } finally {
+    busy.value = false
   }
 }
 
@@ -127,4 +155,6 @@ h1 { margin: 0 0 8px; font-size: 1.15rem; }
 .warn { color: #b45309; font-size: 0.88rem; }
 .error { color: #b91c1c; }
 .lines { margin: 12px 0; padding-left: 18px; }
+.manual { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e7eb; }
+.manual textarea { padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; }
 </style>

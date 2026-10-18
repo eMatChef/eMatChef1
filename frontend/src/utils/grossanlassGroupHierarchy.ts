@@ -159,3 +159,20 @@ export function nodeTypeForKind(
   if (kind === 'bereich') return 'unterressort'
   return 'ressort'
 }
+
+export type GaAufgabeAssignee = { value: string; title: string }
+
+/** Mitglieder der Gruppe und ihrer Eltern, die als Zuständige in Frage kommen. */
+export function assigneesFor(groupId: string, groups: GrossanlassGroup[]): GaAufgabeAssignee[] {
+  const people = new Map<string, string>()
+  const seen = new Set<string>()
+  let current = groups.find((row) => row.id === groupId)
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id)
+    for (const member of current.members ?? []) {
+      if (!people.has(member.user_id)) people.set(member.user_id, member.name)
+    }
+    current = current.parent_id ? groups.find((row) => row.id === current!.parent_id) : undefined
+  }
+  return [...people].map(([value, title]) => ({ value, title })).sort((a, b) => a.title.localeCompare(b.title, 'de'))
+}

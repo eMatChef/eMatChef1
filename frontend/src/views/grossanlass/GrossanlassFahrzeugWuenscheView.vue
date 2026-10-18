@@ -84,6 +84,15 @@
         :placeholder="t('grossanlass.planung.ressorts.materialVehiclePlaceholder')"
         hide-details
       />
+      <v-switch
+        v-model="form.transport"
+        :label="t('grossanlass.planung.ressorts.vehicleTransport')"
+        :hint="t('grossanlass.planung.ressorts.vehicleTransportHint')"
+        persistent-hint
+        color="primary"
+        density="compact"
+        data-testid="vehicle-wish-transport"
+      />
       <EDateField
         v-model="form.date"
         :label="t('grossanlass.planung.ressorts.taskBlockDate')"
@@ -136,6 +145,7 @@ const form = ref({
   task: '',
   vehicle: '',
   category: '',
+  transport: false,
   date: '',
   time: '08:00',
   end: '08:15',
@@ -201,6 +211,7 @@ async function submitWish() {
       task_label: form.value.task.trim(),
       vehicle_label: form.value.vehicle.trim(),
       category_label: form.value.category.trim() || null,
+      purpose: form.value.transport ? 'transport' : 'site_use',
       starts_at: form.value.date ? `${form.value.date}T${form.value.time || '08:00'}:00` : null,
       duration_minutes: duration,
     })
@@ -208,6 +219,7 @@ async function submitWish() {
     form.value.task = ''
     form.value.vehicle = ''
     form.value.category = ''
+    form.value.transport = false
     rows.value = await listGrossanlassVehicleNeeds(departmentId.value)
     activeTab.value = 'responses'
   } catch (e: unknown) {

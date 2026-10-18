@@ -1,6 +1,6 @@
 import apiClient from './apiClient'
 import type { DepartmentDisplayData } from './display'
-import type { DisplayLayoutPayload } from './displayLayout'
+import type { DisplayClockPayload, DisplayLayoutPayload, DisplayMapData, GaLiveData } from './displayLayout'
 
 export interface DisplayScreenSettings {
   id: string
@@ -46,6 +46,8 @@ export type PublicDisplayData = DepartmentDisplayData & {
   show_statistics?: boolean
   /** Layout des Infoscreens; null = Layouts sind im Kontext nicht aktiv (Checkbox-Konfiguration). */
   layout?: DisplayLayoutPayload | null
+  /** Fachzeit des Departments (Demo: BusinessClock), siehe `utils/displayClock.ts`. */
+  clock?: DisplayClockPayload
 }
 
 export interface DisplayScreenSettingsUpdate {
@@ -171,6 +173,7 @@ export function mapDisplayPayload(data: PublicDisplayDataResponse): PublicDispla
     show_statistics: data.show_statistics === true,
     statistics: data.statistics ?? null,
     layout: data.layout ?? null,
+    clock: data.clock,
   }
 }
 
@@ -206,4 +209,20 @@ export async function deleteDisplayScreen(departmentId: string, screenId: string
   await apiClient.delete(
     `/api/departments/${encodeURIComponent(departmentId)}/display-screens/${encodeURIComponent(screenId)}`,
   )
+}
+
+/** Kartendaten für Editor und Vorschau (Verwalter): gleiche Daten wie auf dem Gerät. */
+export async function getDisplayPreviewMapData(departmentId: string, screenId: string): Promise<DisplayMapData> {
+  const res = await apiClient.get<DisplayMapData>(
+    `/api/departments/${encodeURIComponent(departmentId)}/display-screens/${encodeURIComponent(screenId)}/map-data`,
+  )
+  return res.data
+}
+
+/** Live-Daten für die Editor-Live-Vorschau und die Vorschau (Verwalter): dieselben Daten wie auf dem Gerät. */
+export async function getDisplayPreviewLiveData(departmentId: string, screenId: string): Promise<GaLiveData> {
+  const res = await apiClient.get<GaLiveData>(
+    `/api/departments/${encodeURIComponent(departmentId)}/display-screens/${encodeURIComponent(screenId)}/live-data`,
+  )
+  return res.data
 }

@@ -1,22 +1,13 @@
 <template>
-  <div class="ga-w">
+  <div class="ga-w" :data-testid="isLive ? 'ga-live-widget' : undefined">
     <ScaledBox class="ga-w__box">
       <h2 v-if="title" class="ga-w__title">{{ title }}</h2>
-      <div class="ga-w__body">
+      <p v-if="liveMissing" class="ga-w__empty ga-w__notice" role="status" data-testid="ga-live-state">{{ live === null ? t('display.studio.live.loading') : t('display.studio.live.unavailable') }}</p>
+      <div v-else class="ga-w__body">
         <DisplayMaterial v-if="family === 'material'" :board="materialData" :view="materialView" />
         <DisplayLogistik v-else-if="family === 'logistik'" :board="logistikData" :view="logistikView" />
-        <DisplayGesamt v-else-if="family === 'overall'" :data="overallData" />
-        <DisplayProjekt v-else-if="family === 'projekt'" passive :boards="boards" :trips="tripList" :active-id="activeProject" />
-        <GaSiteMap
-          v-else-if="family === 'map'"
-          dark
-          :label="t('grossanlass.displays.projekt.mapLabel')"
-          :places="SITE_PLACES"
-          :projects="mapProjects"
-          :trips="overallData.logistics.trips"
-          :estimate-label="t('grossanlass.displays.logistik.estimated')"
-          :gps-label="t('grossanlass.displays.logistik.gps')"
-        />
+        <DisplayGesamt v-else-if="family === 'overall'" :data="overallData" :live="isLive" />
+        <DisplayProjekt v-else-if="family === 'projekt'" passive :live="isLive" :boards="boards" :trips="tripList" :active-id="activeProject" />
         <DisplayFeed v-else-if="family === 'feed'" :events="feed" />
         <ul v-else-if="family === 'tasks'" class="ga-w__list">
           <li v-for="task in openTasks" :key="task.id">
@@ -43,26 +34,36 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { displayNow } from '@/utils/displayClock'
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DisplayGesamt from '@/views/grossanlass/displays/DisplayGesamt.vue'
 import DisplayFeed from '@/views/grossanlass/displays/DisplayFeed.vue'
 import DisplayLogistik from '@/views/grossanlass/displays/DisplayLogistik.vue'
 import DisplayMaterial from '@/views/grossanlass/displays/DisplayMaterial.vue'
 import DisplayProjekt from '@/views/grossanlass/displays/DisplayProjekt.vue'
-import GaSiteMap from '@/views/grossanlass/displays/GaSiteMap.vue'
 import { useGaAufgabenMock } from '@/views/grossanlass/aufgaben/gaAufgabenMock'
 import { recentEvents, useGaLive, type GaLiveArea, type GaLiveEvent } from '@/views/grossanlass/live/gaLiveEvents'
 import {
   logistikBoard,
   materialBoard,
   matchesTaskFilter,
-  orderPlaceName,
   overall,
   projectBoards,
   trips as tripsOf,
 } from '@/views/grossanlass/live/gaLiveModel'
 import ScaledBox from './ScaledBox.vue'
+import { LAYOUT_DATA_MODE_KEY, LAYOUT_LIVE_DATA_KEY } from '../layoutContext'
+import {
+  liveFeed,
+  liveLogistikBoard,
+  liveMaterialBoard,
+  liveOverall,
+  liveProjectBoards,
+  liveTasks,
+  liveWarnings,
+} from '@/views/grossanlass/live/gaLiveAdapter'
+import type { GaLiveFeedEvent } from '@/api/displayLayout'
 
 /**
  * Renderer für alle GA-Fachwidgets. Datenquelle: die bestehenden GA-Demo-/Seed-Daten (`ga_demo`) – keine erfundenen
@@ -70,11 +71,20 @@ import ScaledBox from './ScaledBox.vue'
  */
 const props = defineProps<{ widget: string; config: Record<string, unknown> }>()
 
+// Datenmodus: dieselbe Darstellung in beiden Modi, nur die Datenquelle wechselt (Demo-Mocks oder echte GA-Daten).
+const dataMode = inject(LAYOUT_DATA_MODE_KEY, () => 'demo' as const)
+const liveSource = inject(LAYOUT_LIVE_DATA_KEY, () => null)
+const isLive = computed(() => dataMode() === 'live' && props.widget !== 'ga_helpers')
+const live = computed(() => liveSource())
+/** Rechengrundlage der Live-Sichten: ohne geladene Daten eine leere Sicht (die Anzeige zeigt dann den Hinweis). */
+const liveRows = computed(() => (live.value?.state === 'ready' ? live.value : { state: 'ready' as const }))
+/** Live ohne Daten: «wird geladen» bzw. «nicht verfügbar» statt Demo- oder Leerwerte. */
+const liveMissing = computed(() => isLive.value && live.value?.state !== 'ready')
+
 const { t } = useI18n()
 const { events } = useGaLive()
 const { tasks } = useGaAufgabenMock()
 
-const SITE_PLACES = ['Zentrallager', 'Lager A', 'Häberli Holz', 'Zeltbau AG', 'Festgelände Süd']
 
 const FAMILY: Record<string, string> = {
   ga_material_overview: 'material',
@@ -87,12 +97,11 @@ const FAMILY: Record<string, string> = {
   ga_projects: 'projekt',
   ga_tasks: 'tasks',
   ga_helpers: 'helpers',
-  ga_site_map: 'map',
   ga_activity_feed: 'feed',
   ga_warnings: 'warnings',
 }
 const family = computed(() => (props.widget === 'ga_transport_overview' && props.config.view === 'material' ? 'material' : FAMILY[props.widget] ?? ''))
-const isDemoData = computed(() => props.widget !== 'ga_helpers')
+const isDemoData = computed(() => !isLive.value && props.widget !== 'ga_helpers')
 
 const title = computed(() => String(props.config.title ?? ''))
 const filter = computed(() => ({
@@ -114,11 +123,11 @@ const materialView = computed(() => (props.widget === 'ga_transport_overview' ? 
 const logistikView = computed(() => String(props.config.view ?? 'overview'))
 
 // Zeit nur für die ETA-Simulation der Demo-Daten.
-const now = ref(new Date())
+const now = ref(displayNow())
 let timer: ReturnType<typeof setInterval> | undefined
 onMounted(() => {
   timer = setInterval(() => {
-    now.value = new Date()
+    now.value = displayNow()
   }, 1000)
 })
 onBeforeUnmount(() => {
@@ -127,30 +136,34 @@ onBeforeUnmount(() => {
 })
 
 const materialData = computed(() => {
+  if (isLive.value) return liveMaterialBoard(liveRows.value, filter.value)
   void now.value
   void events.value.length
   return materialBoard(filter.value)
 })
 const logistikData = computed(() => {
+  if (isLive.value) return liveLogistikBoard(liveRows.value, filter.value)
   void now.value
   void tasks.value
   return logistikBoard(filter.value)
 })
 const overallData = computed(() => {
+  if (isLive.value) return liveOverall(liveRows.value, filter.value)
   void now.value
   void tasks.value
   return overall(filter.value)
 })
 const boards = computed(() => {
+  if (isLive.value) return liveProjectBoards(liveRows.value, filter.value)
   void now.value
   void tasks.value
   return projectBoards(filter.value)
 })
 const tripList = computed(() => {
+  if (isLive.value) return liveLogistikBoard(liveRows.value, filter.value).trips
   void now.value
   return tripsOf(filter.value).filter((trip) => matchesTaskFilter(trip.task, filter.value))
 })
-const mapProjects = computed(() => overallData.value.boards.map((board) => ({ id: board.order.id, name: board.order.title, place: orderPlaceName(board.order), health: board.health })))
 
 // Projektrotation (rein automatisch)
 const activeProject = ref('')
@@ -178,18 +191,36 @@ const FEED_AREAS: Record<string, GaLiveArea[]> = {
   sale: ['sale'],
   problem: ['problem'],
 }
+const LIVE_FEED_AREAS: Record<string, string[]> = { material: ['task'], logistics: ['logistics'], task: ['task'], sale: [], problem: [] }
+function liveEventText(e: GaLiveFeedEvent): string {
+  const key = `display.studio.live.event.${e.kind}`
+  const base = t(key) === key ? t('display.studio.live.event.generic') : t(key)
+  return e.subject ? `${base}: ${e.subject}` : base
+}
 const feed = computed<GaLiveEvent[]>(() => {
+  if (isLive.value) {
+    const area = String(props.config.area ?? 'all')
+    return liveFeed(liveRows.value, { ressort: '', bereich: '', project: '' }, liveEventText, area in LIVE_FEED_AREAS ? LIVE_FEED_AREAS[area] : undefined).slice(0, maxItems.value)
+  }
   const areas = FEED_AREAS[String(props.config.area ?? 'all')]
   return recentEvents(maxItems.value, areas ? (event: GaLiveEvent) => areas.includes(event.area) : undefined)
 })
 
 const openTasks = computed(() => {
+  if (isLive.value) return liveTasks(liveRows.value, filter.value).filter((task) => task.status !== 'done').slice(0, maxItems.value)
   void now.value
   return tasks.value.filter((task) => task.status !== 'done' && matchesTaskFilter(task, filter.value)).slice(0, maxItems.value)
 })
 
 type Warning = { level: 'warning' | 'critical'; title: string; detail: string }
 const warnings = computed<Warning[]>(() => {
+  if (isLive.value) {
+    return liveWarnings(liveRows.value, filter.value).slice(0, maxItems.value).map((w) => {
+      const key = `display.studio.live.warning.${w.kind}`
+      const label = t(key) === key ? '' : t(key, { n: w.detail })
+      return { level: w.level, title: label ? `${label}: ${w.title}` : w.title, detail: w.kind === 'material_missing' ? '' : w.detail }
+    })
+  }
   const rows: Warning[] = []
   for (const board of boards.value) {
     if (board.health === 'ok') continue

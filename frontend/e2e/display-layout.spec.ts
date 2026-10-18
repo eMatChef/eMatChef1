@@ -41,52 +41,69 @@ test('Infoscreen ohne Gerät aus Vorlage erstellen und im Editor verändern', as
   await expect(previews).toHaveCount(4)
   expect(await previews.evaluateAll((imgs) => imgs.every((i) => (i as HTMLImageElement).complete && (i as HTMLImageElement).naturalWidth > 0))).toBe(true)
   await page.getByTestId('template-ga_materiallager').or(page.getByRole('radio', { name: /Materiallager/ })).first().click()
+  // Das Studio öffnet standardmässig in einem neuen Tab.
+  const studioPromise = page.context().waitForEvent('page')
   await page.getByRole('button', { name: 'Infoscreen erstellen' }).last().click()
-
-  await page.waitForURL(/\/ga\/displays\/[^/]+\/layout/)
-  screenId = page.url().split('/displays/')[1]!.split('/')[0]!
-  await expect(page.getByText('Noch nicht veröffentlicht').first()).toBeVisible()
-  await expect(page.getByTestId('layout-canvas')).toBeVisible()
+  const editor = await studioPromise
+  await editor.waitForURL(/\/ga\/displays\/[^/]+\/layout/)
+  screenId = editor.url().split('/displays/')[1]!.split('/')[0]!
+  await expect(editor.getByText('Noch nicht veröffentlicht').first()).toBeVisible()
+  await expect(editor.getByTestId('layout-canvas')).toBeVisible()
   // Vorlage ist eine Kopie: Elemente sind vorhanden
-  await expect(page.locator('[data-testid^="layout-item-"]').first()).toBeVisible()
+  await expect(editor.locator('[data-testid^="layout-item-"]').first()).toBeVisible()
 
-  // Widget aus der Bibliothek hinzufügen und verschieben (Tastatur) – danach ungespeichert
-  await page.getByTestId('palette-text').click()
-  await expect(page.getByTestId('status-unsaved')).toBeVisible()
-  await page.keyboard.press('ArrowDown')
+  // Die Vorlage füllt die Seite: Elemente dürfen sich nie überlappen, ein weiteres Widget findet keinen Platz.
+  await editor.getByTestId('palette-clock').click()
+  await expect(editor.getByText('Es ist kein freier Platz vorhanden.').first()).toBeVisible()
+  await expect(editor.getByTestId('status-unsaved')).toHaveCount(0)
 
-  // Drag-and-drop: Element mit der Maus verschieben
-  const item = page.locator('[data-testid^="layout-item-"].item--selected')
+  // Platz schaffen (Aktivitätenfeed entfernen), dann Widget aus der Bibliothek hinzufügen – danach ungespeichert
+  await editor.getByTestId('layout-item-i-feed').click()
+  await editor.keyboard.press('Delete')
+  await editor.getByTestId('palette-clock').click()
+  await expect(editor.getByTestId('status-unsaved')).toBeVisible()
+  const item = editor.locator('[data-testid^="layout-item-"].item--selected')
+  await expect(item).toHaveCount(1)
+
+  // Pfeiltaste verschiebt; in der Randzeile blockiert der Rand, ohne etwas zu überlappen
+  const start = await item.boundingBox()
+  await editor.keyboard.press('ArrowDown')
+  expect((await item.boundingBox())!.y).toBeGreaterThan(start!.y)
+
+  // Drag-and-drop: Element mit der Maus nach unten verschieben (seitlich begrenzt der Rand)
   const before = await item.boundingBox()
-  expect(before).not.toBeNull()
-  await page.mouse.move(before!.x + before!.width / 2, before!.y + before!.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(before!.x + before!.width / 2 + 120, before!.y + before!.height / 2 + 40, { steps: 8 })
-  await page.mouse.up()
-  const after = await item.boundingBox()
-  expect(after!.x).toBeGreaterThan(before!.x)
+  await editor.mouse.move(before!.x + before!.width / 2, before!.y + before!.height / 2)
+  await editor.mouse.down()
+  await editor.mouse.move(before!.x + before!.width / 2, before!.y + before!.height / 2 + 40, { steps: 8 })
+  await editor.mouse.up()
+  expect((await item.boundingBox())!.y).toBeGreaterThan(before!.y)
 
-  // Skalieren über den Griff
-  const handle = page.getByTestId('layout-resize-handle')
+  // Skalieren über den Griff (nach unten)
+  const handle = editor.getByTestId('layout-resize-handle')
   const hb = await handle.boundingBox()
   const sizeBefore = await item.boundingBox()
-  await page.mouse.move(hb!.x + 6, hb!.y + 6)
-  await page.mouse.down()
-  await page.mouse.move(hb!.x + 6 + 60, hb!.y + 6 + 10, { steps: 6 })
-  await page.mouse.up()
-  const sizeAfter = await item.boundingBox()
-  expect(sizeAfter!.width).toBeGreaterThan(sizeBefore!.width)
+  await editor.mouse.move(hb!.x + 4, hb!.y + 4)
+  await editor.mouse.down()
+  await editor.mouse.move(hb!.x + 4, hb!.y + 4 + 25, { steps: 6 })
+  await editor.mouse.up()
+  expect((await item.boundingBox())!.height).toBeGreaterThan(sizeBefore!.height)
 
-  // Das Test-Widget wieder entfernen (sonst überlappt es Vorlageninhalt und blockiert die Veröffentlichung).
-  await page.getByRole('button', { name: 'Entfernen' }).click()
+  // Undo/Redo: Skalieren rückgängig machen und wiederholen
+  await editor.getByTestId('btn-undo').click()
+  expect(Math.abs((await item.boundingBox())!.height - sizeBefore!.height)).toBeLessThan(2)
+  await editor.getByTestId('btn-redo').click()
+  expect((await item.boundingBox())!.height).toBeGreaterThan(sizeBefore!.height)
+
+  // Das Test-Widget wieder entfernen
+  await editor.getByRole('button', { name: 'Entfernen' }).click()
 
   // Eigenschaften: Titel der Vorlagenkopie ändern
-  await page.locator('[data-testid^="layout-item-"]').filter({ hasText: 'Materiallager' }).first().click()
-  await page.getByLabel('Titel', { exact: true }).first().fill('Willkommen im Lager')
+  await editor.locator('[data-testid^="layout-item-"]').filter({ hasText: 'Materiallager' }).first().click()
+  await editor.getByLabel('Titel', { exact: true }).first().fill('Willkommen im Lager')
 
-  await page.getByTestId('btn-save').click()
-  await expect(page.getByText('Entwurf gespeichert.').first()).toBeVisible()
-  await expect(page.getByTestId('status-unpublished')).toBeVisible()
+  await editor.getByTestId('btn-save').click()
+  await expect(editor.getByText('Entwurf gespeichert.').first()).toBeVisible()
+  await expect(editor.getByTestId('status-unpublished')).toBeVisible()
 })
 
 test('Vorschau für TV und LED-Wall', async ({ page }) => {
@@ -117,34 +134,37 @@ test('Leeres Layout: Material und Logistik nebeneinander', async ({ page }) => {
   await page.getByRole('button', { name: 'Infoscreen erstellen' }).first().click()
   await page.getByLabel('Name', { exact: false }).first().fill(`E2E Leer ${Date.now()}`)
   await page.getByTestId('template-blank').or(page.getByRole('radio', { name: /Leere Anzeige/ })).first().click()
+  const studioPromise = page.context().waitForEvent('page')
   await page.getByRole('button', { name: 'Infoscreen erstellen' }).last().click()
-  await page.waitForURL(/\/ga\/displays\/[^/]+\/layout/)
+  const editor = await studioPromise
+  await editor.waitForURL(/\/ga\/displays\/[^/]+\/layout/)
 
-  await page.getByTestId('palette-ga_material_overview').click()
-  await page.getByTestId('palette-ga_transport_overview').click()
-  await expect(page.locator('[data-testid^="layout-item-"]')).toHaveCount(2)
-  await expect(page.getByText(/Hinweis.*überlappen/)).toHaveCount(0)
-  await page.getByTestId('btn-save').click()
-  await expect(page.getByText('Entwurf gespeichert.').first()).toBeVisible()
+  await editor.getByTestId('palette-ga_material_overview').click()
+  await editor.getByTestId('palette-ga_transport_overview').click()
+  await expect(editor.locator('[data-testid^="layout-item-"]')).toHaveCount(2)
+  await expect(editor.getByText(/Hinweis.*überlappen/)).toHaveCount(0)
+  await editor.getByTestId('btn-save').click()
+  await expect(editor.getByText('Entwurf gespeichert.').first()).toBeVisible()
 
-  await page.getByTestId('btn-preview').click()
-  const frame = page.getByTestId('preview-frame')
+  await editor.getByTestId('btn-preview').click()
+  const frame = editor.getByTestId('preview-frame')
   await expect(frame.locator('.ga-w__demo')).toHaveCount(2)
   const boxes = await frame.locator('.dl-cell').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().x))
   expect(new Set(boxes.map((x) => Math.round(x))).size).toBe(2)
-  await page.keyboard.press('Escape')
+  await editor.keyboard.press('Escape')
   await expect(frame).toBeHidden()
 
   // Gesamtanzeige: zweite Seite hinzufügen und Gesamtrotation einschalten
-  await page.getByRole('button', { name: 'Seite hinzufügen' }).click()
-  await page.getByTestId('tab-display').click()
-  await page.getByRole('combobox', { name: /Seite zum Ablauf hinzufügen/ }).click({ force: true })
-  await page.getByRole('option').first().click()
-  await page.getByRole('button', { name: 'Hinzufügen' }).last().click()
-  await expect(page.getByText('Rotation aktiv')).toBeVisible()
+  await editor.getByRole('button', { name: 'Seite hinzufügen' }).click()
+  await editor.getByTestId('tab-display').click()
+  await editor.getByRole('combobox', { name: /Seite zum Ablauf hinzufügen/ }).click({ force: true })
+  await editor.locator('.v-overlay-container').getByRole('option').first().click()
+  await editor.getByRole('button', { name: 'Hinzufügen' }).last().click()
+  await expect(editor.getByText('Rotation aktiv')).toBeVisible()
 })
 
 test('Gerät koppeln, passive Anzeige, Entwurf vs. Veröffentlichung', async ({ page, browser }) => {
+  test.setTimeout(240_000)
   await login(page)
   await page.goto(`/${gaDept}/ga/displays/${screenId}/layout`)
 
@@ -194,6 +214,11 @@ test('Gerät koppeln, passive Anzeige, Entwurf vs. Veröffentlichung', async ({ 
   await expect(tv.locator('.dl')).toBeVisible({ timeout: 20_000 })
   await expect(tv.locator('.dl')).toContainText('Willkommen im Lager')
 
+  // Veröffentlichte Anzeigen verwenden standardmässig echte Daten: Live-Widgets, keine Demo-Kennzeichnung.
+  await expect(tv.getByTestId('ga-live-widget').first()).toBeVisible({ timeout: 20_000 })
+  await expect(tv.locator('.ga-w__demo')).toHaveCount(0)
+  await expect(tv.getByTestId('display-demo-badge')).toHaveCount(0)
+
   // Passive Anzeige: keine Bedienelemente.
   await expect(tv.locator('button, input, textarea, select, a[href], form, [role="button"], [role="tab"], [tabindex]')).toHaveCount(0)
 
@@ -218,6 +243,28 @@ test('Gerät koppeln, passive Anzeige, Entwurf vs. Veröffentlichung', async ({ 
   const rotation = tv.locator('.dl-rotation').first()
   const first = await rotation.innerText()
   await expect.poll(async () => rotation.innerText(), { timeout: 30_000 }).not.toBe(first)
+
+  // Demomodus der Anzeige: nur nach ausdrücklicher Einstellung und Veröffentlichung.
+  await page.goto(`/${gaDept}/ga/displays/${screenId}/layout`)
+  await page.getByTestId('tab-display').click()
+  await page.getByTestId('published-demo-toggle').getByRole('checkbox').check()
+  await page.getByTestId('btn-publish').click()
+  await expect(page.getByTestId('publish-mode')).toContainText('Demodaten')
+  await page.getByTestId('btn-publish-confirm').click()
+  await expect(page.getByText(/Veröffentlicht: Revision 3/).first()).toBeVisible()
+  await tv.reload()
+  await expect(tv.getByTestId('display-demo-badge')).toBeVisible({ timeout: 20_000 })
+  await expect(tv.getByTestId('display-demo-badge')).toHaveText('Demo-Daten')
+  await expect(tv.getByTestId('ga-live-widget')).toHaveCount(0)
+
+  // Zurück auf echte Daten.
+  await page.getByTestId('published-demo-toggle').getByRole('checkbox').uncheck()
+  await page.getByTestId('btn-publish').click()
+  await page.getByTestId('btn-publish-confirm').click()
+  await expect(page.getByText(/Veröffentlicht: Revision 4/).first()).toBeVisible()
+  await tv.reload()
+  await expect(tv.getByTestId('ga-live-widget').first()).toBeVisible({ timeout: 20_000 })
+  await expect(tv.getByTestId('display-demo-badge')).toHaveCount(0)
 
   await tvContext.close()
 })

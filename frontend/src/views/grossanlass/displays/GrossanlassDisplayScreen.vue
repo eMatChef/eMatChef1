@@ -42,7 +42,7 @@
         <template v-else>
           <DisplayGesamt v-if="view === 'dashboard'" :data="overallData" />
           <div v-else class="tv__mapfull">
-            <GaSiteMap
+            <GrossanlassSiteMap
               dark
               :label="t('grossanlass.displays.projekt.mapLabel')"
               :places="['Zentrallager', 'Lager A', 'Häberli Holz', 'Zeltbau AG', 'Festgelände Süd']"
@@ -67,13 +67,14 @@ import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import { useAuthStore } from '@/stores/auth'
 import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 import { displayById, recentEvents, useGaLive, type GaLiveEvent } from '@/views/grossanlass/live/gaLiveEvents'
+import { loadDispatch } from '@/views/grossanlass/logistik/useGaDispo'
 import { logistikBoard, materialBoard, orderPlaceName, overall, projectBoards, trips as tripsOf, matchesTaskFilter } from '@/views/grossanlass/live/gaLiveModel'
 import DisplayFeed from './DisplayFeed.vue'
 import DisplayGesamt from './DisplayGesamt.vue'
 import DisplayLogistik from './DisplayLogistik.vue'
 import DisplayMaterial from './DisplayMaterial.vue'
 import DisplayProjekt from './DisplayProjekt.vue'
-import GaSiteMap from './GaSiteMap.vue'
+import GrossanlassSiteMap from './GrossanlassSiteMap.vue'
 import { useGaAufgabenMock } from '@/views/grossanlass/aufgaben/gaAufgabenMock'
 
 const { t, locale } = useI18n()
@@ -210,6 +211,9 @@ onMounted(() => {
   }, 1000)
   document.addEventListener('fullscreenchange', syncFullscreen)
   restartRotation()
+  // Echte Transportdaten ersetzen die Demo-Fahrten des Logistik-Leitstands (nur mit GA-Department und Berechtigung)
+  const departmentId = authStore.activeDepartmentId
+  if (departmentId && authStore.isDepartmentGrossanlass(departmentId)) void loadDispatch(departmentId)
 })
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer)

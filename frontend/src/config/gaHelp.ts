@@ -1,6 +1,6 @@
 /**
  * Registry der Grossanlass-Hilfe (GA). Kapitel hängen an stabilen Routennamen; die Texte liegen in vue-i18n
- * unter `gaHelp.topics.<id>.*` (Varianten und Fallback über die bestehende Locale-Kette).
+ * unter `grossanlass.help.topics.<id>.*` (Varianten und Fallback über die bestehende Locale-Kette).
  *
  * Strikt getrennt von der Department-Hilfe (`help/*`): nur in einem Grossanlass-Department und nur auf
  * GA-Seiten wird die GA-Hilfe angeboten. Alle anderen Seiten behalten die bisherige Hilfe.
@@ -13,7 +13,7 @@ export type GaHelpTopic = {
   group: GaHelpGroup
   /** Routen, die dieses Kapitel als Seitenhilfe öffnen; die erste ist das Ziel von «Seite öffnen». */
   routeNames: readonly string[]
-  /** Ids der häufigen Fragen: Texte unter `gaHelp.topics.<id>.faq.<faqId>.q|a`. */
+  /** Ids der häufigen Fragen: Texte unter `grossanlass.help.topics.<id>.faq.<faqId>.q|a`. */
   faq: readonly string[]
 }
 
@@ -124,9 +124,9 @@ export function gaHelpTopicsByGroup(group: GaHelpGroup): GaHelpTopic[] {
 }
 
 export const gaHelpKey = {
-  title: (id: string) => `gaHelp.topics.${id}.title`,
-  summary: (id: string) => `gaHelp.topics.${id}.summary`,
-  question: (id: string, faqId: string) => `gaHelp.topics.${id}.faq.${faqId}.q`,
-  answer: (id: string, faqId: string) => `gaHelp.topics.${id}.faq.${faqId}.a`,
-  field: (id: string) => `gaHelp.fields.${id}`,
+  title: (id: string) => `grossanlass.help.topics.${id}.title`,
+  summary: (id: string) => `grossanlass.help.topics.${id}.summary`,
+  question: (id: string, faqId: string) => `grossanlass.help.topics.${id}.faq.${faqId}.q`,
+  answer: (id: string, faqId: string) => `grossanlass.help.topics.${id}.faq.${faqId}.a`,
+  field: (id: string) => `grossanlass.help.fields.${id}`,
 }

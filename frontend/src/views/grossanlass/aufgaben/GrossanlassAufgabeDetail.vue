@@ -94,7 +94,7 @@
 
     <section v-if="task.dependencies?.length || (task.groupId && task.permissions?.edit && dependencyCandidates?.length)" class="aufgabe-detail__section">
       <h4>{{ t('grossanlass.aufgaben.deps.title') }}</h4>
-      <GaDependencyList
+      <GrossanlassDependencyList
         :dependencies="task.dependencies ?? []"
         :can-edit="!!task.permissions?.edit && !readOnly"
         :candidates="dependencyCandidates ?? []"
@@ -196,7 +196,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { EButton, ESelect, ETextField } from '@/components/form/base'
 import type { GaDependency, GaDependencyMode, GaTaskStatus } from '@/api/grossanlassBauprojekt'
-import GaDependencyList from '@/components/grossanlass/GaDependencyList.vue'
+import GrossanlassDependencyList from '@/components/grossanlass/GrossanlassDependencyList.vue'
 import { taskProgress, type GaAufgabe } from './gaAufgabenMock'
 import { KIND_ICON, STATUS_COLOR, dayLabel, statusKey, useGaNow, whenLabel } from './gaAufgabenUi'
 

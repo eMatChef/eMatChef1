@@ -73,6 +73,8 @@
           :layout="layoutPayload.layout"
           :variant-id="layoutPayload.variant_id"
           :font-scale="layoutPayload.font_scale ?? 1"
+          :map-data="mapData"
+          :live-data="liveData"
         />
       </div>
       <div v-else class="display-layout display-layout--waiting" role="status">
@@ -200,21 +202,30 @@ import EButton from '@/components/form/base/EButton.vue'
 import ECard from '@/components/form/base/ECard.vue'
 import ETextField from '@/components/form/base/ETextField.vue'
 import DisplayLayoutRenderer from '@/components/display/layout/DisplayLayoutRenderer.vue'
-import type { DisplayLayoutPayload } from '@/api/displayLayout'
+import type { DisplayLayoutPayload, DisplayMapData } from '@/api/displayLayout'
+import { layoutUsesWidget } from '@/utils/displayMapModel'
+import { applyDisplayClock, displayNow, isDisplayClockDemo } from '@/utils/displayClock'
 import type { DisplayActivityRow, DisplayStatistics, DisplayWorkshopTicketRow } from '@/api/display'
 import {
   authenticatePublicDisplay,
   getDisplayPreviewData,
+  getDisplayPreviewLiveData,
+  getDisplayPreviewMapData,
   getPublicDisplaySession,
   type PublicDisplayData,
 } from '@/api/displayScreens'
-import { getDisplayDeviceData, getDisplayDeviceSession } from '@/api/displayDevice'
+import { getDisplayDeviceData, getDisplayDeviceLiveData, getDisplayDeviceMapData, getDisplayDeviceSession } from '@/api/displayDevice'
+import { collectWidgets } from '@/components/display/layout/studio/liveSupport'
+import type { GaLiveData } from '@/api/displayLayout'
 import { resolveActivityPublicUrl, resolveWorkshopPublicUrl } from '@/utils/publicQrUrl'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
 
 const PIN_CHARSET = /[^23456789ABCDEFGHJKLMNPQRSTUVWXYZ]/g
 
 const REFRESH_MS = 60_000
+/** Demo-Departments: kürzerer Takt, damit Zeitsprünge und Änderungen an Aufgaben, Fahrten und Material rasch erscheinen. */
+const DEMO_REFRESH_MS = 8_000
+const refreshInterval = () => (isDisplayClockDemo() ? DEMO_REFRESH_MS : REFRESH_MS)
 const EXPIRED_POLL_MS = 30_000
 /** Wiederverbindung nach Verbindungsverlust: zunehmender Abstand, höchstens 5 Minuten. */
 const RECONNECT_BACKOFF_MS = [15_000, 30_000, 60_000, 120_000, 300_000]
@@ -239,6 +250,9 @@ const loaded = ref(false)
 const lastUpdate = ref<Date | null>(null)
 const scope = ref<'department' | 'grossanlass' | undefined>(undefined)
 const layoutPayload = ref<DisplayLayoutPayload | null>(null)
+/** Kartendaten für das Widget «ga_site_map»; nur geladen, wenn das Layout es enthält. */
+const mapData = ref<DisplayMapData | null>(null)
+const liveData = ref<GaLiveData | null>(null)
 const pinInput = ref('')
 const pinError = ref<string | null>(null)
 const pinSubmitting = ref(false)
@@ -289,8 +303,8 @@ const panelCount = computed(() => (showActivities.value ? 1 : 0) + (showWorkshop
 type DisplayActivityItem = DisplayActivityRow & { periodLabel: string; publicUrl: string }
 
 const displayActivities = computed((): DisplayActivityItem[] => {
-  const now = Date.now()
-  const todayStart = new Date()
+  const now = displayNow().getTime()
+  const todayStart = displayNow()
   todayStart.setHours(0, 0, 0, 0)
   const horizon = now + 60 * 24 * 60 * 60 * 1000
 
@@ -404,7 +418,7 @@ function activityStatusLabel(status: string): string {
 }
 
 function updateClock() {
-  const now = new Date()
+  const now = displayNow()
   clockIso.value = now.toISOString()
   clockLabel.value = now.toLocaleString(intlTag(), {
     weekday: 'short',
@@ -496,11 +510,60 @@ function applyData(data: PublicDisplayData) {
   allowedWorkshopStatuses.value = data.workshop_statuses?.length ? data.workshop_statuses : []
   statistics.value = data.statistics ?? null
   layoutPayload.value = data.layout ?? null
+  applyDisplayClock(data.clock)
+  updateClock()
+  void refreshMapData()
+  void refreshLiveData()
+}
+
+/**
+ * Live-Daten der GA-Fachwidgets: nur wenn die Anzeige im Livemodus ist (Standard) und Fachwidgets enthält. Im
+ * ausdrücklich veröffentlichten Demomodus werden keine echten Daten geladen. Ein Fehler lässt die letzten Daten stehen.
+ */
+async function refreshLiveData() {
+  const layout = layoutPayload.value?.state === 'ready' ? layoutPayload.value.layout : null
+  const needsLive = !!layout && layout.data_mode !== 'demo' && collectWidgets(layout).some((w) => w.startsWith('ga_') && w !== 'ga_helpers' && w !== 'ga_site_map')
+  if (!needsLive) {
+    liveData.value = null
+    return
+  }
+  try {
+    const next = isPreview.value
+      ? await getDisplayPreviewLiveData(previewDepartmentId.value, previewScreenId.value)
+      : await getDisplayDeviceLiveData()
+    if (next) {
+      liveData.value = next
+      if (applyDisplayClock(next.clock)) updateClock()
+    }
+  } catch {
+    /* Offline oder Fehler: zuletzt geladene Daten bleiben sichtbar, der Offline-Hinweis erscheint über load() */
+  }
+}
+
+/** Lädt die Kartendaten mit demselben Takt wie die Anzeige; ein Fehler lässt die zuletzt geladene Karte stehen. */
+async function refreshMapData() {
+  const layout = layoutPayload.value?.state === 'ready' ? layoutPayload.value.layout : null
+  // Auch die Live-Ansichten «Gesamtübersicht» und «Projekte» zeigen die echte Geländekarte.
+  const liveMapNeeded = !!layout && layout.data_mode !== 'demo' && (layoutUsesWidget(layout, 'ga_overview') || layoutUsesWidget(layout, 'ga_projects'))
+  if (!layoutUsesWidget(layout, 'ga_site_map') && !liveMapNeeded) {
+    mapData.value = null
+    return
+  }
+  try {
+    const next = isPreview.value
+      ? await getDisplayPreviewMapData(previewDepartmentId.value, previewScreenId.value)
+      : await getDisplayDeviceMapData()
+    if (next) mapData.value = next
+  } catch {
+    /* Offline oder Fehler: zuletzt geladene Kartendaten bleiben sichtbar */
+  }
 }
 
 /** Verwirft alle angezeigten Inhalte (Widerruf, abgelaufene Freigabe): nichts bleibt im Speicher sichtbar. */
 function clearData() {
   applyData({ activities: [], workshopTickets: [], statistics: null })
+  mapData.value = null
+  liveData.value = null
   loaded.value = false
   lastUpdate.value = null
 }
@@ -522,7 +585,7 @@ async function loadDevice() {
       offline.value = false
       failures = 0
       loadError.value = null
-      scheduleRefresh(REFRESH_MS)
+      scheduleRefresh(refreshInterval())
       return
     }
     failures = 0
@@ -573,7 +636,7 @@ async function load() {
   } finally {
     loading.value = false
   }
-  scheduleRefresh(REFRESH_MS)
+  scheduleRefresh(refreshInterval())
 }
 
 async function bootstrap() {
@@ -617,7 +680,7 @@ async function bootstrap() {
 function startClock() {
   if (clockTimer) clearInterval(clockTimer)
   updateClock()
-  clockTimer = setInterval(updateClock, 30_000)
+  clockTimer = setInterval(updateClock, 5_000)
 }
 
 function stopTimers() {

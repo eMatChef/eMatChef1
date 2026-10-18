@@ -36,6 +36,17 @@
         <p v-if="helper.note" class="drawer__note">„{{ helper.note }}“</p>
       </section>
 
+      <section v-if="hasProfile" data-testid="ga-helper-profile">
+        <h4>{{ t('grossanlass.helferpool.form.section.skills') }}</h4>
+        <p v-if="helper.occupation">{{ helper.occupation }}</p>
+        <div v-if="helper.skills?.length" class="chips"><v-chip v-for="skill in helper.skills" :key="skill" size="x-small" variant="tonal">{{ skill }}</v-chip></div>
+        <p v-if="helper.area" class="muted">{{ t('grossanlass.helferpool.form.area') }}: {{ helper.area }}</p>
+        <div v-if="helper.drive_license?.classes.length || helper.qualifications?.length" class="chips">
+          <v-chip v-for="code in helper.drive_license?.classes ?? []" :key="code" size="x-small" variant="outlined" prepend-icon="mdi-card-account-details-outline">{{ t(`grossanlass.chain.drive.classes.${code}`) }}</v-chip>
+          <v-chip v-for="q in helper.qualifications ?? []" :key="q.label" size="x-small" variant="outlined" prepend-icon="mdi-certificate-outline">{{ q.label }}<template v-if="q.valid_until"> · {{ q.valid_until }}</template></v-chip>
+        </div>
+      </section>
+
       <section>
         <h4>{{ t('grossanlass.helferpool.availability') }}</h4>
         <p class="muted">{{ t('grossanlass.helferpool.availabilityHint') }}</p>
@@ -107,7 +118,7 @@ import GrossanlassHelferWindowFields from './GrossanlassHelferWindowFields.vue'
 import { fullName, windowLabel } from './gaHelferUi'
 
 /** Helfer-Detail: Kontakt, Verfügbarkeitsfenster (erfassen, ändern, löschen), Zuteilungen. Archivieren statt löschen. */
-const props = defineProps<{ departmentId: string; helperId: string | null; schedule: GaScheduleHelper | null }>()
+const props = defineProps<{ departmentId: string; helperId: string | null; schedule: GaScheduleHelper | null; version?: number }>()
 const emit = defineEmits<{ edit: [helper: GaHelper]; changed: [] }>()
 const open = defineModel<boolean>({ default: false })
 const { t, locale } = useI18n()
@@ -124,6 +135,10 @@ const newStart = ref('')
 const newEnd = ref('')
 
 const assignments = computed(() => props.schedule?.assignments ?? [])
+const hasProfile = computed(() => {
+  const h = helper.value
+  return Boolean(h && (h.occupation || h.area || h.skills?.length || h.qualifications?.length || h.drive_license?.classes.length))
+})
 const draftValid = computed(() => draftStart.value !== '' && draftEnd.value > draftStart.value)
 const newValid = computed(() => newStart.value !== '' && newEnd.value > newStart.value)
 
@@ -143,7 +158,7 @@ async function load() {
   }
 }
 
-watch(() => [open.value, props.helperId] as const, ([isOpen]) => {
+watch(() => [open.value, props.helperId, props.version] as const, ([isOpen]) => {
   if (!isOpen) return
   editingId.value = ''
   newStart.value = ''
@@ -188,6 +203,12 @@ defineExpose({ reload: load })
 </script>
 
 <style scoped>
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0;
+}
 .drawer {
   display: flex;
   flex-direction: column;

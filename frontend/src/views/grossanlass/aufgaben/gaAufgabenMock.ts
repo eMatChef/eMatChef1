@@ -57,11 +57,24 @@ export type GaAufgabe = {
   waitingOn?: string[]
   waitingHidden?: number
   /** Nur API-Aufgaben: Gesamtabnahme-Zustand des Bauauftrags. */
+  /** Nur API-Aufgaben: vom Backend freigegeben; nur diese erscheinen in der operativen Übersicht. */
+  released?: boolean
+  /** Nur API-Aufgaben: der angemeldete Benutzer ist verantwortlich oder als Helfer eingeteilt. */
+  assignedToMe?: boolean
   orderStatus?: 'open' | 'review' | 'accepted'
   /** Nur API-Aufgaben: Nachbesserung mit Rückweisungsgrund. */
   rework?: { eventId: string; reason: string | null; at: string | null } | null
   /** Nur API-Aufgaben: Verlauf Fertigmeldung/Abnahme/Rückgabe, neueste zuerst. */
   events?: { id: string; type: 'reported' | 'accepted' | 'returned'; byName: string | null; note: string | null; at: string }[]
+  /** Nur echte Fahraufträge: Verweis auf den Einsatz (`delivery = trip`) mit seinem API-Status. */
+  fahrauftrag?: {
+    einsatzId: string
+    status: 'planned' | 'pending_approval' | 'issued' | 'returned'
+    vehicle: string
+    destination: string
+    released: boolean
+    operable: boolean
+  }
   kind: GaAufgabeKind
   title: string
   /** Ursprung als Breadcrumb, z. B. Ressort › Bereich › Bauprojekt */

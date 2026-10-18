@@ -393,6 +393,10 @@
       "packStart": "Fahrt starten",
       "packLoginHint": "Zum Starten in der App anmelden.",
       "packStarted": "Pack unterwegs.",
+      "packManualHint": "Ziel-QR nicht lesbar? Die Ablieferung kann mit Begründung bestätigt werden (nur Chauffeur des Fahrauftrags oder Logistik); sie wird protokolliert.",
+      "packManualReason": "Begründung (z. B. QR am Ziel abgerissen)",
+      "packManualAction": "Ablieferung ohne QR bestätigen",
+      "packManualDone": "Ablieferung bestätigt.",
       "packStatus": {
         "staging": "Wird gepackt",
         "trip_released": "Fahrt frei",
@@ -461,17 +465,324 @@
     "language": "Sprache"
   },
   "display": {
+    "studio": {
+      "rotation": {
+          "hint": "Jede Rotationsseite ist eine frei gestaltbare Fläche. Doppelklick oder ✎ öffnet sie zur Gestaltung; Ziehen ändert die Reihenfolge.",
+          "edit": "Seite gestalten",
+          "addPage": "Seite hinzufügen",
+          "pageTitle": "Titel der Seite",
+          "pageName": "Seite {n}",
+          "copyName": "{name} (Kopie)",
+          "label": "Rotation ({n} Seiten)",
+          "prev": "Vorherige Seite",
+          "next": "Nächste Seite",
+          "pageOf": "Seite {n} von {count}"
+        },
+      "live": {
+        "loading": "Daten werden geladen…",
+        "unavailable": "Für diese Anzeige sind keine Live-Daten verfügbar.",
+        "material": {
+          "required": "Bedarf",
+          "packed": "Gepackt",
+          "transport": "Im Transport",
+          "onSite": "Vor Ort",
+          "missing": "Fehlend",
+          "missingQty": "{n} {unit} fehlen",
+          "expectedQty": "{n} {unit} erwartet",
+          "packedLine": "{packed} von {required} gepackt · bereit {ready} · unterwegs {transit} · vor Ort {site}"
+        },
+        "logistics": {
+          "open": "Offen",
+          "planned": "Disponiert",
+          "underway": "Unterwegs",
+          "urgent": "Dringend",
+          "status": {
+            "open": "Offen",
+            "planned": "Disponiert",
+            "underway": "Unterwegs",
+            "done": "Erledigt"
+          },
+          "notReady": "Material noch nicht bereit",
+          "tourStatus": {
+            "draft": "Entwurf",
+            "confirmed": "Bestätigt",
+            "underway": "Unterwegs",
+            "done": "Erledigt",
+            "closed": "Abgeschlossen"
+          },
+          "noResources": "Noch kein Fahrzeug / Chauffeur",
+          "vehicles": "Fahrzeuge",
+          "activeTours": "Aktive Touren",
+          "noRoute": "Ohne Route"
+        },
+        "overall": {
+          "open": "Aufgaben offen",
+          "progress": "In Arbeit",
+          "done": "Erledigt",
+          "blocked": "Blockiert",
+          "missing": "Fehlmaterial",
+          "underway": "Transporte unterwegs"
+        },
+        "projects": {
+          "tasksDone": "Aufgaben erledigt",
+          "blocked": "Blockiert",
+          "overdue": "Überfällig",
+          "material": "Material gepackt",
+          "current": "In Arbeit",
+          "next": "Als Nächstes",
+          "deadline": "Termin"
+        },
+        "tasks": {
+          "status": {
+            "open": "Offen",
+            "progress": "In Arbeit",
+            "review": "Zur Abnahme",
+            "done": "Erledigt"
+          }
+        },
+        "empty": {
+          "material": "Noch kein Materialbedarf erfasst.",
+          "missing": "Kein Material fehlt.",
+          "incoming": "Kein Wareneingang erwartet.",
+          "transports": "Keine offenen Transporte.",
+          "tours": "Keine aktiven Touren.",
+          "running": "Keine Aufgabe in Arbeit.",
+          "projects": "Keine Bauprojekte mit Aufgaben.",
+          "tasks": "Keine offenen Aufgaben.",
+          "feed": "Noch keine Ereignisse.",
+          "warnings": "Keine Warnungen."
+        },
+        "event": {
+          "generic": "Ereignis",
+          "task_reported": "Aufgabe fertig gemeldet",
+          "task_accepted": "Aufgabe abgenommen",
+          "task_returned": "Aufgabe zurückgegeben",
+          "order_reported": "Bauauftrag fertig gemeldet",
+          "order_accepted": "Bauauftrag abgenommen",
+          "order_returned": "Bauauftrag zurückgegeben",
+          "order_withdrawn": "Meldung zurückgezogen",
+          "order_reopened": "Bauauftrag wieder geöffnet",
+          "dispatch_released": "Fahrt freigegeben",
+          "dispatch_requested": "Änderung gewünscht",
+          "dispatch_not_executed": "Fahrt nicht ausgeführt",
+          "dispatch_delivered_manually": "Manuell abgeliefert",
+          "dispatch_release_revoked": "Freigabe zurückgenommen",
+          "dispatch_departed": "Fahrt gestartet",
+          "dispatch_delivered": "Abgeliefert",
+          "dispatch_converted_from_vehicle_need": "Fahrzeugwunsch in Fahrauftrag überführt",
+          "tour_confirmed": "Tour bestätigt",
+          "tour_unconfirmed": "Tourbestätigung zurückgenommen",
+          "tour_closed": "Tour abgeschlossen"
+        },
+        "warning": {
+          "task_blocked": "Aufgabe blockiert",
+          "task_overdue": "Aufgabe überfällig",
+          "material_missing": "Material fehlt ({n} Positionen)",
+          "transport_urgent": "Transport dringend",
+          "tour_conflict": "Konflikt in Tour"
+        }
+      },
+      "toolbar": {
+        "back": "Verwaltung",
+        "backTitle": "Zurück zur Infoscreen-Verwaltung",
+        "undo": "Rückgängig (Strg+Z)",
+        "redo": "Wiederholen (Strg+Y)",
+        "zoomIn": "Vergrössern",
+        "zoomOut": "Verkleinern",
+        "fit": "Einpassen (Strg+0)",
+        "grid": "Rasterlinien ein-/ausblenden",
+        "template": "Vorlage…",
+        "saving": "Speichert…",
+        "toggleLibrary": "Bausteinbibliothek ein-/ausblenden",
+        "toggleProps": "Eigenschaften ein-/ausblenden"
+      },
+      "actions": {
+        "group": "Gruppieren (Strg+G)",
+        "ungroup": "Gruppe auflösen",
+        "copy": "Kopieren (Strg+C)",
+        "paste": "Einfügen (Strg+V)",
+        "duplicate": "Duplizieren (Strg+D)",
+        "delete": "Löschen (Entf)",
+        "editSeparately": "Separat bearbeiten",
+        "saveAsBlock": "Als Baustein speichern"
+      },
+      "mode": {
+        "label": "Datenvorschau im Editor",
+        "demo": "Demo",
+        "live": "Live",
+        "demoHint": "Beispieldaten: so lässt sich die Anzeige ohne echte Aufträge gestalten. Betrifft nur die Vorschau.",
+        "liveHint": "Echte Daten des Grossanlasses. Betrifft nur die Vorschau, nicht die veröffentlichte Anzeige.",
+        "badgeDemo": "Demo-Vorschau (Beispieldaten)",
+        "badgeLive": "Live-Vorschau (echte Daten)"
+      },
+      "publishedMode": {
+        "label": "Demodaten auf der Anzeige verwenden",
+        "demoOff": "Verbundene Geräte zeigen die echten Daten des Grossanlasses. Fehlende Daten erscheinen als Leerzustand, nie als Demodaten.",
+        "demoOn": "Verbundene Geräte zeigen nach dem Veröffentlichen ausdrücklich Demodaten.",
+        "badgeNote": "Die Anzeige trägt die Kennzeichnung «Demo-Daten». Die Einstellung gehört zur veröffentlichten Revision.",
+        "unsupported": "Noch keine Live-Anbindung: {list}. Diese Widgets verhindern das Veröffentlichen mit echten Daten.",
+        "confirmLive": "Die Anzeige zeigt nach dem Veröffentlichen die echten Daten des Grossanlasses.",
+        "confirmDemo": "Achtung: Die Anzeige zeigt nach dem Veröffentlichen ausdrücklich Demodaten (mit Kennzeichnung «Demo-Daten»)."
+      },
+      "demoBadge": "Demo-Daten",
+      "blocked": "Dort ist kein Platz: Elemente dürfen sich nicht überlappen.",
+      "copied": "{n} Element(e) kopiert.",
+      "errors": {
+        "noSpace": "Es ist kein freier Platz vorhanden.",
+        "tooManyItems": "Eine Fläche kann höchstens {n} Elemente enthalten.",
+        "tooDeep": "Gruppen dürfen höchstens {n} Ebenen tief verschachtelt werden.",
+        "ungroupImpossible": "Die Gruppe lässt sich nicht verlustfrei auflösen. Vergrössere sie zuerst."
+      },
+      "group": {
+        "name": "Name der Gruppe",
+        "unnamed": "Gruppe",
+        "defaultName": "Gruppe {n}",
+        "gridInfo": "Eigenes Raster: {cols} × {rows} Zellen, {n} Element(e).",
+        "refine": "Raster verfeinern (×2)",
+        "coarsen": "Raster vergröbern (÷2)"
+      },
+      "isolate": {
+        "badge": "Einzelbearbeitung",
+        "back": "Zurück"
+      },
+      "multi": {
+        "title": "{n} Elemente gewählt",
+        "hint": "Die Auswahl lässt sich gemeinsam verschieben (Ziehen oder Pfeiltasten), gruppieren, kopieren oder löschen."
+      },
+      "props": {
+        "title": "Eigenschaften",
+        "nothingSelected": "Wähle ein Element auf der Arbeitsfläche oder füge einen Baustein aus der Bibliothek ein."
+      },
+      "shortcuts": {
+        "select": "Klick wählt, Umschalt+Klick oder Rahmen wählt mehrere.",
+        "move": "Ziehen verschiebt, Griffe skalieren; Doppelklick öffnet Gruppen und Bausteine.",
+        "pan": "Mausrad zoomt, Leertaste+Ziehen oder mittlere Maustaste verschiebt die Ansicht.",
+        "keys": "Pfeiltasten verschieben, Umschalt+Pfeile skalieren, Esc geht eine Ebene zurück."
+      },
+      "blocks": {
+        "saveTitle": "Als eigenen Baustein speichern",
+        "name": "Name des Bausteins",
+        "saveHint": "Der Baustein steht danach in allen Infoscreens dieses Grossanlasses zur Verfügung. Beim Einfügen entsteht immer eine unabhängige Kopie.",
+        "saved": "Baustein gespeichert.",
+        "renamed": "Baustein umbenannt.",
+        "deleted": "Baustein gelöscht. Bestehende Infoscreens bleiben unverändert.",
+        "deleteTitle": "Baustein löschen",
+        "deleteConfirm": "Baustein «{name}» löschen? Bereits eingefügte Kopien in Infoscreens bleiben bestehen.",
+        "saveError": "Der Baustein konnte nicht gespeichert werden."
+      },
+      "library": {
+        "rotationEmpty": "Noch keine gespeicherte Rotation. Wähle eine Rotation und speichere sie als Baustein.",
+        "builtin": {"rotation": {"name": "Rotation", "desc": "Wechselt automatisch zwischen frei gestaltbaren Seiten"}},
+        "search": "Bausteine suchen…",
+        "noResults": "Keine passenden Bausteine.",
+        "customEmpty": "Noch keine eigenen Bausteine. Wähle ein Element und speichere es als Baustein.",
+        "hint": "Klicken fügt ein, Ziehen legt auf der Fläche ab.",
+        "rename": "Umbenennen",
+        "noLive": "Keine Live-Daten",
+        "kind": {
+          "widget": "Widget",
+          "group": "Gruppe",
+          "region": "Layoutbereich",
+          "rotation": "Rotation"
+        },
+        "customDesc": {
+          "widget": "Eigenes Widget dieses Grossanlasses",
+          "group": "Eigene Widget-Gruppe dieses Grossanlasses",
+          "rotation": "Gespeicherte Rotation dieses Grossanlasses"
+        },
+        "category": {
+          "general": "Allgemein",
+          "material": "Material",
+          "logistics": "Logistik",
+          "projects": "Projekte und Aufgaben",
+          "map": "Karten und Gelände",
+          "helpers": "Helfer",
+          "activity": "Aktivitäten und Meldungen",
+          "custom": "Eigene Bausteine",
+          "rotation": "Rotation & Seiten",
+          "templates": "Vorlagen und Layoutbereiche"
+        }
+      },
+      "widgetDesc": {
+        "header": "Logo, Titel und Uhr als Kopfzeile",
+        "text": "Überschrift oder frei formulierter Text",
+        "clock": "Datum und Uhrzeit",
+        "image": "Bild oder Logo (https)",
+        "notice": "Hinweis oder Meldung",
+        "divider": "Trennlinie zwischen Bereichen",
+        "kpi": "Einzelne Kennzahl",
+        "list": "Aufzählung oder nummerierte Liste",
+        "progress": "Fortschrittsbalken",
+        "ga_material_overview": "Materialbedarf, Packstand und Fehlmaterial im Überblick",
+        "ga_pack_progress": "Packaufträge und Packfortschritt",
+        "ga_missing_material": "Material, das noch fehlt",
+        "ga_goods_receipt": "Erwartete und eingegangene Ware",
+        "ga_transport_overview": "Transporte und Fahraufträge mit Status",
+        "ga_dispatch_tours": "Touren, Fahrzeuge und Chauffeure",
+        "ga_overview": "Gesamtlage aus Aufgaben, Material und Logistik",
+        "ga_projects": "Bauprojekte mit Fortschritt, Material und Terminen",
+        "ga_tasks": "Offene Aufgaben mit Frist",
+        "ga_helpers": "Hinweise für Helfer",
+        "ga_site_map": "Orte, Flächen und Geländeplan auf der Karte",
+        "ga_activity_feed": "Letzte Ereignisse des Grossanlasses",
+        "ga_warnings": "Aktive Warnungen und Blocker"
+      },
+      "block": {
+        "group_material_status": {
+          "name": "Material-Status",
+          "desc": "Materialübersicht und Packfortschritt nebeneinander"
+        },
+        "group_material_gaps": {
+          "name": "Fehlmaterial und Wareneingang",
+          "desc": "Was fehlt und was erwartet wird"
+        },
+        "group_logistics_status": {
+          "name": "Logistik-Status",
+          "desc": "Transportübersicht und Touren"
+        },
+        "group_project_site": {
+          "name": "Projekt und Gelände",
+          "desc": "Baufortschritt mit Lageplan"
+        },
+        "group_activity_alerts": {
+          "name": "Aktivitäten und Warnungen",
+          "desc": "Ereignisfeed mit aktiven Warnungen"
+        },
+        "region_materiallager": {
+          "name": "Materiallager",
+          "desc": "Kompletter Bereich: Übersicht, Packen, Fehlmaterial, Wareneingang"
+        },
+        "region_disposition": {
+          "name": "Disposition",
+          "desc": "Kompletter Bereich: Transporte und Touren"
+        },
+        "region_baubuero": {
+          "name": "Baubüro",
+          "desc": "Kompletter Bereich: Gesamtübersicht und Aufgaben"
+        },
+        "region_holzbau": {
+          "name": "Holzbau",
+          "desc": "Kompletter Bereich: Projekte, Karte und Warnungen"
+        },
+        "region_activity": {
+          "name": "Aktivitätenfeed unten",
+          "desc": "Breiter Streifen mit Feed und Warnungen"
+        }
+      }
+    },
     "layout": {
       "waiting": "Die Anzeige wird vorbereitet.",
       "previewDraft": "Vorschau: Entwurf",
       "previewPublished": "Vorschau: veröffentlicht",
       "demoData": "Demo-Daten",
       "templatePreviewAlt": "Vorschau der Vorlage «{name}»",
-      "demoDataHint": "Dieses Widget zeigt die Demo-Daten der GA-Anzeigebeispiele, keine Live-Daten.",
+      "demoDataHint": "Dieses Widget zeigt im Demomodus Beispieldaten und im Livemodus die echten Daten des Grossanlasses. Filter nach Ressort, Bereich und Bauauftrag gelten in beiden Modi.",
+      "liveDataHint": "Dieses Widget zeigt die echten Orte, Bereiche und den Geländeplan der GA-Planung (nur Anzeige, wird automatisch aktualisiert).",
       "ga": {
         "noTasks": "Keine offenen Aufgaben.",
         "noWarnings": "Keine Warnungen.",
-        "noHelperInfo": "Keine Helferinformationen erfasst."
+        "noHelperInfo": "Keine Helferinformationen erfasst.",
+        "noMapData": "Keine Kartendaten vorhanden."
       },
       "category": {
         "general": "Allgemein",
@@ -538,7 +849,19 @@
         "rotate": "Projekte automatisch wechseln",
         "rotate_sec": "Wechsel alle … Sekunden",
         "max_items": "Maximale Anzahl Einträge",
-        "area": "Bereich"
+        "area": "Bereich",
+        "base_layer": "Basiskarte",
+        "show_plans": "Geländeplan anzeigen",
+        "kinds": "Objektarten",
+        "group_id": "Nur Bauprojekt / Bereich",
+        "group_id_hint": "Leer = alle Objekte des Grossanlasses.",
+        "show_labels": "Beschriftungen anzeigen",
+        "center_lat": "Mittelpunkt Breitengrad",
+        "center_lng": "Mittelpunkt Längengrad",
+        "zoom": "Zoomstufe (3–19)",
+        "ga_site_map": {
+          "view": "Kartenausschnitt"
+        }
       },
       "option": {
         "level": {
@@ -588,7 +911,9 @@
           "transports": "Transporte",
           "tours": "Touren",
           "resources": "Ressourcen",
-          "material": "Material-Transport"
+          "material": "Material-Transport",
+          "auto": "Automatisch (alle Objekte einpassen)",
+          "fixed": "Fest (Mittelpunkt und Zoom)"
         },
         "area": {
           "all": "Alle",
@@ -597,6 +922,19 @@
           "task": "Aufgaben",
           "sale": "Verkauf",
           "problem": "Probleme"
+        },
+        "base_layer": {
+          "osm": "OpenStreetMap",
+          "swisstopo": "swisstopo Landeskarte",
+          "swissimage": "swisstopo Luftbild"
+        },
+        "kinds": {
+          "bauprojekt": "Bauprojekt",
+          "anfahrt": "Anfahrtspunkt",
+          "lagerplatz": "Lagerstandort",
+          "unterlager": "Unterlager",
+          "poi": "Punkt (Tor, Info)",
+          "area": "Bereich (Fläche)"
         }
       },
       "templates": {
@@ -635,7 +973,14 @@
         "config_invalid_url": "Nur https-Adressen sind erlaubt.",
         "config_too_long": "Ein Text ist zu lang.",
         "config_out_of_range": "Ein Wert liegt ausserhalb des erlaubten Bereichs.",
-        "no_draft": "Es gibt noch keinen Entwurf."
+        "no_draft": "Es gibt noch keinen Entwurf.",
+        "widget_live_unsupported": "Ein Widget hat noch keine Live-Anbindung. Demodaten für die Anzeige aktivieren oder das Widget entfernen.",
+        "block_invalid": "Der Baustein ist ungültig.",
+        "block_type_invalid": "Ein Baustein darf nur Widgets und Gruppen enthalten.",
+        "block_empty": "Der Baustein enthält kein Widget.",
+        "columns_invalid": "Ungültige Spaltenanzahl.",
+        "data_mode_invalid": "Ungültiger Datenmodus.",
+        "too_many_items": "Eine Fläche enthält zu viele Elemente."
       },
       "editor": {
         "back": "Zur Infoscreen-Verwaltung",
@@ -2956,6 +3301,8 @@
       "devicesScanner": "Lager-Scanner",
       "devicesScannerHint": "Handheld oder Pistole — Stück für Stück scannen",
       "switchDepartment": "Department wechseln",
+      "departmentCount": "{count} Department | {count} Departments",
+      "grossanlassCount": "{count} Grossanlass | {count} Grossanlässe",
       "adminContexts": "Verwaltung",
       "globalContext": "Globale Administration",
       "globalContextHint": "Superadmin · ganzes System",
@@ -11853,6 +12200,8 @@
         "timeline": "Zeitplan",
         "skills": "Fähigkeiten",
         "needs": "Personalbedarf"
+      ,
+        "api": "API-Daten"
       },
       "kpi": {
         "required": "Personen benötigt",
@@ -11904,6 +12253,30 @@
         "createTitle": "Helfer erfassen",
         "editTitle": "Helfer bearbeiten",
         "hint": "Helfer brauchen kein eMatChef-Konto. Es werden nur die nötigen Angaben gespeichert."
+      ,
+        "section": {
+          "personal": "Persönliche Angaben",
+          "skills": "Berufe & Fähigkeiten",
+          "drive": "Führerausweise & Berechtigungen",
+          "availability": "Verfügbarkeit",
+          "more": "Weitere Angaben"
+        },
+        "linkedUser": "Mit eMatChef-Benutzer verknüpfen",
+        "linkedHint": "Name und E-Mail kommen aus dem zentralen Profil und lassen sich hier nicht ändern. Lokale Angaben (Fähigkeiten, Qualifikationen, Verfügbarkeit) bleiben erhalten.",
+        "externalHint": "Externer Helfer ohne Konto. Optional mit einem bestehenden Benutzer verknüpfen.",
+        "occupation": "Beruf / Ausbildung",
+        "skills": "Fähigkeiten",
+        "skillsHint": "Aus dem Katalog wählen oder neue Fähigkeit eintippen und mit Enter bestätigen.",
+        "driveProfileHint": "Führerausweis aus dem zentralen Profil des Benutzers. Er lässt sich hier nur ansehen, nicht ändern.",
+        "driveLocalHint": "Führerausweis-Klassen und Berechtigungen dieses externen Helfers.",
+        "driveValidUntil": "Gültig bis",
+        "qualifications": "Weitere Qualifikationen und Nachweise",
+        "qualificationLabel": "Qualifikation / Nachweis",
+        "addQualification": "Qualifikation hinzufügen",
+        "area": "Ressort / Bereich"
+      },
+      "skills": {
+        "noData": "Keine Fähigkeit gefunden. Eintippen und mit Enter neu erfassen."
       },
       "assign": {
         "button": "Helfer zuteilen",
@@ -11962,12 +12335,168 @@
         "in_use": "Es bestehen noch Zuteilungen.",
         "stale": "Die Zuteilung wurde zwischenzeitlich geändert. Bitte neu laden."
       },
+      "assignmentConflict": "Buchung ungültig",
+      "api": {
+        "intro": "Externe Helferpools anbinden: echte JSON-Antwort abrufen, Felder selbst zuordnen und die Buchungen als Helfer mit Verfügbarkeit übernehmen. Die externe Quelle bleibt für ihre Schichten und Buchungen zuständig; eMatChef ändert dort nichts.",
+        "add": "Datenquelle hinzufügen",
+        "addTitle": "Datenquelle hinzufügen",
+        "editTitle": "Datenquelle bearbeiten",
+        "emptyTitle": "Noch keine Datenquelle",
+        "emptyText": "Legen Sie eine Verbindung an. Ohne API-Zugang können Sie eine JSON-Testantwort einspielen und die Zuordnung daran vorbereiten.",
+        "importOnly": "Nur JSON-Import (keine API-Adresse)",
+        "loadFailed": "API-Daten konnten nicht geladen werden.",
+        "actionFailed": "Aktion fehlgeschlagen.",
+        "status": {
+          "never": "Nicht geprüft",
+          "ok": "Verbunden",
+          "error": "Fehler"
+        },
+        "lastSync": "Letzte erfolgreiche Synchronisation",
+        "lastPayload": "Letzte Antwort",
+        "records": "Buchungen (aktiv / storniert / entfernt)",
+        "test": "Verbindung testen",
+        "fetch": "Daten abrufen",
+        "sync": "Synchronisieren",
+        "open": "Details",
+        "close": "Schliessen",
+        "testOk": "Verbindung erfolgreich.",
+        "testFailed": "Verbindung fehlgeschlagen.",
+        "fetched": "Antwort abgerufen und gespeichert. Der Helferpool wurde nicht verändert.",
+        "imported": "JSON gespeichert. Der Helferpool wurde nicht verändert.",
+        "synced": "Synchronisation abgeschlossen.",
+        "syncFailed": "Synchronisation fehlgeschlagen; bestehende Daten wurden nicht verändert.",
+        "section": {
+          "json": "Antwort (JSON)",
+          "mapping": "Feldzuordnung",
+          "preview": "Vorschau",
+          "history": "Verlauf"
+        },
+        "payloadMeta": "Quelle: {origin} · {when} · {kb} KB · {seen}× gesehen",
+        "origin": {
+          "fetch": "API-Abruf",
+          "import": "JSON-Import"
+        },
+        "viewTree": "Felder",
+        "viewRaw": "Rohdaten",
+        "invalidJson": "Die gespeicherte Antwort ist kein gültiges JSON.",
+        "noPayload": "Noch keine Antwort: Daten abrufen oder unten ein JSON einspielen.",
+        "listsFound": "Mögliche Datensatzlisten (anklicken, um sie als Liste zu verwenden):",
+        "noLists": "Keine Liste von Objekten gefunden.",
+        "root": "Wurzel",
+        "recordCount": "{n} Einträge",
+        "jsonField": "Externes JSON-Feld",
+        "sample": "Beispielwert",
+        "mappedTo": "Zugeordnet zu",
+        "importLabel": "JSON-Testantwort einspielen",
+        "import": "JSON einspielen",
+        "mappingHint": "Wählen Sie für jedes eMatChef-Feld das passende Feld der Antwort. Nicht benötigte Felder bleiben ohne Zuordnung und werden ignoriert. Ein Name allein identifiziert keine Person: es braucht einen Helferschlüssel oder eine E-Mail.",
+        "recordsPath": "Pfad zur Liste der Datensätze",
+        "recordsPathHint": "Leer, wenn die Antwort selbst die Liste ist (z. B. data.bookings).",
+        "target": "eMatChef-Zielfeld",
+        "ignore": "Ignorieren",
+        "target_booking_id": "Externe Buchungs-ID",
+        "target_helper_key": "Externe Helfer-ID",
+        "target_helper_name": "Helfername",
+        "target_helper_first_name": "Vorname",
+        "target_helper_last_name": "Nachname",
+        "target_helper_email": "E-Mail",
+        "target_helper_phone": "Telefon",
+        "target_mission": "Mission",
+        "target_shift_start": "Einsatzbeginn",
+        "target_shift_end": "Einsatzende",
+        "target_booking_status": "Buchungsstatus",
+        "identity": "Externe Helfer-ID oder E-Mail",
+        "cancelledValues": "Statuswerte für «storniert»",
+        "cancelledHint": "Kommagetrennt, z. B. cancelled, storniert.",
+        "totalPath": "Pfad zur Gesamtzahl (optional)",
+        "nextPath": "Pfad zur nächsten Seite (optional)",
+        "snapshotComplete": "Ein Abruf liefert alle Buchungen",
+        "snapshotHint": "Nur dann gelten Buchungen, die in der Antwort fehlen, als entfernt. Sonst bleiben sie unverändert.",
+        "missingRequired": "Pflichtfeld nicht zugeordnet: {field}",
+        "saveMapping": "Zuordnung speichern",
+        "saveAndPreview": "Speichern und Vorschau",
+        "mappingSaved": "Zuordnung gespeichert.",
+        "noPreview": "Noch keine Vorschau: In der Feldzuordnung «Speichern und Vorschau» wählen.",
+        "previewNote": "Vorschau: Es wurden keine Daten verändert.",
+        "syncedNote": "Synchronisation abgeschlossen.",
+        "apply": "Jetzt übernehmen",
+        "count": {
+          "created": "Neu",
+          "updated": "Geändert",
+          "unchanged": "Unverändert",
+          "removed": "Entfernt",
+          "conflicts": "Konflikte",
+          "resolved": "Konflikte gelöst"
+        },
+        "conflictsTitle": "Zuteilungen mit ungültiger Buchung (zählen nicht zur Deckung):",
+        "conflict": {
+          "booking_cancelled": "{name}: Buchung storniert, Zuteilung {when} ungültig",
+          "shift_changed": "{name}: Schicht geändert, Zuteilung {when} nicht mehr gedeckt"
+        },
+        "action": "Aktion",
+        "shift": "Schicht",
+        "actions": {
+          "created": "Neu",
+          "updated": "Geändert",
+          "cancelled": "Storniert",
+          "restored": "Wieder aktiv",
+          "removed": "Entfernt"
+        },
+        "noRuns": "Noch keine Synchronisation.",
+        "outcome": {
+          "ok": "Erfolgreich",
+          "partial": "Mit Hinweisen",
+          "failed": "Fehlgeschlagen"
+        },
+        "issue": {
+          "mapping_required_unmapped": "Pflichtfeld nicht zugeordnet: {field}",
+          "mapping_identity_unmapped": "Es fehlt eine externe Helfer-ID oder E-Mail",
+          "invalid_json": "Die Antwort ist kein gültiges JSON",
+          "records_path_not_list": "Der Pfad zur Datensatzliste zeigt nicht auf eine Liste",
+          "too_many_records": "Zu viele Datensätze (über 20 000)",
+          "internal_error": "Interner Fehler; es wurden keine Daten verändert",
+          "fetch_failed": "Abruf fehlgeschlagen",
+          "record_not_object": "Eintrag ist kein Objekt",
+          "not_scalar": "{field}: erwartet einen einzelnen Wert",
+          "missing_value": "{field}: Wert fehlt",
+          "too_long": "{field}: Wert zu lang",
+          "duplicate_key": "Doppelte Buchungs-ID in der Antwort, nur die erste wurde übernommen",
+          "invalid_datetime": "{field}: ungültiger Zeitpunkt",
+          "end_before_start": "Einsatzende liegt nicht nach dem Beginn",
+          "invalid_email": "Ungültige E-Mail-Adresse",
+          "removal_skipped_not_complete": "{count} Buchungen fehlen in der Antwort; sie bleiben unverändert, weil die Antwort nicht als vollständig bestätigt ist",
+          "removal_skipped_incomplete_response": "{count} Buchungen fehlen; die Antwort ist laut Gesamtzahl/Folgeseite unvollständig",
+          "removal_skipped_invalid_records": "{count} Buchungen fehlen; wegen ungültiger Einträge bleiben sie unverändert",
+          "removal_skipped_empty_response": "Die Antwort ist leer; {count} vorhandene Buchungen bleiben unverändert",
+          "email_belongs_to_other_helper": "E-Mail gehört bereits einem anderen Helfer; nicht zusammengeführt, E-Mail nicht übernommen"
+        },
+        "name": "Name",
+        "baseUrl": "API-Basisadresse",
+        "baseUrlHint": "Nur https. Adressen in privaten Netzen sind nicht erlaubt.",
+        "endpoint": "Endpunkt-Pfad (optional)",
+        "endpointHint": "Wird an die Basisadresse angehängt, z. B. /api/bookings.",
+        "auth": "Authentifizierung",
+        "authType": {
+          "none": "Keine",
+          "bearer": "Bearer-Token",
+          "header": "API-Schlüssel im Header",
+          "basic": "Benutzername und Passwort"
+        },
+        "authHeader": "Headername",
+        "authUser": "Benutzername",
+        "secret": "API-Schlüssel",
+        "password": "Passwort",
+        "secretKeep": "Gespeichert, leer lassen zum Beibehalten",
+        "secretHint": "Wird verschlüsselt auf dem Server gespeichert und nie wieder angezeigt.",
+        "secretClear": "Gespeicherten Schlüssel löschen"
+      },
       "conflictItem": {
         "none": "Keine Konflikte.",
         "double_booking": "{name}: doppelt zugeteilt ({when})",
         "outside_availability": "{name}: Zuteilung ausserhalb der Verfügbarkeit ({when})",
         "outside_need_window": "{name}: Zuteilung ausserhalb des Bedarfsfensters ({when})",
         "overbooked": "Überbesetzt: {peak} Zuteilungen für {required} benötigte Personen",
+        "external_booking_invalid": "{name}: externe Buchung geändert oder storniert, Zuteilung ungültig ({when})",
         "need_undated": "Personalbedarf ohne Zeitfenster – nicht zuteilbar"
       },
       "warning": {
@@ -12303,6 +12832,54 @@
       "planning": {"title": "Anforderungen aus der Planung ({n})", "hint": "Dieselben Ressourcenbedarfe wie in Planung → Aufträge. Die Logistik übernimmt den konkreten Einsatz.", "window": "{when}"},
       "tab": "Disposition",
       "prototype": "Prototyp · Demo-Daten",
+      "readOnly": "Echte Daten · Ansicht",
+      "readOnlyHint": "Die Zuteilung von Touren, Fahrzeugen und Chauffeuren folgt mit der Tourplanung. Bis dahin zeigt die Disposition die tatsächlichen Bedarfe und Status.",
+      "convert": {"title": "Fahrauftrag", "hint": "Aus dem Fahrzeugwunsch wird ein echter Fahrauftrag (nicht freigegeben, ohne Chauffeur). Voraussetzung ist ein konkretes Fahrzeug an der Beschaffungslinie.", "action": "In Fahrauftrag überführen"},
+      "exec": {"title": "Ausführung", "released": "Zur Ausführung freigegeben", "notReleased": "Nicht freigegeben", "release": "Fahrt freigeben", "releaseTour": "Fahrten der Tour freigeben", "revoke": "Freigabe zurücknehmen", "confirmTourFirst": "Der Fahrauftrag liegt in einer Tour: zuerst die Tour bestätigen.", "manualHint": "Ziel-QR nicht lesbar oder nicht verfügbar? Die Ablieferung kann mit Begründung bestätigt werden; sie wird protokolliert.", "reason": "Begründung (z. B. QR am Ziel abgerissen)", "manual": "Ablieferung ohne QR bestätigen"},
+      "packStatus": {"none": "Kein Pack", "staging": "Bereitgestellt", "trip_released": "Fahrt frei", "in_transit": "Unterwegs", "at_place": "Am Ziel abgeliefert"},
+      "outcome": {"delivered": "Ausgeliefert", "not_executed": "Nicht ausgeführt, wieder offen"},
+      "requests": {"title": "Änderungswünsche", "panelTitle": "Änderungswünsche der Ressorts ({n})", "planStillValid": "Die bestehende Disposition bleibt gültig, bis die Logistik entscheidet.", "status": {"open": "Offen", "accepted": "Übernommen", "adjusted": "Angepasst übernommen", "rejected": "Abgelehnt"}, "proposedWindow": "Gewünschter Zeitraum", "proposedPlace": "Gewünschter Ziel-Ort geändert", "decisionNote": "Entscheid", "notePlaceholder": "Begründung / Hinweis (Ablehnung: Pflicht)", "accept": "Übernehmen", "adjust": "Angepasst übernehmen", "adjustApply": "Anpassung übernehmen", "reject": "Ablehnen", "decide": "Entscheiden", "from": "Neuer Beginn", "to": "Neues Ende"},
+      "tourClosed": "Die Tour ist abgeschlossen. Ausgelieferte Fahrten bleiben dokumentiert, nicht ausgeführte sind wieder offene Bedarfe.",
+      "closeTour": "Tour abschliessen",
+      "closeTourConfirm": "Abschluss bestätigen",
+      "closeNote": "Hinweis zu nicht ausgeführten Fahrten",
+      "suggestionsTitle": "Tourenvorschläge ({n})",
+      "suggestionsHint": "Vorschläge fassen offene Bedarfe am selben Tag zusammen. Übernehmen legt nur einen Entwurf an; verbindlich wird die Tour erst mit der Bestätigung.",
+      "suggestTake": "Als Entwurf übernehmen",
+      "selected": "{n} Bedarf(e) ausgewählt",
+      "tourFromSelection": "Tourentwurf erstellen",
+      "select": "Bedarf auswählen",
+      "conflict": {"vehicle": "Fahrzeug bereits gebunden: {with} ({when})", "chauffeur": "Chauffeur bereits gebunden: {with} ({when})"},
+      "conflictsCount": "{n} Konflikt(e)",
+      "noDriver": "Kein Chauffeur",
+      "noVehicle": "Kein Fahrzeug",
+      "tourName": "Tourname",
+      "tourNeeds": "Fahrten dieser Tour",
+      "tourStops": "Stopps",
+      "tourLocked": "Die Tour ist unterwegs oder abgeschlossen und nicht mehr änderbar.",
+      "noManage": "Touren ändern und bestätigen dürfen nur Logistikverantwortliche.",
+      "tourConfirmedNotReleased": "Bestätigt, noch nicht zur Ausführung freigegeben",
+      "removeFromTour": "Aus Tour entfernen",
+      "addNeed": "Fahrt hinzufügen",
+      "addNeedAction": "Hinzufügen",
+      "stopTime": "Geplante Zeit",
+      "moveUp": "Nach oben",
+      "moveDown": "Nach unten",
+      "saveStops": "Stopps speichern",
+      "tourLog": "Änderungen",
+      "tourEvent": {"created": "Erstellt", "updated": "Angepasst", "need_added": "Fahrt hinzugefügt", "need_removed": "Fahrt entfernt", "stops_changed": "Stopps geändert", "confirmed": "Bestätigt", "unconfirmed": "Bestätigung zurückgenommen"},
+      "deleteTour": "Tour löschen",
+      "unconfirmTour": "Bestätigung zurücknehmen",
+      "confirmTour": "Tour bestätigen",
+      "createDraftTour": "Tourentwurf erstellen",
+      "draftHint": "Es entsteht ein Entwurf. Fahrzeug, Chauffeur und Stopps lassen sich vor der Bestätigung anpassen.",
+      "loadFailed": "Die Disposition konnte nicht geladen werden.",
+      "depot": "Lager",
+      "noPack": "Noch keine Packung vorhanden",
+      "req": {
+        "driveCard": "Fahrausweis"
+      },
+      "timelineDay": "Zeitplan für {day}",
       "intro": "Leitstand für alle Transportbedarfe: Bedarfe sehen, kombinieren und als Tour mit Fahrer und Fahrzeug disponieren.",
       "flow": {
         "label": "Ablauf",
@@ -12341,7 +12918,7 @@
         "underway": "Unterwegs",
         "done": "Erledigt",
         "problems": "Probleme",
-        "scope": "Gelände / Extern"
+        "scope": "Gelände / Extern", "tours": "Touren", "tours": "Touren"
       },
       "filter": {
         "label": "Ansicht filtern"
@@ -12370,7 +12947,7 @@
         "underway": "Unterwegs",
         "done": "Erledigt"
       },
-      "tourStatus": {
+      "tourStatus": { "closed": "Abgeschlossen", "draft": "Entwurf", "confirmed": "Bestätigt","draft": "Entwurf", "confirmed": "Bestätigt", 
         "planned": "Geplant",
         "underway": "Unterwegs",
         "done": "Abgeschlossen"
@@ -12397,7 +12974,7 @@
       "unassign": "Aus Tour nehmen",
       "tour": "Tour",
       "suggestions": "Mögliche Kombination",
-      "suggestReason": {
+      "suggestReason": { "sameTarget": "Gleiches Ziel am selben Tag", "sameWindow": "Zeitlich nah beieinander","sameTarget": "Gleiches Ziel am selben Tag", "sameWindow": "Zeitlich nah beieinander", 
         "passesTarget": "Fährt bereits nach {place}, Bedarf mitnehmen.",
         "passesSource": "Fährt bereits zu {place}, dort laden.",
         "emptyLeg": "Leerfahrt {place}, Bedarf mitnehmen."
@@ -12525,8 +13102,8 @@
       }
     },
     "aufgaben": {
-      "tabMaster": "Aufgaben",
-      "tabMine": "Meine Aufgaben",
+      "tabMaster": "Alle Aufgaben",
+      "tabMine": "Meine Einsätze",
       "subtitle": "Alle Arbeiten und Aufträge des Grossanlasses",
       "intro": "Planung zeigt, was wann geplant ist. Aufgaben zeigt, was konkret jemand erledigen muss.",
       "prototype": "Prototyp · Demo-Daten",
@@ -12535,6 +13112,12 @@
       "assign": "Zuweisen",
       "open": "Öffnen",
       "openFahrauftrag": "Fahrauftrag öffnen",
+      "noChauffeur": "Kein Chauffeur",
+      "typeFilter": {
+        "all": "Alle",
+        "arbeit": "Arbeiten",
+        "logistik": "Fahrten"
+      },
       "start": "Starten",
       "complete": "Erledigt",
       "emptyTitle": "Keine Aufgaben",
@@ -12617,8 +13200,8 @@
       "mine": {
         "title": "Meine Aufgaben",
         "subtitle": "Heute für {name}",
-        "emptyTitle": "Heute nichts offen",
-        "emptyText": "Du hast heute keine Arbeiten oder Fahraufträge.",
+        "emptyTitle": "Keine Einsätze",
+        "emptyText": "Dir ist aktuell nichts zugeteilt. Freigegebene Aufgaben ohne Helfer findest du unter «Alle Aufgaben».",
         "back": "Zurück"
       },
       "create": {
@@ -12759,6 +13342,8 @@
         "up": "Nach oben",
         "down": "Nach unten"
       }
+    ,
+      "introMine": "Dir zugeteilte Arbeiten und Fahraufträge. «Alle Aufgaben» zeigt sämtliche freigegebenen Aufgaben, auch ohne zugeteilte Helfer."
     },
     "logistik": {
       "title": "Logistik",
@@ -13126,6 +13711,22 @@
       "tabBenutzer": "Benutzer",
       "usersTabGaPersons": "GA-Personen",
       "usersTabHelpers": "Helfer",
+      "helperDir": {
+        "addHelper": "Helfer hinzufügen",
+        "addExternal": "Externen Helfer erfassen",
+        "addAccount": "Benutzer als Helfer hinzufügen",
+        "search": "Helfer suchen",
+        "filterAll": "Alle",
+        "filterAccount": "Mit Konto",
+        "filterExternal": "Ohne Konto",
+        "withAccount": "Mit Konto",
+        "withoutAccount": "Ohne Konto",
+        "details": "Details",
+        "count": "{shown} von {total} Helfern",
+        "empty": "Keine Helfer gefunden.",
+        "loadError": "Helfer konnten nicht geladen werden.",
+        "externalHint": "Externe Helfer erhalten kein Benutzerkonto und keine Mitgliedschaft im Grossanlass."
+      },
       "lockedHint": "Verfügbar nach der Freigabe des Grossanlasses.",
       "lockedNote": "Während der Ersteinrichtung sind Stammdaten, Ressorts und Benutzer aktiv. Die übrigen Einstellungen sind nach der Freigabe verfügbar.",
       "tabStandorte": "Standorte",
@@ -13138,14 +13739,14 @@
       "coreStepStorage": "Lagerstandort",
       "placesNeedCore": "Event-Punkte (GA-Orte) erst, wenn Eventstandort, Zustellpunkt und Lagerstandort gesetzt sind.",
       "lagerTitle": "Lagerstandort (Regal / Fach)",
-      "lagerHint": "Das ist der Matplatz: bestehender Lagerstandort mit sichtbarem Lager-QR (/i/l/), nicht Event-Standort. Beim Anlegen zentriert die Karte auf den Eventstandort.",
+      "lagerHint": "Das ist der Lagerplatz: bestehender Lagerstandort mit sichtbarem Lager-QR (/i/l/), nicht Event-Standort. Beim Anlegen zentriert die Karte auf den Eventstandort.",
       "placesTitle": "Event-Punkte (GA-Orte)",
       "placesHint": "Erst nach den drei Kernstandorten. Schilder mit /i/ga/… — Pack und Helfer scannen denselben QR. Kein Kontakt-POI. Unterlager werden automatisch angelegt.",
       "placesName": "Name des Orts",
       "placesKind": "Art",
       "placesKindBauprojekt": "Bauprojekt",
       "placesKindUnterlager": "Unterlager",
-      "placesKindMatplatz": "Lagerstandort (bestehend)",
+      "placesKindLagerplatz": "Lagerstandort (bestehend)",
       "placesKindAnfahrt": "Anfahrpunkt",
       "placesKindPoi": "Punkt (Tor, Info)",
       "placesKindArea": "Bereich",
@@ -13620,7 +14221,7 @@
         "materialVehiclePlaceholder": "z. B. Hebebühne, Lieferwagen",
         "vehiclesHeading": "Fahrzeuge",
         "vehiclesEmpty": "Noch kein Fahrzeug.",
-        "vehicleTask": "Aufgabe",
+        "vehicleTransport": "Fahrzeug muss etwas transportieren", "vehicleTransportHint": "Aus Transportwünschen kann die Logistik einen Fahrauftrag machen. Ohne Schalter wird das Fahrzeug nur auf der Baustelle gebraucht.", "vehicleTask": "Aufgabe",
         "vehicleWish": "Gewünschtes Fahrzeug",
         "vehicleCategory": "Fahrzeugkategorie",
         "vehicleCategoryEmpty": "Keine Kategorien geladen. Den Wunsch kannst du trotzdem frei schreiben.",
@@ -14025,7 +14626,10 @@
         "materialDetail": "{ready} von {total} Positionen am Standort",
         "materialNone": "Kein Material erfasst",
         "tasksLabel": "Aufgaben",
-        "tasksDetail": "{done} von {total} Aufgaben, Termin vorbei",
+        "tasksDetail": "{done} von {total} Aufgaben erledigt",
+        "tasksOverdue": "{n} überfällig",
+        "tasksInWindow": "{n} im Terminfenster",
+        "tasksPlanned": "{n} geplant",
         "tasksNone": "Keine Aufgaben erfasst",
         "placeHeading": "Standort des Auftrags",
         "title": {
@@ -14419,7 +15023,44 @@
         "orderedCheck": "Bestellt {n} Stk — abhaken",
         "openPdf": "Bestellung PDF",
         "openOrder": "Zur Bestellung",
-        "openHistory": "Historie"
+        "openHistory": "Historie",
+        "workspace": {
+          "intro": "Lieferungen und Transporte nach Ankunft — Tour, Direktlieferung oder offene Beschaffung. Details und QR erst in der Annahme.",
+          "phase": {
+            "expected": "Erwartet",
+            "acceptance": "Annahme",
+            "received": "Eingegangen"
+          },
+          "group": {
+            "tour": "Tour",
+            "trip": "Fahrauftrag",
+            "direct": "Direktlieferung",
+            "unassigned": "Noch nicht zugeordnet"
+          },
+          "positions": "{n} Positionen",
+          "targetPlace": "Ziel-Lager: {name}",
+          "open": "Öffnen",
+          "filterPlace": "Lagerstandort",
+          "chauffeur": "Chauffeur {name}",
+          "vehicle": "Fahrzeug {name}",
+          "confirmReceipt": "Wareneingang bestätigen",
+          "receiptDone": "Wareneingang gebucht",
+          "placeRequired": "Bitte einen Lagerstandort wählen",
+          "sharedPlace": "Annahmeort für alle Positionen",
+          "positionPlace": "Lagerstandort dieser Position",
+          "noStoragePlaces": "Es ist noch kein Lagerstandort erfasst. Annahmen sind erst nach Anlage eines Lagerstandorts möglich.",
+          "openLocationSettings": "Standortverwaltung öffnen",
+          "skipPosition": "Offen lassen",
+          "transport": {
+            "open": "Offen",
+            "planned": "Disponiert",
+            "underway": "Unterwegs",
+            "done": "Angekommen",
+            "draft": "Tour Entwurf",
+            "confirmed": "Tour bestätigt",
+            "closed": "Tour abgeschlossen"
+          }
+        }
       },
       "occupancyFixedHint": "Nur in Absprachen verschieben",
       "einsaetzeIntro": "Alle Chargen aus den Absprachen. Lieferung oder Abholung am vereinbarten Termin ist schon ein Einsatz. Liefertermin und Rückgabe schiebst du in den Absprachen, nicht hier.",
@@ -14429,9 +15070,13 @@
       "bauauftragBereichLabel": "Bereich",
       "bauauftragCreated": "Bauauftrag angelegt.",
       "noBauauftragYet": "Noch kein Bauauftrag in diesem Bereich.",
-      "fahrauftraegeIntro": "Fahraufträge und die Fahrzeuge, die am Bauauftrag geplant sind — nach Ressort und Projekt. Bezeichnung, Aufgabe, Zeitraum und ob schon ein Fahrzeug zugesagt ist.",
+      "fahrauftraegeIntro": "Fahraufträge und Fahrzeugwünsche aus den Bauaufträgen als Kacheln. Ein Klick auf einen Fahrauftrag öffnet den Dialog, ein Fahrzeugwunsch bleibt ein Wunsch, bis ein Fahrauftrag erfasst ist.",
       "addFahrauftrag": "Fahrauftrag hinzufügen",
       "fahrauftragCreated": "Fahrauftrag angelegt.",
+      "tilesTrips": "Fahraufträge",
+      "tilesWishes": "Fahrzeugwünsche ohne Fahrauftrag",
+      "tilesWishesHint": "Ein Wunsch ist noch kein Fahrauftrag: Erst mit einem erfassten Fahrauftrag entsteht eine Fahrt.",
+      "tilesWishChip": "Fahrzeugwunsch",
       "noFahrauftragYet": "Noch kein Fahrauftrag in diesem Bereich.",
       "unassignedFahrauftraege": "Ohne Bereich",
       "konflikteIntro": "Doppelbuchungen, Mengen über Bestand und Einsätze ausserhalb des Partnerfensters. Öffne einen Konflikt und schiebe beide Einsätze, bis es passt.",
@@ -14686,6 +15331,10 @@
       "tripsPack": "Packen",
       "tripsUnpack": "Pack rückgängig",
       "tripsRelease": "Fahrt frei",
+ 
+      "tripsNoTour": "Keine Tour",
+      "tripsOpenDispatch": "In Disposition öffnen",
+      "changeRequest": {"button": "Änderung beantragen", "title": "Änderung beantragen", "hint": "Die bestehende Disposition bleibt gültig, bis die Logistik entscheidet.", "note": "Gewünschte Änderung", "from": "Neuer Beginn", "to": "Neues Ende", "place": "Anderer Ziel-Ort", "submit": "Wunsch senden", "sent": "Änderungswunsch an die Logistik gesendet", "failed": "Der Wunsch konnte nicht gesendet werden"},
       "tripsIssue": "Fahrt starten",
       "tripsReleasedToast": "Fahrt frei — Materialplatz gilt als leer.",
       "tripsIssuedToast": "Fahrt gestartet.",
@@ -14784,6 +15433,36 @@
       "deliveryPickup": "Selbstabholung",
       "deliveryTrip": "Fahrt zum Ziel-Ort",
       "readOnlyHint": "Anderer Ressort — nur Ansicht, keine Aktionen.",
+      "suggestionsTitle": "Tourenvorschläge ({n})",
+      "suggestionsHint": "Vorschläge fassen offene Bedarfe am selben Tag zusammen. Übernehmen legt nur einen Entwurf an; verbindlich wird die Tour erst mit der Bestätigung.",
+      "suggestTake": "Als Entwurf übernehmen",
+      "selected": "{n} Bedarf(e) ausgewählt",
+      "tourFromSelection": "Tourentwurf erstellen",
+      "select": "Bedarf auswählen",
+      "conflict": {"vehicle": "Fahrzeug bereits gebunden: {with} ({when})", "chauffeur": "Chauffeur bereits gebunden: {with} ({when})"},
+      "conflictsCount": "{n} Konflikt(e)",
+      "noDriver": "Kein Chauffeur",
+      "noVehicle": "Kein Fahrzeug",
+      "tourName": "Tourname",
+      "tourNeeds": "Fahrten dieser Tour",
+      "tourStops": "Stopps",
+      "tourLocked": "Die Tour ist unterwegs oder abgeschlossen und nicht mehr änderbar.",
+      "noManage": "Touren ändern und bestätigen dürfen nur Logistikverantwortliche.",
+      "tourConfirmedNotReleased": "Bestätigt, noch nicht zur Ausführung freigegeben",
+      "removeFromTour": "Aus Tour entfernen",
+      "addNeed": "Fahrt hinzufügen",
+      "addNeedAction": "Hinzufügen",
+      "stopTime": "Geplante Zeit",
+      "moveUp": "Nach oben",
+      "moveDown": "Nach unten",
+      "saveStops": "Stopps speichern",
+      "tourLog": "Änderungen",
+      "tourEvent": {"created": "Erstellt", "updated": "Angepasst", "need_added": "Fahrt hinzugefügt", "need_removed": "Fahrt entfernt", "stops_changed": "Stopps geändert", "confirmed": "Bestätigt", "unconfirmed": "Bestätigung zurückgenommen"},
+      "deleteTour": "Tour löschen",
+      "unconfirmTour": "Bestätigung zurücknehmen",
+      "confirmTour": "Tour bestätigen",
+      "createDraftTour": "Tourentwurf erstellen",
+      "draftHint": "Es entsteht ein Entwurf. Fahrzeug, Chauffeur und Stopps lassen sich vor der Bestätigung anpassen.",
       "materialPlace": "Materialstandort",
       "placeLager": "Zentrallager",
       "placeAssigned": "Reserviert / bereit",
@@ -15921,273 +16600,273 @@
         "errorLoad": "Empfang konnte nicht geladen werden",
         "errorSave": "Speichern fehlgeschlagen"
       }
-    }
-  },
-  "gaHelp": {
-    "modal": {
-      "eyebrow": "Hilfe zu dieser Seite",
-      "faqTitle": "Häufige Fragen",
-      "more": "Ausführliche Grossanlass-Hilfe",
-      "close": "Schliessen"
     },
-    "page": {
-      "title": "Grossanlass-Hilfe",
-      "subtitle": "Was die Seiten des Grossanlasses tun und wie die häufigsten Abläufe funktionieren.",
-      "tocAria": "Kapitel der Grossanlass-Hilfe",
-      "openPage": "Seite öffnen"
-    },
-    "hint": {
-      "aria": "Erklärung anzeigen"
-    },
-    "groups": {
-      "start": "Einstieg",
-      "setup": "Einrichten",
-      "planning": "Planen",
-      "procurement": "Beschaffen",
-      "material": "Material",
-      "guest": "Gast-Abteilungen"
-    },
-    "fields": {
-      "enoughOnHand": "Der Bedarf ist schon gedeckt, es braucht keine weitere Anfrage. Gib an, woher das Material kommt: aus dem Eigenbestand oder aus einer Zusage im selben Grossanlass.",
-      "cash": "Cash ist das Geld, das bis jetzt aus der Kasse geflossen ist oder fliessen muss, zum Beispiel Kaufpreis, Miete und Depot.",
-      "netto": "Netto sind die Kosten, die am Ende beim Anlass bleiben: ein Depot zurück oder ein Verkaufserlös verringern sie, ein als Anlage verbuchter Einkauf zählt mit 0."
-    },
-    "topics": {
-      "overview": {
-        "title": "Grossanlass – Überblick",
-        "summary": "Der Grossanlass ist ein eigenes Department als Projekt: Ressorts mit Bauprojekten, Planung, Beschaffung, Material und eingeladene Gast-Abteilungen. Was du siehst, hängt von deiner Rolle ab.",
-        "faq": {
-          "roles": {
-            "q": "Warum sehe ich nicht alle Menüpunkte?",
-            "a": "Die Menüpunkte hängen von deiner Rolle im Grossanlass ab. Fehlt dir ein Bereich, frage den Materialchef oder deine Ressort-Leitung."
-          },
-          "setupRelease": {
-            "q": "Warum ist der Grossanlass noch nicht freigegeben?",
-            "a": "Ein neuer Grossanlass wird zuerst eingerichtet: Stammdaten, Ressorts mit je einer Leitung, Mitglieder (mindestens ein Materialchef und eine OK-Leitung). Danach schaltet ihn der Materialchef oder die OK-Leitung für alle Rollen frei."
-          }
-        }
+    "help": {
+      "modal": {
+        "eyebrow": "Hilfe zu dieser Seite",
+        "faqTitle": "Häufige Fragen",
+        "more": "Ausführliche Grossanlass-Hilfe",
+        "close": "Schliessen"
       },
-      "stammdaten": {
-        "title": "Stammdaten",
-        "summary": "Anlassname, Zeitraum und Eventstandort. Hier legst du auch fest, ob der Anlass ein Lager oder ein Event ist und ob Teilnehmer-Abteilungen dabei sind.",
-        "faq": {
-          "required": {
-            "q": "Was gehört zur Ersteinrichtung?",
-            "a": "Name, Beginn des Anlasses, Ort und der Typ (Lager oder Event). Das Ende darf nicht vor dem Beginn liegen."
-          },
-          "locations": {
-            "q": "Wo lege ich die Lagerplätze für das Material fest?",
-            "a": "Nicht hier: Die Plätze für das Material sind in den Einstellungen unter Standorte."
-          }
-        }
+      "page": {
+        "title": "Grossanlass-Hilfe",
+        "subtitle": "Was die Seiten des Grossanlasses tun und wie die häufigsten Abläufe funktionieren.",
+        "tocAria": "Kapitel der Grossanlass-Hilfe",
+        "openPage": "Seite öffnen"
       },
-      "ressorts": {
-        "title": "Ressorts",
-        "summary": "Hier baust du die Gliederung des Anlasses auf: Ressorts, Unterressorts oder Bereiche und Bauprojekte. Du weist Mitglieder zu und bestimmst die Leitung.",
-        "faq": {
-          "levels": {
-            "q": "Welche Ebenen gibt es?",
-            "a": "Ein Ressort ist die oberste Ebene. Darunter liegen Unterressorts (Bereiche) und darunter die Bauprojekte."
-          },
-          "required": {
-            "q": "Was braucht die Ersteinrichtung?",
-            "a": "Mindestens ein Ressort, und jedes Ressort braucht eine Leitung."
-          }
-        }
+      "hint": {
+        "aria": "Erklärung anzeigen"
       },
-      "standorte": {
-        "title": "Standorte",
-        "summary": "Die Orte des Anlasses auf der Karte: zuerst die drei Kernstandorte, danach die Event-Punkte (GA-Orte).",
-        "faq": {
-          "order": {
-            "q": "Warum kann ich noch keine Event-Punkte anlegen?",
-            "a": "Event-Punkte gibt es erst, wenn Eventstandort, Zustellpunkt (Event) und Lagerstandort gesetzt sind."
-          },
-          "qr": {
-            "q": "Wofür sind die Event-Punkte?",
-            "a": "Jeder Event-Punkt hat einen QR-Code für ein Schild vor Ort. Packen und Helfer scannen denselben QR."
-          }
-        }
+      "groups": {
+        "start": "Einstieg",
+        "setup": "Einrichten",
+        "planning": "Planen",
+        "procurement": "Beschaffen",
+        "material": "Material",
+        "guest": "Gast-Abteilungen"
       },
-      "kategorien": {
-        "title": "Kategorien",
-        "summary": "Die Bereiche für Bedarf, Filter, Firmen-Anhaken und Gmail in der Beschaffung.",
-        "faq": {
-          "storage": {
-            "q": "Sind das die Kategorien des Materiallagers?",
-            "a": "Nein. Es sind eigene Kategorien der Beschaffung, nicht die Kategorien des Materiallagers."
-          }
-        }
+      "fields": {
+        "enoughOnHand": "Der Bedarf ist schon gedeckt, es braucht keine weitere Anfrage. Gib an, woher das Material kommt: aus dem Eigenbestand oder aus einer Zusage im selben Grossanlass.",
+        "cash": "Cash ist das Geld, das bis jetzt aus der Kasse geflossen ist oder fliessen muss, zum Beispiel Kaufpreis, Miete und Depot.",
+        "netto": "Netto sind die Kosten, die am Ende beim Anlass bleiben: ein Depot zurück oder ein Verkaufserlös verringern sie, ein als Anlage verbuchter Einkauf zählt mit 0."
       },
-      "anfragenEmail": {
-        "title": "Anfragen & E-Mail",
-        "summary": "Hier stellst du zuerst die Standard-Mailtexte ein und verbindest danach das Postfach für Firmenanfragen.",
-        "faq": {
-          "mailbox": {
-            "q": "Welches Postfach wird verwendet?",
-            "a": "Der Grossanlass hat ein gemeinsames Postfach. Produktiv nutzbar ist Gmail (verbinden, Vorlagen, Entwürfe, Sync und Senden). Outlook ist noch in Entwicklung und kein fertiges Postfach."
+      "topics": {
+        "overview": {
+          "title": "Grossanlass – Überblick",
+          "summary": "Der Grossanlass ist ein eigenes Department als Projekt: Ressorts mit Bauprojekten, Planung, Beschaffung, Material und eingeladene Gast-Abteilungen. Was du siehst, hängt von deiner Rolle ab.",
+          "faq": {
+            "roles": {
+              "q": "Warum sehe ich nicht alle Menüpunkte?",
+              "a": "Die Menüpunkte hängen von deiner Rolle im Grossanlass ab. Fehlt dir ein Bereich, frage den Materialchef oder deine Ressort-Leitung."
+            },
+            "setupRelease": {
+              "q": "Warum ist der Grossanlass noch nicht freigegeben?",
+              "a": "Ein neuer Grossanlass wird zuerst eingerichtet: Stammdaten, Ressorts mit je einer Leitung, Mitglieder (mindestens ein Materialchef und eine OK-Leitung). Danach schaltet ihn der Materialchef oder die OK-Leitung für alle Rollen frei."
+            }
           }
-        }
-      },
-      "teilnehmer": {
-        "title": "Teilnehmer",
-        "summary": "Wer einladen darf, der Organisationsmodus, dann Unterlager und Gast-Abteilungen. Unterlager sind die Eltern-Kind-Struktur der Teilnehmer, nicht die Standorte des Materials.",
-        "faq": {
-          "invite": {
-            "q": "Wann werden Gast-Abteilungen eingeladen?",
-            "a": "Erst mit der Freigabe des Anlasses. Bis dahin sind die Teilnehmer nur geplant. Mit der Freigabe geht die Einladung in die Inbox der Gast-Abteilung, bis zur Antwort steht sie auf «Einladung offen»."
-          },
-          "unterlager": {
-            "q": "Sind Unterlager Lagerplätze?",
-            "a": "Nein. Ein Unterlager gliedert die Teilnehmer. Die Orte für das Material legst du unter Standorte fest."
+        },
+        "stammdaten": {
+          "title": "Stammdaten",
+          "summary": "Anlassname, Zeitraum und Eventstandort. Hier legst du auch fest, ob der Anlass ein Lager oder ein Event ist und ob Teilnehmer-Abteilungen dabei sind.",
+          "faq": {
+            "required": {
+              "q": "Was gehört zur Ersteinrichtung?",
+              "a": "Name, Beginn des Anlasses, Ort und der Typ (Lager oder Event). Das Ende darf nicht vor dem Beginn liegen."
+            },
+            "locations": {
+              "q": "Wo lege ich die Lagerplätze für das Material fest?",
+              "a": "Nicht hier: Die Plätze für das Material sind in den Einstellungen unter Standorte."
+            }
           }
-        }
-      },
-      "freigabe": {
-        "title": "Freigabe",
-        "summary": "Erst nach der Freigabe werden Gast-Abteilungen eingeladen. Bis dahin bleibt der Anlass intern.",
-        "faq": {
-          "effect": {
-            "q": "Was passiert bei der Freigabe?",
-            "a": "Der Anlass wird veröffentlicht und alle geplanten Teilnehmer werden eingeladen. Dafür muss der Zeitraum des Anlasses gesetzt sein."
-          },
-          "undo": {
-            "q": "Kann ich die Freigabe zurücknehmen?",
-            "a": "Nein, eine Rücknahme gibt es nicht."
-          },
-          "setup": {
-            "q": "Ist das dieselbe Freigabe wie bei der Ersteinrichtung?",
-            "a": "Nein. Die Freigabe der Ersteinrichtung schaltet den Grossanlass für alle Rollen frei. Diese Freigabe lädt die Gast-Abteilungen ein und setzt die freigegebene Einrichtung voraus."
+        },
+        "ressorts": {
+          "title": "Ressorts",
+          "summary": "Hier baust du die Gliederung des Anlasses auf: Ressorts, Unterressorts oder Bereiche und Bauprojekte. Du weist Mitglieder zu und bestimmst die Leitung.",
+          "faq": {
+            "levels": {
+              "q": "Welche Ebenen gibt es?",
+              "a": "Ein Ressort ist die oberste Ebene. Darunter liegen Unterressorts (Bereiche) und darunter die Bauprojekte."
+            },
+            "required": {
+              "q": "Was braucht die Ersteinrichtung?",
+              "a": "Mindestens ein Ressort, und jedes Ressort braucht eine Leitung."
+            }
           }
-        }
-      },
-      "wuensche": {
-        "title": "Wünsche & Ideen",
-        "summary": "Hier melden die Ressorts ihren Bedarf. Nur Materialwünsche werden später in der Beschaffung zu Paketen gebündelt.",
-        "faq": {
-          "enoughOnHand": {
-            "q": "Was heisst «Genug vorhanden»?",
-            "a": "Der Bedarf ist schon gedeckt und braucht keine weitere Anfrage. Du gibst an, ob das Material aus dem Eigenbestand kommt oder aus einer Zusage."
-          },
-          "selfOrganized": {
-            "q": "Was bedeutet «selbst organisiert»?",
-            "a": "Das Ressort beschafft die Position selbst. Sie landet deshalb nicht im Bedarf der Beschaffung."
+        },
+        "standorte": {
+          "title": "Standorte",
+          "summary": "Die Orte des Anlasses auf der Karte: zuerst die drei Kernstandorte, danach die Event-Punkte (GA-Orte).",
+          "faq": {
+            "order": {
+              "q": "Warum kann ich noch keine Event-Punkte anlegen?",
+              "a": "Event-Punkte gibt es erst, wenn Eventstandort, Zustellpunkt (Event) und Lagerstandort gesetzt sind."
+            },
+            "qr": {
+              "q": "Wofür sind die Event-Punkte?",
+              "a": "Jeder Event-Punkt hat einen QR-Code für ein Schild vor Ort. Packen und Helfer scannen denselben QR."
+            }
           }
-        }
-      },
-      "bauauftraege": {
-        "title": "Bauaufträge",
-        "summary": "Die Bauaufträge des Anlasses nach Ressort und Bereich, als Meine Aufträge, Ressortbaum oder Alle Aufträge. Hier planst du Fenster, Aufgaben und Material.",
-        "faq": {
-          "status": {
-            "q": "Woher kommt der Stand eines Bauauftrags?",
-            "a": "Ist kein Stand gesetzt, wird er aus dem Projektfenster und den Kalenderzeiträumen abgeleitet: ohne Fenster oder vor dem Fenster gilt «geplant», nach dem Fenster «erledigt». Dazwischen entscheidet, ob gerade der Anlass oder der Abbau läuft."
+        },
+        "kategorien": {
+          "title": "Kategorien",
+          "summary": "Die Bereiche für Bedarf, Filter, Firmen-Anhaken und Gmail in der Beschaffung.",
+          "faq": {
+            "storage": {
+              "q": "Sind das die Kategorien des Materiallagers?",
+              "a": "Nein. Es sind eigene Kategorien der Beschaffung, nicht die Kategorien des Materiallagers."
+            }
           }
-        }
-      },
-      "meinRessort": {
-        "title": "Mein Ressort",
-        "summary": "Unterressorts oder Bereiche, Bauprojekte und die Materialliste in deinem Ressort-Zweig.",
-        "faq": {
-          "noRessort": {
-            "q": "Warum steht hier «Kein Ressort zugeteilt»?",
-            "a": "Du bist noch keinem Ressort zugewiesen. Bitte den Materialchef oder die Ressort-Leitung, dich zuzuteilen."
-          },
-          "scan": {
-            "q": "Wie funktioniert das Scannen?",
-            "a": "Scanne zuerst den QR der Palette (Pack) und danach den Zielort. Wird ein Code nicht erkannt, scanne einen Pack oder einen Event-Punkt (GA-Ort). Codes eines anderen Anlasses werden abgewiesen."
+        },
+        "anfragenEmail": {
+          "title": "Anfragen & E-Mail",
+          "summary": "Hier stellst du zuerst die Standard-Mailtexte ein und verbindest danach das Postfach für Firmenanfragen.",
+          "faq": {
+            "mailbox": {
+              "q": "Welches Postfach wird verwendet?",
+              "a": "Der Grossanlass hat ein gemeinsames Postfach. Produktiv nutzbar ist Gmail (verbinden, Vorlagen, Entwürfe, Sync und Senden). Outlook ist noch in Entwicklung und kein fertiges Postfach."
+            }
           }
-        }
-      },
-      "bedarf": {
-        "title": "Bedarf",
-        "summary": "Hier bündelst du Wünsche zu Beschaffungspositionen oder erfasst einen Artikel selbst als Bedarf.",
-        "faq": {
-          "partnerBuy": {
-            "q": "Wo lege ich fest, ob gekauft oder bei einem Partner geholt wird?",
-            "a": "An der Bedarfsposition, nicht am Wunsch. Anfragen gelten für beide Wege."
-          },
-          "direct": {
-            "q": "Darf ein Ressort selbst beschaffen?",
-            "a": "Ja, mit der Freigabe «darf beschaffen» im Ressort-Zweig. Diese Personen pflegen Direkt-Bedarf und eigene Offerten. Offerte wählen, Budget setzen und bestellen bleibt beim Materialchef."
+        },
+        "teilnehmer": {
+          "title": "Teilnehmer",
+          "summary": "Wer einladen darf, der Organisationsmodus, dann Unterlager und Gast-Abteilungen. Unterlager sind die Eltern-Kind-Struktur der Teilnehmer, nicht die Standorte des Materials.",
+          "faq": {
+            "invite": {
+              "q": "Wann werden Gast-Abteilungen eingeladen?",
+              "a": "Erst mit der Freigabe des Anlasses. Bis dahin sind die Teilnehmer nur geplant. Mit der Freigabe geht die Einladung in die Inbox der Gast-Abteilung, bis zur Antwort steht sie auf «Einladung offen»."
+            },
+            "unterlager": {
+              "q": "Sind Unterlager Lagerplätze?",
+              "a": "Nein. Ein Unterlager gliedert die Teilnehmer. Die Orte für das Material legst du unter Standorte fest."
+            }
           }
-        }
-      },
-      "anfragen": {
-        "title": "Anfragen",
-        "summary": "Hier führst du die Firmen, bei denen angefragt wird, mit oder ohne Mailkonto.",
-        "faq": {
-          "mailAccount": {
-            "q": "Brauche ich ein verbundenes Mailkonto?",
-            "a": "Nein. Ohne Konto erfasst du die Firma und setzt den Stand selbst (angefragt, Antwort, Zusage). Mit Konto enthält die erste Mail die gewünschten Artikel aus dem Bedarf, ohne Stückzahl und Mass, und die PDFs des Anlasses. Nach der Zusage folgt eine Mail mit der Liste."
+        },
+        "freigabe": {
+          "title": "Freigabe",
+          "summary": "Erst nach der Freigabe werden Gast-Abteilungen eingeladen. Bis dahin bleibt der Anlass intern.",
+          "faq": {
+            "effect": {
+              "q": "Was passiert bei der Freigabe?",
+              "a": "Der Anlass wird veröffentlicht und alle geplanten Teilnehmer werden eingeladen. Dafür muss der Zeitraum des Anlasses gesetzt sein."
+            },
+            "undo": {
+              "q": "Kann ich die Freigabe zurücknehmen?",
+              "a": "Nein, eine Rücknahme gibt es nicht."
+            },
+            "setup": {
+              "q": "Ist das dieselbe Freigabe wie bei der Ersteinrichtung?",
+              "a": "Nein. Die Freigabe der Ersteinrichtung schaltet den Grossanlass für alle Rollen frei. Diese Freigabe lädt die Gast-Abteilungen ein und setzt die freigegebene Einrichtung voraus."
+            }
           }
-        }
-      },
-      "offerten": {
-        "title": "Offerten",
-        "summary": "Pro Position erfasst du mehrere Offerten und wählst eine für das Budget. Danach folgen die Bestellungen.",
-        "faq": {
-          "later": {
-            "q": "Kann ich nach der Wahl noch Offerten ergänzen?",
-            "a": "Ja. Auch nach der Wahl, und selbst wenn schon bestellt ist, trägst du Nachträge derselben Firma als weitere Offerte hier nach."
+        },
+        "wuensche": {
+          "title": "Wünsche & Ideen",
+          "summary": "Hier melden die Ressorts ihren Bedarf. Nur Materialwünsche werden später in der Beschaffung zu Paketen gebündelt.",
+          "faq": {
+            "enoughOnHand": {
+              "q": "Was heisst «Genug vorhanden»?",
+              "a": "Der Bedarf ist schon gedeckt und braucht keine weitere Anfrage. Du gibst an, ob das Material aus dem Eigenbestand kommt oder aus einer Zusage."
+            },
+            "selfOrganized": {
+              "q": "Was bedeutet «selbst organisiert»?",
+              "a": "Das Ressort beschafft die Position selbst. Sie landet deshalb nicht im Bedarf der Beschaffung."
+            }
           }
-        }
-      },
-      "zusagen": {
-        "title": "Absprachen",
-        "summary": "Die Koordination mit der Firma: Fenster, Übernahme, Rückgabe und Menge.",
-        "faq": {
-          "stock": {
-            "q": "Ist das Leihmaterial damit im Lager?",
-            "a": "Nein. Hier entsteht nur die Leih-Charge. Als «da» gilt sie erst, wenn sie im Wareneingang eingebucht wird."
+        },
+        "bauauftraege": {
+          "title": "Bauaufträge",
+          "summary": "Die Bauaufträge des Anlasses nach Ressort und Bereich, als Meine Aufträge, Ressortbaum oder Alle Aufträge. Hier planst du Fenster, Aufgaben und Material.",
+          "faq": {
+            "status": {
+              "q": "Woher kommt der Stand eines Bauauftrags?",
+              "a": "Ist kein Stand gesetzt, wird er aus dem Projektfenster und den Kalenderzeiträumen abgeleitet: ohne Fenster oder vor dem Fenster gilt «geplant», nach dem Fenster «erledigt». Dazwischen entscheidet, ob gerade der Anlass oder der Abbau läuft."
+            }
           }
-        }
-      },
-      "bestellungen": {
-        "title": "Bestellungen",
-        "summary": "Hier bestellst du die gewählte Offerte und erfasst die Ist-Kosten. Die Offerte bleibt sichtbar.",
-        "faq": {
-          "empty": {
-            "q": "Warum sehe ich keine bestellbaren Positionen?",
-            "a": "Es braucht zuerst eine gewählte Offerte. Wähle sie im Tab Offerten, danach erscheint die Position hier."
+        },
+        "meinRessort": {
+          "title": "Mein Ressort",
+          "summary": "Unterressorts oder Bereiche, Bauprojekte und die Materialliste in deinem Ressort-Zweig.",
+          "faq": {
+            "noRessort": {
+              "q": "Warum steht hier «Kein Ressort zugeteilt»?",
+              "a": "Du bist noch keinem Ressort zugewiesen. Bitte den Materialchef oder die Ressort-Leitung, dich zuzuteilen."
+            },
+            "scan": {
+              "q": "Wie funktioniert das Scannen?",
+              "a": "Scanne zuerst den QR der Palette (Pack) und danach den Zielort. Wird ein Code nicht erkannt, scanne einen Pack oder einen Event-Punkt (GA-Ort). Codes eines anderen Anlasses werden abgewiesen."
+            }
           }
-        }
-      },
-      "kosten": {
-        "title": "Kosten",
-        "summary": "Der Rahmen, die Offerten und die Ist-Kosten des Anlasses, gesamt und nach Zahler.",
-        "faq": {
-          "cashNetto": {
-            "q": "Was ist der Unterschied zwischen Cash und Netto?",
-            "a": "Cash ist das Geld, das bis jetzt geflossen ist oder fliessen muss. Netto sind die Anlasskosten: Ein zurückgezahltes Depot oder ein Verkaufserlös verringert sie, ein als Anlage verbuchter Einkauf zählt mit 0, Nebenkosten zählen voll."
-          },
-          "payer": {
-            "q": "Wer zahlt die Kosten?",
-            "a": "Die Logistik organisiert, der Zahler kann aber ein anderes Ressort sein. Den Rahmen setzen OK und Materialchef."
+        },
+        "bedarf": {
+          "title": "Bedarf",
+          "summary": "Hier bündelst du Wünsche zu Beschaffungspositionen oder erfasst einen Artikel selbst als Bedarf.",
+          "faq": {
+            "partnerBuy": {
+              "q": "Wo lege ich fest, ob gekauft oder bei einem Partner geholt wird?",
+              "a": "An der Bedarfsposition, nicht am Wunsch. Anfragen gelten für beide Wege."
+            },
+            "direct": {
+              "q": "Darf ein Ressort selbst beschaffen?",
+              "a": "Ja, mit der Freigabe «darf beschaffen» im Ressort-Zweig. Diese Personen pflegen Direkt-Bedarf und eigene Offerten. Offerte wählen, Budget setzen und bestellen bleibt beim Materialchef."
+            }
           }
-        }
-      },
-      "wareneingang": {
-        "title": "Wareneingang",
-        "summary": "Die Rampe für Camion und Abholung. Den Ankunftstag liefert die Absprache oder die Bestellung. Hier markierst du, was da ist, und klebst den QR.",
-        "faq": {
-          "partial": {
-            "q": "Kann ich eine Teillieferung einbuchen?",
-            "a": "Ja. Du buchst Teil- oder Restmengen pro Charge mit Menge, Annahmeort und Notiz. Eine grössere Menge als erwartet wird abgelehnt."
+        },
+        "anfragen": {
+          "title": "Anfragen",
+          "summary": "Hier führst du die Firmen, bei denen angefragt wird, mit oder ohne Mailkonto.",
+          "faq": {
+            "mailAccount": {
+              "q": "Brauche ich ein verbundenes Mailkonto?",
+              "a": "Nein. Ohne Konto erfasst du die Firma und setzt den Stand selbst (angefragt, Antwort, Zusage). Mit Konto enthält die erste Mail die gewünschten Artikel aus dem Bedarf, ohne Stückzahl und Mass, und die PDFs des Anlasses. Nach der Zusage folgt eine Mail mit der Liste."
+            }
           }
-        }
-      },
-      "gastVorschau": {
-        "title": "Gast-Sicht",
-        "summary": "So sieht eine eingeladene Abteilung den Anlass, als Vorschau ohne Login-Wechsel. Du wählst die Abteilung, die du spielst, und siehst Einladung, Zusage oder Absage.",
-        "faq": {
-          "preview": {
-            "q": "Ist das schon die echte Gast-Ansicht?",
-            "a": "Nein. Die Seite ist eine Vorschau mit grobem Design und noch ohne Funktion. Sie zeigt erst nach der Freigabe des Anlasses etwas an."
-          },
-          "real": {
-            "q": "Wie sieht die Gast-Abteilung den Anlass wirklich?",
-            "a": "Die Einladung kommt in die Inbox der Gast-Abteilung. Der Anlass erscheint bei ihr in der Aktivitäten-Liste, aber erst nach der Freigabe. Aufbau und Abbau sieht die Gast-Abteilung dort nicht."
+        },
+        "offerten": {
+          "title": "Offerten",
+          "summary": "Pro Position erfasst du mehrere Offerten und wählst eine für das Budget. Danach folgen die Bestellungen.",
+          "faq": {
+            "later": {
+              "q": "Kann ich nach der Wahl noch Offerten ergänzen?",
+              "a": "Ja. Auch nach der Wahl, und selbst wenn schon bestellt ist, trägst du Nachträge derselben Firma als weitere Offerte hier nach."
+            }
+          }
+        },
+        "zusagen": {
+          "title": "Absprachen",
+          "summary": "Die Koordination mit der Firma: Fenster, Übernahme, Rückgabe und Menge.",
+          "faq": {
+            "stock": {
+              "q": "Ist das Leihmaterial damit im Lager?",
+              "a": "Nein. Hier entsteht nur die Leih-Charge. Als «da» gilt sie erst, wenn sie im Wareneingang eingebucht wird."
+            }
+          }
+        },
+        "bestellungen": {
+          "title": "Bestellungen",
+          "summary": "Hier bestellst du die gewählte Offerte und erfasst die Ist-Kosten. Die Offerte bleibt sichtbar.",
+          "faq": {
+            "empty": {
+              "q": "Warum sehe ich keine bestellbaren Positionen?",
+              "a": "Es braucht zuerst eine gewählte Offerte. Wähle sie im Tab Offerten, danach erscheint die Position hier."
+            }
+          }
+        },
+        "kosten": {
+          "title": "Kosten",
+          "summary": "Der Rahmen, die Offerten und die Ist-Kosten des Anlasses, gesamt und nach Zahler.",
+          "faq": {
+            "cashNetto": {
+              "q": "Was ist der Unterschied zwischen Cash und Netto?",
+              "a": "Cash ist das Geld, das bis jetzt geflossen ist oder fliessen muss. Netto sind die Anlasskosten: Ein zurückgezahltes Depot oder ein Verkaufserlös verringert sie, ein als Anlage verbuchter Einkauf zählt mit 0, Nebenkosten zählen voll."
+            },
+            "payer": {
+              "q": "Wer zahlt die Kosten?",
+              "a": "Die Logistik organisiert, der Zahler kann aber ein anderes Ressort sein. Den Rahmen setzen OK und Materialchef."
+            }
+          }
+        },
+        "wareneingang": {
+          "title": "Wareneingang",
+          "summary": "Die Rampe für Camion und Abholung. Den Ankunftstag liefert die Absprache oder die Bestellung. Hier markierst du, was da ist, und klebst den QR.",
+          "faq": {
+            "partial": {
+              "q": "Kann ich eine Teillieferung einbuchen?",
+              "a": "Ja. Du buchst Teil- oder Restmengen pro Charge mit Menge, Annahmeort und Notiz. Eine grössere Menge als erwartet wird abgelehnt."
+            }
+          }
+        },
+        "gastVorschau": {
+          "title": "Gast-Sicht",
+          "summary": "So sieht eine eingeladene Abteilung den Anlass, als Vorschau ohne Login-Wechsel. Du wählst die Abteilung, die du spielst, und siehst Einladung, Zusage oder Absage.",
+          "faq": {
+            "preview": {
+              "q": "Ist das schon die echte Gast-Ansicht?",
+              "a": "Nein. Die Seite ist eine Vorschau mit grobem Design und noch ohne Funktion. Sie zeigt erst nach der Freigabe des Anlasses etwas an."
+            },
+            "real": {
+              "q": "Wie sieht die Gast-Abteilung den Anlass wirklich?",
+              "a": "Die Einladung kommt in die Inbox der Gast-Abteilung. Der Anlass erscheint bei ihr in der Aktivitäten-Liste, aber erst nach der Freigabe. Aufbau und Abbau sieht die Gast-Abteilung dort nicht."
+            }
           }
         }
       }

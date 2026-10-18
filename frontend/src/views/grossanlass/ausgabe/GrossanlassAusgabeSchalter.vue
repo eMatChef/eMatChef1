@@ -148,7 +148,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { EButton, ESearchField } from '@/components/form/base'
 import { useToast } from '@/composables/useToast'
-import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { useGrossanlassUebersicht } from '@/views/grossanlass/gaUebersicht'
 import GrossanlassAusgabeGeplant from './GrossanlassAusgabeGeplant.vue'
 import {
   addArticle,
@@ -177,7 +177,7 @@ const { t } = useI18n()
 const toast = useToast()
 const route = useRoute()
 const router = useRouter()
-const uebersicht = useGaUebersicht()
+const uebersicht = useGrossanlassUebersicht()
 const { people, contexts, session, last, loans } = useGaAusgabeMock()
 
 const personQuery = ref('')

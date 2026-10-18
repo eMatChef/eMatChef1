@@ -1,0 +1,18 @@
+{
+  "state": "ready",
+  "plan": {
+    "id": "gmfixture000",
+    "name": "Testplan",
+    "image_url": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300'><rect width='400' height='300' fill='%23fde68a' stroke='%23b45309' stroke-width='6'/></svg>",
+    "bounds_north": 47.0030,
+    "bounds_south": 47.0000,
+    "bounds_east": 8.0050,
+    "bounds_west": 8.0000,
+    "overlay_opacity": 0.5
+  },
+  "places": [
+    { "id": "plfixture001", "name": "Eingang Nord", "kind": "poi", "latitude": 47.0021, "longitude": 8.0012, "polygon": null, "starred": false, "group_ids": ["grfixture001"] },
+    { "id": "plfixture002", "name": "Baustelle Holzbau", "kind": "bauprojekt", "latitude": 47.0010, "longitude": 8.0040, "polygon": null, "starred": true, "group_ids": ["grfixture001", "grfixture002"] },
+    { "id": "plfixture003", "name": "Festgelände", "kind": "area", "latitude": 47.0015, "longitude": 8.0025, "polygon": [{ "lat": 47.0005, "lng": 8.0020 }, { "lat": 47.0025, "lng": 8.0022 }, { "lat": 47.0020, "lng": 8.0035 }], "starred": false, "group_ids": ["grfixture001"] }
+  ]
+}

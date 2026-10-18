@@ -60,7 +60,7 @@ import { gaCanOperateAusgabe } from '@/utils/grossanlassAccess'
 import { gaLageRowsOfKind, type GaLageTaskKind } from '@/utils/grossanlassLage'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
-import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { useGrossanlassUebersicht } from '@/views/grossanlass/gaUebersicht'
 import GrossanlassFahrauftragList from '@/views/grossanlass/GrossanlassFahrauftragList.vue'
 import GrossanlassHelperAssignmentDetailDialog from '@/views/grossanlass/GrossanlassHelperAssignmentDetailDialog.vue'
 import GrossanlassHelperAssignmentRow from '@/views/grossanlass/GrossanlassHelperAssignmentRow.vue'
@@ -75,7 +75,7 @@ const route = useRoute()
 const { t, locale } = useI18n()
 const authStore = useAuthStore()
 const toast = useToast()
-const uebersicht = useGaUebersicht()
+const uebersicht = useGrossanlassUebersicht()
 
 const groups = ref<GrossanlassGroup[]>([])
 const busyId = ref<string | null>(null)

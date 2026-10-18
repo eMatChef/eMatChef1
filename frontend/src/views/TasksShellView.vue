@@ -10,8 +10,8 @@
         color="primary"
         @update:model-value="onShellTabChange"
       >
-        <v-tab v-if="tabs.gaMaster" value="ga-master">{{ t('grossanlass.aufgaben.tabMaster') }}</v-tab>
         <v-tab v-if="tabs.gaMine" value="ga-mine">{{ t('grossanlass.aufgaben.tabMine') }}</v-tab>
+        <v-tab v-if="tabs.gaMaster" value="ga-master">{{ t('grossanlass.aufgaben.tabMaster') }}</v-tab>
         <v-tab v-if="tabs.general" value="general">{{ t('tasksShell.tabGeneral') }}</v-tab>
         <v-tab v-if="tabs.inventory" value="inventory">{{ t('tasksShell.tabInventory') }}</v-tab>
         <v-tab v-if="tabs.print" value="print">{{ t('common.print') }}</v-tab>

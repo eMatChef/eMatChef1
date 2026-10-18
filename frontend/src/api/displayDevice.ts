@@ -1,4 +1,6 @@
 import apiClient from './apiClient'
+import type { DisplayMapData } from './displayLayout'
+import type { GaLiveData } from './displayLayout'
 import { mapDisplayPayload, type PublicDisplayData, type PublicDisplayDataResponse } from './displayScreens'
 
 /** Serverseitiger Zustand des Anzeigegeräts (Credential-Cookie, keine User-Anmeldung). */
@@ -92,4 +94,16 @@ export async function revokeDisplayDevice(departmentId: string, deviceId: string
 
 export async function deleteDisplayDevice(departmentId: string, deviceId: string): Promise<void> {
   await apiClient.delete(`${base(departmentId)}/${encodeURIComponent(deviceId)}`)
+}
+
+/** Kartendaten des zugewiesenen Infoscreens (Geräte-Credential); null, wenn das Gerät nicht (mehr) freigegeben ist. */
+export async function getDisplayDeviceMapData(): Promise<DisplayMapData | null> {
+  const res = await apiClient.get<DisplayMapData>('/api/public/display-device/map-data', config)
+  return res.status === 200 ? res.data : null
+}
+
+/** Live-Daten der GA-Fachwidgets des zugewiesenen Infoscreens (Geräte-Credential, nur lesend). */
+export async function getDisplayDeviceLiveData(): Promise<GaLiveData | null> {
+  const res = await apiClient.get<GaLiveData>('/api/public/display-device/live-data', config)
+  return res.status === 200 ? res.data : null
 }

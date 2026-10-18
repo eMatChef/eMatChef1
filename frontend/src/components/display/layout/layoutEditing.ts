@@ -25,20 +25,20 @@ export function overlaps(a: Geometry, b: Geometry): boolean {
 }
 
 /** Hält ein Element im Raster: mindestens 1×1, nie über den Rand. */
-export function clampGeometry(g: Geometry, rows: number, minW = 1, minH = 1): Geometry {
-  const w = Math.min(COLUMNS, Math.max(minW, Math.round(g.w)))
+export function clampGeometry(g: Geometry, rows: number, minW = 1, minH = 1, columns = COLUMNS): Geometry {
+  const w = Math.min(columns, Math.max(minW, Math.round(g.w)))
   const h = Math.min(rows, Math.max(minH, Math.round(g.h)))
-  const x = Math.min(COLUMNS - w, Math.max(0, Math.round(g.x)))
+  const x = Math.min(columns - w, Math.max(0, Math.round(g.x)))
   const y = Math.min(rows - h, Math.max(0, Math.round(g.y)))
   return { x, y, w, h }
 }
 
 /** Erste freie Position für ein Element der Grösse w×h (zeilenweise); sonst oben links. */
-export function findFreeSpot(items: Geometry[], rows: number, w: number, h: number): Geometry {
-  const width = Math.min(COLUMNS, w)
+export function findFreeSpot(items: Geometry[], rows: number, w: number, h: number, columns = COLUMNS): Geometry {
+  const width = Math.min(columns, w)
   const height = Math.min(rows, h)
   for (let y = 0; y + height <= rows; y++) {
-    for (let x = 0; x + width <= COLUMNS; x++) {
+    for (let x = 0; x + width <= columns; x++) {
       const candidate = { x, y, w: width, h: height }
       if (!items.some((item) => overlaps(candidate, item))) return candidate
     }
@@ -116,8 +116,8 @@ export function addPage(doc: LayoutDocument, name: string): LayoutPage {
   return page
 }
 
-export function addItem(page: LayoutPage, content: LayoutContent, size: [number, number]): LayoutItem {
-  const spot = findFreeSpot(page.items, page.rows, size[0], size[1])
+export function addItem(page: { rows: number; columns?: number; items: LayoutItem[] }, content: LayoutContent, size: [number, number]): LayoutItem {
+  const spot = findFreeSpot(page.items, page.rows, size[0], size[1], page.columns ?? COLUMNS)
   const item: LayoutItem = { id: newId('i', page.items.map((i) => i.id)), ...spot, content }
   page.items.push(item)
   return item
@@ -179,7 +179,7 @@ export interface ItemIssue {
 }
 
 /** Hinweise für die Anzeige im Editor (der Server prüft beim Veröffentlichen verbindlich). */
-export function pageIssues(page: LayoutPage, widgetDefs: Map<string, WidgetDefinition>): ItemIssue[] {
+export function pageIssues(page: { items: LayoutItem[] }, widgetDefs: Map<string, WidgetDefinition>): ItemIssue[] {
   const issues: ItemIssue[] = []
   page.items.forEach((item, i) => {
     if (item.content.type === 'widget') {

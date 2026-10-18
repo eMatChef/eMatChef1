@@ -1,5 +1,5 @@
 <template>
-  <div class="dl-grid" :style="{ gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))` }">
+  <div class="dl-grid" :style="{ gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`, gridTemplateColumns: `repeat(${columns ?? 12}, minmax(0, 1fr))` }">
     <div
       v-for="item in items"
       :key="item.id"
@@ -15,7 +15,7 @@
 import { defineAsyncComponent } from 'vue'
 import type { LayoutItem } from '@/api/displayLayout'
 
-defineProps<{ rows: number; items: LayoutItem[]; depth: number }>()
+defineProps<{ rows: number; columns?: number; items: LayoutItem[]; depth: number }>()
 
 const LayoutContent = defineAsyncComponent(() => import('./LayoutContent.vue'))
 </script>

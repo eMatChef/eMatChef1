@@ -120,6 +120,28 @@ export function functionRows(needs: GaStaffingNeedRow[]): FunctionRow[] {
     .sort((a, b) => (a.label === '' ? 1 : b.label === '' ? -1 : a.label.localeCompare(b.label)))
 }
 
+/** Suchtext eines Helfers (Name, Kontakt, Beruf, Ressort, Fähigkeiten, Qualifikationen) für die Filter in Helferpool und Helfer-Unterreiter. */
+export function helperSearchText(h: GaHelper): string {
+  return [fullName(h), h.email, h.phone, h.occupation, h.area, ...(h.skills ?? []), ...(h.qualifications ?? []).map((q) => q.label)].filter(Boolean).join(' ').toLowerCase()
+}
+
+/** Passt der Funktionswunsch (`wish`) zu einer Fähigkeit des Helfers? Nur Hinweis, nie Voraussetzung der Zuteilung. */
+export function helperMatchesWish(helper: Pick<GaHelper, 'skills'>, wish: string | null | undefined): boolean {
+  const w = (wish ?? '').trim().toLowerCase()
+  return w !== '' && (helper.skills ?? []).some((s) => s.trim().toLowerCase() === w)
+}
+
 export function conflictMessageKey(kind: string): string {
   return `grossanlass.helferpool.conflict.${kind}`
+}
+
+export const HELFERPOOL_TABS = ['helpers', 'timeline', 'skills', 'needs', 'api'] as const
+export type HelferpoolTab = (typeof HELFERPOOL_TABS)[number]
+
+/** Reiter aus dem URL-Query; Verwaltungsreiter nur für Berechtigte. Standard: «Helfer» (ohne Verwaltungsrecht «Personalbedarf»). */
+export function resolveHelferpoolTab(raw: unknown, canManage: boolean): HelferpoolTab {
+  const value = Array.isArray(raw) ? raw[0] : raw
+  const fallback: HelferpoolTab = canManage ? 'helpers' : 'needs'
+  if (typeof value !== 'string' || !(HELFERPOOL_TABS as readonly string[]).includes(value)) return fallback
+  return !canManage && value !== 'needs' ? 'needs' : (value as HelferpoolTab)
 }

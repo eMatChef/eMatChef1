@@ -3,7 +3,7 @@
     <button
       type="button"
       class="ga-help-hint__btn"
-      :aria-label="label ? `${t('gaHelp.hint.aria')}: ${label}` : t('gaHelp.hint.aria')"
+      :aria-label="label ? `${t('grossanlass.help.hint.aria')}: ${label}` : t('grossanlass.help.hint.aria')"
       @click.prevent
       @focus="onFocus"
       @pointerleave="onPointerLeave"
@@ -30,10 +30,10 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { gaHelpKey } from '@/config/gaHelp'
 
-defineOptions({ name: 'GaHelpHint' })
+defineOptions({ name: 'GrossanlassHelpHint' })
 
 /**
- * Kleines Hilfesymbol an komplexen Feldern. Erklärung unter `gaHelp.fields.<field>`.
+ * Kleines Hilfesymbol an komplexen Feldern. Erklärung unter `grossanlass.help.fields.<field>`.
  * Maus: Hover und Tastaturfokus. Touch (kein Hover): Tippen öffnet und schliesst, ein Tipp daneben schliesst ebenfalls.
  * Das Symbol ist ein eigener Button neben dem Feld (nie im Label) und blockiert die Standardaktion eines Klicks.
  */

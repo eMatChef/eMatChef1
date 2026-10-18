@@ -44,14 +44,14 @@
         <div class="stat-card">
           <span class="stat-label">
             {{ t('grossanlass.beschaffung.kosten.statCash') }}
-            <GaHelpHint field="cash" :label="t('grossanlass.beschaffung.kosten.statCash')" />
+            <GrossanlassHelpHint field="cash" :label="t('grossanlass.beschaffung.kosten.statCash')" />
           </span>
           <strong class="stat-value">{{ formatChf(overview.totals.cash_chf) }}</strong>
         </div>
         <div class="stat-card">
           <span class="stat-label">
             {{ t('grossanlass.beschaffung.kosten.statNetto') }}
-            <GaHelpHint field="netto" :label="t('grossanlass.beschaffung.kosten.statNetto')" />
+            <GrossanlassHelpHint field="netto" :label="t('grossanlass.beschaffung.kosten.statNetto')" />
           </span>
           <strong class="stat-value">{{ formatChf(overview.totals.netto_chf) }}</strong>
         </div>
@@ -364,7 +364,7 @@ import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
 import GrossanlassCategoryDropdownItem from '@/components/grossanlass/GrossanlassCategoryDropdownItem.vue'
-import GaHelpHint from '@/components/grossanlass/GaHelpHint.vue'
+import GrossanlassHelpHint from '@/components/grossanlass/GrossanlassHelpHint.vue'
 import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
 import {
   isGrossanlassLogisticsPayer,

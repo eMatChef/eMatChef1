@@ -358,7 +358,21 @@
           <span class="dropdown-section-label">{{ t('layout.userMenu.switchDepartment') }}</span>
         </button>
         <button
-          v-for="dept in departmentSwitchItems"
+          v-if="departmentsCollapsible"
+          type="button"
+          class="dropdown-item dropdown-item--dept-group"
+          :aria-expanded="departmentsExpanded"
+          data-testid="user-menu-departments-toggle"
+          @click.stop="departmentsExpanded = !departmentsExpanded"
+        >
+          <span class="dept-switch-text">
+            <span class="dept-switch-name">{{ departmentGroupSummary }}</span>
+            <span class="dept-switch-hint">{{ activeDepartmentItem?.name }}</span>
+          </span>
+          <v-icon :icon="departmentsExpanded ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="18" />
+        </button>
+        <button
+          v-for="dept in visibleDepartmentItems"
           :key="dept.id"
           type="button"
           class="dropdown-item dropdown-item--dept"
@@ -574,6 +588,25 @@ const departmentSwitchItems = computed(() =>
   })),
 )
 
+/** Ab mehr als 3 Departments werden sie in einer eingeklappten Gruppe zusammengefasst. */
+const DEPARTMENT_COLLAPSE_THRESHOLD = 3
+const departmentsExpanded = ref(false)
+const departmentsCollapsible = computed(() => departmentSwitchItems.value.length > DEPARTMENT_COLLAPSE_THRESHOLD)
+const visibleDepartmentItems = computed(() =>
+  departmentsCollapsible.value && !departmentsExpanded.value ? [] : departmentSwitchItems.value,
+)
+const activeDepartmentItem = computed(() => departmentSwitchItems.value.find((d) => d.isActive))
+const departmentGroupSummary = computed(() => {
+  const ga = departmentSwitchItems.value.filter((d) => d.isGrossanlass).length
+  const dept = departmentSwitchItems.value.length - ga
+  return [
+    dept > 0 ? t('layout.userMenu.departmentCount', { count: dept }, dept) : '',
+    ga > 0 ? t('layout.userMenu.grossanlassCount', { count: ga }, ga) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+})
+
 /** Verwaltungskontexte neben den Mitgliedschaften: Superadmin global, Orgchef/Suborgchef je Verwaltungsbereich. */
 const adminContextItems = computed(() =>
   authStore.availableAdminContexts.map((ctx) => ({
@@ -635,6 +668,9 @@ function toggleDrawer() {
 }
 
 const showUserDropdown = ref(false)
+watch(showUserDropdown, (open) => {
+  if (!open) departmentsExpanded.value = false
+})
 
 /** Tour-Schritte, die Inhalt im offenen User-Menü brauchen (Department / Profil bearbeiten). */
 const tourKeepsUserMenuOpen = computed(() => {
@@ -2365,6 +2401,12 @@ watch(
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: #9ca3af;
+}
+
+.dropdown-item--dept-group {
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
 }
 
 .dropdown-item--dept {

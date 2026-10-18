@@ -63,6 +63,7 @@
                   <span>
                     <strong>{{ entry.helper_name }}</strong>
                     <small>{{ windowLabel(entry.starts_at, entry.ends_at, locale) }}</small>
+                    <v-chip v-if="entry.status === 'conflict'" size="x-small" variant="flat" color="error" prepend-icon="mdi-alert-outline" :title="t('grossanlass.helferpool.api.conflict.' + (entry.conflict?.detail ?? 'shift_changed'), { name: entry.helper_name, when: windowLabel(entry.starts_at, entry.ends_at, locale) })" data-testid="ga-assignment-conflict">{{ t('grossanlass.helferpool.assignmentConflict') }}</v-chip>
                     <v-chip v-if="entry.override_reason" size="x-small" variant="tonal" color="warning" :title="entry.override_reason">{{ t('grossanlass.helferpool.override') }}</v-chip>
                   </span>
                   <span class="assigned__buttons">

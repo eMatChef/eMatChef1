@@ -1,7 +1,10 @@
 <template>
   <div class="proj">
     <div class="proj__map">
-      <GaSiteMap
+      <!-- Live: die echte Geländekarte des Grossanlasses statt der Demo-Skizze -->
+      <div v-if="live" class="proj__livemap"><GrossanlassMapWidget widget="ga_site_map" :config="{}" /></div>
+      <GrossanlassSiteMap
+        v-else
         dark
         :label="t('grossanlass.displays.projekt.mapLabel')"
         :places="placeNames"
@@ -46,7 +49,7 @@
       <dl class="facts">
         <div><dt>{{ t('grossanlass.displays.projekt.deadline') }}</dt><dd>{{ active.deadline ? stamp(active.deadline) : '–' }}</dd></div>
         <div><dt>{{ t('grossanlass.displays.projekt.currentTask') }}</dt><dd>{{ active.currentTask?.title ?? '–' }}</dd></div>
-        <div><dt>{{ t('grossanlass.displays.projekt.helpers') }}</dt><dd>{{ t('grossanlass.auftraege.staffed', { assigned: active.helpers.assigned, need: active.helpers.need }) }}</dd></div>
+        <div v-if="!live || active.helpers.need > 0"><dt>{{ t('grossanlass.displays.projekt.helpers') }}</dt><dd>{{ t('grossanlass.auftraege.staffed', { assigned: active.helpers.assigned, need: active.helpers.need }) }}</dd></div>
         <div><dt>{{ t('grossanlass.displays.projekt.packs') }}</dt><dd>{{ active.packs.length ? active.packs.map((p) => `${p.code} (${t(`grossanlass.packen.paletteStatus.${p.status}`)})`).join(', ') : '–' }}</dd></div>
         <div><dt>{{ t('grossanlass.displays.projekt.transport') }}</dt><dd>{{ t('grossanlass.displays.projekt.transportLine', active.transport) }}</dd></div>
         <div>
@@ -75,11 +78,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import GaSiteMap from './GaSiteMap.vue'
+import GrossanlassSiteMap from './GrossanlassSiteMap.vue'
+import GrossanlassMapWidget from '@/components/display/layout/widgets/GrossanlassMapWidget.vue'
 import { orderPlaceName, type GaBlocker, type GaHealth, type GaProjectBoard, type GaTrip } from '@/views/grossanlass/live/gaLiveModel'
 
 /** `passive`: Projekt-Chips sind reine Anzeige (Infoscreen ohne Bedienelemente). */
-const props = defineProps<{ boards: GaProjectBoard[]; trips: GaTrip[]; activeId: string; passive?: boolean }>()
+const props = defineProps<{ boards: GaProjectBoard[]; trips: GaTrip[]; activeId: string; passive?: boolean; live?: boolean }>()
 defineEmits<{ select: [id: string] }>()
 const { t, locale } = useI18n()
 
@@ -102,6 +106,10 @@ function blockerText(blocker: GaBlocker): string {
   grid-template-columns: minmax(0, 3fr) minmax(0, 2.4fr);
   gap: 22px;
   min-height: 0;
+}
+.proj__livemap {
+  width: 100%;
+  aspect-ratio: 640 / 380;
 }
 .proj__map {
   display: flex;

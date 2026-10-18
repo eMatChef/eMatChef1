@@ -19,7 +19,7 @@ function parsePeriodIso(iso: string | null): Date | null {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-export function provideGaEventPeriod(): GaEventPeriod {
+export function provideGrossanlassEventPeriod(): GaEventPeriod {
   const route = useRoute()
   const authStore = useAuthStore()
   const departmentId = computed(() => String(route.params.departmentId || ''))
@@ -66,12 +66,12 @@ export function provideGaEventPeriod(): GaEventPeriod {
   return api
 }
 
-export function useGaEventPeriod(): GaEventPeriod | null {
+export function useGrossanlassEventPeriod(): GaEventPeriod | null {
   return inject(gaEventPeriodKey, null)
 }
 
-export function useGaEventPeriodOrEmpty(): GaEventPeriod {
-  return useGaEventPeriod() ?? {
+export function useGrossanlassEventPeriodOrEmpty(): GaEventPeriod {
+  return useGrossanlassEventPeriod() ?? {
     startIso: computed(() => null),
     endIso: computed(() => null),
     spanDates: computed(() => []),

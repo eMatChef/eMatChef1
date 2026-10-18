@@ -47,6 +47,7 @@ import {
   useGaRessourcenMock,
   type GaResourceNeed,
 } from '@/views/grossanlass/ressourcen/gaRessourcenMock'
+import { liveCounts, liveDriverName, liveMatchesView, liveTourAsDispoTour, liveVehicleName, useGaDispo } from '@/views/grossanlass/logistik/useGaDispo'
 import { etaAt, etaProgress, trackingOf, useGaLive, type GaDisplayConfig, type GaTrackingMode } from './gaLiveEvents'
 import { hasPlace } from './gaSitePlaces'
 
@@ -209,15 +210,56 @@ export function trips(filter: GaDisplayFilter): GaTrip[] {
     })
 }
 
+/** Fahrt in der Leitstand-Anzeige: echte Fahraufträge (unterwegs) oder, ohne geladene Disposition, die Demo-Fahrten. */
+export type GaBoardTrip = {
+  id: string
+  underway: boolean
+  done: boolean
+  from: string
+  to: string
+  driver: string
+  vehicle: string
+  stepKey: GaTrip['stepKey']
+  eta: Date | null
+  mode: GaTrackingMode
+}
+
+/**
+ * Logistik-Leitstand. Sind die echten Transportdaten der Disposition geladen (Bedarfe, Touren, Chauffeure), werden nur diese
+ * angezeigt; ohne Backend-Daten (Demo-Anzeige, Tests) bleibt der Demo-State die Quelle. Nie beides nebeneinander.
+ */
 export function logistikBoard(filter: GaDisplayFilter) {
-  const { needs, tours } = useGaDispoMock()
+  const real = useGaDispo()
+  const useReal = real.loaded.value
+  const { needs: mockNeeds, tours: mockTours } = useGaDispoMock()
   const { needs: resources } = useGaRessourcenMock()
-  const counts = dispoCounts()
-  const list = trips(filter)
-  const activeTours = tours.value.filter((tour) => tour.status !== 'done')
+  const needs = useReal ? real.needs : mockNeeds
+  const counts = useReal ? liveCounts() : dispoCounts()
+  const toursSource: GaDispoTour[] = useReal ? real.tours.value.map(liveTourAsDispoTour) : mockTours.value
+  const nameOfDriver = (id: string | null): string => (useReal ? liveDriverName(id) : driverName(id ?? ''))
+  const nameOfVehicle = (id: string | null): string => (useReal ? liveVehicleName(id) : vehicleName(id ?? ''))
+  const list: GaBoardTrip[] = useReal
+    ? real.needs.value
+      .filter((need) => need.status === 'underway')
+      .map((need) => ({
+        id: need.id,
+        underway: true,
+        done: false,
+        from: need.from,
+        to: need.to,
+        driver: nameOfDriver(need.chauffeurId),
+        vehicle: nameOfVehicle(need.vehicleId),
+        stepKey: null,
+        eta: need.endsAt,
+        mode: 'none' as GaTrackingMode,
+      }))
+    : trips(filter).map((trip) => ({ id: trip.task.id, underway: trip.underway, done: trip.done, from: trip.from, to: trip.to, driver: trip.driver, vehicle: trip.vehicle, stepKey: trip.stepKey, eta: trip.eta, mode: trip.mode }))
+  const activeTours = toursSource.filter((tour) => tour.status !== 'done')
   const urgent = needs.value.filter((need) => need.status !== 'done' && need.priority === 'urgent')
   const problems = [
-    ...needs.value.filter((need) => need.status !== 'done' && hasProblem(need)).map((need) => ({ kind: 'need' as const, need })),
+    ...needs.value
+      .filter((need) => need.status !== 'done' && (useReal ? liveMatchesView(need as never, 'problems') : hasProblem(need)))
+      .map((need) => ({ kind: 'need' as const, need })),
     ...activeTours.filter((tour) => tour.problem).map((tour) => ({ kind: 'tour' as const, tour })),
   ]
   const logisticsResources = resources.value
@@ -227,7 +269,7 @@ export function logistikBoard(filter: GaDisplayFilter) {
     kpis: {
       open: counts.open,
       planned: counts.planned,
-      underway: counts.underway + list.filter((entry) => entry.underway).length,
+      underway: useReal ? counts.underway : counts.underway + list.filter((entry) => entry.underway).length,
       urgent: urgent.length,
       problems: problems.length,
       driversFree: counts.driversFree,
@@ -239,8 +281,8 @@ export function logistikBoard(filter: GaDisplayFilter) {
     trips: list,
     tours: activeTours.map((tour) => ({
       tour,
-      driver: driverName(tour.driverId),
-      vehicle: vehicleName(tour.vehicleId),
+      driver: nameOfDriver(tour.driverId),
+      vehicle: nameOfVehicle(tour.vehicleId),
       legs: tourLegs(tour),
       nextStop: tour.stops.find((stop) => !stop.done) ?? null,
       done: tour.stops.filter((stop) => stop.done).length,

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest'
 import { advanceRoute, completeTask, resetGaAufgabenDemo, startTask, taskById } from '@/views/grossanlass/aufgaben/gaAufgabenMock'
 import { resetGaAuftraegeDemo } from '@/views/grossanlass/auftraege/gaAuftraegeMock'

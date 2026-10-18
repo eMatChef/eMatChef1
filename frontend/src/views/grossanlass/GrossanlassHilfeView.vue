@@ -1,12 +1,12 @@
 <template>
   <PageShell
-    :title="t('gaHelp.page.title')"
-    :subtitle="t('gaHelp.page.subtitle')"
+    :title="t('grossanlass.help.page.title')"
+    :subtitle="t('grossanlass.help.page.subtitle')"
     max-width="820px"
   >
-    <nav class="ga-help-toc" :aria-label="t('gaHelp.page.tocAria')">
+    <nav class="ga-help-toc" :aria-label="t('grossanlass.help.page.tocAria')">
       <div v-for="group in groups" :key="group.id" class="ga-help-toc__group">
-        <h2 class="ga-help-toc__heading">{{ t(`gaHelp.groups.${group.id}`) }}</h2>
+        <h2 class="ga-help-toc__heading">{{ t(`grossanlass.help.groups.${group.id}`) }}</h2>
         <ul class="ga-help-toc__list">
           <li v-for="topic in group.topics" :key="topic.id">
             <RouterLink
@@ -32,9 +32,9 @@
         <p class="ga-help-chapter__summary">{{ t(gaHelpKey.summary(topic.id)) }}</p>
         <RouterLink class="ga-help-chapter__open" :to="pageLocation(topic)">
           <v-icon icon="mdi-arrow-right" size="16" aria-hidden="true" />
-          {{ t('gaHelp.page.openPage') }}
+          {{ t('grossanlass.help.page.openPage') }}
         </RouterLink>
-        <GaHelpFaq :topic-id="topic.id" />
+        <GrossanlassHelpFaq :topic-id="topic.id" />
       </section>
     </template>
   </PageShell>
@@ -45,8 +45,8 @@ import { computed, nextTick, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import PageShell from '@/components/layout/PageShell.vue'
-import GaHelpFaq from '@/components/grossanlass/GaHelpFaq.vue'
-import { useGaHelp } from '@/composables/useGaHelp'
+import GrossanlassHelpFaq from '@/components/grossanlass/GrossanlassHelpFaq.vue'
+import { useGrossanlassHelp } from '@/composables/useGrossanlassHelp'
 import {
   GA_HELP_GROUPS,
   gaHelpKey,
@@ -59,7 +59,7 @@ defineOptions({ name: 'GrossanlassHilfeView' })
 
 const { t } = useI18n()
 const route = useRoute()
-const { departmentId, helpPageLocation } = useGaHelp()
+const { departmentId, helpPageLocation } = useGrossanlassHelp()
 
 const groups = GA_HELP_GROUPS.map((id) => ({ id, topics: gaHelpTopicsByGroup(id) })).filter(
   (group) => group.topics.length > 0,

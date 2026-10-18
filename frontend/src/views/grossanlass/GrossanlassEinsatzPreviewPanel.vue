@@ -428,7 +428,7 @@ import { useRoute } from 'vue-router'
 import { VTooltip } from 'vuetify/components'
 import { ESearchField } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
-import { useGaEventPeriodOrEmpty } from '@/composables/useGaEventPeriod'
+import { useGrossanlassEventPeriodOrEmpty } from '@/composables/useGrossanlassEventPeriod'
 import { useCalendarPeriodsCacheRevision } from '@/composables/useCalendarPeriodsCache'
 import GrossanlassCalendarAxis from '@/views/grossanlass/GrossanlassCalendarAxis.vue'
 import GrossanlassEinsatzDetailDialog from '@/views/grossanlass/GrossanlassEinsatzDetailDialog.vue'
@@ -500,7 +500,7 @@ const emit = defineEmits<{ create: []; openProject: [id: string]; editWindow: [i
 
 const { t, locale } = useI18n()
 const route = useRoute()
-const eventPeriod = useGaEventPeriodOrEmpty()
+const eventPeriod = useGrossanlassEventPeriodOrEmpty()
 const cacheRevision = useCalendarPeriodsCacheRevision()
 const departmentId = computed(() => String(route.params.departmentId || ''))
 const loadedGroups = ref<GaEinsatzOrgGroup[]>([])

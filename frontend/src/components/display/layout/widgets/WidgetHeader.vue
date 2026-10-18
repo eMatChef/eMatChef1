@@ -12,6 +12,7 @@
 </template>
 
 <script setup lang="ts">
+import { displayNow } from '@/utils/displayClock'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
@@ -25,13 +26,13 @@ const subtitle = computed(() => String(props.config.subtitle ?? ''))
 const showLogo = computed(() => props.config.show_logo !== false)
 const showClock = computed(() => props.config.show_clock !== false)
 
-const now = ref(new Date())
+const now = ref(displayNow())
 let timer: ReturnType<typeof setInterval> | undefined
 const iso = computed(() => now.value.toISOString())
 const clock = computed(() => now.value.toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
 onMounted(() => {
   timer = setInterval(() => {
-    now.value = new Date()
+    now.value = displayNow()
   }, 1000)
 })
 onBeforeUnmount(() => {

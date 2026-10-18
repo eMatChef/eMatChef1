@@ -71,7 +71,7 @@ export function createGaCommitmentCatalog(
   return { loading, error, commitments, articles, rows, load, upsert }
 }
 
-export function provideGaCommitmentCatalog(): GaCommitmentCatalog {
+export function provideGrossanlassCommitmentCatalog(): GaCommitmentCatalog {
   const route = useRoute()
   const { t, locale } = useI18n()
   const departmentId = computed(() => String(route.params.departmentId || ''))
@@ -80,7 +80,7 @@ export function provideGaCommitmentCatalog(): GaCommitmentCatalog {
   return catalog
 }
 
-export function useGaCommitmentCatalog(): GaCommitmentCatalog {
+export function useGrossanlassCommitmentCatalog(): GaCommitmentCatalog {
   const injected = inject(gaCommitmentCatalogKey, null)
   if (injected) return injected
   const route = useRoute()

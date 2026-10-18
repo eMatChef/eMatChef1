@@ -175,17 +175,324 @@
     }
   },
   "display": {
+    "studio": {
+      "rotation": {
+          "hint": "Every rotation page is a freely designable area. Double-click or ✎ opens it for design; drag to change the order.",
+          "edit": "Design page",
+          "addPage": "Add page",
+          "pageTitle": "Page title",
+          "pageName": "Page {n}",
+          "copyName": "{name} (copy)",
+          "label": "Rotation ({n} pages)",
+          "prev": "Previous page",
+          "next": "Next page",
+          "pageOf": "Page {n} of {count}"
+        },
+      "live": {
+        "loading": "Loading data…",
+        "unavailable": "No live data is available for this display.",
+        "material": {
+          "required": "Required",
+          "packed": "Packed",
+          "transport": "In transport",
+          "onSite": "On site",
+          "missing": "Missing",
+          "missingQty": "{n} {unit} missing",
+          "expectedQty": "{n} {unit} expected",
+          "packedLine": "{packed} of {required} packed · ready {ready} · underway {transit} · on site {site}"
+        },
+        "logistics": {
+          "open": "Open",
+          "planned": "Scheduled",
+          "underway": "Underway",
+          "urgent": "Urgent",
+          "status": {
+            "open": "Open",
+            "planned": "Scheduled",
+            "underway": "Underway",
+            "done": "Done"
+          },
+          "notReady": "Material not ready yet",
+          "tourStatus": {
+            "draft": "Draft",
+            "confirmed": "Confirmed",
+            "underway": "Underway",
+            "done": "Done",
+            "closed": "Closed"
+          },
+          "noResources": "No vehicle / driver yet",
+          "vehicles": "Vehicles",
+          "activeTours": "Active tours",
+          "noRoute": "No route"
+        },
+        "overall": {
+          "open": "Tasks open",
+          "progress": "In progress",
+          "done": "Done",
+          "blocked": "Blocked",
+          "missing": "Missing material",
+          "underway": "Transports underway"
+        },
+        "projects": {
+          "tasksDone": "Tasks done",
+          "blocked": "Blocked",
+          "overdue": "Overdue",
+          "material": "Material packed",
+          "current": "In progress",
+          "next": "Next",
+          "deadline": "Deadline"
+        },
+        "tasks": {
+          "status": {
+            "open": "Open",
+            "progress": "In progress",
+            "review": "For approval",
+            "done": "Done"
+          }
+        },
+        "empty": {
+          "material": "No material demand recorded yet.",
+          "missing": "No material is missing.",
+          "incoming": "No goods receipt expected.",
+          "transports": "No open transports.",
+          "tours": "No active tours.",
+          "running": "No task in progress.",
+          "projects": "No building projects with tasks.",
+          "tasks": "No open tasks.",
+          "feed": "No events yet.",
+          "warnings": "No warnings."
+        },
+        "event": {
+          "generic": "Event",
+          "task_reported": "Task reported done",
+          "task_accepted": "Task accepted",
+          "task_returned": "Task returned",
+          "order_reported": "Building order reported done",
+          "order_accepted": "Building order accepted",
+          "order_returned": "Building order returned",
+          "order_withdrawn": "Report withdrawn",
+          "order_reopened": "Building order reopened",
+          "dispatch_released": "Trip released",
+          "dispatch_requested": "Change requested",
+          "dispatch_not_executed": "Trip not executed",
+          "dispatch_delivered_manually": "Delivered manually",
+          "dispatch_release_revoked": "Release revoked",
+          "dispatch_departed": "Trip started",
+          "dispatch_delivered": "Delivered",
+          "dispatch_converted_from_vehicle_need": "Vehicle request converted to trip order",
+          "tour_confirmed": "Tour confirmed",
+          "tour_unconfirmed": "Tour confirmation withdrawn",
+          "tour_closed": "Tour closed"
+        },
+        "warning": {
+          "task_blocked": "Task blocked",
+          "task_overdue": "Task overdue",
+          "material_missing": "Material missing ({n} items)",
+          "transport_urgent": "Transport urgent",
+          "tour_conflict": "Tour conflict"
+        }
+      },
+      "toolbar": {
+        "back": "Management",
+        "backTitle": "Back to infoscreen management",
+        "undo": "Undo (Ctrl+Z)",
+        "redo": "Redo (Ctrl+Y)",
+        "zoomIn": "Zoom in",
+        "zoomOut": "Zoom out",
+        "fit": "Fit to screen (Ctrl+0)",
+        "grid": "Show/hide grid lines",
+        "template": "Template…",
+        "saving": "Saving…",
+        "toggleLibrary": "Show/hide block library",
+        "toggleProps": "Show/hide properties"
+      },
+      "actions": {
+        "group": "Group (Ctrl+G)",
+        "ungroup": "Ungroup",
+        "copy": "Copy (Ctrl+C)",
+        "paste": "Paste (Ctrl+V)",
+        "duplicate": "Duplicate (Ctrl+D)",
+        "delete": "Delete (Del)",
+        "editSeparately": "Edit separately",
+        "saveAsBlock": "Save as block"
+      },
+      "mode": {
+        "label": "Data preview in the editor",
+        "demo": "Demo",
+        "live": "Live",
+        "demoHint": "Sample data: design the display without real orders. Affects the preview only.",
+        "liveHint": "Real data of the major event. Affects the preview only, not the published display.",
+        "badgeDemo": "Demo preview (sample data)",
+        "badgeLive": "Live preview (real data)"
+      },
+      "publishedMode": {
+        "label": "Use demo data on the display",
+        "demoOff": "Connected devices show the real data of the major event. Missing data appears as an empty state, never as demo data.",
+        "demoOn": "After publishing, connected devices explicitly show demo data.",
+        "badgeNote": "The display carries the label “Demo data”. This setting belongs to the published revision.",
+        "unsupported": "No live connection yet: {list}. These widgets prevent publishing with real data.",
+        "confirmLive": "After publishing, the display shows the real data of the major event.",
+        "confirmDemo": "Note: After publishing, the display explicitly shows demo data (labelled “Demo data”)."
+      },
+      "demoBadge": "Demo data",
+      "blocked": "No room there: elements must not overlap.",
+      "copied": "{n} element(s) copied.",
+      "errors": {
+        "noSpace": "There is no free space.",
+        "tooManyItems": "An area can hold at most {n} elements.",
+        "tooDeep": "Groups can be nested at most {n} levels deep.",
+        "ungroupImpossible": "The group cannot be dissolved without loss. Enlarge it first."
+      },
+      "group": {
+        "name": "Group name",
+        "unnamed": "Group",
+        "defaultName": "Group {n}",
+        "gridInfo": "Own grid: {cols} × {rows} cells, {n} element(s).",
+        "refine": "Refine grid (×2)",
+        "coarsen": "Coarsen grid (÷2)"
+      },
+      "isolate": {
+        "badge": "Separate editing",
+        "back": "Back"
+      },
+      "multi": {
+        "title": "{n} elements selected",
+        "hint": "The selection can be moved together (drag or arrow keys), grouped, copied or deleted."
+      },
+      "props": {
+        "title": "Properties",
+        "nothingSelected": "Select an element on the canvas or insert a block from the library."
+      },
+      "shortcuts": {
+        "select": "Click selects, Shift+click or a rubber band selects several.",
+        "move": "Drag to move, handles to resize; double-click opens groups and blocks.",
+        "pan": "Mouse wheel zooms, Space+drag or middle mouse button pans.",
+        "keys": "Arrow keys move, Shift+arrows resize, Esc goes up one level."
+      },
+      "blocks": {
+        "saveTitle": "Save as custom block",
+        "name": "Block name",
+        "saveHint": "The block is then available in all infoscreens of this major event. Inserting always creates an independent copy.",
+        "saved": "Block saved.",
+        "renamed": "Block renamed.",
+        "deleted": "Block deleted. Existing infoscreens stay unchanged.",
+        "deleteTitle": "Delete block",
+        "deleteConfirm": "Delete block “{name}”? Copies already inserted into infoscreens remain.",
+        "saveError": "The block could not be saved."
+      },
+      "library": {
+        "rotationEmpty": "No saved rotation yet. Select a rotation and save it as a block.",
+        "builtin": {"rotation": {"name": "Rotation", "desc": "Switches automatically between freely designable pages"}},
+        "search": "Search blocks…",
+        "noResults": "No matching blocks.",
+        "customEmpty": "No custom blocks yet. Select an element and save it as a block.",
+        "hint": "Click inserts, drag drops onto the canvas.",
+        "rename": "Rename",
+        "noLive": "No live data",
+        "kind": {
+          "widget": "Widget",
+          "group": "Group",
+          "region": "Layout area",
+          "rotation": "Rotation"
+        },
+        "customDesc": {
+          "widget": "Custom widget of this major event",
+          "group": "Custom widget group of this major event",
+          "rotation": "Saved rotation of this major event"
+        },
+        "category": {
+          "general": "General",
+          "material": "Material",
+          "logistics": "Logistics",
+          "projects": "Projects and tasks",
+          "map": "Maps and site",
+          "helpers": "Helpers",
+          "activity": "Activity and alerts",
+          "custom": "Custom blocks",
+          "rotation": "Rotation & pages",
+          "templates": "Templates and layout areas"
+        }
+      },
+      "widgetDesc": {
+        "header": "Logo, title and clock as a header",
+        "text": "Heading or free text",
+        "clock": "Date and time",
+        "image": "Image or logo (https)",
+        "notice": "Notice or message",
+        "divider": "Divider between areas",
+        "kpi": "Single key figure",
+        "list": "Bulleted or numbered list",
+        "progress": "Progress bar",
+        "ga_material_overview": "Material demand, packing status and missing material at a glance",
+        "ga_pack_progress": "Packing orders and packing progress",
+        "ga_missing_material": "Material that is still missing",
+        "ga_goods_receipt": "Expected and received goods",
+        "ga_transport_overview": "Transports and driving orders with status",
+        "ga_dispatch_tours": "Tours, vehicles and drivers",
+        "ga_overview": "Overall situation of tasks, material and logistics",
+        "ga_projects": "Building projects with progress, material and deadlines",
+        "ga_tasks": "Open tasks with deadline",
+        "ga_helpers": "Information for helpers",
+        "ga_site_map": "Places, areas and site plan on the map",
+        "ga_activity_feed": "Latest events of the major event",
+        "ga_warnings": "Active warnings and blockers"
+      },
+      "block": {
+        "group_material_status": {
+          "name": "Material status",
+          "desc": "Material overview and packing progress side by side"
+        },
+        "group_material_gaps": {
+          "name": "Missing material and goods receipt",
+          "desc": "What is missing and what is expected"
+        },
+        "group_logistics_status": {
+          "name": "Logistics status",
+          "desc": "Transport overview and tours"
+        },
+        "group_project_site": {
+          "name": "Project and site",
+          "desc": "Building progress with site map"
+        },
+        "group_activity_alerts": {
+          "name": "Activity and warnings",
+          "desc": "Event feed with active warnings"
+        },
+        "region_materiallager": {
+          "name": "Material store",
+          "desc": "Complete area: overview, packing, missing material, goods receipt"
+        },
+        "region_disposition": {
+          "name": "Dispatch",
+          "desc": "Complete area: transports and tours"
+        },
+        "region_baubuero": {
+          "name": "Construction office",
+          "desc": "Complete area: overview and tasks"
+        },
+        "region_holzbau": {
+          "name": "Timber construction",
+          "desc": "Complete area: projects, map and warnings"
+        },
+        "region_activity": {
+          "name": "Activity feed strip",
+          "desc": "Wide strip with feed and warnings"
+        }
+      }
+    },
     "layout": {
       "waiting": "The display is being prepared.",
       "previewDraft": "Preview: draft",
       "previewPublished": "Preview: published",
       "demoData": "Demo data",
       "templatePreviewAlt": "Preview of template \"{name}\"",
-      "demoDataHint": "This widget shows the demo data of the major-event display examples, not live data.",
+      "demoDataHint": "In demo mode this widget shows sample data, in live mode the real data of the major event. Filters by department, area and building order apply in both modes.",
+      "liveDataHint": "This widget shows the real places, areas and site plan from the major-event planning (display only, refreshed automatically).",
       "ga": {
         "noTasks": "No open tasks.",
         "noWarnings": "No warnings.",
-        "noHelperInfo": "No helper information entered."
+        "noHelperInfo": "No helper information entered.",
+        "noMapData": "No map data available."
       },
       "category": {
         "general": "General",
@@ -252,7 +559,19 @@
         "rotate": "Switch projects automatically",
         "rotate_sec": "Switch every … seconds",
         "max_items": "Maximum number of entries",
-        "area": "Area"
+        "area": "Area",
+        "base_layer": "Base map",
+        "show_plans": "Show site plan",
+        "kinds": "Object types",
+        "group_id": "Only construction project / area",
+        "group_id_hint": "Empty = all objects of the major event.",
+        "show_labels": "Show labels",
+        "center_lat": "Center latitude",
+        "center_lng": "Center longitude",
+        "zoom": "Zoom level (3–19)",
+        "ga_site_map": {
+          "view": "Map section"
+        }
       },
       "option": {
         "level": {
@@ -302,7 +621,9 @@
           "transports": "Transports",
           "tours": "Tours",
           "resources": "Resources",
-          "material": "Material transport"
+          "material": "Material transport",
+          "auto": "Automatic (fit all objects)",
+          "fixed": "Fixed (center and zoom)"
         },
         "area": {
           "all": "All",
@@ -311,6 +632,19 @@
           "task": "Tasks",
           "sale": "Sales",
           "problem": "Problems"
+        },
+        "base_layer": {
+          "osm": "OpenStreetMap",
+          "swisstopo": "swisstopo national map",
+          "swissimage": "swisstopo aerial image"
+        },
+        "kinds": {
+          "bauprojekt": "Construction project",
+          "anfahrt": "Access point",
+          "lagerplatz": "Storage location",
+          "unterlager": "Sub-warehouse",
+          "poi": "Point (gate, info)",
+          "area": "Area"
         }
       },
       "templates": {
@@ -349,7 +683,14 @@
         "config_invalid_url": "Only https addresses are allowed.",
         "config_too_long": "A text is too long.",
         "config_out_of_range": "A value is outside the allowed range.",
-        "no_draft": "There is no draft yet."
+        "no_draft": "There is no draft yet.",
+        "widget_live_unsupported": "A widget has no live connection yet. Enable demo data for the display or remove the widget.",
+        "block_invalid": "The block is invalid.",
+        "block_type_invalid": "A block may only contain widgets and groups.",
+        "block_empty": "The block contains no widget.",
+        "columns_invalid": "Invalid number of columns.",
+        "data_mode_invalid": "Invalid data mode.",
+        "too_many_items": "An area contains too many elements."
       },
       "editor": {
         "back": "Back to infoscreen management",
@@ -758,6 +1099,10 @@
       "packStart": "Start trip",
       "packLoginHint": "Sign in to the app to start the trip.",
       "packStarted": "Pack is in transit.",
+      "packManualHint": "Destination QR unreadable? Delivery can be confirmed with a reason (only the trip's chauffeur or logistics); it is logged.",
+      "packManualReason": "Reason (e.g. QR at destination torn off)",
+      "packManualAction": "Confirm delivery without QR",
+      "packManualDone": "Delivery confirmed.",
       "packStatus": {
         "staging": "Packing",
         "trip_released": "Trip released",
@@ -2841,6 +3186,8 @@
       "devicesScanner": "Warehouse scanner",
       "devicesScannerHint": "Handheld or gun scanner — piece by piece",
       "switchDepartment": "Switch department",
+      "departmentCount": "{count} department | {count} departments",
+      "grossanlassCount": "{count} major event | {count} major events",
       "adminContexts": "Administration",
       "globalContext": "Global administration",
       "globalContextHint": "Superadmin · whole system",
@@ -9212,6 +9559,8 @@
         "timeline": "Timeline",
         "skills": "Skills",
         "needs": "Staffing needs"
+      ,
+        "api": "API data"
       },
       "kpi": {
         "required": "People needed",
@@ -9263,6 +9612,30 @@
         "createTitle": "Add helper",
         "editTitle": "Edit helper",
         "hint": "Helpers do not need an eMatChef account. Only the necessary details are stored."
+      ,
+        "section": {
+          "personal": "Personal details",
+          "skills": "Occupations & skills",
+          "drive": "Driving licences & permits",
+          "availability": "Availability",
+          "more": "Further details"
+        },
+        "linkedUser": "Link to eMatChef user",
+        "linkedHint": "Name and email come from the central profile and cannot be changed here. Local details (skills, qualifications, availability) are kept.",
+        "externalHint": "External helper without an account. Optionally link to an existing user.",
+        "occupation": "Occupation / training",
+        "skills": "Skills",
+        "skillsHint": "Pick from the catalogue or type a new skill and confirm with Enter.",
+        "driveProfileHint": "Driving licence from the user's central profile. It is read-only here.",
+        "driveLocalHint": "Driving licence classes and permits of this external helper.",
+        "driveValidUntil": "Valid until",
+        "qualifications": "Further qualifications and proofs",
+        "qualificationLabel": "Qualification / proof",
+        "addQualification": "Add qualification",
+        "area": "Department / area"
+      },
+      "skills": {
+        "noData": "No skill found. Type and press Enter to add it."
       },
       "assign": {
         "button": "Assign helper",
@@ -9321,12 +9694,168 @@
         "in_use": "There are still assignments.",
         "stale": "The assignment was changed in the meantime. Please reload."
       },
+      "assignmentConflict": "Booking invalid",
+      "api": {
+        "intro": "Connect external helper pools: fetch the real JSON response, map its fields yourself and import bookings as helpers with availability. The external source stays responsible for its shifts and bookings; eMatChef changes nothing there.",
+        "add": "Add data source",
+        "addTitle": "Add data source",
+        "editTitle": "Edit data source",
+        "emptyTitle": "No data source yet",
+        "emptyText": "Create a connection. Without API access you can import a JSON test response and prepare the mapping with it.",
+        "importOnly": "JSON import only (no API address)",
+        "loadFailed": "API data could not be loaded.",
+        "actionFailed": "Action failed.",
+        "status": {
+          "never": "Not checked",
+          "ok": "Connected",
+          "error": "Error"
+        },
+        "lastSync": "Last successful sync",
+        "lastPayload": "Last response",
+        "records": "Bookings (active / cancelled / removed)",
+        "test": "Test connection",
+        "fetch": "Fetch data",
+        "sync": "Synchronise",
+        "open": "Details",
+        "close": "Close",
+        "testOk": "Connection successful.",
+        "testFailed": "Connection failed.",
+        "fetched": "Response fetched and stored. The helper pool was not changed.",
+        "imported": "JSON stored. The helper pool was not changed.",
+        "synced": "Synchronisation finished.",
+        "syncFailed": "Synchronisation failed; existing data was not changed.",
+        "section": {
+          "json": "Response (JSON)",
+          "mapping": "Field mapping",
+          "preview": "Preview",
+          "history": "History"
+        },
+        "payloadMeta": "Source: {origin} · {when} · {kb} KB · seen {seen}×",
+        "origin": {
+          "fetch": "API fetch",
+          "import": "JSON import"
+        },
+        "viewTree": "Fields",
+        "viewRaw": "Raw data",
+        "invalidJson": "The stored response is not valid JSON.",
+        "noPayload": "No response yet: fetch data or import JSON below.",
+        "listsFound": "Possible record lists (click to use as the list):",
+        "noLists": "No list of objects found.",
+        "root": "root",
+        "recordCount": "{n} entries",
+        "jsonField": "External JSON field",
+        "sample": "Sample value",
+        "mappedTo": "Mapped to",
+        "importLabel": "Import JSON test response",
+        "import": "Import JSON",
+        "mappingHint": "Pick the matching response field for each eMatChef field. Fields you do not need stay unmapped and are ignored. A name alone does not identify a person: an external helper ID or an email is required.",
+        "recordsPath": "Path to the list of records",
+        "recordsPathHint": "Empty if the response itself is the list (e.g. data.bookings).",
+        "target": "eMatChef target field",
+        "ignore": "Ignore",
+        "target_booking_id": "External booking ID",
+        "target_helper_key": "External helper ID",
+        "target_helper_name": "Helper name",
+        "target_helper_first_name": "First name",
+        "target_helper_last_name": "Last name",
+        "target_helper_email": "Email",
+        "target_helper_phone": "Phone",
+        "target_mission": "Mission",
+        "target_shift_start": "Shift start",
+        "target_shift_end": "Shift end",
+        "target_booking_status": "Booking status",
+        "identity": "External helper ID or email",
+        "cancelledValues": "Status values meaning “cancelled”",
+        "cancelledHint": "Comma separated, e.g. cancelled, storniert.",
+        "totalPath": "Path to total count (optional)",
+        "nextPath": "Path to next page (optional)",
+        "snapshotComplete": "One fetch returns all bookings",
+        "snapshotHint": "Only then bookings missing from the response count as removed. Otherwise they stay unchanged.",
+        "missingRequired": "Required field not mapped: {field}",
+        "saveMapping": "Save mapping",
+        "saveAndPreview": "Save and preview",
+        "mappingSaved": "Mapping saved.",
+        "noPreview": "No preview yet: choose “Save and preview” in the field mapping.",
+        "previewNote": "Preview: no data was changed.",
+        "syncedNote": "Synchronisation finished.",
+        "apply": "Apply now",
+        "count": {
+          "created": "New",
+          "updated": "Changed",
+          "unchanged": "Unchanged",
+          "removed": "Removed",
+          "conflicts": "Conflicts",
+          "resolved": "Conflicts resolved"
+        },
+        "conflictsTitle": "Assignments with an invalid booking (not counted towards coverage):",
+        "conflict": {
+          "booking_cancelled": "{name}: booking cancelled, assignment {when} invalid",
+          "shift_changed": "{name}: shift changed, assignment {when} no longer covered"
+        },
+        "action": "Action",
+        "shift": "Shift",
+        "actions": {
+          "created": "New",
+          "updated": "Changed",
+          "cancelled": "Cancelled",
+          "restored": "Active again",
+          "removed": "Removed"
+        },
+        "noRuns": "No synchronisation yet.",
+        "outcome": {
+          "ok": "Successful",
+          "partial": "With notes",
+          "failed": "Failed"
+        },
+        "issue": {
+          "mapping_required_unmapped": "Required field not mapped: {field}",
+          "mapping_identity_unmapped": "An external helper ID or email is missing",
+          "invalid_json": "The response is not valid JSON",
+          "records_path_not_list": "The record list path does not point to a list",
+          "too_many_records": "Too many records (over 20,000)",
+          "internal_error": "Internal error; no data was changed",
+          "fetch_failed": "Fetch failed",
+          "record_not_object": "Entry is not an object",
+          "not_scalar": "{field}: a single value is expected",
+          "missing_value": "{field}: value missing",
+          "too_long": "{field}: value too long",
+          "duplicate_key": "Duplicate booking ID in the response, only the first was taken",
+          "invalid_datetime": "{field}: invalid date/time",
+          "end_before_start": "Shift end is not after its start",
+          "invalid_email": "Invalid email address",
+          "removal_skipped_not_complete": "{count} bookings are missing from the response; they stay unchanged because the response is not confirmed as complete",
+          "removal_skipped_incomplete_response": "{count} bookings are missing; the response is incomplete according to total/next page",
+          "removal_skipped_invalid_records": "{count} bookings are missing; they stay unchanged because of invalid entries",
+          "removal_skipped_empty_response": "The response is empty; {count} existing bookings stay unchanged",
+          "email_belongs_to_other_helper": "Email already belongs to another helper; not merged, email not taken over"
+        },
+        "name": "Name",
+        "baseUrl": "API base URL",
+        "baseUrlHint": "https only. Addresses in private networks are not allowed.",
+        "endpoint": "Endpoint path (optional)",
+        "endpointHint": "Appended to the base URL, e.g. /api/bookings.",
+        "auth": "Authentication",
+        "authType": {
+          "none": "None",
+          "bearer": "Bearer token",
+          "header": "API key in header",
+          "basic": "Username and password"
+        },
+        "authHeader": "Header name",
+        "authUser": "Username",
+        "secret": "API key",
+        "password": "Password",
+        "secretKeep": "Stored, leave empty to keep",
+        "secretHint": "Stored encrypted on the server and never shown again.",
+        "secretClear": "Delete stored key"
+      },
       "conflictItem": {
         "none": "No conflicts.",
         "double_booking": "{name}: assigned twice ({when})",
         "outside_availability": "{name}: assignment outside availability ({when})",
         "outside_need_window": "{name}: assignment outside the need window ({when})",
         "overbooked": "Overstaffed: {peak} assignments for {required} people needed",
+        "external_booking_invalid": "{name}: external booking changed or cancelled, assignment invalid ({when})",
         "need_undated": "Staffing need without time window – cannot be assigned"
       },
       "warning": {
@@ -9662,6 +10191,54 @@
       "planning": {"title": "Requirements from planning ({n})", "hint": "The same resource demands as in Planning → Orders. Logistics takes over the actual deployment.", "window": "{when}"},
       "tab": "Dispatch",
       "prototype": "Prototype · demo data",
+      "readOnly": "Live data · view",
+      "readOnlyHint": "Assigning tours, vehicles and drivers follows with tour planning. Until then, dispatch shows the actual needs and statuses.",
+      "convert": {"title": "Trip order", "hint": "Turns the vehicle request into a real trip order (not released, no driver). Requires a concrete vehicle on the procurement line.", "action": "Convert to trip order"},
+      "exec": {"title": "Execution", "released": "Released for execution", "notReleased": "Not released", "release": "Release trip", "releaseTour": "Release trips of the tour", "revoke": "Withdraw release", "confirmTourFirst": "The trip is part of a tour: confirm the tour first.", "manualHint": "Destination QR unreadable or unavailable? Delivery can be confirmed with a reason; it is logged.", "reason": "Reason (e.g. QR at destination torn off)", "manual": "Confirm delivery without QR"},
+      "packStatus": {"none": "No pack", "staging": "Staged", "trip_released": "Trip released", "in_transit": "On the way", "at_place": "Delivered at destination"},
+      "outcome": {"delivered": "Delivered", "not_executed": "Not executed, open again"},
+      "requests": {"title": "Change requests", "panelTitle": "Change requests from departments ({n})", "planStillValid": "The existing dispatch stays valid until logistics decides.", "status": {"open": "Open", "accepted": "Accepted", "adjusted": "Accepted with changes", "rejected": "Rejected"}, "proposedWindow": "Requested time window", "proposedPlace": "Destination change requested", "decisionNote": "Decision", "notePlaceholder": "Reason / note (required for rejection)", "accept": "Accept", "adjust": "Accept with changes", "adjustApply": "Apply changes", "reject": "Reject", "decide": "Decide", "from": "New start", "to": "New end"},
+      "tourClosed": "The tour is closed. Delivered trips stay documented; trips not executed are open needs again.",
+      "closeTour": "Close tour",
+      "closeTourConfirm": "Confirm closing",
+      "closeNote": "Note on trips not executed",
+      "suggestionsTitle": "Tour suggestions ({n})",
+      "suggestionsHint": "Suggestions group open needs on the same day. Accepting only creates a draft; the tour becomes binding when it is confirmed.",
+      "suggestTake": "Take over as draft",
+      "selected": "{n} need(s) selected",
+      "tourFromSelection": "Create tour draft",
+      "select": "Select need",
+      "conflict": {"vehicle": "Vehicle already booked: {with} ({when})", "chauffeur": "Chauffeur already booked: {with} ({when})"},
+      "conflictsCount": "{n} conflict(s)",
+      "noDriver": "No chauffeur",
+      "noVehicle": "No vehicle",
+      "tourName": "Tour name",
+      "tourNeeds": "Trips of this tour",
+      "tourStops": "Stops",
+      "tourLocked": "The tour is under way or finished and can no longer be changed.",
+      "noManage": "Only logistics managers may change and confirm tours.",
+      "tourConfirmedNotReleased": "Confirmed, not yet released for execution",
+      "removeFromTour": "Remove from tour",
+      "addNeed": "Add trip",
+      "addNeedAction": "Add",
+      "stopTime": "Planned time",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "saveStops": "Save stops",
+      "tourLog": "Changes",
+      "tourEvent": {"created": "Created", "updated": "Adjusted", "need_added": "Trip added", "need_removed": "Trip removed", "stops_changed": "Stops changed", "confirmed": "Confirmed", "unconfirmed": "Confirmation withdrawn"},
+      "deleteTour": "Delete tour",
+      "unconfirmTour": "Withdraw confirmation",
+      "confirmTour": "Confirm tour",
+      "createDraftTour": "Create tour draft",
+      "draftHint": "A draft is created. Vehicle, chauffeur and stops can be adjusted before confirming.",
+      "loadFailed": "Dispatch could not be loaded.",
+      "depot": "Depot",
+      "noPack": "No pack yet",
+      "req": {
+        "driveCard": "Driving licence"
+      },
+      "timelineDay": "Schedule for {day}",
       "intro": "Control room for all transport needs: see needs, combine them and dispatch them as a tour with driver and vehicle.",
       "flow": {
         "label": "Flow",
@@ -9700,7 +10277,7 @@
         "underway": "On the way",
         "done": "Done",
         "problems": "Problems",
-        "scope": "Site / External"
+        "scope": "Site / External", "tours": "Tours"
       },
       "filter": {
         "label": "Filter view"
@@ -9729,7 +10306,7 @@
         "underway": "On the way",
         "done": "Done"
       },
-      "tourStatus": {
+      "tourStatus": { "closed": "Closed", "draft": "Draft", "confirmed": "Confirmed",
         "planned": "Planned",
         "underway": "On the way",
         "done": "Finished"
@@ -9756,7 +10333,7 @@
       "unassign": "Remove from tour",
       "tour": "Tour",
       "suggestions": "Possible combination",
-      "suggestReason": {
+      "suggestReason": { "sameTarget": "Same target on the same day", "sameWindow": "Close in time",
         "passesTarget": "Already driving to {place}, take the need along.",
         "passesSource": "Already driving to {place}, load there.",
         "emptyLeg": "Empty leg {place}, take the need along."
@@ -9884,8 +10461,8 @@
       }
     },
     "aufgaben": {
-      "tabMaster": "Tasks",
-      "tabMine": "My tasks",
+      "tabMaster": "All tasks",
+      "tabMine": "My assignments",
       "subtitle": "All work and orders of the major event",
       "intro": "Planning shows what is planned and when. Tasks shows what someone actually has to do.",
       "prototype": "Prototype · demo data",
@@ -9894,6 +10471,12 @@
       "assign": "Assign",
       "open": "Open",
       "openFahrauftrag": "Open driving order",
+      "noChauffeur": "No driver",
+      "typeFilter": {
+        "all": "All",
+        "arbeit": "Work",
+        "logistik": "Trips"
+      },
       "start": "Start",
       "complete": "Done",
       "emptyTitle": "No tasks",
@@ -9976,8 +10559,8 @@
       "mine": {
         "title": "My tasks",
         "subtitle": "Today for {name}",
-        "emptyTitle": "Nothing open today",
-        "emptyText": "You have no work or driving orders today.",
+        "emptyTitle": "No assignments",
+        "emptyText": "Nothing is assigned to you right now. Released tasks without helpers are listed under «All tasks».",
         "back": "Back"
       },
       "create": {
@@ -10118,6 +10701,8 @@
         "up": "Move up",
         "down": "Move down"
       }
+    ,
+      "introMine": "Work and driving orders assigned to you. «All tasks» shows every released task, including those without assigned helpers."
     },
     "logistik": {
       "title": "Logistics",
@@ -10448,6 +11033,22 @@
       "tabBenutzer": "Users",
       "usersTabGaPersons": "Event staff",
       "usersTabHelpers": "Helpers",
+      "helperDir": {
+        "addHelper": "Add helper",
+        "addExternal": "Add external helper",
+        "addAccount": "Add user as helper",
+        "search": "Search helpers",
+        "filterAll": "All",
+        "filterAccount": "With account",
+        "filterExternal": "Without account",
+        "withAccount": "With account",
+        "withoutAccount": "Without account",
+        "details": "Details",
+        "count": "{shown} of {total} helpers",
+        "empty": "No helpers found.",
+        "loadError": "Helpers could not be loaded.",
+        "externalHint": "External helpers get no user account and no membership in the large event."
+      },
       "lockedHint": "Available after the large event has been released.",
       "lockedNote": "During setup, master data, areas and users are active. The other settings become available after release.",
       "tabStandorte": "Locations",
@@ -10467,7 +11068,7 @@
       "placesKind": "Kind",
       "placesKindBauprojekt": "Sub-project",
       "placesKindUnterlager": "Sub-site",
-      "placesKindMatplatz": "Warehouse location (existing)",
+      "placesKindLagerplatz": "Warehouse location (existing)",
       "placesKindAnfahrt": "Access point",
       "placesKindPoi": "Point (gate, info)",
       "placesAdd": "Add place",
@@ -10889,7 +11490,7 @@
         "materialVehiclePlaceholder": "e.g. cherry picker, van",
         "vehiclesHeading": "Vehicles",
         "vehiclesEmpty": "No vehicle yet.",
-        "vehicleTask": "Task",
+        "vehicleTransport": "Vehicle has to transport something", "vehicleTransportHint": "Logistics can turn transport requests into a trip order. Without it the vehicle is only needed on site.", "vehicleTask": "Task",
         "vehicleWish": "Vehicle you need",
         "vehicleCategory": "Vehicle category",
         "vehicleCategoryEmpty": "No categories loaded. You can still type the wish.",
@@ -11252,7 +11853,10 @@
         "materialDetail": "{ready} of {total} items on site",
         "materialNone": "No material recorded",
         "tasksLabel": "Tasks",
-        "tasksDetail": "{done} of {total} tasks, due date passed",
+        "tasksDetail": "{done} of {total} tasks done",
+        "tasksOverdue": "{n} overdue",
+        "tasksInWindow": "{n} in schedule window",
+        "tasksPlanned": "{n} planned",
         "tasksNone": "No tasks recorded",
         "placeHeading": "Location of the order",
         "title": {
@@ -11639,11 +12243,52 @@
         "orderedCheck": "Ordered {n} pcs — tick off",
         "openPdf": "Order PDF",
         "openOrder": "Open order",
-        "openHistory": "History"
+        "openHistory": "History",
+        "workspace": {
+          "intro": "Deliveries and transports by arrival — tour, direct delivery or open procurement. Details and QR only in acceptance.",
+          "phase": {
+            "expected": "Expected",
+            "acceptance": "Acceptance",
+            "received": "Received"
+          },
+          "group": {
+            "tour": "Tour",
+            "trip": "Trip",
+            "direct": "Direct delivery",
+            "unassigned": "Not yet assigned"
+          },
+          "positions": "{n} lines",
+          "targetPlace": "Target storage: {name}",
+          "open": "Open",
+          "filterPlace": "Storage site",
+          "chauffeur": "Driver {name}",
+          "vehicle": "Vehicle {name}",
+          "confirmReceipt": "Confirm goods receipt",
+          "receiptDone": "Goods receipt booked",
+          "placeRequired": "Please select a storage site",
+          "sharedPlace": "Receipt location for all lines",
+          "positionPlace": "Storage site for this line",
+          "noStoragePlaces": "No storage site has been set up yet. Receipts are only possible after you add a storage site.",
+          "openLocationSettings": "Open location settings",
+          "skipPosition": "Leave open",
+          "transport": {
+            "open": "Open",
+            "planned": "Planned",
+            "underway": "En route",
+            "done": "Arrived",
+            "draft": "Tour draft",
+            "confirmed": "Tour confirmed",
+            "closed": "Tour closed"
+          }
+        }
       },
       "einsaetzeIntro": "Every charge from the agreements. Delivery or pickup on the agreed date is already a deployment. Shift delivery and return dates in Agreements, not here.",
       "bauauftraegeIntro": "Deployments on a construction project — work and material on site, no extra table.",
-      "fahrauftraegeIntro": "Trips and the vehicles planned on a build order, grouped by unit and project: name, task, time window, and whether a vehicle is already committed.",
+      "fahrauftraegeIntro": "Trips and vehicle requests from the job orders as tiles. Click a trip to open its dialog; a vehicle request stays a request until a trip is created.",
+      "tilesTrips": "Trips",
+      "tilesWishes": "Vehicle requests without a trip",
+      "tilesWishesHint": "A request is not a trip yet: a trip only exists once a transport order has been created.",
+      "tilesWishChip": "Vehicle request",
       "occupancyFixedHint": "Shift only in Agreements",
       "konflikteIntro": "Double bookings, quantities above stock, and deployments outside the partner window. Open a conflict and shift both deployments until they fit.",
       "scaleMonth": "Month",
@@ -11893,6 +12538,10 @@
       "tripsPack": "Pack",
       "tripsUnpack": "Undo pack",
       "tripsRelease": "Release trip",
+ 
+      "tripsNoTour": "No tour",
+      "tripsOpenDispatch": "Open in dispatch",
+      "changeRequest": {"button": "Request change", "title": "Request change", "hint": "The existing dispatch stays valid until logistics decides.", "note": "Requested change", "from": "New start", "to": "New end", "place": "Different destination", "submit": "Send request", "sent": "Change request sent to logistics", "failed": "The request could not be sent"},
       "tripsIssue": "Start trip",
       "tripsReleasedToast": "Trip released — the storage slot counts as empty.",
       "tripsIssuedToast": "Trip started.",
@@ -13112,273 +13761,273 @@
         "errorLoad": "Could not load receipts",
         "errorSave": "Save failed"
       }
-    }
-  },
-  "gaHelp": {
-    "modal": {
-      "eyebrow": "Help for this page",
-      "faqTitle": "Frequently asked questions",
-      "more": "Detailed major event help",
-      "close": "Close"
     },
-    "page": {
-      "title": "Major event help",
-      "subtitle": "What the pages of the major event do and how the most common workflows work.",
-      "tocAria": "Chapters of the major event help",
-      "openPage": "Open page"
-    },
-    "hint": {
-      "aria": "Show explanation"
-    },
-    "groups": {
-      "start": "Getting started",
-      "setup": "Set up",
-      "planning": "Plan",
-      "procurement": "Procure",
-      "material": "Material",
-      "guest": "Guest departments"
-    },
-    "fields": {
-      "enoughOnHand": "The need is already covered, so no further inquiry is needed. State where the material comes from: your own stock or an agreement in the same major event.",
-      "cash": "Cash is the money that has gone out so far or still has to go out, for example purchase price, rent and deposit.",
-      "netto": "Net is the cost that remains with the event in the end: a returned deposit or sale proceeds reduce it, and a purchase booked as an asset counts as 0."
-    },
-    "topics": {
-      "overview": {
-        "title": "Major event – overview",
-        "summary": "A major event is its own department set up as a project: areas with build projects, planning, procurement, material and invited guest departments. What you see depends on your role.",
-        "faq": {
-          "roles": {
-            "q": "Why don't I see all menu items?",
-            "a": "The menu items depend on your role in the major event. If an area is missing, ask the material manager or your area lead."
-          },
-          "setupRelease": {
-            "q": "Why is the major event not released yet?",
-            "a": "A new major event is set up first: master data, areas with one lead each, and members (at least one material manager and one OK lead). After that the material manager or the OK lead releases it for all roles."
-          }
-        }
+    "help": {
+      "modal": {
+        "eyebrow": "Help for this page",
+        "faqTitle": "Frequently asked questions",
+        "more": "Detailed major event help",
+        "close": "Close"
       },
-      "stammdaten": {
-        "title": "Master data",
-        "summary": "Event name, period and event location. Here you also decide whether the event is a camp or an event and whether participating departments take part.",
-        "faq": {
-          "required": {
-            "q": "What is part of the initial setup?",
-            "a": "Name, start of the event, place and the type (camp or event). The end must not be before the start."
-          },
-          "locations": {
-            "q": "Where do I define the storage places for the material?",
-            "a": "Not here: the places for the material are under Locations in the settings."
-          }
-        }
+      "page": {
+        "title": "Major event help",
+        "subtitle": "What the pages of the major event do and how the most common workflows work.",
+        "tocAria": "Chapters of the major event help",
+        "openPage": "Open page"
       },
-      "ressorts": {
-        "title": "Areas",
-        "summary": "Here you build the structure of the event: areas, sub-areas and build projects. You assign members and determine the lead.",
-        "faq": {
-          "levels": {
-            "q": "Which levels are there?",
-            "a": "An area is the top level. Below it are sub-areas, and below those the build projects."
-          },
-          "required": {
-            "q": "What does the initial setup need?",
-            "a": "At least one area, and every area needs a lead."
-          }
-        }
+      "hint": {
+        "aria": "Show explanation"
       },
-      "standorte": {
-        "title": "Locations",
-        "summary": "The places of the event on the map: first the three core locations, then the event points.",
-        "faq": {
-          "order": {
-            "q": "Why can't I add event points yet?",
-            "a": "Event points are only possible once the event location, the delivery point (event) and the storage location are set."
-          },
-          "qr": {
-            "q": "What are event points for?",
-            "a": "Every event point has a QR code for a sign on site. Packing and helpers scan the same QR."
-          }
-        }
+      "groups": {
+        "start": "Getting started",
+        "setup": "Set up",
+        "planning": "Plan",
+        "procurement": "Procure",
+        "material": "Material",
+        "guest": "Guest departments"
       },
-      "kategorien": {
-        "title": "Categories",
-        "summary": "The areas used for demand, filters, company ticking and Gmail in procurement.",
-        "faq": {
-          "storage": {
-            "q": "Are these the categories of the material store?",
-            "a": "No. They are separate procurement categories, not the categories of the material store."
-          }
-        }
+      "fields": {
+        "enoughOnHand": "The need is already covered, so no further inquiry is needed. State where the material comes from: your own stock or an agreement in the same major event.",
+        "cash": "Cash is the money that has gone out so far or still has to go out, for example purchase price, rent and deposit.",
+        "netto": "Net is the cost that remains with the event in the end: a returned deposit or sale proceeds reduce it, and a purchase booked as an asset counts as 0."
       },
-      "anfragenEmail": {
-        "title": "Inquiries & email",
-        "summary": "Here you first set the default mail texts and then connect the mailbox for company inquiries.",
-        "faq": {
-          "mailbox": {
-            "q": "Which mailbox is used?",
-            "a": "The major event has one shared mailbox. Gmail is ready for production use (connect, templates, drafts, sync and send). Outlook is still in development and not a finished mailbox."
+      "topics": {
+        "overview": {
+          "title": "Major event – overview",
+          "summary": "A major event is its own department set up as a project: areas with build projects, planning, procurement, material and invited guest departments. What you see depends on your role.",
+          "faq": {
+            "roles": {
+              "q": "Why don't I see all menu items?",
+              "a": "The menu items depend on your role in the major event. If an area is missing, ask the material manager or your area lead."
+            },
+            "setupRelease": {
+              "q": "Why is the major event not released yet?",
+              "a": "A new major event is set up first: master data, areas with one lead each, and members (at least one material manager and one OK lead). After that the material manager or the OK lead releases it for all roles."
+            }
           }
-        }
-      },
-      "teilnehmer": {
-        "title": "Participants",
-        "summary": "Who may invite, the organisation mode, then sub-camps and guest departments. Sub-camps are the parent-child structure of the participants, not the locations of the material.",
-        "faq": {
-          "invite": {
-            "q": "When are guest departments invited?",
-            "a": "Only when the event is published. Until then participants are only planned. On publishing, the invitation goes to the guest department's inbox and stays on “Invitation open” until they reply."
-          },
-          "unterlager": {
-            "q": "Are sub-camps storage places?",
-            "a": "No. A sub-camp structures the participants. You define the places for the material under Locations."
+        },
+        "stammdaten": {
+          "title": "Master data",
+          "summary": "Event name, period and event location. Here you also decide whether the event is a camp or an event and whether participating departments take part.",
+          "faq": {
+            "required": {
+              "q": "What is part of the initial setup?",
+              "a": "Name, start of the event, place and the type (camp or event). The end must not be before the start."
+            },
+            "locations": {
+              "q": "Where do I define the storage places for the material?",
+              "a": "Not here: the places for the material are under Locations in the settings."
+            }
           }
-        }
-      },
-      "freigabe": {
-        "title": "Publish",
-        "summary": "Guest departments are only invited after publishing. Until then the event stays internal.",
-        "faq": {
-          "effect": {
-            "q": "What happens when I publish?",
-            "a": "The event is published and all planned participants are invited. The period of the event must be set for this."
-          },
-          "undo": {
-            "q": "Can I take the release back?",
-            "a": "No, there is no way to undo it."
-          },
-          "setup": {
-            "q": "Is this the same release as in the initial setup?",
-            "a": "No. Releasing the initial setup opens the major event for all roles. This release invites the guest departments and requires the setup to be released."
+        },
+        "ressorts": {
+          "title": "Areas",
+          "summary": "Here you build the structure of the event: areas, sub-areas and build projects. You assign members and determine the lead.",
+          "faq": {
+            "levels": {
+              "q": "Which levels are there?",
+              "a": "An area is the top level. Below it are sub-areas, and below those the build projects."
+            },
+            "required": {
+              "q": "What does the initial setup need?",
+              "a": "At least one area, and every area needs a lead."
+            }
           }
-        }
-      },
-      "wuensche": {
-        "title": "Wishes & ideas",
-        "summary": "Here the areas report their needs. Only material wishes are later bundled into packages in procurement.",
-        "faq": {
-          "enoughOnHand": {
-            "q": "What does “Enough on hand” mean?",
-            "a": "The need is already covered and needs no further inquiry. You state whether the material comes from your own stock or from an agreement."
-          },
-          "selfOrganized": {
-            "q": "What does “self-organised” mean?",
-            "a": "The area procures the item itself. It therefore does not appear in the demand of procurement."
+        },
+        "standorte": {
+          "title": "Locations",
+          "summary": "The places of the event on the map: first the three core locations, then the event points.",
+          "faq": {
+            "order": {
+              "q": "Why can't I add event points yet?",
+              "a": "Event points are only possible once the event location, the delivery point (event) and the storage location are set."
+            },
+            "qr": {
+              "q": "What are event points for?",
+              "a": "Every event point has a QR code for a sign on site. Packing and helpers scan the same QR."
+            }
           }
-        }
-      },
-      "bauauftraege": {
-        "title": "Build jobs",
-        "summary": "The build jobs of the event by area, as My jobs, area tree or All jobs. Here you plan windows, tasks and material.",
-        "faq": {
-          "status": {
-            "q": "Where does the state of a build job come from?",
-            "a": "If no state is set, it is derived from the project window and the calendar periods: without a window or before the window it is “planned”, after the window “done”. In between it depends on whether the event or the teardown is running."
+        },
+        "kategorien": {
+          "title": "Categories",
+          "summary": "The areas used for demand, filters, company ticking and Gmail in procurement.",
+          "faq": {
+            "storage": {
+              "q": "Are these the categories of the material store?",
+              "a": "No. They are separate procurement categories, not the categories of the material store."
+            }
           }
-        }
-      },
-      "meinRessort": {
-        "title": "My department",
-        "summary": "Sub-areas, build projects and the material list in your branch of the area tree.",
-        "faq": {
-          "noRessort": {
-            "q": "Why does it say “No area assigned”?",
-            "a": "You have not been assigned to an area yet. Ask the material manager or the area lead to assign you."
-          },
-          "scan": {
-            "q": "How does scanning work?",
-            "a": "First scan the QR of the pallet (pack), then the destination. If a code is not recognised, scan a pack or an event point. Codes from another event are rejected."
+        },
+        "anfragenEmail": {
+          "title": "Inquiries & email",
+          "summary": "Here you first set the default mail texts and then connect the mailbox for company inquiries.",
+          "faq": {
+            "mailbox": {
+              "q": "Which mailbox is used?",
+              "a": "The major event has one shared mailbox. Gmail is ready for production use (connect, templates, drafts, sync and send). Outlook is still in development and not a finished mailbox."
+            }
           }
-        }
-      },
-      "bedarf": {
-        "title": "Demand",
-        "summary": "Here you bundle wishes into procurement items or enter an article yourself as demand.",
-        "faq": {
-          "partnerBuy": {
-            "q": "Where do I decide whether to buy or to borrow from a partner?",
-            "a": "On the demand item, not on the wish. Inquiries apply to both ways."
-          },
-          "direct": {
-            "q": "May an area procure by itself?",
-            "a": "Yes, with the “may procure” permission in the area branch. These people maintain direct demand and their own quotes. Choosing a quote, setting the budget and ordering stay with the material manager."
+        },
+        "teilnehmer": {
+          "title": "Participants",
+          "summary": "Who may invite, the organisation mode, then sub-camps and guest departments. Sub-camps are the parent-child structure of the participants, not the locations of the material.",
+          "faq": {
+            "invite": {
+              "q": "When are guest departments invited?",
+              "a": "Only when the event is published. Until then participants are only planned. On publishing, the invitation goes to the guest department's inbox and stays on “Invitation open” until they reply."
+            },
+            "unterlager": {
+              "q": "Are sub-camps storage places?",
+              "a": "No. A sub-camp structures the participants. You define the places for the material under Locations."
+            }
           }
-        }
-      },
-      "anfragen": {
-        "title": "Inquiries",
-        "summary": "Here you manage the companies that are asked, with or without a mail account.",
-        "faq": {
-          "mailAccount": {
-            "q": "Do I need a connected mail account?",
-            "a": "No. Without an account you enter the company and set the state yourself (asked, reply, agreement). With an account the first mail contains the wanted articles from the demand, without quantity and size, and the PDFs of the event. After the agreement a mail with the list follows."
+        },
+        "freigabe": {
+          "title": "Publish",
+          "summary": "Guest departments are only invited after publishing. Until then the event stays internal.",
+          "faq": {
+            "effect": {
+              "q": "What happens when I publish?",
+              "a": "The event is published and all planned participants are invited. The period of the event must be set for this."
+            },
+            "undo": {
+              "q": "Can I take the release back?",
+              "a": "No, there is no way to undo it."
+            },
+            "setup": {
+              "q": "Is this the same release as in the initial setup?",
+              "a": "No. Releasing the initial setup opens the major event for all roles. This release invites the guest departments and requires the setup to be released."
+            }
           }
-        }
-      },
-      "offerten": {
-        "title": "Quotes",
-        "summary": "For each item you enter several quotes and choose one for the budget. Orders follow.",
-        "faq": {
-          "later": {
-            "q": "Can I add quotes after choosing one?",
-            "a": "Yes. Even after choosing, and even when already ordered, you add supplements from the same company here as a further quote."
+        },
+        "wuensche": {
+          "title": "Wishes & ideas",
+          "summary": "Here the areas report their needs. Only material wishes are later bundled into packages in procurement.",
+          "faq": {
+            "enoughOnHand": {
+              "q": "What does “Enough on hand” mean?",
+              "a": "The need is already covered and needs no further inquiry. You state whether the material comes from your own stock or from an agreement."
+            },
+            "selfOrganized": {
+              "q": "What does “self-organised” mean?",
+              "a": "The area procures the item itself. It therefore does not appear in the demand of procurement."
+            }
           }
-        }
-      },
-      "zusagen": {
-        "title": "Agreements",
-        "summary": "The coordination with the company: window, handover, return and quantity.",
-        "faq": {
-          "stock": {
-            "q": "Is the borrowed material then in stock?",
-            "a": "No. Only the loan batch is created here. It counts as “arrived” once it is booked in at goods in."
+        },
+        "bauauftraege": {
+          "title": "Build jobs",
+          "summary": "The build jobs of the event by area, as My jobs, area tree or All jobs. Here you plan windows, tasks and material.",
+          "faq": {
+            "status": {
+              "q": "Where does the state of a build job come from?",
+              "a": "If no state is set, it is derived from the project window and the calendar periods: without a window or before the window it is “planned”, after the window “done”. In between it depends on whether the event or the teardown is running."
+            }
           }
-        }
-      },
-      "bestellungen": {
-        "title": "Orders",
-        "summary": "Here you order the chosen quote and enter the actual costs. The quote stays visible.",
-        "faq": {
-          "empty": {
-            "q": "Why do I see no items to order?",
-            "a": "A quote has to be chosen first. Choose it in the Quotes tab, then the item appears here."
+        },
+        "meinRessort": {
+          "title": "My department",
+          "summary": "Sub-areas, build projects and the material list in your branch of the area tree.",
+          "faq": {
+            "noRessort": {
+              "q": "Why does it say “No area assigned”?",
+              "a": "You have not been assigned to an area yet. Ask the material manager or the area lead to assign you."
+            },
+            "scan": {
+              "q": "How does scanning work?",
+              "a": "First scan the QR of the pallet (pack), then the destination. If a code is not recognised, scan a pack or an event point. Codes from another event are rejected."
+            }
           }
-        }
-      },
-      "kosten": {
-        "title": "Costs",
-        "summary": "The budget, the quotes and the actual costs of the event, in total and by payer.",
-        "faq": {
-          "cashNetto": {
-            "q": "What is the difference between cash and net?",
-            "a": "Cash is the money that has gone out so far or still has to go out. Net is the cost of the event: a returned deposit or sale proceeds reduce it, a purchase booked as an asset counts as 0, ancillary costs count in full."
-          },
-          "payer": {
-            "q": "Who pays the costs?",
-            "a": "Logistics organises, but the payer can be another area. The budget is set by the OK and the material manager."
+        },
+        "bedarf": {
+          "title": "Demand",
+          "summary": "Here you bundle wishes into procurement items or enter an article yourself as demand.",
+          "faq": {
+            "partnerBuy": {
+              "q": "Where do I decide whether to buy or to borrow from a partner?",
+              "a": "On the demand item, not on the wish. Inquiries apply to both ways."
+            },
+            "direct": {
+              "q": "May an area procure by itself?",
+              "a": "Yes, with the “may procure” permission in the area branch. These people maintain direct demand and their own quotes. Choosing a quote, setting the budget and ordering stay with the material manager."
+            }
           }
-        }
-      },
-      "wareneingang": {
-        "title": "Goods in",
-        "summary": "The ramp for trucks and pick-ups. The arrival day comes from the agreement or the order. Here you mark what has arrived and attach the QR.",
-        "faq": {
-          "partial": {
-            "q": "Can I book in a partial delivery?",
-            "a": "Yes. You book partial or remaining quantities per batch with quantity, receiving place and note. A larger quantity than expected is rejected."
+        },
+        "anfragen": {
+          "title": "Inquiries",
+          "summary": "Here you manage the companies that are asked, with or without a mail account.",
+          "faq": {
+            "mailAccount": {
+              "q": "Do I need a connected mail account?",
+              "a": "No. Without an account you enter the company and set the state yourself (asked, reply, agreement). With an account the first mail contains the wanted articles from the demand, without quantity and size, and the PDFs of the event. After the agreement a mail with the list follows."
+            }
           }
-        }
-      },
-      "gastVorschau": {
-        "title": "Guest view",
-        "summary": "This is how an invited department sees the event, as a preview without switching login. You choose the department you play and see the invitation, acceptance or decline.",
-        "faq": {
-          "preview": {
-            "q": "Is this already the real guest view?",
-            "a": "No. The page is a preview with a rough design and no function yet. It only shows something once the event has been published."
-          },
-          "real": {
-            "q": "How does the guest department really see the event?",
-            "a": "The invitation arrives in the guest department's inbox. The event then appears in its activities list, but only after publishing. The guest department does not see build-up and teardown there."
+        },
+        "offerten": {
+          "title": "Quotes",
+          "summary": "For each item you enter several quotes and choose one for the budget. Orders follow.",
+          "faq": {
+            "later": {
+              "q": "Can I add quotes after choosing one?",
+              "a": "Yes. Even after choosing, and even when already ordered, you add supplements from the same company here as a further quote."
+            }
+          }
+        },
+        "zusagen": {
+          "title": "Agreements",
+          "summary": "The coordination with the company: window, handover, return and quantity.",
+          "faq": {
+            "stock": {
+              "q": "Is the borrowed material then in stock?",
+              "a": "No. Only the loan batch is created here. It counts as “arrived” once it is booked in at goods in."
+            }
+          }
+        },
+        "bestellungen": {
+          "title": "Orders",
+          "summary": "Here you order the chosen quote and enter the actual costs. The quote stays visible.",
+          "faq": {
+            "empty": {
+              "q": "Why do I see no items to order?",
+              "a": "A quote has to be chosen first. Choose it in the Quotes tab, then the item appears here."
+            }
+          }
+        },
+        "kosten": {
+          "title": "Costs",
+          "summary": "The budget, the quotes and the actual costs of the event, in total and by payer.",
+          "faq": {
+            "cashNetto": {
+              "q": "What is the difference between cash and net?",
+              "a": "Cash is the money that has gone out so far or still has to go out. Net is the cost of the event: a returned deposit or sale proceeds reduce it, a purchase booked as an asset counts as 0, ancillary costs count in full."
+            },
+            "payer": {
+              "q": "Who pays the costs?",
+              "a": "Logistics organises, but the payer can be another area. The budget is set by the OK and the material manager."
+            }
+          }
+        },
+        "wareneingang": {
+          "title": "Goods in",
+          "summary": "The ramp for trucks and pick-ups. The arrival day comes from the agreement or the order. Here you mark what has arrived and attach the QR.",
+          "faq": {
+            "partial": {
+              "q": "Can I book in a partial delivery?",
+              "a": "Yes. You book partial or remaining quantities per batch with quantity, receiving place and note. A larger quantity than expected is rejected."
+            }
+          }
+        },
+        "gastVorschau": {
+          "title": "Guest view",
+          "summary": "This is how an invited department sees the event, as a preview without switching login. You choose the department you play and see the invitation, acceptance or decline.",
+          "faq": {
+            "preview": {
+              "q": "Is this already the real guest view?",
+              "a": "No. The page is a preview with a rough design and no function yet. It only shows something once the event has been published."
+            },
+            "real": {
+              "q": "How does the guest department really see the event?",
+              "a": "The invitation arrives in the guest department's inbox. The event then appears in its activities list, but only after publishing. The guest department does not see build-up and teardown there."
+            }
           }
         }
       }

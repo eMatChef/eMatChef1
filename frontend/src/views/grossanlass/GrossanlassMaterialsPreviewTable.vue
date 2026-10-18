@@ -163,7 +163,7 @@ import MaterialJourneyScanBar, {
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import MaterialSandboxMobileList from '@/views/dev/MaterialSandboxMobileList.vue'
-import { useGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
+import { useGrossanlassCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
 import { gaUebersichtKey } from '@/views/grossanlass/gaUebersicht'
 import {
   findPreviewRowByCode,
@@ -200,7 +200,7 @@ const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
 
-const { loading, rows, commitments } = useGaCommitmentCatalog()
+const { loading, rows, commitments } = useGrossanlassCommitmentCatalog()
 const uebersicht = inject(gaUebersichtKey, null)
 
 const tabItems = computed(() => {

@@ -120,7 +120,7 @@ import {
   type GaEinsatzStayMode,
   type GaPreviewEinsatz,
 } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
-import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { useGrossanlassUebersicht } from '@/views/grossanlass/gaUebersicht'
 import { combineIso, isoDatePart, isoTimePart } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import { useToast } from '@/composables/useToast'
 
@@ -136,7 +136,7 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
-const uebersicht = useGaUebersicht()
+const uebersicht = useGrossanlassUebersicht()
 const saving = ref(false)
 const editing = ref(false)
 const fromDate = ref('')

@@ -2,7 +2,7 @@
   <div class="dispo">
     <p class="dispo__intro">
       {{ t('grossanlass.dispo.intro') }}
-      <v-chip size="x-small" variant="tonal" color="warning" class="ml-2">{{ t('grossanlass.dispo.prototype') }}</v-chip>
+      <v-chip v-if="!canManage" size="x-small" variant="tonal" color="info" class="ml-2">{{ t('grossanlass.dispo.readOnly') }}</v-chip>
     </p>
 
     <ol class="dispo__flow" :aria-label="t('grossanlass.dispo.flow.label')">
@@ -28,23 +28,44 @@
       </div>
     </section>
 
-    <details v-if="planningNeeds.length" class="dispo__planning">
+    <details v-if="canManage && suggestions.length" class="dispo__planning" data-testid="dispo-suggestions">
       <summary>
-        <v-icon icon="mdi-source-branch" size="16" />
-        {{ t('grossanlass.dispo.planning.title', { n: planningNeeds.length }) }}
+        <v-icon icon="mdi-lightbulb-on-outline" size="16" />
+        {{ t('grossanlass.dispo.suggestionsTitle', { n: suggestions.length }) }}
       </summary>
-      <p class="dispo__planning-hint">{{ t('grossanlass.dispo.planning.hint') }}</p>
+      <p class="dispo__planning-hint">{{ t('grossanlass.dispo.suggestionsHint') }}</p>
       <ul class="dispo__planning-list">
-        <li v-for="need in planningNeeds" :key="need.id">
-          <strong>{{ need.qty > 1 ? `${need.qty}× ` : '' }}{{ need.label }}</strong>
-          <span>{{ orderTitle(need.orderId) }}</span>
-          <span>{{ t('grossanlass.dispo.planning.window', { when: need.planned ? when(need.planned.from, need.planned.to) : when(need.earliest, need.latest) }) }}</span>
-          <v-chip size="x-small" variant="flat" :color="need.status === 'planned' ? 'success' : need.status === 'proposal' ? 'info' : 'warning'">
-            {{ t(`grossanlass.auftraege.res.status.${need.status}`) }}
-          </v-chip>
+        <li v-for="item in suggestions" :key="item.id" :data-testid="`dispo-suggestion-${item.reason}`">
+          <strong>{{ t(`grossanlass.dispo.suggestReason.${item.reason}`) }}</strong>
+          <span>{{ suggestionTitles(item.need_ids) }}</span>
+          <span>{{ item.starts_at.slice(11, 16) }}–{{ item.ends_at.slice(11, 16) }}</span>
+          <EButton size="small" variant="secondary" :disabled="busy" @click="takeSuggestion(item.need_ids)">{{ t('grossanlass.dispo.suggestTake') }}</EButton>
         </li>
       </ul>
     </details>
+
+    <details v-if="openRequests.length" class="dispo__planning" open data-testid="dispo-requests">
+      <summary>
+        <v-icon icon="mdi-message-alert-outline" size="16" />
+        {{ t('grossanlass.dispo.requests.panelTitle', { n: openRequests.length }) }}
+      </summary>
+      <p class="dispo__planning-hint">{{ t('grossanlass.dispo.requests.planStillValid') }}</p>
+      <ul class="dispo__planning-list">
+        <li v-for="item in openRequests" :key="item.id" :data-testid="`dispo-open-request-${item.id}`">
+          <strong>{{ item.title }}</strong>
+          <span>{{ item.requested_by }}{{ item.note ? ` · ${item.note}` : '' }}</span>
+          <EButton size="small" variant="secondary" @click="openNeed(item.need_id)">{{ t('grossanlass.dispo.requests.decide') }}</EButton>
+        </li>
+      </ul>
+    </details>
+
+    <v-alert v-if="actionError" type="warning" variant="tonal" density="compact" closable data-testid="dispo-action-error" @click:close="actionError = ''">{{ actionError }}</v-alert>
+
+    <section v-if="canManage && selected.length" class="dispo__selection" data-testid="dispo-selection">
+      <span>{{ t('grossanlass.dispo.selected', { n: selected.length }) }}</span>
+      <EButton size="small" variant="primary" :disabled="busy" data-testid="dispo-selection-create" @click="createFromSelection">{{ t('grossanlass.dispo.tourFromSelection') }}</EButton>
+      <EButton size="small" variant="secondary" @click="selected = []">{{ t('common.cancel') }}</EButton>
+    </section>
 
     <section class="dispo__bar">
       <div class="dispo__filters" role="group" :aria-label="t('grossanlass.dispo.filter.label')">
@@ -66,19 +87,45 @@
       </v-btn-toggle>
     </section>
 
+    <v-alert v-if="failed" type="error" variant="tonal" density="compact" data-testid="dispo-error">
+      {{ t('grossanlass.dispo.loadFailed') }}
+      <template #append>
+        <EButton size="small" variant="secondary" @click="reload">{{ t('common.retry') }}</EButton>
+      </template>
+    </v-alert>
+
     <!-- Liste -->
     <template v-if="mode === 'list'">
       <EEmptyState
-        v-if="!visible.length"
+        v-if="!(view === 'tours' ? tours.length : visible.length) && !loading"
         variant="generic"
         icon="mdi-truck-fast-outline"
         :title="t('grossanlass.dispo.emptyTitle')"
         :description="t('grossanlass.dispo.emptyText')"
       />
-      <div class="dispo__list">
-        <article v-for="need in visible" :key="need.id" class="need" :class="[`need--${need.priority}`, { 'need--problem': hasProblem(need) }]">
+      <div v-if="view === 'tours'" class="dispo__list" data-testid="dispo-tours">
+        <article v-for="row in tours" :key="row.id" class="need" :class="{ 'need--problem': row.conflicts.length }" :data-testid="`dispo-tour-${row.id}`">
           <header class="need__head">
-            <span class="need__source"><v-icon :icon="SOURCE_ICON[need.source]" size="16" /> {{ t(`grossanlass.dispo.source.${need.source}`) }}</span>
+            <span class="need__source"><v-icon icon="mdi-source-branch" size="16" /> {{ row.name }}</span>
+            <span class="need__chips">
+              <v-chip size="x-small" variant="flat" :color="TOUR_STATUS_COLOR[row.status]">{{ t(`grossanlass.dispo.tourStatus.${row.status}`) }}</v-chip>
+              <v-chip v-if="row.conflicts.length" size="x-small" variant="flat" color="error">{{ t('grossanlass.dispo.conflictsCount', { n: row.conflicts.length }) }}</v-chip>
+            </span>
+          </header>
+          <p class="need__meta"><v-icon icon="mdi-steering" size="14" /> {{ driverName(row.chauffeurId) || t('grossanlass.dispo.noDriver') }} · <v-icon icon="mdi-truck-outline" size="14" /> {{ vehicleName(row.vehicleId) || t('grossanlass.dispo.noVehicle') }}</p>
+          <p v-if="row.startsAt" class="need__meta"><v-icon icon="mdi-clock-outline" size="14" /> {{ dayName(row.startsAt) }} · {{ clockOf(row.startsAt) }}–{{ row.endsAt ? clockOf(row.endsAt) : '' }}</p>
+          <p class="need__meta"><v-icon icon="mdi-package-variant-closed" size="14" /> {{ tourNeedTitles(row.needIds) }}</p>
+          <footer class="need__actions">
+            <EButton variant="primary" size="small" @click="openTour(row.id)">{{ t('grossanlass.dispo.openTour') }}</EButton>
+          </footer>
+        </article>
+      </div>
+      <div v-else class="dispo__list">
+        <article v-for="need in visible" :key="need.id" class="need" :class="[`need--${need.priority}`, { 'need--problem': !!need.problem }]">
+          <header class="need__head">
+            <span class="need__source">
+              <input v-if="canManage && !need.tourId && (need.status === 'open' || need.status === 'planned')" v-model="selected" type="checkbox" :value="need.id" :aria-label="t('grossanlass.dispo.select')" :data-testid="`dispo-select-${need.id}`" />
+              <v-icon :icon="SOURCE_ICON[need.source]" size="16" /> {{ t(`grossanlass.dispo.source.${need.source}`) }}</span>
             <span class="need__chips">
               <v-chip size="x-small" variant="flat" :color="PRIORITY_COLOR[need.priority]">{{ t(`grossanlass.dispo.priority.${need.priority}`) }}</v-chip>
               <v-chip size="x-small" variant="flat" :color="need.ready ? 'success' : 'grey'">
@@ -88,7 +135,7 @@
             </span>
           </header>
           <h4 class="need__title">{{ need.from }} <v-icon icon="mdi-arrow-right" size="16" /> {{ need.to }}</h4>
-          <p class="need__meta"><v-icon icon="mdi-clock-outline" size="14" /> {{ dayName(need.dayOffset) }} · {{ need.timingLabel }}
+          <p class="need__meta"><v-icon icon="mdi-clock-outline" size="14" /> {{ dayName(need) }} · {{ need.timingLabel }}
             <span class="need__kind">{{ t(`grossanlass.dispo.timingKind.${need.timingKind}`) }}</span></p>
           <p class="need__meta"><v-icon icon="mdi-package-variant-closed" size="14" /> {{ need.cargo }}</p>
           <p class="need__meta"><v-icon icon="mdi-flag-outline" size="14" /> {{ need.target }}</p>
@@ -99,17 +146,18 @@
           <p v-if="need.problem" class="need__problem">
             <v-icon icon="mdi-alert-circle-outline" size="14" /> {{ t(`grossanlass.dispo.problem.${need.problem.kind}`) }}
           </p>
-          <p v-if="tourOf(need)" class="need__tour">
+          <p v-if="tourOf(need)" class="need__tour" data-testid="dispo-need-tour-line">
             <v-icon icon="mdi-source-branch" size="14" />
             {{ tourOf(need)!.name }} · {{ driverName(tourOf(need)!.driverId) }} · {{ vehicleName(tourOf(need)!.vehicleId) }}
           </p>
+          <p v-else-if="need.chauffeurId" class="need__tour">
+            <v-icon icon="mdi-steering" size="14" /> {{ driverName(need.chauffeurId) || t('grossanlass.dispo.driver') }}
+          </p>
           <footer class="need__actions">
             <EButton variant="primary" size="small" @click="openNeed(need.id)">
-              {{ need.status === 'open' ? t('grossanlass.dispo.dispose') : t('grossanlass.dispo.open') }}
+              {{ canManage && !need.tourId && (need.status === 'open' || need.status === 'planned') ? t('grossanlass.dispo.dispose') : t('grossanlass.dispo.open') }}
             </EButton>
-            <EButton v-if="tourOf(need)" variant="secondary" size="small" @click="openTour(tourOf(need)!.id)">
-              {{ t('grossanlass.dispo.openTour') }}
-            </EButton>
+            <EButton v-if="tourOf(need)" variant="secondary" size="small" @click="openTour(tourOf(need)!.id)">{{ t('grossanlass.dispo.openTour') }}</EButton>
           </footer>
         </article>
       </div>
@@ -142,10 +190,10 @@
           </button>
         </span>
       </div>
-      <p class="timeline__note">{{ t('grossanlass.dispo.timelineNote') }}</p>
+      <p class="timeline__note">{{ t('grossanlass.dispo.timelineDay', { day: dayName(timelineDay) }) }}</p>
     </section>
 
-    <!-- Karte (Mock) -->
+    <!-- Karte (Schema) -->
     <section v-else class="map">
       <svg viewBox="0 0 640 380" class="map__svg" role="img" :aria-label="t('grossanlass.dispo.mapPlaceholder')">
         <rect width="640" height="380" fill="#e8eef0" />
@@ -165,57 +213,96 @@
       </ul>
     </section>
 
-    <GrossanlassDispoBedarfDialog v-model="needOpen" :need-id="needId" @open-tour="openTour" />
+    <GrossanlassDispoBedarfDialog v-model="needOpen" :need-id="needId" @open-tour="openTourFromNeed" />
     <GrossanlassDispoTourDialog v-model="tourOpen" :tour-id="tourId" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { EButton } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import GrossanlassDispoBedarfDialog from './GrossanlassDispoBedarfDialog.vue'
 import GrossanlassDispoTourDialog from './GrossanlassDispoTourDialog.vue'
+import type { GaDispoView as GaDispoNeedView } from './gaDispoMock'
+
+type GaDispoView = GaDispoNeedView | 'tours'
 import {
-  dispoCounts,
-  driverName,
-  hasProblem,
-  matchesView,
-  sortNeeds,
-  tourById,
-  useGaDispoMock,
-  vehicleName,
-  type GaDispoNeed,
-  type GaDispoView,
-} from './gaDispoMock'
+  dispatchActions,
+  liveCounts,
+  liveDriverName,
+  liveMatchesView,
+  liveSortNeeds,
+  liveVehicleName,
+  loadDispatch,
+  useGaDispo,
+  type GaDispoLiveNeed,
+} from './useGaDispo'
 import { placePos } from '@/views/grossanlass/live/gaSitePlaces'
-import { orderById } from '@/views/grossanlass/auftraege/gaAuftraegeMock'
-import { GA_LOGISTICS_RESOURCE_TYPES, useGaRessourcenMock } from '@/views/grossanlass/ressourcen/gaRessourcenMock'
-import { PRIORITY_COLOR, SOURCE_ICON, STATUS_COLOR, hourLabel } from './gaDispoUi'
+import { PRIORITY_COLOR, SOURCE_ICON, STATUS_COLOR, TOUR_STATUS_COLOR, hourLabel } from './gaDispoUi'
 
 const { t, locale } = useI18n()
-const { needs, tours } = useGaDispoMock()
+const route = useRoute()
+const { needs, tours, now, loading, failed, suggestions, canManage, changeRequests } = useGaDispo()
+const openRequests = computed(() => (canManage.value ? changeRequests.value.filter((item) => item.status === 'open') : []))
+const driverName = liveDriverName
+const vehicleName = liveVehicleName
+const departmentId = computed(() => String(route.params.departmentId || ''))
 
-const { needs: resourceNeeds } = useGaRessourcenMock()
-/** Dieselben Anforderungen wie in der Planung (Aufträge/Bauaufträge), nur die Logistik-relevanten. */
-const planningNeeds = computed(() => resourceNeeds.value.filter((need) => GA_LOGISTICS_RESOURCE_TYPES.includes(need.type)))
-function orderTitle(orderId: string): string {
-  return orderById(orderId)?.title ?? ''
+/** Deep-Link aus der Planung: `?need=<Fahrauftrag>` öffnet den Bedarf, `?tour=<Tour>` die Tour. */
+async function reload() {
+  if (!departmentId.value) return
+  await loadDispatch(departmentId.value)
+  const needQuery = typeof route.query.need === 'string' ? route.query.need : ''
+  const tourQuery = typeof route.query.tour === 'string' ? route.query.tour : ''
+  if (tourQuery && tours.value.some((row) => row.id === tourQuery)) openTour(tourQuery)
+  else if (needQuery && needs.value.some((row) => row.id === needQuery)) openNeed(needQuery)
 }
-function when(from: Date, to: Date): string {
-  const opts: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }
-  return `${from.toLocaleString(locale.value, opts)} – ${to.toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' })}`
+onMounted(reload)
+
+// Disponieren (nur Logistikverantwortliche): Auswahl und Vorschläge legen höchstens einen Tourentwurf an
+const selected = ref<string[]>([])
+const busy = ref(false)
+const actionError = ref('')
+async function createDraft(needIds: string[]) {
+  busy.value = true
+  actionError.value = ''
+  const result = await dispatchActions.createTour(departmentId.value, { need_ids: needIds })
+  busy.value = false
+  if (!result.ok) {
+    actionError.value = result.error
+    return
+  }
+  selected.value = []
+  view.value = 'tours'
 }
+function createFromSelection() {
+  return createDraft(selected.value)
+}
+function takeSuggestion(ids: string[]) {
+  return createDraft(ids)
+}
+function suggestionTitles(ids: string[]): string {
+  return ids.map((id) => needs.value.find((need) => need.id === id)?.title ?? id).join(' · ')
+}
+function tourNeedTitles(ids: string[]): string {
+  return suggestionTitles(ids)
+}
+function clockOf(date: Date): string {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+watch(departmentId, reload)
 
 const flowSteps = ['need', 'dispo', 'tour', 'qr', 'underway', 'target', 'unload'] as const
 const termKeys = ['need', 'dispo', 'tour', 'order'] as const
-const viewOptions: GaDispoView[] = ['open', 'planned', 'underway', 'done', 'problems', 'scope']
+const viewOptions: GaDispoView[] = ['open', 'planned', 'underway', 'done', 'problems', 'scope', 'tours']
 
 const view = ref<GaDispoView>('open')
 const mode = ref<'list' | 'timeline' | 'map'>('list')
 
-const counts = computed(() => dispoCounts())
+const counts = computed(() => liveCounts())
 const kpis = computed(() => [
   { key: 'open', value: counts.value.open },
   { key: 'ready', value: counts.value.ready },
@@ -227,15 +314,17 @@ const kpis = computed(() => [
 ])
 
 function countOf(option: GaDispoView): number {
-  return needs.value.filter((need) => matchesView(need, option)).length
+  if (option === 'tours') return tours.value.length
+  return needs.value.filter((need) => liveMatchesView(need, option)).length
 }
-const visible = computed(() => sortNeeds(needs.value.filter((need) => matchesView(need, view.value))))
-function tourOf(need: GaDispoNeed) {
-  return tourById(need.tourId)
+const visible = computed(() => (view.value === 'tours' ? [] : liveSortNeeds(needs.value.filter((need) => liveMatchesView(need, view.value as GaDispoNeedView)))))
+function tourOf(need: GaDispoLiveNeed) {
+  return tours.value.find((tour) => tour.id === need.tourId)
 }
-function dayName(offset: number): string {
-  const date = new Date()
-  date.setDate(date.getDate() + offset)
+function dayName(target: GaDispoLiveNeed | Date): string {
+  const date = target instanceof Date ? target : target.startsAt
+  const offset = Math.round((new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+    - new Date(now.value.getFullYear(), now.value.getMonth(), now.value.getDate()).getTime()) / 86_400_000)
   if (offset === 0) return t('grossanlass.dispo.today')
   if (offset === 1) return t('grossanlass.dispo.tomorrow')
   return date.toLocaleDateString(locale.value, { weekday: 'short', day: 'numeric', month: 'short' })
@@ -246,13 +335,17 @@ const needOpen = ref(false)
 const needId = ref<string | null>(null)
 const tourOpen = ref(false)
 const tourId = ref<string | null>(null)
-function openNeed(id: string) {
-  needId.value = id
-  needOpen.value = true
-}
 function openTour(id: string) {
   tourId.value = id
   tourOpen.value = true
+}
+function openTourFromNeed(id: string) {
+  needOpen.value = false
+  openTour(id)
+}
+function openNeed(id: string) {
+  needId.value = id
+  needOpen.value = true
 }
 
 // Zeitplan (heute, 06–20 Uhr)
@@ -262,41 +355,53 @@ const hours = Array.from({ length: (END - START) / 2 + 1 }, (_, index) => START 
 function pct(hour: number): number {
   return Math.min(100, Math.max(0, ((hour - START) / (END - START)) * 100))
 }
-type Block = { id: string; label: string; start: number; end: number; tone: string; onClick: () => void }
+function dayKey(date: Date): number {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+}
+/** Heute, sonst der nächste Tag mit offenen oder laufenden Bedarfen. */
+const timelineDay = computed(() => {
+  const active = needs.value.filter((need) => need.status !== 'done')
+  const today = dayKey(now.value)
+  if (!active.length || active.some((need) => dayKey(need.startsAt) === today)) return now.value
+  const upcoming = active.filter((need) => dayKey(need.startsAt) >= today).sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
+  return (upcoming[0] ?? active[0]!).startsAt
+})
+const hourOf = (date: Date) => date.getHours() + date.getMinutes() / 60
 const timelineRows = computed(() => {
-  const rows = tours.value
-    .filter((tour) => tour.status !== 'done')
+  const day = dayKey(timelineDay.value)
+  const tourRows = tours.value
+    .filter((tour) => tour.status !== 'done' && tour.startsAt && tour.endsAt && dayKey(tour.startsAt) === day)
     .map((tour) => ({
       id: tour.id,
-      label: `${tour.name} · ${driverName(tour.driverId)}`,
-      sub: `${vehicleName(tour.vehicleId)}${tour.trailer ? ` + ${tour.trailer}` : ''}`,
+      label: `${tour.name} · ${driverName(tour.chauffeurId) || t('grossanlass.dispo.noDriver')}`,
+      sub: vehicleName(tour.vehicleId) || t('grossanlass.dispo.noVehicle'),
       blocks: [{
         id: tour.id,
-        label: `${hourLabel(tour.startHour)}–${hourLabel(tour.endHour)}${tour.delayMin ? ` (+${tour.delayMin})` : ''}`,
-        start: tour.startHour,
-        end: tour.endHour,
-        tone: tour.problem ? 'problem' : tour.status,
+        label: `${clockOf(tour.startsAt!)}–${clockOf(tour.endsAt!)}`,
+        start: hourOf(tour.startsAt!),
+        end: hourOf(tour.endsAt!),
+        tone: tour.conflicts.length ? 'problem' : tour.status === 'draft' ? 'open' : tour.status,
         onClick: () => openTour(tour.id),
-      } as Block],
+      }],
     }))
-  const open = needs.value.filter((need) => need.status === 'open' && need.dayOffset === 0)
-  rows.push({
-    id: 'open',
-    label: t('grossanlass.dispo.notDisposed'),
-    sub: t('grossanlass.dispo.todayOnly'),
-    blocks: open.map((need) => ({
+  const needRows = liveSortNeeds(needs.value.filter((need) => need.status !== 'done' && !need.tourId && dayKey(need.startsAt) === day))
+    .map((need) => ({
       id: need.id,
-      label: need.to,
-      start: need.hour - 1,
-      end: need.hour,
-      tone: need.priority === 'urgent' ? 'urgent' : 'open',
-      onClick: () => openNeed(need.id),
-    })),
-  })
-  return rows
+      label: need.title,
+      sub: need.chauffeurId ? driverName(need.chauffeurId) : t('grossanlass.dispo.notDisposed'),
+      blocks: [{
+        id: need.id,
+        label: `${hourLabel(need.hour)}–${hourLabel(hourOf(need.endsAt))}`,
+        start: need.hour,
+        end: hourOf(need.endsAt),
+        tone: need.status === 'open' && need.priority === 'urgent' ? 'urgent' : need.status,
+        onClick: () => openNeed(need.id),
+      }],
+    }))
+  return [...tourRows, ...needRows]
 })
 
-// Karte (Mock)
+// Karte (Schema)
 function pos(place: string) {
   return placePos(place)
 }
@@ -305,17 +410,17 @@ const mapLines = computed(() => {
   for (const tour of tours.value.filter((row) => row.status !== 'done')) {
     lines.push({
       id: tour.id,
-      points: tour.stops.map((item) => `${pos(item.place).x},${pos(item.place).y}`).join(' '),
-      color: tour.problem ? '#dc2626' : '#059669',
+      points: tour.stops.map((item) => `${pos(item.label).x},${pos(item.label).y}`).join(' '),
+      color: tour.conflicts.length ? '#dc2626' : '#059669',
       dashed: false,
     })
   }
-  for (const need of needs.value.filter((row) => row.status === 'open')) {
+  for (const need of needs.value.filter((row) => row.status !== 'done' && !row.tourId)) {
     lines.push({
       id: need.id,
       points: `${pos(need.from).x},${pos(need.from).y} ${pos(need.to).x},${pos(need.to).y}`,
-      color: need.priority === 'urgent' ? '#f59e0b' : '#94a3b8',
-      dashed: true,
+      color: need.status !== 'open' ? '#059669' : need.priority === 'urgent' ? '#f59e0b' : '#94a3b8',
+      dashed: need.status === 'open',
     })
   }
   return lines
@@ -326,6 +431,7 @@ const mapPlaces = computed(() => {
     names.add(need.from)
     names.add(need.to)
   })
+  tours.value.forEach((tour) => tour.stops.forEach((item) => item.label && names.add(item.label)))
   return [...names].map((name) => ({ name, ...pos(name) }))
 })
 </script>
@@ -414,6 +520,17 @@ const mapPlaces = computed(() => {
 .dispo__planning-hint {
   margin: 8px 0;
   color: #64748b;
+}
+.dispo__selection {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid #a7f3d0;
+  border-radius: 12px;
+  background: #ecfdf5;
+  font-size: 0.88rem;
 }
 .dispo__planning-list {
   display: grid;
@@ -627,6 +744,7 @@ const mapPlaces = computed(() => {
   white-space: nowrap;
   cursor: pointer;
 }
+.timeline__block--confirmed,
 .timeline__block--planned {
   background: #2563eb;
 }

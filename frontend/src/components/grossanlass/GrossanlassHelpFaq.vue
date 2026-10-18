@@ -14,7 +14,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { gaHelpKey, gaHelpTopic } from '@/config/gaHelp'
 
-defineOptions({ name: 'GaHelpFaq' })
+defineOptions({ name: 'GrossanlassHelpFaq' })
 
 const props = defineProps<{ topicId: string }>()
 

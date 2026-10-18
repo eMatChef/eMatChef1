@@ -495,8 +495,12 @@ function openPreview(screen: DisplayScreenSettings, source?: 'draft' | 'publishe
   window.open(href, '_blank')
 }
 
+/** Das Studio öffnet standardmässig in einem neuen Tab und nutzt dort den ganzen Browserbereich. */
 function openEditor(screen: DisplayScreenSettings) {
-  void router.push({ name: 'GrossanlassDisplayLayoutEditor', params: { departmentId: screen.department_id, screenId: screen.id } })
+  const target = { name: 'GrossanlassDisplayLayoutEditor', params: { departmentId: screen.department_id, screenId: screen.id } }
+  const opened = window.open(router.resolve(target).href, '_blank')
+  // Blockiert der Browser das neue Tab, wird das Studio im aktuellen Tab geöffnet.
+  if (!opened) void router.push(target)
 }
 
 /** Neuer Infoscreen (ohne Gerät): Grossanlass führt direkt in den Layout-Editor. */

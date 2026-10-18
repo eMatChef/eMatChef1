@@ -61,7 +61,7 @@ test.describe('GA Aufgaben Abhängigkeiten', () => {
       const a = (await api<ApiTask>(page, 'POST', `${base}/${group}/tasks`, { title: FIRST })).data
       const b = (await api<ApiTask>(page, 'POST', `${base}/${group}/tasks`, { title: SECOND })).data
 
-      await page.goto(`/${DEPT}/ga/tasks`)
+      await page.goto(`/${DEPT}/ga/tasks/all`)
       await expect(page.locator('.ga-card').first()).toBeVisible()
       await page.locator('.ga-card', { hasText: SECOND }).getByRole('button', { name: /Zuweisen|Öffnen/i }).first().click()
       const detail = page.locator('.v-dialog .v-overlay__content')

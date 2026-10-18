@@ -1,7 +1,7 @@
 <template>
   <LayoutWidget v-if="content.type === 'widget'" :content="content" />
-  <LayoutGrid v-else-if="content.type === 'group'" :rows="content.rows" :items="content.items" :depth="depth + 1" />
-  <LayoutGrid v-else-if="content.type === 'page' && page && depth < MAX_RENDER_DEPTH" :rows="page.rows" :items="page.items" :depth="depth + 1" />
+  <LayoutGrid v-else-if="content.type === 'group'" :rows="content.rows" :columns="content.columns" :items="content.items" :depth="depth + 1" />
+  <LayoutGrid v-else-if="content.type === 'page' && page && depth < MAX_RENDER_DEPTH" :rows="page.rows" :columns="page.columns" :items="page.items" :depth="depth + 1" />
   <LayoutRotation v-else-if="content.type === 'rotation'" :content="content" :depth="depth + 1" />
 </template>
 

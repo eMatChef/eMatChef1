@@ -27,7 +27,7 @@ import type { GrossanlassCommitment } from '@/api/grossanlassCommitments'
 import type { GaMaterialsTabId } from '@/views/grossanlass/grossanlassMaterialsPreviewData'
 import type { GaZusageCreateDraft } from '@/views/grossanlass/grossanlassZusagePreviewStore'
 import { commitmentTabs } from '@/views/grossanlass/grossanlassCommitmentMap'
-import { useGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
+import { useGrossanlassCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
 import { gaBestandArtikelPath } from '@/views/grossanlass/gaBestandPaths'
 
 const route = useRoute()
@@ -35,7 +35,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 const { t } = useI18n()
 const createOpen = ref(false)
-const catalog = useGaCommitmentCatalog()
+const catalog = useGrossanlassCommitmentCatalog()
 
 const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''

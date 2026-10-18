@@ -216,7 +216,7 @@ import {
   type GaGuestShare,
   type GaGuestShareStatus,
 } from '@/api/grossanlassGaeste'
-import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { useGrossanlassUebersicht } from '@/views/grossanlass/gaUebersicht'
 import { resourceToPickTemplate, type GaEinsatzResource } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
 import { originLabelKey } from '@/views/grossanlass/gaCharge'
 
@@ -231,7 +231,7 @@ function tr(key: string, values?: Record<string, string | number>): string {
   return values ? String(t(key, values)) : String(t(key))
 }
 const route = useRoute()
-const uebersicht = useGaUebersicht()
+const uebersicht = useGrossanlassUebersicht()
 const view = ref<GaesteView>('bestand')
 const query = ref('')
 const loading = ref(false)

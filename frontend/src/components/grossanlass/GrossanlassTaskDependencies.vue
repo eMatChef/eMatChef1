@@ -1,6 +1,6 @@
 <template>
   <section class="ga-task-deps" data-testid="task-dependencies-block">
-    <GaDependencyList
+    <GrossanlassDependencyList
       v-if="dependencies.length"
       :dependencies="dependencies"
       :can-edit="canEdit"
@@ -21,7 +21,7 @@
       <v-icon icon="mdi-link-variant-plus" size="16" /> {{ t('grossanlass.aufgaben.deps.addAction') }}
     </EButton>
     <div v-if="adding" class="ga-task-deps__add">
-      <GaDependencyList
+      <GrossanlassDependencyList
         :dependencies="[]"
         can-edit
         :candidates="candidates"
@@ -38,7 +38,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { EButton } from '@/components/form/base'
-import GaDependencyList from '@/components/grossanlass/GaDependencyList.vue'
+import GrossanlassDependencyList from '@/components/grossanlass/GrossanlassDependencyList.vue'
 import {
   addGrossanlassTaskDependency,
   changeGrossanlassTaskDependencyMode,

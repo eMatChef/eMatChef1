@@ -5,13 +5,14 @@
 </template>
 
 <script setup lang="ts">
+import { displayNow } from '@/utils/displayClock'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{ config: Record<string, unknown> }>()
 const { locale } = useI18n()
 
-const now = ref(new Date())
+const now = ref(displayNow())
 let timer: ReturnType<typeof setInterval> | undefined
 const format = computed(() => String(props.config.format ?? 'time'))
 const align = computed(() => String(props.config.align ?? 'right'))
@@ -32,7 +33,7 @@ const label = computed(() => {
 
 onMounted(() => {
   timer = setInterval(() => {
-    now.value = new Date()
+    now.value = displayNow()
   }, 1000)
 })
 onBeforeUnmount(() => {

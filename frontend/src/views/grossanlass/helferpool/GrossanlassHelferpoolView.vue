@@ -6,6 +6,7 @@
         <v-tab v-if="canManage" value="timeline"><v-icon icon="mdi-chart-gantt" start size="18" />{{ t('grossanlass.helferpool.tab.timeline') }}</v-tab>
         <v-tab v-if="canManage" value="skills"><v-icon icon="mdi-hammer-wrench" start size="18" />{{ t('grossanlass.helferpool.tab.skills') }}</v-tab>
         <v-tab value="needs"><v-icon icon="mdi-clipboard-account-outline" start size="18" />{{ t('grossanlass.helferpool.tab.needs') }}</v-tab>
+        <v-tab v-if="canManage" value="api" data-testid="ga-tab-api"><v-icon icon="mdi-api" start size="18" />{{ t('grossanlass.helferpool.tab.api') }}</v-tab>
       </v-tabs>
     </template>
 
@@ -49,6 +50,10 @@
             </header>
             <p v-if="helper.email" class="helper__line"><v-icon icon="mdi-email-outline" size="14" /> {{ helper.email }}</p>
             <p v-if="helper.phone" class="helper__line"><v-icon icon="mdi-phone-outline" size="14" /> {{ helper.phone }}</p>
+            <div v-if="helper.skills?.length || helper.drive_license?.classes.length" class="helper__chips" data-testid="helper-card-profile">
+              <v-chip v-for="skill in helper.skills ?? []" :key="skill" size="x-small" variant="tonal">{{ skill }}</v-chip>
+              <v-chip v-for="code in helper.drive_license?.classes ?? []" :key="code" size="x-small" variant="outlined" prepend-icon="mdi-card-account-details-outline">{{ t(`grossanlass.chain.drive.classes.${code}`) }}</v-chip>
+            </div>
             <p class="helper__line">
               <v-icon icon="mdi-clipboard-check-outline" size="14" />
               {{ t('grossanlass.helferpool.assignmentCount', { n: scheduleOf(helper.id)?.assignments.length ?? 0 }) }}
@@ -93,6 +98,9 @@
       </section>
 
       <!-- Personalbedarf -->
+      <!-- API-Daten: externe Helferpools -->
+      <GrossanlassApiDataPanel v-else-if="tab === 'api' && canManage" :department-id="departmentId" @changed="reload" />
+
       <GrossanlassStaffingNeedsPanel
         v-else
         :needs="overview?.needs ?? []"
@@ -107,7 +115,7 @@
       />
     </div>
 
-    <GrossanlassHelferDrawer v-model="drawerOpen" :department-id="departmentId" :helper-id="drawerHelperId" :schedule="scheduleOf(drawerHelperId)" @edit="openEdit" @changed="reload" />
+    <GrossanlassHelferDrawer v-model="drawerOpen" :department-id="departmentId" :helper-id="drawerHelperId" :schedule="scheduleOf(drawerHelperId)" :version="drawerVersion" @edit="openEdit" @changed="reload" />
     <GrossanlassHelferFormDialog v-model="formOpen" :department-id="departmentId" :helper="formHelper" @saved="onHelperSaved" />
     <GrossanlassStaffingAssignDialog
       v-model="assignOpen"
@@ -123,7 +131,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { getGrossanlassGroups } from '@/api/grossanlassGroups'
 import {
   cancelGaAssignment,
@@ -148,16 +156,18 @@ import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { apiErrorMessage } from '@/utils/apiErrorMessage'
 import { gaCanManageStaffing } from '@/utils/grossanlassAccess'
+import GrossanlassApiDataPanel from './GrossanlassApiDataPanel.vue'
 import GrossanlassHelferDrawer from './GrossanlassHelferDrawer.vue'
 import GrossanlassHelferFormDialog from './GrossanlassHelferFormDialog.vue'
 import GrossanlassStaffingAssignDialog from './GrossanlassStaffingAssignDialog.vue'
 import GrossanlassStaffingNeedsPanel from './GrossanlassStaffingNeedsPanel.vue'
 import GrossanlassStaffingTimeline from './GrossanlassStaffingTimeline.vue'
-import { defaultScheduleStart, fullName, functionRows, percent, scheduleRange, windowLabel } from './gaHelferUi'
+import { defaultScheduleStart, fullName, resolveHelferpoolTab, type HelferpoolTab, functionRows, helperSearchText, percent, scheduleRange, windowLabel } from './gaHelferUi'
 import '@/styles/views/materials-view-tabs.css'
 
 const { t, locale } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const toast = useToast()
 
@@ -167,7 +177,13 @@ const overview = ref<GaStaffingOverview | null>(null)
 /** Verwaltung und Zuteilung: GA-HV/GA-SUBHV sowie GA-MW/GA-OK laut GA-Einstellung; alle anderen sehen nur den Personalbedarf (ohne Namen). */
 const canManage = computed(() => overview.value?.can_manage ?? gaCanManageStaffing(authStore.currentDepartmentRole))
 
-const tab = ref<'helpers' | 'timeline' | 'skills' | 'needs'>(canManage.value ? 'helpers' : 'needs')
+/** Reiter steht im URL-Query `tab` (Zurück/Vorwärts, Neuladen); ungültig → Standardreiter, andere Query-Parameter bleiben. */
+const tab = computed<HelferpoolTab>({
+  get: () => resolveHelferpoolTab(route.query.tab, canManage.value),
+  set: (value) => {
+    if (value !== tab.value) void router.push({ query: { ...route.query, tab: value } })
+  },
+})
 const helpers = ref<GaHelper[]>([])
 const schedule = ref<GaScheduleHelper[]>([])
 const conflicts = ref<GaStaffingConflictItem[]>([])
@@ -197,7 +213,7 @@ const realConflicts = computed(() => conflicts.value.filter((c) => !c.excused))
 const functions = computed(() => functionRows(overview.value?.needs ?? []))
 const visibleHelpers = computed(() => {
   const q = search.value.trim().toLowerCase()
-  return helpers.value.filter((h) => !q || `${fullName(h)} ${h.email ?? ''}`.toLowerCase().includes(q))
+  return helpers.value.filter((h) => !q || helperSearchText(h).includes(q))
 })
 
 function scheduleOf(helperId: string | null): GaScheduleHelper | null {
@@ -224,7 +240,7 @@ async function loadGroups() {
 }
 
 async function loadHelpers() {
-  helpers.value = await listGaHelpers(departmentId.value, { status: helperStatus.value })
+  helpers.value = await listGaHelpers(departmentId.value, { status: helperStatus.value, limit: 500 })
 }
 
 async function loadSchedule() {
@@ -249,7 +265,6 @@ onMounted(async () => {
   try {
     await Promise.all([loadOverview(), loadGroups()])
     scheduleStart.value = defaultScheduleStart(overview.value?.needs ?? [])
-    if (!canManage.value) tab.value = 'needs'
   } catch (err) {
     loadError.value = apiErrorMessage(err, t('grossanlass.helferpool.error.load'))
   }
@@ -284,7 +299,9 @@ function openEdit(helper: GaHelper) {
   formHelper.value = helper
   formOpen.value = true
 }
+const drawerVersion = ref(0)
 async function onHelperSaved() {
+  drawerVersion.value += 1 // offenes Detail zeigt die gespeicherten Werte
   toast.success(t('grossanlass.helferpool.saved'))
   await reload()
 }
@@ -327,6 +344,12 @@ async function cancelAssignment(assignmentId: string) {
 </script>
 
 <style scoped>
+.helper__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0;
+}
 .hp {
   display: flex;
   flex-direction: column;

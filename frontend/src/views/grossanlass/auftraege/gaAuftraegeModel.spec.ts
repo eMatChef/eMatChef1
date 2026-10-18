@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GrossanlassGroup } from '@/api/grossanlassGroups'
-import { buildOrderRows, emptyOrderFilters, materialPercent, matchesOrder, orderCounts, orderTypeOf, tasksPercent } from './gaAuftraegeModel'
+import { buildOrderRows, emptyOrderFilters, orderStatusOf, materialPercent, matchesOrder, orderCounts, orderTypeOf, tasksPercent } from './gaAuftraegeModel'
 
 const g = (over: Partial<GrossanlassGroup>): GrossanlassGroup => ({
   id: 'x', name: 'X', department_id: 'd', parent_id: null, sort_order: 0, level: 0, kind: 'ressort', node_type: 'ressort',
@@ -44,5 +44,33 @@ describe('gaAuftraegeModel', () => {
     expect(rows.filter((r) => matchesOrder(r, { ...f, ressort: 'Infrastruktur' }, groups))).toHaveLength(2)
     expect(rows.filter((r) => matchesOrder(r, { ...f, status: 'build' }, groups)).map((r) => r.id)).toEqual(['bar'])
     expect(rows.filter((r) => matchesOrder(r, { ...f, search: 'putz' }, groups)).map((r) => r.id)).toEqual(['a1'])
+  })
+
+  describe('order completion is independent of task progress', () => {
+    const allDone = { group_id: 'bar', material: { items: 0, covered_items: 0, at_place_items: 0 }, tasks: { total: 4, scheduled: 4, done: 4 }, staffing: { need: null, assigned: 0 } }
+    const auto = g({ id: 'bar', name: 'Bar', kind: 'teilbereich', node_type: 'bauprojekt', build_status: null, window_start: '2020-01-01', window_end: '2020-01-05' })
+
+    it('keeps an order open when all tasks are done but it is not reported', () => {
+      expect(orderStatusOf(auto, { ...allDone, order_status: 'open' })).toBe('planned')
+      expect(tasksPercent({ ...allDone, order_status: 'open' })).toBe(100)
+    })
+
+    it('does not derive a phase from an expired window', () => {
+      expect(orderStatusOf(auto, null)).not.toBe('teardown')
+      expect(orderStatusOf(auto, null)).not.toBe('done')
+    })
+
+    it('keeps a reported order open until accepted', () => {
+      expect(orderStatusOf(auto, { ...allDone, order_status: 'review' })).toBe('planned')
+    })
+
+    it('closes an accepted order', () => {
+      expect(orderStatusOf(auto, { ...allDone, order_status: 'accepted' })).toBe('done')
+    })
+
+    it('keeps an explicitly set phase, also against acceptance', () => {
+      expect(orderStatusOf({ ...auto, build_status: 'done' }, null)).toBe('done')
+      expect(orderStatusOf({ ...auto, build_status: 'aborted' }, { ...allDone, order_status: 'accepted' })).toBe('aborted')
+    })
   })
 })

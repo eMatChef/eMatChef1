@@ -97,7 +97,7 @@
       </div>
     </div>
     <p
-      v-if="pins.length === 0 && !editablePinId && !hasVisiblePolygons && !polygonDrawMode"
+      v-if="!hideEmptyHint && pins.length === 0 && !editablePinId && !hasVisiblePolygons && !polygonDrawMode"
       class="activity-dual-location-map__empty field-hint text-muted"
     >
       {{ t('activities.venueLocations.noMapCoords') }}
@@ -191,11 +191,26 @@ const props = withDefaults(
     polygonDrawMode?: boolean
     /** Pin-Namen nur beim Hover bzw. Antippen zeigen statt dauerhaft. */
     hoverPinLabels?: boolean
+    /** Feste Basiskarte; überschreibt `preferSwissMap` (z. B. OSM auf dem Infoscreen). */
+    baseLayer?: MapBaseLayer | null
+    /** Pin-Namen ganz ausblenden (Infoscreen mit ausgeschalteten Beschriftungen). */
+    hidePinLabels?: boolean
+    /** Bereichsnamen dauerhaft in der Flächenmitte zeigen statt nur beim Überfahren. */
+    polygonLabels?: boolean
+    /** Fester Ausschnitt statt automatischem Einpassen aller Geometrien. */
+    fixedView?: { lat: number; lng: number; zoom: number } | null
+    /** Hinweistext unter der Karte bei leerer Karte unterdrücken. */
+    hideEmptyHint?: boolean
   }>(),
   {
     height: '220px',
     interactive: true,
     hoverPinLabels: false,
+    baseLayer: null,
+    hidePinLabels: false,
+    polygonLabels: false,
+    fixedView: null,
+    hideEmptyHint: false,
     editablePinId: null,
     preferSwissMap: true,
     showLayerControl: true,
@@ -272,12 +287,17 @@ function wmtsUrl(layerId: string, format: 'jpeg' | 'png' = 'jpeg'): string {
   return `${WMTS_BASE}/${layerId}/default/current/3857/{z}/{x}/{y}.${format}`
 }
 
+/** Passive Karten (Infoscreen) zeigen die Quellenangabe als Text ohne Links. */
+function attribution(html: string): string {
+  return props.interactive || props.overlayEditable ? html : html.replace(/<[^>]+>/g, '')
+}
+
 function createTileLayer(layer: MapBaseLayer): L.Layer {
   if (layer === 'swissimage-labels') {
     // Luftbild + Beschriftungen: Orthofoto mit der transparenten swisstopo-Namensebene (swissNAMES3D: Orte, Strassen, Gelände).
     const base = createTileLayer('swissimage') as L.TileLayer
     const labels = L.tileLayer(wmtsUrl('ch.swisstopo.swissnames3d', 'png'), {
-      attribution: SWISSTOPO_ATTRIBUTION,
+      attribution: attribution(SWISSTOPO_ATTRIBUTION),
       maxNativeZoom: 17,
       maxZoom: 21,
       minZoom: 7,
@@ -286,7 +306,7 @@ function createTileLayer(layer: MapBaseLayer): L.Layer {
   }
   if (layer === 'swissimage') {
     return L.tileLayer(wmtsUrl('ch.swisstopo.swissimage', 'jpeg'), {
-      attribution: SWISSTOPO_ATTRIBUTION,
+      attribution: attribution(SWISSTOPO_ATTRIBUTION),
       maxNativeZoom: 18,
       maxZoom: 21,
       minZoom: 7,
@@ -294,14 +314,14 @@ function createTileLayer(layer: MapBaseLayer): L.Layer {
   }
   if (layer === 'swisstopo') {
     return L.tileLayer(wmtsUrl('ch.swisstopo.pixelkarte-farbe', 'jpeg'), {
-      attribution: SWISSTOPO_ATTRIBUTION,
+      attribution: attribution(SWISSTOPO_ATTRIBUTION),
       maxNativeZoom: 18,
       maxZoom: 20,
       minZoom: 7,
     })
   }
   return L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    attribution: attribution('&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'),
     maxNativeZoom: 19,
     maxZoom: 19,
     referrerPolicy: 'origin',
@@ -652,6 +672,10 @@ function visiblePolygons(): ActivityMapPolygon[] {
 
 function fitToCurrentPins(pinsToRender: ActivityLocationPin[]) {
   if (!map) return
+  if (props.fixedView) {
+    map.setView([props.fixedView.lat, props.fixedView.lng], props.fixedView.zoom, { animate: false })
+    return
+  }
   const latLngs: L.LatLngExpression[] = pinsToRender.map((p) => [p.latitude, p.longitude])
   for (const row of visiblePolygons()) {
     for (const point of row.points) {
@@ -687,8 +711,9 @@ function renderMarkers(opts: { fit?: boolean } = {}) {
       icon: pinIcon(pin),
       draggable: canDrag,
       interactive: canDrag || props.interactive,
+      keyboard: canDrag || props.interactive,
     })
-    marker.bindTooltip(pin.label, {
+    if (!props.hidePinLabels) marker.bindTooltip(pin.label, {
       permanent: !props.hoverPinLabels,
       direction: 'top',
       offset: [0, -8],
@@ -795,10 +820,11 @@ function renderPolygons() {
       fillOpacity: row.highlighted ? 0.34 : row.muted ? 0.08 : row.starred ? 0.28 : 0.16,
       interactive: props.interactive,
     })
-    polygon.bindTooltip(row.label, {
-      sticky: true,
-      className: 'activity-dual-location-map__tooltip',
-    })
+    if (!props.hidePinLabels) {
+      polygon.bindTooltip(row.label, props.polygonLabels
+        ? { permanent: true, direction: 'center', className: 'activity-dual-location-map__tooltip' }
+        : { sticky: true, className: 'activity-dual-location-map__tooltip' })
+    }
     if (props.interactive && !props.polygonDrawMode && row.id !== props.editablePolygonId) {
       polygon.on('click', (event) => {
         L.DomEvent.stopPropagation(event)
@@ -957,8 +983,10 @@ function initMap() {
     dragging: props.interactive || props.overlayEditable,
   }).setView(DEFAULT_CENTER, DEFAULT_ZOOM)
 
-  setLayer(props.preferSwissMap ? 'swisstopo' : 'osm')
+  setLayer(props.baseLayer ?? (props.preferSwissMap ? 'swisstopo' : 'osm'))
+  if (!props.interactive && !props.overlayEditable) map.attributionControl.setPrefix(false)
   applyMapInteractivity()
+  observeContainerSize()
   currentZoom = map.getZoom()
   renderMarkers({ fit: true })
   renderPolygons()
@@ -971,7 +999,30 @@ function initMap() {
   }, 150)
 }
 
+let resizeObserver: ResizeObserver | null = null
+let resizeFrame = 0
+
+/** Passive Karten (Infoscreen) laufen in skalierbaren Zonen: bei Grössenänderung neu berechnen und neu einpassen. */
+function observeContainerSize() {
+  if (!mapContainer.value || typeof ResizeObserver === 'undefined' || props.interactive || props.overlayEditable) return
+  resizeObserver?.disconnect()
+  resizeObserver = new ResizeObserver(() => {
+    cancelAnimationFrame(resizeFrame)
+    resizeFrame = requestAnimationFrame(() => {
+      if (!map) return
+      map.invalidateSize({ pan: false })
+      currentZoom = map.getZoom()
+      renderMarkers({ fit: true })
+      renderPolygons()
+    })
+  })
+  resizeObserver.observe(mapContainer.value)
+}
+
 function destroyMap() {
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  cancelAnimationFrame(resizeFrame)
   teardownCtrlScrollZoom()
   if (map) {
     map.off('click', onMapClick)
@@ -1166,10 +1217,19 @@ watch(
 )
 
 watch(
-  () => props.preferSwissMap,
-  (useSwiss) => {
+  () => [props.preferSwissMap, props.baseLayer] as const,
+  ([useSwiss, base]) => {
     if (!map) return
-    setLayer(useSwiss ? 'swisstopo' : 'osm')
+    setLayer(base ?? (useSwiss ? 'swisstopo' : 'osm'))
+  },
+)
+
+watch(
+  () => [props.fixedView?.lat, props.fixedView?.lng, props.fixedView?.zoom, props.hidePinLabels, props.polygonLabels] as const,
+  () => {
+    if (!map) return
+    renderMarkers({ fit: true })
+    renderPolygons()
   },
 )
 

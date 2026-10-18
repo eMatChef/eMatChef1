@@ -186,8 +186,8 @@ import GrossanlassEinsatzBookPreviewDialog, {
   type GaBookPreviewMode,
 } from '@/views/grossanlass/GrossanlassEinsatzBookPreviewDialog.vue'
 import { gaEinsatzComposerKey } from '@/views/grossanlass/gaEinsatzComposer'
-import { useGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
-import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { useGrossanlassCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
+import { useGrossanlassUebersicht } from '@/views/grossanlass/gaUebersicht'
 import { articleToResource, zusageOccupancyBars } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import { resourceToPickTemplate } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
 import type { GaPreviewEinsatz } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
@@ -200,8 +200,8 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const toast = useToast()
-const { articles } = useGaCommitmentCatalog()
-const uebersicht = useGaUebersicht()
+const { articles } = useGrossanlassCommitmentCatalog()
+const uebersicht = useGrossanlassUebersicht()
 
 function tr(key: string, values?: Record<string, string | number>): string {
   return values ? String(t(key, values)) : String(t(key))

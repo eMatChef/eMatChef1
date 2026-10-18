@@ -14,7 +14,7 @@
         <section>
           <h3>{{ t('grossanlass.displays.logistik.trips') }}</h3>
           <ul class="rows">
-            <li v-for="trip in activeTrips" :key="trip.task.id" class="trip" :class="{ 'trip--underway': trip.underway }">
+            <li v-for="trip in activeTrips" :key="trip.id" class="trip" :class="{ 'trip--underway': trip.underway }">
               <div class="trip__main">
                 <strong>{{ trip.from }} → {{ trip.to }}</strong>
                 <small>{{ trip.driver }} · {{ trip.vehicle }}</small>

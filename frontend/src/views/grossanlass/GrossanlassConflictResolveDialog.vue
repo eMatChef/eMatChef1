@@ -91,7 +91,7 @@ import {
   spanningMonthWindow,
   type GaPreviewEinsatz,
 } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
-import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { useGrossanlassUebersicht } from '@/views/grossanlass/gaUebersicht'
 import { combineIso, isoDatePart, isoTimePart } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import { useToast } from '@/composables/useToast'
 
@@ -124,7 +124,7 @@ const open = defineModel<boolean>({ default: false })
 const { t } = useI18n()
 const route = useRoute()
 const toast = useToast()
-const uebersicht = useGaUebersicht()
+const uebersicht = useGrossanlassUebersicht()
 const saving = ref(false)
 const drafts = reactive<Draft[]>([])
 

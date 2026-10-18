@@ -72,6 +72,7 @@ function toPreview(
     barRole: 'einsatz',
     delivery: row.delivery ?? 'pickup',
     tripReleased: !!row.trip_released,
+    tour: row.tour ?? null,
     packed: row.packed,
     chauffeurUserId: row.chauffeur_user_id,
     destinationPlaceId: row.destination_place_id,
@@ -218,7 +219,7 @@ export function createGaUebersichtStore(
   }
 }
 
-export function provideGaUebersicht(): GaUebersichtStore {
+export function provideGrossanlassUebersicht(): GaUebersichtStore {
   const route = useRoute()
   const { locale } = useI18n()
   const departmentId = computed(() => String(route.params.departmentId || ''))
@@ -227,8 +228,8 @@ export function provideGaUebersicht(): GaUebersichtStore {
   return store
 }
 
-export function useGaUebersicht(): GaUebersichtStore {
+export function useGrossanlassUebersicht(): GaUebersichtStore {
   const injected = inject(gaUebersichtKey, null)
   if (injected) return injected
-  return provideGaUebersicht()
+  return provideGrossanlassUebersicht()
 }

@@ -26,7 +26,7 @@ vi.mock('@/utils/onboardingGate', () => ({
   canUseHelpTours: () => false,
 }))
 
-import { useGaHelp } from './useGaHelp'
+import { useGrossanlassHelp } from './useGrossanlassHelp'
 import { useHelpShortcut } from './useHelpShortcut'
 
 function at(name: string, departmentId = 'ga1') {
@@ -36,28 +36,28 @@ function at(name: string, departmentId = 'ga1') {
 beforeEach(() => {
   push.mockClear()
   detailTabs.tabs = []
-  useGaHelp().close()
+  useGrossanlassHelp().close()
 })
 
-describe('useGaHelp', () => {
+describe('useGrossanlassHelp', () => {
   it('offers a chapter on a GA page of a Grossanlass department', () => {
     at('GrossanlassPlanungFreigabe')
-    expect(useGaHelp().topicId.value).toBe('freigabe')
+    expect(useGrossanlassHelp().topicId.value).toBe('freigabe')
   })
 
   it('offers nothing on the same page names in a normal department', () => {
     at('GrossanlassPlanungFreigabe', 'pfadi1')
-    expect(useGaHelp().topicId.value).toBeNull()
+    expect(useGrossanlassHelp().topicId.value).toBeNull()
   })
 
   it('offers nothing on department pages, also in a Grossanlass department', () => {
     at('Activities')
-    expect(useGaHelp().topicId.value).toBeNull()
+    expect(useGrossanlassHelp().topicId.value).toBeNull()
   })
 
   it('links to the chapter on the GA help page', () => {
     at('GrossanlassKosten')
-    expect(useGaHelp().helpPageLocation('kosten')).toEqual({
+    expect(useGrossanlassHelp().helpPageLocation('kosten')).toEqual({
       name: 'GrossanlassHilfe',
       params: { departmentId: 'ga1', topic: 'kosten' },
     })
@@ -70,7 +70,7 @@ describe('help button', () => {
     detailTabs.tabs = [{ hasUnsavedChanges: true }]
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
     useHelpShortcut().openHelp()
-    expect(useGaHelp().modalOpen.value).toBe(true)
+    expect(useGrossanlassHelp().modalOpen.value).toBe(true)
     expect(push).not.toHaveBeenCalled()
     expect(open).not.toHaveBeenCalled()
     open.mockRestore()
@@ -79,14 +79,14 @@ describe('help button', () => {
   it('keeps the department help on department pages', () => {
     at('Activities')
     useHelpShortcut().openHelp()
-    expect(useGaHelp().modalOpen.value).toBe(false)
+    expect(useGrossanlassHelp().modalOpen.value).toBe(false)
     expect(push).toHaveBeenCalledWith('/ga1/dept/help/department')
   })
 
   it('keeps the department help in a guest department, also on GA-named pages', () => {
     at('GrossanlassGastVorschau', 'pfadi1')
     useHelpShortcut().openHelp()
-    expect(useGaHelp().modalOpen.value).toBe(false)
+    expect(useGrossanlassHelp().modalOpen.value).toBe(false)
     expect(push).toHaveBeenCalledWith('/pfadi1/dept/help/department')
   })
 

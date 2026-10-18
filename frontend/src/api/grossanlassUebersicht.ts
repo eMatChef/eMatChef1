@@ -24,10 +24,14 @@ export type GaUebersichtEinsatz = {
   issued_to_user_id: string | null
   delivery: 'trip' | 'pickup'
   trip_released: boolean
+  /** Backend-Freigabe zur Ausführung (ausgegeben, zurückgegeben oder «Fahrt frei»). */
+  released?: boolean
   trip_released_at: string | null
   destination_place_id: string | null
   destination_place_name?: string
   packs?: GaLogisticsPack[]
+  /** Zugeordnete Transporttour der Disposition (nur Anzeige). */
+  tour?: { id: string; name: string; status: 'draft' | 'confirmed' | 'closed' } | null
   bar_role: 'einsatz'
   conflict_id?: string
   task_kind?: 'einsatz' | 'fahrauftrag' | 'bauauftrag'
@@ -143,6 +147,8 @@ export type GaUebersichtCreatePayload = {
   to: string
   who?: string
   chauffeur_user_id?: string | null
+  /** Chauffeur wird später in der Logistik-Disposition zugeteilt. */
+  chauffeur_deferred?: boolean
   pending?: boolean
   has_conflict?: boolean
   delivery?: 'trip' | 'pickup'

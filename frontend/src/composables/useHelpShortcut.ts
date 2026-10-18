@@ -2,7 +2,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useDetailTabsStore } from '@/stores/detailTabs'
-import { useGaHelp } from '@/composables/useGaHelp'
+import { useGrossanlassHelp } from '@/composables/useGrossanlassHelp'
 import { canUseDepartmentOnboarding, canUseHelpTours } from '@/utils/onboardingGate'
 import { isOnboardingDone, readOnboardingState } from '@/utils/departmentOnboarding'
 import { countOpenChecklistItems } from '@/utils/onboardingChecklist'
@@ -48,7 +48,7 @@ export function useHelpShortcut() {
     return countOpenChecklistItems(state.completed, state.skipped || {})
   }
 
-  const gaHelp = useGaHelp()
+  const gaHelp = useGrossanlassHelp()
 
   const isOnHelpRoute = computed(() => route.path.includes('/help') || gaHelp.isGaHelpPage.value)
 

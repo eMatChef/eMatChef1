@@ -1231,27 +1231,23 @@ const routes: RouteRecordRaw[] = [
             children: [
               {
                 path: '',
-                name: 'TasksGaMaster',
-                component: () => import('@/views/grossanlass/aufgaben/GrossanlassAufgabenMasterView.vue'),
-                beforeEnter: () => {
-                  const authStore = useAuthStore()
-                  if (gaIsGrossanlassHelper(authStore.currentDepartmentRole)) return { name: 'TasksGaMine', replace: true }
-                  return true
-                },
-                meta: {
-                  requiresGrossanlassDepartment: true,
-                  ...routeHead('tasksGaMaster'),
-                },
-              },
-              {
-                path: 'mine',
                 name: 'TasksGaMine',
-                component: () => import('@/views/grossanlass/aufgaben/GrossanlassMeineAufgabenView.vue'),
+                component: () => import('@/views/grossanlass/aufgaben/GrossanlassAufgabenMasterView.vue'),
                 meta: {
                   requiresGrossanlassDepartment: true,
                   ...routeHead('tasksGaMine'),
                 },
               },
+              {
+                path: 'all',
+                name: 'TasksGaMaster',
+                component: () => import('@/views/grossanlass/aufgaben/GrossanlassAufgabenMasterView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  ...routeHead('tasksGaMaster'),
+                },
+              },
+              { path: 'mine', redirect: (to) => ({ name: 'TasksGaMine', params: to.params }) },
             ],
           },
           {
@@ -1837,6 +1833,7 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresGrossanlassDepartment: true,
               requiredRoles: [...GA_MATERIAL_ROUTE_ROLES],
+              studio: true,
               ...routeHead('displayLayoutEditor'),
             },
           },

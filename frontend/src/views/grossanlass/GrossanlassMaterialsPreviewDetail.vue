@@ -177,8 +177,8 @@ import {
   findPreviewRowById,
   type GaMaterialsTabId,
 } from '@/views/grossanlass/grossanlassMaterialsPreviewData'
-import { useGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
-import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { useGrossanlassCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
+import { useGrossanlassUebersicht } from '@/views/grossanlass/gaUebersicht'
 import { commitmentsOnStem } from '@/views/grossanlass/gaCharge'
 import {
   articleToResource,
@@ -208,8 +208,8 @@ const router = useRouter()
 const authStore = useAuthStore()
 const { t, locale } = useI18n()
 const toast = useToast()
-const { loading, rows, articles, commitments, upsert, load: loadCatalog } = useGaCommitmentCatalog()
-const uebersicht = useGaUebersicht()
+const { loading, rows, articles, commitments, upsert, load: loadCatalog } = useGrossanlassCommitmentCatalog()
+const uebersicht = useGrossanlassUebersicht()
 
 const TAB_IDS = ['data', 'wishes', 'stock', 'usage'] as const
 const activeTab = ref(String(route.query.tab || 'data'))

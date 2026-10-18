@@ -1,148 +1,180 @@
 <template>
-  <div class="editor">
-    <header class="editor__head">
-      <div class="editor__titles">
-        <router-link class="editor__back" :to="backTo">← {{ t('display.layout.editor.back') }}</router-link>
-        <h1>{{ t('display.layout.editor.title', { name: screenName }) }}</h1>
-        <p class="muted">{{ t('display.layout.editor.intro') }}</p>
-      </div>
-      <div v-if="doc" class="editor__status">
-        <span class="chip" :class="published ? 'chip--ok' : 'chip--idle'">
-          {{ published ? t('display.layout.editor.statusPublished', { n: published.number, date: formatDate(published.published_at) }) : t('display.layout.editor.statusNotPublished') }}
-        </span>
-        <span v-if="dirty" class="chip chip--warn" data-testid="status-unsaved">{{ t('display.layout.editor.statusUnsaved') }}</span>
-        <span v-else-if="hasUnpublished" class="chip chip--warn" data-testid="status-unpublished">{{ t('display.layout.editor.statusUnpublished') }}</span>
-        <span v-else class="chip chip--ok">{{ t('display.layout.editor.statusSaved') }}</span>
-      </div>
-    </header>
+  <div class="studio" data-testid="layout-editor">
+    <StudioToolbar
+      :back-to="backTo"
+      :screen-name="screenName"
+      :has-doc="!!doc"
+      :published="published"
+      :dirty="dirty"
+      :has-unpublished="hasUnpublished"
+      :saving="saving"
+      :publish-checking="publishChecking"
+      :variant-id="variantId"
+      :variants="variantItems"
+      :can-add-variant="!!doc && doc.variants.length < limits.max_variants"
+      :can-undo="history.canUndo.value"
+      :can-redo="history.canRedo.value"
+      :zoom="zoom"
+      :show-grid="showGrid"
+      :has-selection="selectedIds.length > 0"
+      :can-group="canGroup"
+      :can-ungroup="canUngroup"
+      :can-paste="!!clipboard"
+      :preview-mode="previewMode"
+      :library-open="libraryOpen"
+      :props-open="propsOpen"
+      @action="onToolbar"
+      @update:variant-id="variantId = $event"
+      @update:preview-mode="previewMode = $event"
+    />
 
-    <ELoadingState v-if="loading" variant="inline" :message="t('settings.displayScreens.loading')" />
-    <p v-else-if="loadError" class="error" role="alert">{{ loadError }}</p>
+    <ELoadingState v-if="loading" variant="inline" :message="t('settings.displayScreens.loading')" class="studio__center" />
+    <p v-else-if="loadError" class="studio__center error" role="alert">{{ loadError }}</p>
 
     <!-- Startpunkt wählen (noch kein Entwurf) -->
-    <section v-else-if="!doc" class="card">
+    <section v-else-if="!doc" class="studio__center studio__chooser">
       <h2>{{ t('display.layout.editor.chooserTitle') }}</h2>
       <LayoutStartChooser :templates="catalog?.templates ?? []" :sources="copySources" @choose="initialize" />
     </section>
 
-    <template v-else>
-      <div class="toolbar">
-        <div class="toolbar__group">
-          <ESelect v-model="variantId" :items="variantItems" :label="t('display.layout.editor.variant')" hide-details class="toolbar__select" />
-          <EButton variant="secondary" size="small" :disabled="doc.variants.length >= limits.max_variants" @click="newVariantOpen = true">{{ t('display.layout.editor.addVariant') }}</EButton>
-        </div>
-        <div class="toolbar__group toolbar__group--actions">
-          <EButton variant="secondary" size="small" @click="chooserOpen = true">{{ t('display.layout.editor.replaceTemplate') }}</EButton>
-          <EButton variant="secondary" size="small" @click="openRevisions">{{ t('display.layout.editor.revisions') }}</EButton>
-          <EButton variant="secondary" size="small" data-testid="btn-preview" @click="previewOpen = true">{{ t('display.layout.editor.preview') }}</EButton>
-          <EButton variant="secondary" size="small" :disabled="dirty" :title="dirty ? t('display.layout.editor.saveFirst') : ''" @click="openFullPreview">{{ t('display.layout.editor.previewTab') }}</EButton>
-          <EButton variant="secondary" size="small" :disabled="!dirty" :loading="saving" data-testid="btn-save" @click="save">{{ t('display.layout.editor.save') }}</EButton>
-          <EButton variant="primary" size="small" :loading="publishChecking" data-testid="btn-publish" @click="startPublish">{{ t('display.layout.editor.publish') }}</EButton>
-        </div>
-      </div>
+    <div v-else class="studio__body" :style="bodyStyle">
+      <aside v-show="libraryOpen" class="panel panel--left" :aria-label="t('display.layout.editor.library')">
+        <StudioLibrary
+          :entries="libraryEntries"
+          :widget-defs="widgetDefs"
+          :highlight-no-live="previewMode === 'live'"
+          @add="(entry) => addEntry(entry)"
+          @rename="openRenameBlock"
+          @remove="removeBlock"
+        />
+      </aside>
 
-      <div class="editor__body">
-        <aside class="panel panel--left">
-          <h3>{{ t('display.layout.editor.library') }}</h3>
-          <WidgetPalette :widgets="catalog?.widgets ?? []" @add="addWidget" />
-          <h4 class="panel__sub">{{ t('display.layout.editor.zones') }}</h4>
-          <div class="panel__zones">
-            <EButton variant="secondary" size="small" @click="addRotationZone">{{ t('display.layout.editor.addRotationZone') }}</EButton>
-            <EButton variant="secondary" size="small" :disabled="!embeddableForCurrent.length" @click="addEmbeddedZone">{{ t('display.layout.editor.addEmbedded') }}</EButton>
-          </div>
-          <h3 class="panel__sub">{{ t('display.layout.editor.pages') }}</h3>
-          <ul class="pages">
-            <li v-for="p in doc.pages" :key="p.id" :class="{ 'pages__item--on': p.id === pageId }">
-              <button type="button" class="pages__btn" :data-testid="`page-${p.id}`" @click="selectPage(p.id)">{{ p.name || p.id }}</button>
-            </li>
-          </ul>
-          <div class="panel__zones">
-            <EButton variant="secondary" size="small" :disabled="doc.pages.length >= limits.max_pages" @click="onAddPage">{{ t('display.layout.editor.addPage') }}</EButton>
-            <EButton variant="secondary" size="small" @click="renameOpen = true">{{ t('display.layout.editor.renamePage') }}</EButton>
-            <EButton variant="danger" size="small" :disabled="!canDeletePage" :title="canDeletePage ? '' : t('display.layout.editor.pageInUse')" @click="deletePage">{{ t('display.layout.editor.deletePage') }}</EButton>
-          </div>
-        </aside>
-
-        <main class="stage">
-          <div v-if="page" class="stage__bar">
-            <strong>{{ page.name || page.id }}</strong>
-            <span class="muted">{{ t('display.layout.editor.stageHint', { aspect: variant?.aspect_ratio ?? '' }) }}</span>
-          </div>
-          <EditorCanvas
-            v-if="page && variant"
-            :doc="doc"
-            :page="page"
-            :selected-id="selectedId"
-            :aspect-ratio="variant.aspect_ratio"
-            :font-scale="1"
+      <main class="stage">
+        <div class="stage__canvas">
+          <StudioCanvas
+            v-if="stageHost && page && variant"
+            ref="canvasRef"
+            :host="stageHost"
+            :logical-width="stageSize.w"
+            :logical-height="stageSize.h"
+            :unit="unit"
+            :nested="path.length > 0 || !!isolateId"
+            :selected-ids="selectedIds"
             :widget-defs="widgetDefs"
-            @select="selectedId = $event"
-            @change="markDirty"
+            :show-grid="showGrid && !isolateId"
+            :label-for="labelFor"
+            :fit-key="fitKey"
+            :locked="!!isolateId"
+            @select="selectedIds = $event"
+            @checkpoint="history.checkpoint()"
+            @changed="markDirty"
+            @open="openItem"
             @drop="onDrop"
+            @zoom="zoom = $event"
+            @blocked="notifyBlocked"
           />
-          <p v-if="pageProblems.length" class="stage__issues" role="status">{{ t('display.layout.editor.pageProblems', { n: pageProblems.length }) }}</p>
-        </main>
-
-        <aside class="panel panel--right">
-          <div class="tabs" role="tablist">
-            <button type="button" role="tab" :aria-selected="tab === 'item'" :class="{ 'tabs__btn--on': tab === 'item' }" class="tabs__btn" @click="tab = 'item'">{{ t('display.layout.editor.tabElement') }}</button>
-            <button type="button" role="tab" :aria-selected="tab === 'display'" :class="{ 'tabs__btn--on': tab === 'display' }" class="tabs__btn" data-testid="tab-display" @click="tab = 'display'">{{ t('display.layout.editor.tabDisplay') }}</button>
+          <div class="stage__badges" aria-live="polite">
+            <span class="badge" :class="previewMode === 'demo' ? 'badge--demo' : 'badge--live'" data-testid="mode-badge">
+              {{ previewMode === 'demo' ? t('display.studio.mode.badgeDemo') : t('display.studio.mode.badgeLive') }}
+            </span>
+            <span v-if="isolateId" class="badge badge--iso">{{ t('display.studio.isolate.badge') }}</span>
+            <span v-if="rotationNav" class="badge badge--btn badge--nav" data-testid="rotation-nav">
+              <button type="button" :disabled="rotationNav.index === 0" :aria-label="t('display.studio.rotation.prev')" @click="gotoRotationPage(-1)">‹</button>
+              {{ t('display.studio.rotation.pageOf', { n: rotationNav.index + 1, count: rotationNav.count }) }}
+              <button type="button" :disabled="rotationNav.index >= rotationNav.count - 1" :aria-label="t('display.studio.rotation.next')" @click="gotoRotationPage(1)">›</button>
+            </span>
+            <button v-if="isolateId || path.length" type="button" class="badge badge--btn" data-testid="btn-exit-edit" @click="exitLevel">
+              <v-icon icon="mdi-arrow-u-left-top" size="14" aria-hidden="true" /> {{ t('display.studio.isolate.back') }}
+            </button>
           </div>
-          <ItemInspector
-            v-if="tab === 'item' && page"
-            :doc="doc"
-            :page="page"
-            :item="selectedItem"
-            :widget-defs="widgetDefs"
-            :widgets="catalog?.widgets ?? []"
-            :limits="limits"
-            @mutate="mutateItem"
-            @duplicate="duplicateItem"
-            @remove="removeItem"
-          />
-          <div v-else-if="variant" class="flow">
-            <ETextField :model-value="variant.name" :label="t('display.layout.editor.variantName')" maxlength="80" hide-details @update:model-value="renameVariant($event)" />
-            <ESelect :model-value="variant.aspect_ratio" :items="aspectItems" :label="t('display.layout.editor.variantAspect')" hide-details @update:model-value="setAspect($event)" />
-            <ECheckbox :model-value="doc.default_variant_id === variant.id" :disabled="doc.default_variant_id === variant.id" :label="t('display.layout.editor.variantDefault')" hide-details @update:model-value="doc.default_variant_id = variant.id; markDirty()" />
-            <EButton variant="danger" size="small" :disabled="doc.variants.length <= 1" @click="deleteVariant">{{ t('display.layout.editor.deleteVariant') }}</EButton>
+          <p v-if="blockedHint" class="stage__blocked" role="status">{{ blockedHint }}</p>
+        </div>
+        <StudioPagesBar
+          :pages="doc.pages"
+          :page-id="pageId"
+          :crumbs="crumbs"
+          :can-add="doc.pages.length < limits.max_pages"
+          :can-delete="canDeletePage"
+          :hint="pageProblems.length ? t('display.layout.editor.pageProblems', { n: pageProblems.length }) : ''"
+          @select="selectPage"
+          @add="onAddPage"
+          @rename="renameOpen = true"
+          @remove="deletePage"
+          @navigate="navigateTo"
+        />
+      </main>
 
-            <h4 class="panel__sub">{{ t('display.layout.editor.flowTitle') }}</h4>
-            <p v-if="!flow.simple" class="muted">{{ t('display.layout.editor.flowComplex') }}</p>
-            <template v-else>
-              <p class="muted">{{ t('display.layout.editor.flowHint') }}</p>
-              <ol class="flow__list">
-                <li v-for="(id, i) in flow.pageIds" :key="`${id}-${i}`">
-                  <span>{{ i + 1 }}. {{ pageName(id) }}</span>
-                  <ETextField v-if="flow.pageIds.length > 1" :model-value="flow.durations[i] ? String(flow.durations[i]) : ''" type="number" :min="limits.min_interval_sec" :max="limits.max_interval_sec" :placeholder="String(flow.interval)" :label="t('display.layout.editor.stepDuration')" hide-details class="flow__dur" @update:model-value="setFlowDuration(i, $event)" />
-                  <span class="flow__actions">
-                    <button type="button" :disabled="i === 0" :aria-label="t('display.layout.editor.moveUp')" @click="moveFlow(i, -1)">↑</button>
-                    <button type="button" :disabled="i === flow.pageIds.length - 1" :aria-label="t('display.layout.editor.moveDown')" @click="moveFlow(i, 1)">↓</button>
-                    <button type="button" :disabled="flow.pageIds.length <= 1" :aria-label="t('common.delete')" @click="removeFlow(i)">✕</button>
-                  </span>
-                </li>
-              </ol>
-              <div class="flow__add">
-                <ESelect v-model="flowAdd" :items="pageItems" :label="t('display.layout.editor.flowAdd')" hide-details />
-                <EButton variant="secondary" size="small" :disabled="!flowAdd" @click="addFlow">{{ t('common.add') }}</EButton>
+      <aside v-show="propsOpen" class="panel panel--right" :aria-label="t('display.studio.props.title')" data-testid="props-panel">
+        <div class="tabs" role="tablist">
+          <button type="button" role="tab" :aria-selected="tab === 'item'" :class="{ 'tabs__btn--on': tab === 'item' }" class="tabs__btn" @click="tab = 'item'">{{ t('display.layout.editor.tabElement') }}</button>
+          <button type="button" role="tab" :aria-selected="tab === 'display'" :class="{ 'tabs__btn--on': tab === 'display' }" class="tabs__btn" data-testid="tab-display" @click="tab = 'display'">{{ t('display.layout.editor.tabDisplay') }}</button>
+        </div>
+        <div class="panel__scroll">
+          <template v-if="tab === 'item'">
+            <ItemInspector
+              v-if="selectedItem && page && hostForInspector"
+              :doc="doc"
+              :host="hostForInspector"
+              :page-id="page.id"
+              :item="selectedItem"
+              :widget-defs="widgetDefs"
+              :widgets="catalog?.widgets ?? []"
+              :limits="limits"
+              :isolated="!!isolateId"
+              @mutate="mutateItem"
+              @duplicate="duplicateSelection"
+              @remove="removeSelection"
+              @open="openItem"
+              @open-step="openRotationStep"
+              @ungroup="ungroupSelection"
+              @save-block="openSaveBlock"
+              @refine="refineGroup"
+              @coarsen="coarsenGroup"
+              @blocked="notifyBlocked"
+            />
+            <div v-else-if="selectedIds.length > 1" class="multi" data-testid="multi-selection">
+              <h4>{{ t('display.studio.multi.title', { n: selectedIds.length }) }}</h4>
+              <p class="muted">{{ t('display.studio.multi.hint') }}</p>
+              <div class="multi__actions">
+                <EButton variant="primary" size="small" :disabled="!canGroup" @click="groupSelection">{{ t('display.studio.actions.group') }}</EButton>
+                <EButton variant="secondary" size="small" @click="copySelection">{{ t('display.studio.actions.copy') }}</EButton>
+                <EButton variant="secondary" size="small" @click="duplicateSelection">{{ t('display.studio.actions.duplicate') }}</EButton>
+                <EButton variant="secondary" size="small" @click="openSaveBlock">{{ t('display.studio.actions.saveAsBlock') }}</EButton>
+                <EButton variant="danger" size="small" @click="removeSelection">{{ t('display.studio.actions.delete') }}</EButton>
               </div>
-              <template v-if="flow.pageIds.length > 1">
-                <ECheckbox :model-value="flow.enabled" :label="t('display.layout.editor.rotationEnabled')" hide-details @update:model-value="setFlowEnabled($event === true)" />
-                <ETextField :model-value="String(flow.interval)" type="number" :min="limits.min_interval_sec" :max="limits.max_interval_sec" :label="t('display.layout.editor.interval')" hide-details @update:model-value="setFlowInterval($event)" />
-              </template>
-            </template>
-          </div>
-        </aside>
-      </div>
-    </template>
+            </div>
+            <div v-else class="empty">
+              <p class="muted">{{ t('display.studio.props.nothingSelected') }}</p>
+              <ul class="shortcuts">
+                <li>{{ t('display.studio.shortcuts.select') }}</li>
+                <li>{{ t('display.studio.shortcuts.move') }}</li>
+                <li>{{ t('display.studio.shortcuts.pan') }}</li>
+                <li>{{ t('display.studio.shortcuts.keys') }}</li>
+              </ul>
+            </div>
+          </template>
+          <StudioDisplayPanel
+            v-else-if="variant"
+            :doc="doc"
+            :variant="variant"
+            :limits="limits"
+            :widget-defs="widgetDefs"
+            @mutate="mutateDoc"
+            @delete-variant="deleteVariant"
+          />
+        </div>
+      </aside>
+    </div>
 
     <!-- Vorschau mit Geräteprofil -->
     <EDialog v-model="previewOpen" :max-width="1100" :title="t('display.layout.editor.previewTitle')" :retain-focus="false">
       <div class="preview-bar">
         <ESelect v-model="deviceKey" :items="deviceItems" :label="t('display.layout.editor.previewDevice')" hide-details class="preview-bar__select" />
         <span class="muted">{{ t('display.layout.editor.previewVariant', { name: previewVariantName }) }}</span>
+        <span class="badge" :class="previewMode === 'demo' ? 'badge--demo' : 'badge--live'">{{ previewMode === 'demo' ? t('display.studio.mode.badgeDemo') : t('display.studio.mode.badgeLive') }}</span>
       </div>
       <div class="preview-frame" :style="{ aspectRatio: previewAspect, width: `min(100%, calc(60vh * ${previewAspect}))` }" data-testid="preview-frame">
-        <DisplayLayoutRenderer v-if="doc && previewOpen" :key="`${deviceKey}-${previewVariantId}`" :layout="doc" :variant-id="previewVariantId" :font-scale="previewDevice.fontScale" />
+        <DisplayLayoutRenderer v-if="doc && previewOpen" :key="`${deviceKey}-${previewVariantId}-${previewMode}`" :layout="doc" :variant-id="previewVariantId" :font-scale="previewDevice.fontScale" :map-data="previewMapData" :live-data="liveData" :data-mode="previewMode" :show-mode-badge="doc.data_mode === 'demo'" />
       </div>
       <p class="muted">{{ t('display.layout.editor.previewNote') }}</p>
       <template #actions>
@@ -160,6 +192,9 @@
       </template>
       <template v-else>
         <p>{{ t('display.layout.editor.publishText', { n: (published?.number ?? 0) + 1 }) }}</p>
+        <p class="publish-mode" :class="{ 'publish-mode--demo': doc?.data_mode === 'demo' }" data-testid="publish-mode">
+          {{ doc?.data_mode === 'demo' ? t('display.studio.publishedMode.confirmDemo') : t('display.studio.publishedMode.confirmLive') }}
+        </p>
         <p class="muted">{{ t('display.layout.editor.publishHint') }}</p>
       </template>
       <template #actions>
@@ -207,6 +242,16 @@
       </template>
     </EDialog>
 
+    <!-- Eigenen Baustein speichern / umbenennen -->
+    <EDialog v-model="blockDialogOpen" :max-width="460" :title="blockEditId ? t('display.studio.library.rename') : t('display.studio.blocks.saveTitle')">
+      <ETextField v-model="blockName" :label="t('display.studio.blocks.name')" maxlength="80" hide-details data-testid="block-name" />
+      <p v-if="!blockEditId" class="muted mt-2">{{ t('display.studio.blocks.saveHint') }}</p>
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="blockDialogOpen = false">{{ t('common.cancel') }}</EButton>
+        <EButton variant="primary" size="small" :disabled="!blockName.trim()" :loading="blockSaving" data-testid="block-save" @click="submitBlock">{{ t('common.save') }}</EButton>
+      </template>
+    </EDialog>
+
     <!-- Vorlage ersetzen -->
     <EDialog v-model="chooserOpen" :max-width="860" :title="t('display.layout.editor.replaceTemplate')" :retain-focus="false">
       <p class="error">{{ t('display.layout.editor.replaceWarning') }}</p>
@@ -238,62 +283,83 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
-import { EButton, ECheckbox, EDialog, ESelect, ETextField } from '@/components/form/base'
+import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import {
+  createDisplayBlock,
+  deleteDisplayBlock,
   getLayoutCatalog,
   getLayoutState,
   initializeLayout,
   layoutErrorInfo,
+  listDisplayBlocks,
   listLayoutRevisions,
   publishLayout,
+  renameDisplayBlock,
   restoreLayoutRevision,
   saveLayoutDraft,
   validateLayoutDraft,
+  type CustomBlock,
+  type DisplayMapData,
+  type GaLiveData,
   type LayoutCatalog,
+  type LayoutContent,
   type LayoutDocument,
   type LayoutError,
+  type LayoutGroupContent,
   type LayoutItem,
   type LayoutRevisionInfo,
   type LayoutState,
+  type LayoutVariant,
   type WidgetDefinition,
 } from '@/api/displayLayout'
-import { listDisplayScreens, type DisplayScreenSettings } from '@/api/displayScreens'
+import { getDisplayPreviewLiveData, getDisplayPreviewMapData, listDisplayScreens, type DisplayScreenSettings } from '@/api/displayScreens'
 import { listDisplayDevices, type DisplayDeviceRow } from '@/api/displayDevice'
 import DisplayLayoutRenderer from '@/components/display/layout/DisplayLayoutRenderer.vue'
-import EditorCanvas from '@/components/display/layout/editor/EditorCanvas.vue'
 import ItemInspector from '@/components/display/layout/editor/ItemInspector.vue'
 import LayoutStartChooser from '@/components/display/layout/editor/LayoutStartChooser.vue'
-import WidgetPalette from '@/components/display/layout/editor/WidgetPalette.vue'
-import { cloneLayout, newId } from '@/components/display/layout/layoutModel'
+import StudioCanvas from '@/components/display/layout/studio/StudioCanvas.vue'
+import StudioDisplayPanel from '@/components/display/layout/studio/StudioDisplayPanel.vue'
+import StudioLibrary from '@/components/display/layout/studio/StudioLibrary.vue'
+import StudioPagesBar from '@/components/display/layout/studio/StudioPagesBar.vue'
+import StudioToolbar, { type ToolbarAction } from '@/components/display/layout/studio/StudioToolbar.vue'
+import { buildLibrary, contentOf, type LibraryEntry } from '@/components/display/layout/studio/libraryModel'
+import { LAYOUT_DATA_MODE_KEY, LAYOUT_FREEZE_KEY, LAYOUT_LIVE_DATA_KEY, LAYOUT_MAP_DATA_KEY, LAYOUT_PAGES_KEY, type LayoutDataMode } from '@/components/display/layout/layoutContext'
+import { cloneLayout } from '@/components/display/layout/layoutModel'
+import { addPage, addVariant, isPageReferenced, pageIssues, pickVariant, profileAspect, profileFontScale, ratioOf, removeVariant, variantFlow, widgetContent, type SimulatedDevice } from '@/components/display/layout/layoutEditing'
 import {
-  addItem,
-  addPage,
-  addVariant,
-  canEmbed,
-  findFreeSpot,
-  isPageReferenced,
-  pageIssues,
-  pickVariant,
-  profileAspect,
-  profileFontScale,
-  ratioOf,
-  removeVariant,
-  setVariantFlow,
-  variantFlow,
-  widgetContent,
-  type SimulatedDevice,
-} from '@/components/display/layout/layoutEditing'
+  MAX_GROUP_NESTING,
+  coarsenGroupGrid,
+  copyItems,
+  ensureStepGroup,
+  groupDepth,
+  groupItems,
+  hostShare,
+  newRotation,
+  pasteItems,
+  placeItem,
+  planMove,
+  planResize,
+  refineGroupGrid,
+  removeItems,
+  resolveHost,
+  selectionAsGroup,
+  stepToken,
+  ungroupItem,
+  type ClipboardEntry,
+  type GridHost,
+} from '@/components/display/layout/studioModel'
+import { useStudioHistory } from '@/components/display/layout/useStudioHistory'
 
 /**
- * WYSIWYG-Editor für das Layout eines Infoscreens: Entwurf bearbeiten, Vorschau für verschiedene Bildschirmformate,
- * Entwurf speichern, explizit veröffentlichen und frühere Revisionen wiederherstellen. Geräte sehen ausschliesslich
- * die veröffentlichte Revision; der Editor arbeitet nur am Entwurf.
+ * Infoscreen-Studio: vollflächiger WYSIWYG-Editor für das Layout eines Infoscreens (Entwurf bearbeiten, Demo- und
+ * Live-Vorschau, Entwurf speichern, explizit veröffentlichen, Revisionen wiederherstellen). Geräte sehen ausschliesslich
+ * die veröffentlichte Revision; der Editor arbeitet nur am Entwurf, und der Demo/Live-Umschalter betrifft nur die Vorschau.
  */
 const route = useRoute()
 const router = useRouter()
@@ -308,6 +374,7 @@ const backTo = computed(() => `/${departmentId.value}/ga/displays`)
 const loading = ref(true)
 const loadError = ref<string | null>(null)
 const catalog = ref<LayoutCatalog | null>(null)
+const customBlocks = ref<CustomBlock[]>([])
 const screenName = ref('')
 const screens = ref<DisplayScreenSettings[]>([])
 const devices = ref<DisplayDeviceRow[]>([])
@@ -321,27 +388,86 @@ const saving = ref(false)
 
 const variantId = ref('')
 const pageId = ref('')
-const selectedId = ref<string | null>(null)
+/** Gruppen-Element-IDs ab der Seite: welche Rasterfläche gerade bearbeitet wird. */
+const path = ref<string[]>([])
+/** Element der aktuellen Fläche, das einzeln («separat») bearbeitet wird. */
+const isolateId = ref<string | null>(null)
+const selectedIds = ref<string[]>([])
 const tab = ref<'item' | 'display'>('item')
+const zoom = ref(1)
+const showGrid = ref(true)
+const wide = typeof window === 'undefined' ? 1600 : window.innerWidth
+const libraryOpen = ref(wide >= 900)
+const propsOpen = ref(wide >= 1150)
+/** Editor-Vorschau: Demo ist der Standard; der Schalter ändert nie die veröffentlichte Anzeige. */
+const previewMode = ref<LayoutDataMode>('demo')
+const clipboard = ref<ClipboardEntry | null>(null)
+const canvasRef = ref<InstanceType<typeof StudioCanvas> | null>(null)
+const blockedHint = ref('')
+
+const history = useStudioHistory<LayoutDocument>(
+  () => doc.value,
+  (snapshot) => {
+    doc.value = snapshot
+    dirty.value = true
+    validateLocation()
+  },
+)
 
 const limits = computed(() => catalog.value?.limits ?? {
-  columns: 12, default_rows: 12, max_rows: 48, max_depth: 6, max_variants: 6, max_pages: 20, max_items: 40, max_steps: 20,
+  columns: 12, max_columns: 48, default_rows: 12, max_rows: 48, max_depth: 6, max_variants: 6, max_pages: 20, max_items: 40, max_steps: 20,
   min_interval_sec: 3, max_interval_sec: 3600, default_interval_sec: 20,
 })
 const widgetDefs = computed(() => new Map<string, WidgetDefinition>((catalog.value?.widgets ?? []).map((w) => [w.type, w])))
 const copySources = computed(() => screens.value.filter((s) => !s.revoked_at && s.id !== screenId.value && s.layout?.has_draft))
+const libraryEntries = computed(() => buildLibrary(catalog.value?.widgets ?? [], catalog.value?.blocks ?? [], customBlocks.value))
 
 const variant = computed(() => doc.value?.variants.find((v) => v.id === variantId.value) ?? doc.value?.variants[0] ?? null)
 const page = computed(() => doc.value?.pages.find((p) => p.id === pageId.value) ?? doc.value?.pages[0] ?? null)
-const selectedItem = computed<LayoutItem | null>(() => page.value?.items.find((i) => i.id === selectedId.value) ?? null)
+const resolved = computed(() => (page.value ? resolveHost(page.value, path.value) : null))
+const editHost = computed<GridHost | null>(() => resolved.value?.host ?? null)
+const isolatedItem = computed<LayoutItem | null>(() => (isolateId.value && editHost.value ? editHost.value.items.find((i) => i.id === isolateId.value) ?? null : null))
+
+/** Fläche, die auf der Arbeitsfläche dargestellt wird: die bearbeitete Fläche oder – bei Einzelbearbeitung – nur das Element. */
+const stageHost = computed<GridHost | null>(() => {
+  const item = isolatedItem.value
+  if (item) return { rows: 1, columns: 1, items: [{ id: item.id, x: 0, y: 0, w: 1, h: 1, content: item.content }] }
+  return editHost.value
+})
+const hostForInspector = computed(() => editHost.value)
+
 const variantItems = computed(() => (doc.value?.variants ?? []).map((v) => ({ value: v.id, title: `${v.name} (${v.aspect_ratio})${v.id === doc.value?.default_variant_id ? ' ★' : ''}` })))
-const pageItems = computed(() => (doc.value?.pages ?? []).map((p) => ({ value: p.id, title: p.name || p.id })))
 const ASPECTS = ['16:9', '16:10', '4:3', '3:2', '21:9', '9:16']
 const aspectItems = ASPECTS.map((a) => ({ value: a, title: a }))
-const embeddableForCurrent = computed(() => (doc.value && page.value ? doc.value.pages.filter((p) => canEmbed(doc.value!, page.value!.id, p.id)) : []))
 const canDeletePage = computed(() => !!doc.value && !!page.value && doc.value.pages.length > 1 && !isPageReferenced(doc.value, page.value.id))
-const pageProblems = computed(() => (page.value ? pageIssues(page.value, widgetDefs.value) : []))
-const flow = computed(() => (variant.value ? variantFlow(variant.value) : { rotation: false, enabled: false, interval: 20, pageIds: [], durations: [], simple: false }))
+const pageProblems = computed(() => (editHost.value ? pageIssues(editHost.value, widgetDefs.value) : []))
+
+const selectedItem = computed<LayoutItem | null>(() => (selectedIds.value.length === 1 ? editHost.value?.items.find((i) => i.id === selectedIds.value[0]) ?? null : null))
+const selectedSet = computed(() => new Set(selectedIds.value))
+const canGroup = computed(() => selectedIds.value.length >= 1 && !isolateId.value)
+const canUngroup = computed(() => !isolateId.value && selectedIds.value.length === 1 && selectedItem.value?.content.type === 'group')
+
+// --- Abmessungen der Arbeitsfläche ---------------------------------------------------------------------------------
+// Die Fläche wird in der logischen Auflösung der Anzeige gerendert (Referenz 1920 px lange Seite). Gruppen und
+// Einzelbausteine zeigen nur ihren Anteil; die Grundgrösse bleibt die der Gesamtanzeige (massstabsgetreu).
+const REF = 1920
+const rootRatio = computed(() => (variant.value ? ratioOf(variant.value.aspect_ratio) : 16 / 9))
+const rootW = computed(() => (rootRatio.value >= 1 ? REF : REF * rootRatio.value))
+const rootH = computed(() => (rootRatio.value >= 1 ? REF / rootRatio.value : REF))
+const unit = computed(() => rootH.value / 60)
+const chain = computed(() => {
+  const trail = resolved.value?.trail ?? []
+  return isolatedItem.value ? [...trail, { item: isolatedItem.value }] : trail
+})
+const stageSize = computed(() => {
+  if (!page.value) return { w: rootW.value, h: rootH.value }
+  const share = hostShare(page.value, chain.value)
+  return { w: Math.max(40, rootW.value * share.w), h: Math.max(40, rootH.value * share.h) }
+})
+const fitKey = computed(() => `${variantId.value}|${pageId.value}|${path.value.join('/')}|${isolateId.value ?? ''}|${Math.round(stageSize.value.w)}x${Math.round(stageSize.value.h)}`)
+const bodyStyle = computed(() => ({
+  gridTemplateColumns: `${libraryOpen.value ? 'minmax(220px, 260px)' : '0px'} minmax(0, 1fr) ${propsOpen.value ? 'minmax(260px, 300px)' : '0px'}`,
+}))
 
 function formatDate(iso: string): string {
   const d = new Date(iso)
@@ -349,13 +475,40 @@ function formatDate(iso: string): string {
   return d.toLocaleString(String(locale.value).startsWith('de') ? 'de-CH' : 'en-CH', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-function pageName(id: string): string {
-  return doc.value?.pages.find((p) => p.id === id)?.name || id
-}
-
 function markDirty() {
   dirty.value = true
 }
+
+function labelFor(item: LayoutItem): string {
+  const c = item.content
+  if (c.type === 'widget') return t(`display.layout.widget.${c.widget}`)
+  if (c.type === 'group') return c.name || t('display.studio.group.unnamed')
+  if (c.type === 'rotation') return t('display.studio.rotation.label', { n: c.steps.length })
+  if (c.type === 'page') return t('display.layout.content.page', { name: doc.value?.pages.find((p) => p.id === c.page_id)?.name ?? '' })
+  return t('display.layout.content.group')
+}
+
+const crumbs = computed(() => {
+  const list: { key: string; label: string; pathLength: number }[] = [{ key: 'page', label: page.value?.name || page.value?.id || '', pathLength: 0 }]
+  const trail = resolved.value?.trail ?? []
+  trail.forEach((step, i) => {
+    if (step.rotation) {
+      // Rotation › Rotationsseite (Zurück führt zur Rotation bzw. zur übergeordneten Fläche)
+      list.push({ key: `${step.itemId}-rot`, label: t('display.layout.content.rotation'), pathLength: i })
+      list.push({ key: step.itemId, label: step.rotation.steps[step.rotationIndex!]?.name || t('display.studio.rotation.pageName', { n: step.rotationIndex! + 1 }), pathLength: i + 1 })
+    } else {
+      list.push({ key: step.itemId, label: step.group.name || t('display.studio.group.unnamed'), pathLength: i + 1 })
+    }
+  })
+  if (isolatedItem.value) list.push({ key: `iso-${isolatedItem.value.id}`, label: labelFor(isolatedItem.value), pathLength: trail.length })
+  return list
+})
+
+/** Befindet sich die Bearbeitung in einer Rotationsseite: Position für die Blätterschaltflächen. */
+const rotationNav = computed(() => {
+  const last = resolved.value?.trail[resolved.value.trail.length - 1]
+  return last?.rotation && !isolateId.value ? { index: last.rotationIndex!, count: last.rotation.steps.length, itemId: last.item.id } : null
+})
 
 function applyState(state: LayoutState, keepSelection = false) {
   doc.value = state.draft ? cloneLayout(state.draft) : null
@@ -363,11 +516,14 @@ function applyState(state: LayoutState, keepSelection = false) {
   published.value = state.published
   hasUnpublished.value = state.has_unpublished_changes
   dirty.value = false
+  // Speichern und Veröffentlichen behalten den Verlauf; ein anderes Dokument (Laden, Vorlage, Revision) beginnt neu.
+  if (!keepSelection) history.reset()
   if (doc.value) {
     if (!doc.value.variants.some((v) => v.id === variantId.value)) variantId.value = doc.value.default_variant_id
     if (!doc.value.pages.some((p) => p.id === pageId.value)) pageId.value = firstPageOf(doc.value)
   }
-  if (!keepSelection) selectedId.value = null
+  validateLocation()
+  if (!keepSelection) selectedIds.value = []
 }
 
 function firstPageOf(d: LayoutDocument): string {
@@ -376,19 +532,92 @@ function firstPageOf(d: LayoutDocument): string {
   return first && d.pages.some((p) => p.id === first) ? first : (d.pages[0]?.id ?? '')
 }
 
+/** Nach Undo, Neuladen oder Löschen: Pfad und Auswahl auf vorhandene Elemente zurücksetzen. */
+function validateLocation() {
+  if (!page.value) {
+    path.value = []
+    isolateId.value = null
+    return
+  }
+  if (!resolveHost(page.value, path.value)) {
+    path.value = []
+    isolateId.value = null
+  }
+  const host = resolveHost(page.value, path.value)?.host
+  if (host) {
+    if (isolateId.value && !host.items.some((i) => i.id === isolateId.value)) isolateId.value = null
+    selectedIds.value = selectedIds.value.filter((id) => host.items.some((i) => i.id === id))
+  }
+}
+
+// --- Provider für die Renderer-Komponenten (Seiten, Datenmodus, Karte) ---------------------------------------------
+
+provide(LAYOUT_PAGES_KEY, () => doc.value?.pages ?? [])
+provide(LAYOUT_FREEZE_KEY, true)
+provide(LAYOUT_DATA_MODE_KEY, () => previewMode.value)
+const mapData = ref<DisplayMapData | null>(null)
+provide(LAYOUT_MAP_DATA_KEY, () => mapData.value)
+
+// Kartendaten: Demo = reproduzierbare Beispieldaten, Live = echte Orte und Pläne des Grossanlasses.
+watch(
+  [previewMode, () => !!doc.value],
+  async ([mode, ready]) => {
+    if (!ready) return
+    try {
+      if (mode === 'demo') {
+        mapData.value = (await import('@/test-fixtures/displayMapData.json')).default as unknown as DisplayMapData
+      } else {
+        mapData.value = await getDisplayPreviewMapData(departmentId.value, screenId.value)
+      }
+    } catch {
+      mapData.value = mode === 'live' ? { state: 'unavailable', plan: null, places: [] } : null
+    }
+  },
+  { immediate: true },
+)
+const previewMapData = computed(() => mapData.value)
+
+// Live-Vorschau: echte Daten des Grossanlasses über die Verwalter-API (Benutzerberechtigung), regelmässig aktualisiert.
+const liveData = ref<GaLiveData | null>(null)
+provide(LAYOUT_LIVE_DATA_KEY, () => liveData.value)
+let liveTimer: ReturnType<typeof setInterval> | undefined
+async function refreshLive() {
+  try {
+    liveData.value = await getDisplayPreviewLiveData(departmentId.value, screenId.value)
+  } catch {
+    liveData.value = { state: 'unavailable' }
+  }
+}
+watch(
+  [previewMode, () => !!doc.value],
+  ([mode, ready]) => {
+    if (liveTimer) clearInterval(liveTimer)
+    liveTimer = undefined
+    if (mode !== 'live' || !ready) return
+    void refreshLive()
+    liveTimer = setInterval(() => void refreshLive(), 30_000)
+  },
+  { immediate: true },
+)
+onBeforeUnmount(() => {
+  if (liveTimer) clearInterval(liveTimer)
+})
+
 // --- Laden -----------------------------------------------------------------------------------------------------
 
 async function load() {
   loading.value = true
   loadError.value = null
   try {
-    const [cat, state, list, devs] = await Promise.all([
+    const [cat, state, list, devs, blocks] = await Promise.all([
       getLayoutCatalog(departmentId.value),
       getLayoutState(departmentId.value, screenId.value),
       listDisplayScreens(departmentId.value),
       listDisplayDevices(departmentId.value).catch(() => [] as DisplayDeviceRow[]),
+      listDisplayBlocks(departmentId.value).catch(() => [] as CustomBlock[]),
     ])
     catalog.value = cat
+    customBlocks.value = blocks
     screens.value = list
     devices.value = devs.filter((d) => d.screen_id === screenId.value && d.approval_state !== 'revoked')
     screenName.value = list.find((s) => s.id === screenId.value)?.name ?? ''
@@ -406,8 +635,12 @@ async function load() {
 onMounted(() => {
   void load()
   window.addEventListener('beforeunload', onBeforeUnload)
+  window.addEventListener('keydown', onWindowKeyDown)
 })
-onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload))
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', onBeforeUnload)
+  window.removeEventListener('keydown', onWindowKeyDown)
+})
 
 function onBeforeUnload(event: BeforeUnloadEvent) {
   if (dirty.value) {
@@ -432,8 +665,14 @@ watch(variantId, () => {
     const pages = variantFlow(variant.value).pageIds
     if (!pages.includes(pageId.value) && pages[0]) pageId.value = pages[0]
   }
-  selectedId.value = null
+  resetLocation()
 })
+
+function resetLocation() {
+  path.value = []
+  isolateId.value = null
+  selectedIds.value = []
+}
 
 // --- Startpunkt ------------------------------------------------------------------------------------------------
 
@@ -441,6 +680,7 @@ async function initialize(seed: { template_id?: string; source_screen_id?: strin
   try {
     const state = await initializeLayout(departmentId.value, screenId.value, { ...seed, expected_version: version.value })
     variantId.value = state.draft?.default_variant_id ?? ''
+    resetLocation()
     applyState(state)
     if (doc.value) pageId.value = firstPageOf(doc.value)
     toast.success(t('display.layout.editor.toastInitialized'))
@@ -467,84 +707,277 @@ async function replaceFrom(seed: { template_id?: string; source_screen_id?: stri
 
 function selectPage(id: string) {
   pageId.value = id
-  selectedId.value = null
+  resetLocation()
 }
 
-function addWidget(def: WidgetDefinition, at?: { x: number; y: number }) {
-  if (!page.value) return
-  const item = addItem(page.value, widgetContent(def), def.default_size)
-  if (at) {
-    const w = item.w
-    const h = item.h
-    item.x = Math.max(0, Math.min(12 - w, at.x))
-    item.y = Math.max(0, Math.min(page.value.rows - h, at.y))
+function openItem(id: string) {
+  const host = editHost.value
+  const item = host?.items.find((i) => i.id === id)
+  if (!item) return
+  if (item.content.type === 'group') {
+    path.value = [...path.value, id]
+    isolateId.value = null
+    selectedIds.value = []
+  } else if (item.content.type === 'page') {
+    pageId.value = item.content.page_id
+    resetLocation()
+  } else if (item.content.type === 'rotation') {
+    openRotationStep(id, 0)
+  } else {
+    isolateId.value = id
+    selectedIds.value = [id]
+    tab.value = 'item'
+    propsOpen.value = true
   }
-  selectedId.value = item.id
-  tab.value = 'item'
+}
+
+/**
+ * Öffnet eine Rotationsseite zur Gestaltung. Ein bisheriger Schritt mit einem einzelnen Widget wird erst jetzt (auf
+ * ausdrückliche Aktion) in eine Seite mit eigenem Raster übernommen; das Widget bleibt unverändert und füllt die Seite.
+ */
+function openRotationStep(itemId: string, index: number) {
+  const item = editHost.value?.items.find((i) => i.id === itemId)
+  if (!item || item.content.type !== 'rotation' || !item.content.steps[index]) return
+  if (item.content.steps[index]!.content.type !== 'group') {
+    if (!checkpointEdit()) return
+    if (!ensureStepGroup(item.content, index)) {
+      history.discardIfUnchanged()
+      return
+    }
+    markDirty()
+  }
+  path.value = [...path.value, stepToken(itemId, index)]
+  isolateId.value = null
+  selectedIds.value = []
+}
+
+function gotoRotationPage(delta: number) {
+  const nav = rotationNav.value
+  if (!nav) return
+  const next = nav.index + delta
+  if (next < 0 || next >= nav.count) return
+  const parent = path.value.slice(0, -1)
+  const item = resolveHost(page.value!, parent)?.host.items.find((i) => i.id === nav.itemId)
+  if (!item || item.content.type !== 'rotation') return
+  if (item.content.steps[next]!.content.type !== 'group') {
+    if (!checkpointEdit()) return
+    ensureStepGroup(item.content, next)
+    markDirty()
+  }
+  path.value = [...parent, stepToken(nav.itemId, next)]
+  selectedIds.value = []
+}
+
+/** Nach dem Verlassen einer Rotationsseite ist die Rotation wieder gewählt. */
+function reselectRotation(removed: string | undefined) {
+  selectedIds.value = removed?.includes('#') ? [removed.split('#')[0]!] : []
+}
+
+function exitLevel() {
+  if (isolateId.value) {
+    isolateId.value = null
+    selectedIds.value = []
+  } else if (path.value.length) {
+    const removed = path.value[path.value.length - 1]
+    path.value = path.value.slice(0, -1)
+    reselectRotation(removed)
+  }
+}
+
+function navigateTo(pathLength: number) {
+  const removed = path.value[pathLength]
+  path.value = path.value.slice(0, pathLength)
+  isolateId.value = null
+  reselectRotation(removed)
+}
+
+function notifyBlocked() {
+  blockedHint.value = t('display.studio.blocked')
+  setTimeout(() => {
+    blockedHint.value = ''
+  }, 2500)
+}
+
+function mutateDoc(fn: (doc: LayoutDocument, variant: LayoutVariant) => void) {
+  if (!doc.value || !variant.value || !checkpointEdit()) return
+  fn(doc.value, variant.value)
   markDirty()
 }
 
-function onDrop(payload: { widget: string; x: number; y: number }) {
-  const def = widgetDefs.value.get(payload.widget)
-  if (def) addWidget(def, { x: payload.x, y: payload.y })
-}
-
-function addRotationZone() {
-  if (!page.value) return
-  const text = widgetDefs.value.get('text')
-  if (!text) return
-  const item = addItem(
-    page.value,
-    { type: 'rotation', enabled: true, interval_sec: limits.value.default_interval_sec, steps: [{ duration_sec: null, content: widgetContent(text) }] },
-    [6, 4],
-  )
-  selectedId.value = item.id
-  tab.value = 'item'
-  markDirty()
-}
-
-function addEmbeddedZone() {
-  if (!page.value) return
-  const target = embeddableForCurrent.value[0]
-  if (!target) return
-  const item = addItem(page.value, { type: 'page', page_id: target.id }, [6, 6])
-  selectedId.value = item.id
-  tab.value = 'item'
-  markDirty()
+function checkpointEdit(): boolean {
+  if (!doc.value) return false
+  history.checkpoint()
+  return true
 }
 
 function mutateItem(fn: (item: LayoutItem) => void) {
-  if (!selectedItem.value) return
-  fn(selectedItem.value)
+  const item = selectedItem.value
+  if (!item || !checkpointEdit()) return
+  fn(item)
   markDirty()
 }
 
-function duplicateItem() {
-  const source = selectedItem.value
-  const target = page.value
-  if (!source || !target) return
-  const copy = cloneLayout(source)
-  copy.id = newId('i', target.items.map((i) => i.id))
-  const spot = findFreeSpot(target.items, target.rows, source.w, source.h)
-  Object.assign(copy, spot)
-  target.items.push(copy)
-  selectedId.value = copy.id
+function addEntry(entry: LibraryEntry, at?: { x: number; y: number }) {
+  if (!doc.value || !catalog.value) return
+  if (isolateId.value) isolateId.value = null
+  const host = editHost.value
+  if (!host) return
+  if (host.items.length >= limits.value.max_items) {
+    toast.warning(t('display.studio.errors.tooManyItems', { n: limits.value.max_items }))
+    return
+  }
+  const content = contentOf(entry, widgetDefs.value, catalog.value.blocks, customBlocks.value, widgetContent, () => newRotation(limits.value.default_interval_sec, t('display.studio.rotation.pageName', { n: 1 })))
+  if (!content) return
+  if (groupDepth(content) + path.value.length > MAX_GROUP_NESTING) {
+    toast.warning(t('display.studio.errors.tooDeep', { n: MAX_GROUP_NESTING }))
+    return
+  }
+  const size = (entry.source === 'widget' ? widgetDefs.value.get(entry.id)?.default_size : entry.defaultSize) ?? [4, 4]
+  checkpointEdit()
+  const placed = placeItem(host, content, [size[0], size[1]], at)
+  if (!placed) {
+    history.discardIfUnchanged()
+    toast.warning(t('display.studio.errors.noSpace'))
+    return
+  }
+  selectedIds.value = [placed.id]
+  tab.value = 'item'
   markDirty()
 }
 
-function removeItem() {
-  const target = page.value
-  if (!target || !selectedId.value) return
-  target.items = target.items.filter((i) => i.id !== selectedId.value)
-  selectedId.value = null
+function onDrop(payload: { data: string; x: number; y: number }) {
+  try {
+    const parsed = JSON.parse(payload.data) as { source?: string; id?: string }
+    const entry = libraryEntries.value.find((e) => e.source === parsed.source && e.id === parsed.id)
+    if (entry) addEntry(entry, { x: payload.x, y: payload.y })
+  } catch {
+    // Fremde Ziehdaten ignorieren.
+  }
+}
+
+function copySelection() {
+  const host = editHost.value
+  if (!host || !selectedIds.value.length) return
+  clipboard.value = copyItems(host, selectedSet.value)
+  if (clipboard.value) toast.info(t('display.studio.copied', { n: clipboard.value.items.length }))
+}
+
+function pasteSelection() {
+  const host = editHost.value
+  if (!host || !clipboard.value || isolateId.value) return
+  if (host.items.length + clipboard.value.items.length > limits.value.max_items) {
+    toast.warning(t('display.studio.errors.tooManyItems', { n: limits.value.max_items }))
+    return
+  }
+  const deepest = Math.max(0, ...clipboard.value.items.map((i) => groupDepth(i.content)))
+  if (deepest + path.value.length > MAX_GROUP_NESTING) {
+    toast.warning(t('display.studio.errors.tooDeep', { n: MAX_GROUP_NESTING }))
+    return
+  }
+  checkpointEdit()
+  const created = pasteItems(host, clipboard.value)
+  if (!created) {
+    history.discardIfUnchanged()
+    toast.warning(t('display.studio.errors.noSpace'))
+    return
+  }
+  selectedIds.value = created.map((i) => i.id)
+  markDirty()
+}
+
+function duplicateSelection() {
+  const host = editHost.value
+  if (!host || !selectedIds.value.length) return
+  const entry = copyItems(host, selectedSet.value)
+  if (!entry) return
+  checkpointEdit()
+  const created = pasteItems(host, entry)
+  if (!created || host.items.length > limits.value.max_items) {
+    if (created) removeItems(host, new Set(created.map((i) => i.id)))
+    history.discardIfUnchanged()
+    toast.warning(t('display.studio.errors.noSpace'))
+    return
+  }
+  selectedIds.value = created.map((i) => i.id)
+  markDirty()
+}
+
+function removeSelection() {
+  const host = editHost.value
+  if (!host || !selectedIds.value.length) return
+  if (isolateId.value) isolateId.value = null
+  checkpointEdit()
+  removeItems(host, selectedSet.value)
+  selectedIds.value = []
+  markDirty()
+}
+
+function groupSelection() {
+  const host = editHost.value
+  if (!host || !selectedIds.value.length || isolateId.value) return
+  const picked = host.items.filter((i) => selectedSet.value.has(i.id))
+  const inner = Math.max(0, ...picked.map((i) => groupDepth(i.content)))
+  if (inner + 1 + path.value.length > MAX_GROUP_NESTING) {
+    toast.warning(t('display.studio.errors.tooDeep', { n: MAX_GROUP_NESTING }))
+    return
+  }
+  checkpointEdit()
+  const group = groupItems(host, selectedSet.value, t('display.studio.group.defaultName', { n: host.items.filter((i) => i.content.type === 'group').length + 1 }))
+  if (!group) {
+    history.discardIfUnchanged()
+    return
+  }
+  selectedIds.value = [group.id]
+  tab.value = 'item'
+  markDirty()
+}
+
+function ungroupSelection() {
+  const host = editHost.value
+  const item = selectedItem.value
+  if (!host || !item || item.content.type !== 'group') return
+  if (host.items.length - 1 + item.content.items.length > limits.value.max_items) {
+    toast.warning(t('display.studio.errors.tooManyItems', { n: limits.value.max_items }))
+    return
+  }
+  checkpointEdit()
+  const restored = ungroupItem(host, item.id)
+  if (!restored) {
+    history.discardIfUnchanged()
+    toast.warning(t('display.studio.errors.ungroupImpossible'))
+    return
+  }
+  selectedIds.value = restored.map((i) => i.id)
+  markDirty()
+}
+
+function refineGroup(id: string, factor: number) {
+  const item = editHost.value?.items.find((i) => i.id === id)
+  if (!item || item.content.type !== 'group') return
+  checkpointEdit()
+  if (!refineGroupGrid(item.content, factor)) {
+    history.discardIfUnchanged()
+    return
+  }
+  markDirty()
+}
+
+function coarsenGroup(id: string, factor: number) {
+  const item = editHost.value?.items.find((i) => i.id === id)
+  if (!item || item.content.type !== 'group') return
+  checkpointEdit()
+  if (!coarsenGroupGrid(item.content, factor)) {
+    history.discardIfUnchanged()
+    return
+  }
   markDirty()
 }
 
 function onAddPage() {
-  if (!doc.value) return
+  if (!doc.value || !checkpointEdit()) return
   const created = addPage(doc.value, t('display.layout.editor.newPageName', { n: doc.value.pages.length + 1 }))
   pageId.value = created.id
-  selectedId.value = null
+  resetLocation()
   markDirty()
 }
 
@@ -555,6 +988,7 @@ watch(renameOpen, (open) => {
 })
 function applyRename() {
   if (page.value && renameValue.value.trim()) {
+    checkpointEdit()
     page.value.name = renameValue.value.trim()
     markDirty()
   }
@@ -571,39 +1005,26 @@ async function deletePage() {
     variant: 'danger',
   })
   if (!ok) return
+  checkpointEdit()
   const id = page.value.id
   doc.value.pages = doc.value.pages.filter((p) => p.id !== id)
   pageId.value = firstPageOf(doc.value)
-  selectedId.value = null
+  resetLocation()
   markDirty()
 }
 
-// Varianten und Ablauf der Gesamtanzeige
+// Varianten
 const newVariantOpen = ref(false)
 const newVariantName = ref('')
 const newVariantAspect = ref('16:9')
 function createVariant() {
-  if (!doc.value) return
+  if (!doc.value || !checkpointEdit()) return
   const created = addVariant(doc.value, newVariantName.value.trim(), newVariantAspect.value, variant.value ?? undefined)
   variantId.value = created.id
   newVariantOpen.value = false
   newVariantName.value = ''
   tab.value = 'display'
   markDirty()
-}
-
-function renameVariant(name: unknown) {
-  if (variant.value) {
-    variant.value.name = String(name ?? '')
-    markDirty()
-  }
-}
-
-function setAspect(aspect: unknown) {
-  if (variant.value) {
-    variant.value.aspect_ratio = String(aspect)
-    markDirty()
-  }
 }
 
 async function deleteVariant() {
@@ -616,52 +1037,216 @@ async function deleteVariant() {
     variant: 'danger',
   })
   if (!ok) return
+  checkpointEdit()
   if (removeVariant(doc.value, variant.value.id)) {
     variantId.value = doc.value.default_variant_id
     markDirty()
+  } else {
+    history.discardIfUnchanged()
   }
 }
 
-const flowAdd = ref<string | null>(null)
-function applyFlow(pageIds: string[], enabled: boolean, interval: number, durations: (number | null)[]) {
-  if (!variant.value) return
-  setVariantFlow(variant.value, pageIds, enabled, interval, durations)
+// --- Eigene Bausteine ---------------------------------------------------------------------------------------------
+
+const blockDialogOpen = ref(false)
+const blockName = ref('')
+const blockEditId = ref<string | null>(null)
+const blockSaving = ref(false)
+
+function openSaveBlock() {
+  const host = editHost.value
+  if (!host || !selectedIds.value.length) return
+  blockEditId.value = null
+  const only = selectedItem.value
+  blockName.value = only?.content.type === 'group' ? (only.content.name ?? '') : ''
+  blockDialogOpen.value = true
+}
+
+function openRenameBlock(id: string) {
+  const block = customBlocks.value.find((b) => b.id === id)
+  if (!block) return
+  blockEditId.value = id
+  blockName.value = block.name
+  blockDialogOpen.value = true
+}
+
+/** Inhalt und Standardgrösse des zu speichernden Bausteins aus der Auswahl (unabhängige Kopie). */
+function blockPayload(): { content: LayoutContent; w: number; h: number } | null {
+  const host = editHost.value
+  if (!host) return null
+  const only = selectedItem.value
+  if (only && (only.content.type === 'widget' || only.content.type === 'group' || only.content.type === 'rotation')) {
+    return { content: cloneLayout(only.content), w: only.w, h: only.h }
+  }
+  const group = selectionAsGroup(host, selectedSet.value)
+  return group ? { content: group.content as LayoutGroupContent, w: group.w, h: group.h } : null
+}
+
+async function submitBlock() {
+  const name = blockName.value.trim()
+  if (!name) return
+  blockSaving.value = true
+  try {
+    if (blockEditId.value) {
+      const updated = await renameDisplayBlock(departmentId.value, blockEditId.value, name)
+      customBlocks.value = customBlocks.value.map((b) => (b.id === updated.id ? updated : b))
+      toast.success(t('display.studio.blocks.renamed'))
+    } else {
+      const payload = blockPayload()
+      if (!payload) return
+      const created = await createDisplayBlock(departmentId.value, { name, content: payload.content, default_w: payload.w, default_h: payload.h })
+      customBlocks.value = [...customBlocks.value, created].sort((a, b) => a.name.localeCompare(b.name))
+      toast.success(t('display.studio.blocks.saved'))
+    }
+    blockDialogOpen.value = false
+  } catch (err) {
+    const info = layoutErrorInfo(err)
+    const first = info.errors[0]
+    toast.error(first ? errorText(first) : t('display.studio.blocks.saveError'))
+  } finally {
+    blockSaving.value = false
+  }
+}
+
+async function removeBlock(id: string) {
+  const block = customBlocks.value.find((b) => b.id === id)
+  if (!block) return
+  const ok = await confirm.confirm({
+    title: t('display.studio.blocks.deleteTitle'),
+    message: t('display.studio.blocks.deleteConfirm', { name: block.name }),
+    confirmText: t('common.delete'),
+    cancelText: t('common.cancel'),
+    variant: 'danger',
+  })
+  if (!ok) return
+  try {
+    await deleteDisplayBlock(departmentId.value, id)
+    customBlocks.value = customBlocks.value.filter((b) => b.id !== id)
+    toast.success(t('display.studio.blocks.deleted'))
+  } catch {
+    toast.error(t('display.studio.blocks.saveError'))
+  }
+}
+
+// --- Werkzeugleiste und Tastatur ----------------------------------------------------------------------------------
+
+function onToolbar(action: ToolbarAction) {
+  switch (action) {
+    case 'undo': undo(); break
+    case 'redo': redo(); break
+    case 'zoomIn': canvasRef.value?.zoomIn(); break
+    case 'zoomOut': canvasRef.value?.zoomOut(); break
+    case 'fit': canvasRef.value?.fit(); break
+    case 'toggleGrid': showGrid.value = !showGrid.value; break
+    case 'group': groupSelection(); break
+    case 'ungroup': ungroupSelection(); break
+    case 'copy': copySelection(); break
+    case 'paste': pasteSelection(); break
+    case 'duplicate': duplicateSelection(); break
+    case 'delete': removeSelection(); break
+    case 'save': void save(); break
+    case 'publish': void startPublish(); break
+    case 'preview': previewOpen.value = true; break
+    case 'previewTab': openFullPreview(); break
+    case 'revisions': void openRevisions(); break
+    case 'template': chooserOpen.value = true; break
+    case 'toggleLibrary': libraryOpen.value = !libraryOpen.value; break
+    case 'toggleProps': propsOpen.value = !propsOpen.value; break
+    case 'addVariant': newVariantOpen.value = true; break
+  }
+}
+
+function undo() {
+  if (history.undo()) selectedIds.value = selectedIds.value.filter((id) => editHost.value?.items.some((i) => i.id === id))
+}
+function redo() {
+  if (history.redo()) selectedIds.value = selectedIds.value.filter((id) => editHost.value?.items.some((i) => i.id === id))
+}
+
+function isTyping(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null
+  return !!el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))
+}
+
+function anyDialogOpen(): boolean {
+  return previewOpen.value || publishOpen.value || errorsOpen.value || conflictOpen.value || newVariantOpen.value || renameOpen.value || blockDialogOpen.value || chooserOpen.value || revisionsOpen.value
+}
+
+function moveByKey(key: string, resize: boolean) {
+  const host = editHost.value
+  if (!host || !selectedIds.value.length || isolateId.value) return
+  const delta: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }
+  const [dx, dy] = delta[key] ?? [0, 0]
+  if (resize) {
+    const item = selectedItem.value
+    if (!item) return
+    const next = planResize(host, item.id, { x: item.x, y: item.y, w: item.w, h: item.h }, 'se', dx, dy)
+    if (!next) return notifyBlocked()
+    checkpointEdit()
+    Object.assign(item, next)
+    markDirty()
+    return
+  }
+  const origins = new Map(host.items.filter((i) => selectedSet.value.has(i.id)).map((i) => [i.id, { x: i.x, y: i.y, w: i.w, h: i.h }]))
+  const result = planMove(host, origins, dx, dy, { dx: 0, dy: 0 })
+  if (!result.exact) return notifyBlocked()
+  checkpointEdit()
+  for (const [id, o] of origins) {
+    const it = host.items.find((i) => i.id === id)
+    if (it) Object.assign(it, { x: o.x + dx, y: o.y + dy })
+  }
   markDirty()
 }
-function addFlow() {
-  if (!flowAdd.value) return
-  const f = flow.value
-  applyFlow([...f.pageIds, flowAdd.value], f.pageIds.length ? f.enabled || f.pageIds.length === 1 : true, f.interval, [...f.durations, null])
-  flowAdd.value = null
-}
-function removeFlow(i: number) {
-  const f = flow.value
-  const ids = f.pageIds.filter((_, idx) => idx !== i)
-  applyFlow(ids, f.enabled, f.interval, f.durations.filter((_, idx) => idx !== i))
-}
-function moveFlow(i: number, delta: number) {
-  const f = flow.value
-  const ids = [...f.pageIds]
-  const durations = [...f.durations]
-  const j = i + delta
-  ;[ids[i], ids[j]] = [ids[j]!, ids[i]!]
-  ;[durations[i], durations[j]] = [durations[j] ?? null, durations[i] ?? null]
-  applyFlow(ids, f.enabled, f.interval, durations)
-}
-function setFlowEnabled(enabled: boolean) {
-  const f = flow.value
-  applyFlow(f.pageIds, enabled, f.interval, f.durations)
-}
-function setFlowInterval(raw: unknown) {
-  const n = Math.min(limits.value.max_interval_sec, Math.max(limits.value.min_interval_sec, Math.round(Number(raw)) || limits.value.default_interval_sec))
-  const f = flow.value
-  applyFlow(f.pageIds, f.enabled, n, f.durations)
-}
-function setFlowDuration(i: number, raw: unknown) {
-  const f = flow.value
-  const durations = [...f.durations]
-  durations[i] = raw === '' || raw === null ? null : Math.min(limits.value.max_interval_sec, Math.max(limits.value.min_interval_sec, Math.round(Number(raw)) || limits.value.default_interval_sec))
-  applyFlow(f.pageIds, f.enabled, f.interval, durations)
+
+function onWindowKeyDown(event: KeyboardEvent) {
+  if (!doc.value || isTyping(event.target) || anyDialogOpen()) return
+  const mod = event.ctrlKey || event.metaKey
+  const key = event.key
+  if (mod && key.toLowerCase() === 'z') {
+    event.preventDefault()
+    if (event.shiftKey) redo()
+    else undo()
+  } else if (mod && key.toLowerCase() === 'y') {
+    event.preventDefault()
+    redo()
+  } else if (mod && key.toLowerCase() === 'c') {
+    event.preventDefault()
+    copySelection()
+  } else if (mod && key.toLowerCase() === 'v') {
+    event.preventDefault()
+    pasteSelection()
+  } else if (mod && key.toLowerCase() === 'd') {
+    event.preventDefault()
+    duplicateSelection()
+  } else if (mod && key.toLowerCase() === 'g') {
+    event.preventDefault()
+    if (event.shiftKey) ungroupSelection()
+    else groupSelection()
+  } else if (mod && key.toLowerCase() === 'a') {
+    event.preventDefault()
+    selectedIds.value = (editHost.value?.items ?? []).map((i) => i.id)
+  } else if (mod && key.toLowerCase() === 's') {
+    event.preventDefault()
+    if (dirty.value) void save()
+  } else if (mod && key === '0') {
+    event.preventDefault()
+    canvasRef.value?.fit()
+  } else if (key === 'Delete' || key === 'Backspace') {
+    if (selectedIds.value.length) {
+      event.preventDefault()
+      removeSelection()
+    }
+  } else if (key === 'Escape') {
+    if (isolateId.value || (!selectedIds.value.length && path.value.length)) exitLevel()
+    else selectedIds.value = []
+  } else if (key.startsWith('Arrow') && selectedIds.value.length) {
+    event.preventDefault()
+    moveByKey(key, event.shiftKey)
+  } else if (!mod && (key === '+' || key === '=')) {
+    canvasRef.value?.zoomIn()
+  } else if (!mod && key === '-') {
+    canvasRef.value?.zoomOut()
+  }
 }
 
 // --- Speichern / Veröffentlichen / Revisionen -----------------------------------------------------------------
@@ -790,7 +1375,7 @@ async function restore(number: number, andPublish: boolean) {
   }
 }
 
-// --- Vorschau ---------------------------------------------------------------------------------------------------
+// --- Vorschau mit Geräteprofil -----------------------------------------------------------------------------------
 
 const previewOpen = ref(false)
 const deviceKey = ref('auto')
@@ -833,50 +1418,59 @@ function openFullPreview() {
 </script>
 
 <style scoped>
-.editor { display: flex; flex-direction: column; gap: 14px; padding: 4px 0 24px; }
-.editor__head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-start; }
-.editor__titles h1 { margin: 2px 0; font-size: 1.4rem; }
-.editor__titles p { margin: 0; }
-.editor__back { font-size: 0.9rem; }
-.editor__status { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { padding: 2px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
-.chip--ok { background: #dcfce7; color: #166534; }
-.chip--idle { background: #f3f4f6; color: #374151; }
-.chip--warn { background: #fef3c7; color: #92400e; }
-.toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 10px; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; }
-.toolbar__group { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.toolbar__select { min-width: 240px; }
-.editor__body { display: grid; grid-template-columns: 230px minmax(0, 1fr) 300px; gap: 14px; align-items: start; }
-.panel { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; }
-.panel h3 { margin: 0; font-size: 0.95rem; }
-.panel__sub { margin: 6px 0 0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7280; }
-.panel__zones { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
-.pages { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.pages__btn { width: 100%; text-align: left; padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; cursor: pointer; }
-.pages__item--on .pages__btn { border-color: #2563eb; background: #eff6ff; font-weight: 600; }
-.stage { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.stage__bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; }
-.stage__issues { margin: 0; color: #b91c1c; font-size: 0.85rem; }
-.tabs { display: flex; gap: 4px; }
+.studio {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: #f3f4f6;
+  outline: none;
+}
+.studio__center { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.studio__chooser { flex-direction: column; align-items: stretch; overflow-y: auto; max-width: 980px; margin: 0 auto; width: 100%; }
+.studio__body { flex: 1; min-height: 0; display: grid; transition: grid-template-columns 0.15s ease; }
+.panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: #fff; overflow: hidden; }
+.panel--left { border-right: 1px solid #e5e7eb; }
+.panel--right { border-left: 1px solid #e5e7eb; }
+.panel__scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; }
+.stage { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.stage__canvas { position: relative; flex: 1; min-height: 0; }
+.stage__badges { position: absolute; top: 10px; left: 12px; display: flex; gap: 6px; pointer-events: none; z-index: 5; }
+.stage__badges .badge--btn { pointer-events: auto; }
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 12px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; color: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3); }
+.badge--demo { background: #f59e0b; }
+.badge--live { background: #16a34a; }
+.badge--iso { background: #7c3aed; }
+.badge--btn { background: #1e293b; border: 1px solid #475569; cursor: pointer; }
+.badge--nav { gap: 8px; }
+.badge--nav button { border: 0; background: none; color: #fff; font-size: 1.1rem; line-height: 1; cursor: pointer; }
+.badge--nav button:disabled { opacity: 0.35; cursor: default; }
+.stage__blocked { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); margin: 0; padding: 6px 14px; border-radius: 8px; background: #991b1b; color: #fff; font-size: 0.85rem; z-index: 6; }
+.tabs { display: flex; gap: 4px; padding: 8px 12px 0; }
 .tabs__btn { flex: 1; padding: 6px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; cursor: pointer; }
 .tabs__btn--on { border-color: #2563eb; background: #eff6ff; font-weight: 600; }
-.flow { display: flex; flex-direction: column; gap: 10px; }
-.flow__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.flow__list li { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; border: 1px solid #e5e7eb; border-radius: 8px; padding: 4px 8px; }
-.flow__dur { width: 100px; }
-.flow__actions button { border: 0; background: none; cursor: pointer; padding: 2px 6px; }
-.flow__add { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+.multi { display: flex; flex-direction: column; gap: 10px; }
+.multi h4 { margin: 0; font-size: 1rem; }
+.multi__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.empty .shortcuts { margin: 10px 0 0; padding-left: 1.1rem; color: #6b7280; font-size: 0.8rem; display: flex; flex-direction: column; gap: 4px; }
 .preview-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 10px; }
 .preview-bar__select { min-width: 280px; }
 .preview-frame { margin: 0 auto; border-radius: 8px; overflow: hidden; background: #0b1220; }
+.publish-mode { margin: 6px 0; padding: 8px 10px; border-radius: 8px; background: #dcfce7; color: #166534; font-weight: 600; }
+.publish-mode--demo { background: #fef3c7; color: #92400e; }
 .issues { margin: 0; padding-left: 1.2rem; }
 .revisions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .revisions li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 8px; }
 .revisions__actions { display: flex; gap: 6px; flex-wrap: wrap; }
-.card { padding: 16px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; }
+.chip { padding: 2px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
+.chip--ok { background: #dcfce7; color: #166534; }
 .muted { color: #6b7280; }
 .error { color: #b91c1c; }
-@media (max-width: 1100px) {
-  .editor__body { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 760px) {
+  .studio__body { grid-template-columns: minmax(0, 1fr) !important; }
+  .panel--left, .panel--right { position: absolute; z-index: 20; top: 52px; bottom: 44px; width: min(92vw, 340px); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3); }
+  .panel--right { right: 0; }
+  .panel--left { left: 0; }
 }
 </style>

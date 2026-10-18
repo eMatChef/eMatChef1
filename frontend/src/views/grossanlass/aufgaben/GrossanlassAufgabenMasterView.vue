@@ -1,7 +1,7 @@
 <template>
   <div class="ga-aufgaben">
     <p class="ga-aufgaben__intro">
-      {{ t('grossanlass.aufgaben.intro') }}
+      {{ t(mineOnly ? 'grossanlass.aufgaben.introMine' : 'grossanlass.aufgaben.intro') }}
     </p>
 
     <section class="ga-aufgaben__kpis" :aria-label="t('grossanlass.aufgaben.overview')">
@@ -25,6 +25,11 @@
           {{ t('grossanlass.aufgaben.create.open') }}
         </EButton>
       </div>
+      <v-btn-toggle v-model="kindFilter" mandatory density="compact" color="primary" variant="outlined" class="ga-aufgaben__kinds" data-testid="kind-filter">
+        <v-btn value="all" size="small">{{ t('grossanlass.aufgaben.typeFilter.all') }}</v-btn>
+        <v-btn value="arbeit" size="small">{{ t('grossanlass.aufgaben.typeFilter.arbeit') }}</v-btn>
+        <v-btn value="logistik" size="small">{{ t('grossanlass.aufgaben.typeFilter.logistik') }}</v-btn>
+      </v-btn-toggle>
       <ESwitch v-model="showArchived" :label="t('grossanlass.aufgaben.archive.showArchived')" hide-details density="compact" data-testid="show-archived" />
       <div class="ga-aufgaben__selects">
         <ESearchField v-model="filters.search" :label="t('grossanlass.aufgaben.filter.search')" />
@@ -41,8 +46,8 @@
       v-else-if="!visible.length"
       variant="generic"
       icon="mdi-clipboard-check-outline"
-      :title="t('grossanlass.aufgaben.emptyTitle')"
-      :description="t('grossanlass.aufgaben.emptyText')"
+      :title="t(mineOnly ? 'grossanlass.aufgaben.mine.emptyTitle' : 'grossanlass.aufgaben.emptyTitle')"
+      :description="t(mineOnly ? 'grossanlass.aufgaben.mine.emptyText' : 'grossanlass.aufgaben.emptyText')"
     />
 
     <section v-for="group in groups" :key="group.bucket" class="ga-aufgaben__group">
@@ -71,7 +76,10 @@
             <v-chip v-if="task.blocked" size="x-small" variant="flat" color="error" prepend-icon="mdi-alert-octagon-outline" class="mr-1">
               {{ t('grossanlass.aufgaben.blocked.chip') }}
             </v-chip>
-            <v-chip size="x-small" variant="flat" :color="STATUS_COLOR[statusKey(task, now)]">
+            <v-chip v-if="task.fahrauftrag" size="x-small" variant="flat" :color="STATUS_COLOR[statusKey(task, now)]" :data-testid="`trip-status-${task.fahrauftrag.status}`">
+              {{ t(`grossanlass.material.status.${task.fahrauftrag.status}`) }}
+            </v-chip>
+            <v-chip v-else size="x-small" variant="flat" :color="STATUS_COLOR[statusKey(task, now)]">
               {{ t(`grossanlass.aufgaben.status.${statusKey(task, now)}`) }}
             </v-chip>
           </header>
@@ -82,17 +90,22 @@
             {{ dayLabel(task.startsAt, locale) }} · {{ whenLabel(task, locale) }}
             <template v-if="task.deadlineLabel"> · {{ task.deadlineLabel }}</template>
           </p>
-          <p class="ga-card__meta">
-            <v-icon icon="mdi-account-multiple-outline" size="14" />
-            <template v-if="task.people.length">{{ task.people.join(' · ') }}</template>
-            <strong v-else class="ga-card__unassigned">{{ t('grossanlass.aufgaben.unassigned') }}</strong>
+          <p v-if="task.fahrauftrag && (task.fahrauftrag.vehicle || task.fahrauftrag.destination)" class="ga-card__meta">
+            <v-icon icon="mdi-truck-outline" size="14" />
+            <template v-if="task.fahrauftrag.vehicle && task.fahrauftrag.vehicle !== task.title">{{ task.fahrauftrag.vehicle }}</template>
+            <template v-if="task.fahrauftrag.destination"> → {{ task.fahrauftrag.destination }}</template>
           </p>
-          <div v-if="task.kind !== 'logistik' || task.status !== 'open'" class="ga-card__progress">
+          <p class="ga-card__meta">
+            <v-icon :icon="task.fahrauftrag ? 'mdi-steering' : 'mdi-account-multiple-outline'" size="14" />
+            <template v-if="task.people.length">{{ task.people.join(' · ') }}</template>
+            <strong v-else class="ga-card__unassigned">{{ task.fahrauftrag ? t('grossanlass.aufgaben.noChauffeur') : t('grossanlass.aufgaben.unassigned') }}</strong>
+          </p>
+          <div v-if="!task.fahrauftrag && (task.kind !== 'logistik' || task.status !== 'open')" class="ga-card__progress">
             <v-progress-linear :model-value="taskProgress(task)" height="8" rounded color="primary" />
             <span>{{ taskProgress(task) }} %</span>
           </div>
           <footer class="ga-card__actions">
-            <EButton v-if="!task.people.length" size="small" variant="secondary" @click="openTask(task)">
+            <EButton v-if="!task.people.length && !task.fahrauftrag" size="small" variant="secondary" @click="openTask(task)">
               {{ t('grossanlass.aufgaben.assign') }}
             </EButton>
             <EButton size="small" variant="secondary" @click="openTask(task)">
@@ -102,6 +115,15 @@
         </article>
       </div>
     </section>
+
+    <GrossanlassHelperAssignmentDetailDialog
+      v-model="tripOpen"
+      :assignment="selectedTrip"
+      :cards="uebersicht.data.value?.cards ?? []"
+      :busy="tripBusy"
+      :can-toggle-packed="canTogglePackedTrip"
+      @toggle-packed="onTogglePackedTrip"
+    />
 
     <EDialog v-model="detailOpen" :title="selected?.title ?? ''" max-width="720" :retain-focus="false">
       <GrossanlassAufgabeDetail
@@ -165,6 +187,14 @@ import { EButton, EDialog, ESearchField, ESelect, ESwitch, ETextField } from '@/
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import GrossanlassAufgabeDetail from './GrossanlassAufgabeDetail.vue'
+import GrossanlassHelperAssignmentDetailDialog from '@/views/grossanlass/GrossanlassHelperAssignmentDetailDialog.vue'
+import { useAuthStore } from '@/stores/auth'
+import { useToast } from '@/composables/useToast'
+import { useGrossanlassRessortScope } from '@/composables/useGrossanlassRessortScope'
+import { gaCanOperateAusgabe } from '@/utils/grossanlassAccess'
+import { useGrossanlassUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { groupsToOrgGroups, toHelperAssignment, type GaHelperAssignment } from '@/views/grossanlass/grossanlassHelperAssignment'
+import { isTripReleased, isTripRow, mapTripTask } from './gaFahrauftragTasks'
 import {
   bucketOf,
   emptyAufgabeFilters,
@@ -175,31 +205,66 @@ import {
   type GaAufgabeBucket,
   type GaAufgabeStatusFilter,
 } from './gaAufgabenMock'
-import { useGaAufgaben, assigneesFor } from './useGaAufgaben'
+import { useGaAufgaben } from './useGaAufgaben'
+import { assigneesFor } from '@/utils/grossanlassGroupHierarchy'
 import { KIND_ICON, STATUS_COLOR, dayLabel, statusKey, useGaNow, whenLabel } from './gaAufgabenUi'
 
 const { t, locale } = useI18n()
 const route = useRoute()
-const { tasks, projects, groups: orgGroups, loading, load, actionError, addStep, setStepDone, moveStep, removeStep, block, unblock, reportDone, accept, giveBack, addDependency, changeDependencyMode, removeDependency, releaseDependency, setStatus, setAssignee, create } = useGaAufgaben(
+const { tasks: workTasks, projects, groups: orgGroups, loading, load, actionError, addStep, setStepDone, moveStep, removeStep, block, unblock, reportDone, accept, giveBack, addDependency, changeDependencyMode, removeDependency, releaseDependency, setStatus, setAssignee, create } = useGaAufgaben(
   () => String(route.params.departmentId || ''),
   () => showArchived.value,
 )
 onMounted(load)
 const now = useGaNow()
+const authStore = useAuthStore()
+const toast = useToast()
+const uebersicht = useGrossanlassUebersicht()
+const { canManageStruktur, isInAssignedRessortBranch } = useGrossanlassRessortScope(orgGroups)
+
+/** «Meine Einsätze» (Standard unter /ga/tasks) zeigt nur zugeteilte Arbeiten und Fahraufträge, «Alle Aufgaben» alle freigegebenen. */
+const mineOnly = computed(() => route.name === 'TasksGaMine')
+function isMine(task: GaAufgabe): boolean {
+  return task.assignedToMe === true || (!!authStore.userId && task.assigneeId === authStore.userId)
+}
+
+/** Arbeiten (Aufgaben-API) und Fahraufträge (Übersicht-API, dieselben Datensätze wie «Planung › Transporte»). */
+const kindFilter = ref<'all' | 'arbeit' | 'logistik'>('all')
+const tripRows = computed(() =>
+  (uebersicht.data.value?.einsaetze ?? []).filter((row) => {
+    if (!isTripRow(row) || !isTripReleased(row)) return false // nur freigegebene Fahraufträge
+    if (mineOnly.value) return !!authStore.userId && row.chauffeur_user_id === authStore.userId
+    if (!row.group_id) return canManageStruktur.value || row.chauffeur_user_id === authStore.userId
+    const group = orgGroups.value.find((item) => item.id === row.group_id)
+    return !group || isInAssignedRessortBranch(group) || row.chauffeur_user_id === authStore.userId
+  }),
+)
+const tripTasks = computed<GaAufgabe[]>(() => {
+  const cards = uebersicht.data.value?.cards ?? []
+  return tripRows.value.map((row) =>
+    mapTripTask(row, orgGroups.value, (userId) => cards.find((card) => card.user_id === userId)?.name ?? null),
+  )
+})
+/** Operative Übersicht: nur freigegebene Arbeiten; Entwürfe und geplante Aufträge bleiben in den Planungsansichten. */
+const tasks = computed(() => [
+  ...workTasks.value.filter((task) => task.released === true && (!mineOnly.value || isMine(task))),
+  ...tripTasks.value,
+])
 
 /** Archivierte Bauaufträge sind standardmässig ausgeblendet. */
 const showArchived = ref(false)
 watch(showArchived, () => load())
 const filters = reactive(emptyAufgabeFilters())
+watch(kindFilter, (value) => { filters.kind = value })
 const selectedId = ref<string | null>(null)
 const detailOpen = ref(false)
-const selected = computed(() => tasks.value.find((task) => task.id === selectedId.value) ?? null)
+const selected = computed(() => workTasks.value.find((task) => task.id === selectedId.value) ?? null)
 /** Mögliche Vorgänger: alle anderen sichtbaren Aufgaben (auch aus anderen Ressorts), noch nicht verknüpft. */
 const dependencyCandidates = computed(() => {
   const current = selected.value
   if (!current) return []
   const linked = new Set((current.dependencies ?? []).filter((dep) => dep.kind === 'task' && dep.predecessor_id).map((dep) => dep.predecessor_id))
-  return tasks.value
+  return workTasks.value
     .filter((task) => task.id !== current.id && !linked.has(task.id))
     .map((task) => ({ value: task.id, title: `${task.origin.join(' › ')} · ${task.title}` }))
     .sort((a, b) => a.title.localeCompare(b.title, 'de'))
@@ -288,7 +353,34 @@ async function submitCreate() {
   }
 }
 
+const tripOpen = ref(false)
+const tripBusy = ref(false)
+const selectedTripId = ref<string | null>(null)
+const selectedTrip = computed<GaHelperAssignment | null>(() => {
+  const api = (uebersicht.data.value?.einsaetze ?? []).find((row) => row.id === selectedTripId.value)
+  return api ? toHelperAssignment(api, locale.value, 'fahrauftrag', groupsToOrgGroups(orgGroups.value)) : null
+})
+const canTogglePackedTrip = computed(
+  () => gaCanOperateAusgabe(authStore.currentDepartmentRole) && !!selectedTrip.value?.operable && selectedTrip.value.status !== 'issued',
+)
+
+async function onTogglePackedTrip(row: GaHelperAssignment) {
+  tripBusy.value = true
+  try {
+    await uebersicht.updateEinsatz(row.id, { packed: !row.packed })
+  } catch {
+    toast.error(t('grossanlass.beschaffung.zusagen.loadError'))
+  } finally {
+    tripBusy.value = false
+  }
+}
+
 function openTask(task: GaAufgabe) {
+  if (task.fahrauftrag) {
+    selectedTripId.value = task.fahrauftrag.einsatzId
+    tripOpen.value = true
+    return
+  }
   selectedId.value = task.id
   detailOpen.value = true
 }

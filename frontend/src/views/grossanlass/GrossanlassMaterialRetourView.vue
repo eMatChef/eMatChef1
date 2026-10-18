@@ -43,11 +43,11 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { EButton } from '@/components/form/base'
-import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { useGrossanlassUebersicht } from '@/views/grossanlass/gaUebersicht'
 
 const { t } = useI18n()
 const toast = useToast()
-const uebersicht = useGaUebersicht()
+const uebersicht = useGrossanlassUebersicht()
 const returns = computed(() => uebersicht.data.value?.returns ?? [])
 
 async function onReturn(id: string) {

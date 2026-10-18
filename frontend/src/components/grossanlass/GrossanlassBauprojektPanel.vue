@@ -9,7 +9,7 @@
             {{ windowHeading }}
           </v-expansion-panel-title>
           <v-expansion-panel-text>
-            <GaBuildMetaFields
+            <GrossanlassBuildMetaFields
               v-if="briefing.can_edit"
               :department-id="departmentId"
               autosave
@@ -139,7 +139,7 @@
               @end="onTasksReordered"
             >
               <template #item="{ element: block, index }">
-                <div class="ga-block">
+                <div class="ga-block" @focusout="onTaskBlockFocusOut(block, $event)">
                   <button
                     type="button"
                     class="ga-block__drag"
@@ -262,11 +262,13 @@
                       @update:model-value="(v: string | number | null) => block.helperTotal = Math.max(0, Math.floor(Number(v) || 0))"
                     />
                     <div v-for="(fn, fnIndex) in block.helperFunctions" :key="fnIndex" class="ga-block__helper-fn">
-                      <ETextField
-                        v-model="fn.label"
+                      <GrossanlassSkillPicker
+                        :model-value="fn.label"
+                        :department-id="departmentId"
                         :label="t('grossanlass.helperNeed.function')"
                         :disabled="!briefing.can_edit"
                         hide-details
+                        @update:model-value="(v: string | string[]) => fn.label = Array.isArray(v) ? (v[0] ?? '') : v"
                       />
                       <ETextField
                         :model-value="String(fn.count)"
@@ -312,7 +314,7 @@
                       {{ t('grossanlass.helperNeed.rest', { n: block.helperTotal - helperFunctionSum(block) }) }}
                     </p>
                   </div>
-                  <GaTaskDependencies
+                  <GrossanlassTaskDependencies
                     v-if="block.id"
                     :department-id="departmentId"
                     :group-id="groupId"
@@ -347,9 +349,15 @@
               v-if="briefing.can_edit"
               type="button"
               class="ga-block__add"
-              @click="addTaskBlock"
+              :class="{ 'ga-block__add--save': hasFailedTask }"
+              :disabled="taskBlocks.some((row) => row.saving)"
+              data-testid="task-add"
+              @click="hasFailedTask ? retryFailedTasks() : addTaskBlock()"
             >
-              <v-icon icon="mdi-plus" size="22" />
+              <template v-if="hasFailedTask">
+                <v-icon icon="mdi-content-save" size="20" start /> {{ t('common.save') }}
+              </template>
+              <v-icon v-else icon="mdi-plus" size="22" />
             </button>
           </v-expansion-panel-text>
         </v-expansion-panel>
@@ -366,6 +374,7 @@
               :key="block.key"
               class="ga-block ga-vehicle"
               :class="{ 'is-unsaved': isVehicleUnsaved(block) }"
+              @focusout="onVehicleBlockFocusOut(block, $event)"
             >
               <div class="ga-block__time">
                 <EDateField
@@ -446,9 +455,15 @@
               v-if="briefing.can_edit && !vehicleBlocks.some((row) => !row.id)"
               type="button"
               class="ga-block__add"
-              @click="addVehicleBlock"
+              :class="{ 'ga-block__add--save': hasFailedVehicle }"
+              :disabled="vehicleBlocks.some((row) => row.saving)"
+              data-testid="vehicle-add"
+              @click="hasFailedVehicle ? retryFailedVehicles() : addVehicleBlock()"
             >
-              <v-icon icon="mdi-plus" size="22" />
+              <template v-if="hasFailedVehicle">
+                <v-icon icon="mdi-content-save" size="20" start /> {{ t('common.save') }}
+              </template>
+              <v-icon v-else icon="mdi-plus" size="22" />
             </button>
           </v-expansion-panel-text>
         </v-expansion-panel>
@@ -672,8 +687,9 @@ import { useI18n } from 'vue-i18n'
 import { RouterLink, useRouter } from 'vue-router'
 import { EAutocomplete, EButton, EDateField, ESelect, ETextarea, ETextField, ETimeField } from '@/components/form/base'
 import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
-import GaTaskDependencies from '@/components/grossanlass/GaTaskDependencies.vue'
-import GaBuildMetaFields from '@/components/grossanlass/GaBuildMetaFields.vue'
+import GrossanlassTaskDependencies from '@/components/grossanlass/GrossanlassTaskDependencies.vue'
+import GrossanlassBuildMetaFields from '@/components/grossanlass/GrossanlassBuildMetaFields.vue'
+import GrossanlassSkillPicker from '@/views/grossanlass/helferpool/GrossanlassSkillPicker.vue'
 import GrossanlassVehicleCategoryField from '@/components/grossanlass/GrossanlassVehicleCategoryField.vue'
 import GrossanlassPlacePreviewMap from '@/components/grossanlass/GrossanlassPlacePreviewMap.vue'
 import GrossanlassMaterialProgressLine from '@/components/grossanlass/GrossanlassMaterialProgressLine.vue'
@@ -1282,6 +1298,11 @@ const taskSavedFingerprint = new Map<string, string>()
 const taskAutosaveTimers = new Map<string, number>()
 const taskSaveHint = ref<Record<string, 'saving' | 'saved'>>({})
 const taskSaveHintTimers = new Map<string, number>()
+/** Blöcke, deren letzter Speicherversuch fehlschlug: unten erscheint «Speichern» statt «+». */
+const taskSaveFailed = ref<Record<string, boolean>>({})
+const vehicleSaveFailed = ref<Record<string, boolean>>({})
+const hasFailedTask = computed(() => taskBlocks.value.some((block) => taskSaveFailed.value[block.key]))
+const hasFailedVehicle = computed(() => vehicleBlocks.value.some((block) => vehicleSaveFailed.value[block.key]))
 const materialDrafts = ref<MatDraft[]>([])
 const materialComposer = ref<MatDraft>(emptyMaterialRow())
 const materialEditKey = ref<string | null>(null)
@@ -1594,6 +1615,7 @@ async function saveTaskBlock(block: TaskBlock, silent = false) {
       block.id = created.id
     }
     taskSavedFingerprint.set(block.key, fp)
+    clearFailed(taskSaveFailed, block.key)
     taskSaveHint.value = { ...taskSaveHint.value, [block.key]: 'saved' }
     const previous = taskSaveHintTimers.get(block.key)
     if (previous) window.clearTimeout(previous)
@@ -1609,6 +1631,7 @@ async function saveTaskBlock(block: TaskBlock, silent = false) {
     const next = { ...taskSaveHint.value }
     delete next[block.key]
     taskSaveHint.value = next
+    taskSaveFailed.value = { ...taskSaveFailed.value, [block.key]: true }
     toast.error(err.response?.data?.error || t('grossanlass.planung.ressorts.errorSave'))
   } finally {
     block.saving = false
@@ -1834,6 +1857,45 @@ async function addVehicleBlock() {
   vehicleSavedFingerprint.set(block.key, vehicleFingerprint(block))
 }
 
+function clearFailed(target: { value: Record<string, boolean> }, key: string) {
+  if (!target.value[key]) return
+  const next = { ...target.value }
+  delete next[key]
+  target.value = next
+}
+
+/** Feld verlassen: ganzer Block wird gespeichert (nur wenn der Fokus den Block wirklich verlässt) und das Ergebnis gemeldet. */
+function leavesBlock(event: FocusEvent): boolean {
+  const current = event.currentTarget as HTMLElement | null
+  const next = event.relatedTarget as Node | null
+  return !(current && next && current.contains(next))
+}
+function onTaskBlockFocusOut(block: TaskBlock, event: FocusEvent) {
+  if (!briefing.value?.can_edit || !leavesBlock(event)) return
+  if (block.id && taskSavedFingerprint.get(block.key) === taskFingerprint(block)) return
+  const timer = taskAutosaveTimers.get(block.key)
+  if (timer) window.clearTimeout(timer)
+  taskAutosaveTimers.delete(block.key)
+  void saveTaskBlock(block, false)
+}
+function onVehicleBlockFocusOut(block: VehicleBlock, event: FocusEvent) {
+  if (!briefing.value?.can_edit || !leavesBlock(event)) return
+  const timer = vehicleAutosaveTimers.get(block.key)
+  if (timer) window.clearTimeout(timer)
+  vehicleAutosaveTimers.delete(block.key)
+  void saveVehicleBlock(block, false)
+}
+async function retryFailedTasks() {
+  for (const block of taskBlocks.value.filter((row) => taskSaveFailed.value[row.key])) {
+    await saveTaskBlock(block, false)
+  }
+}
+async function retryFailedVehicles() {
+  for (const block of vehicleBlocks.value.filter((row) => vehicleSaveFailed.value[row.key])) {
+    await saveVehicleBlock(block, false)
+  }
+}
+
 function canSaveNewVehicle(block: VehicleBlock): boolean {
   return Boolean(block.task.trim() || block.vehicle.trim())
 }
@@ -1871,7 +1933,7 @@ watch(vehicleBlocks, () => {
   }
 }, { deep: true })
 
-async function saveVehicleBlock(block: VehicleBlock) {
+async function saveVehicleBlock(block: VehicleBlock, silent = true) {
   if (!block.task.trim() && !block.vehicle.trim()) return
   const fp = vehicleFingerprint(block)
   if (vehicleSavedFingerprint.get(block.key) === fp) return
@@ -1896,6 +1958,7 @@ async function saveVehicleBlock(block: VehicleBlock) {
       block.id = created.id
     }
     vehicleSavedFingerprint.set(block.key, fp)
+    clearFailed(vehicleSaveFailed, block.key)
     vehicleSaveHint.value = { ...vehicleSaveHint.value, [block.key]: 'saved' }
     const previous = vehicleSaveHintTimers.get(block.key)
     if (previous) window.clearTimeout(previous)
@@ -1905,11 +1968,13 @@ async function saveVehicleBlock(block: VehicleBlock) {
       vehicleSaveHint.value = next
       vehicleSaveHintTimers.delete(block.key)
     }, 1400))
+    if (!silent) toast.success(t('grossanlass.planung.ressorts.vehicleSaved'))
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
     const next = { ...vehicleSaveHint.value }
     delete next[block.key]
     vehicleSaveHint.value = next
+    vehicleSaveFailed.value = { ...vehicleSaveFailed.value, [block.key]: true }
     toast.error(err.response?.data?.error || t('grossanlass.planung.ressorts.errorSave'))
   } finally {
     block.saving = false
@@ -2410,6 +2475,16 @@ onMounted(() => {
   background: transparent;
   color: #16a34a;
   cursor: pointer;
+}
+.ga-block__add--save {
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  color: #b91c1c;
+}
+.ga-block__add:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 .ga-mat-entry {
   display: grid;

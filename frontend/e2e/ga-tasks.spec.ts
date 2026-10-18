@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { cleanupE2eInbox } from './helpers/inboxCleanup'
 
 /**
- * GA-Aufgaben (Demo-Konto ga-mw): /ga/tasks und /ga/tasks/mine mit echten Daten, Aufgabe anlegen, starten, erledigen, Zuständige ändern.
+ * GA-Aufgaben (Demo-Konto ga-mw): /ga/tasks (Meine Einsätze) und /ga/tasks/all mit echten Daten, Aufgabe anlegen, starten, erledigen, Zuständige ändern.
  * Schreibt eine Demo-Aufgabe und löscht sie am Ende wieder. Aktiv nur mit E2E_GA_TASKS=1 sowie E2E_USER_EMAIL / E2E_USER_PASSWORD.
  */
 const email = process.env.E2E_USER_EMAIL
@@ -34,7 +34,7 @@ test.describe('GA Aufgaben', () => {
     page.on('response', (res) => res.url().includes('/api/') && res.status() >= 400 && problems.push(`${res.status()} ${res.request().method()} ${res.url()}`))
 
     const tasksResponse = page.waitForResponse((res) => res.url().endsWith('/grossanlass/groups/tasks'))
-    await page.goto(`/${DEPT}/ga/tasks`)
+    await page.goto(`/${DEPT}/ga/tasks/all`)
     const apiTasks = (await (await tasksResponse).json()) as { id: string; status: string; group_id: string }[]
     expect(apiTasks.length).toBeGreaterThan(0)
     expect(apiTasks.every((task) => ['open', 'progress', 'review', 'done'].includes(task.status))).toBe(true)
@@ -44,13 +44,13 @@ test.describe('GA Aufgaben', () => {
     expect(await page.locator('.ga-card').count()).toBeLessThanOrEqual(apiTasks.length)
     await page.screenshot({ path: 'test-results/ga-tasks-list.png', fullPage: true })
 
-    // Navigation: im GA-Aufgabenbereich nur «Aufgaben» und «Meine Aufgaben»
+    // Navigation: im GA-Aufgabenbereich nur «Meine Einsätze» (Standard) und «Alle Aufgaben»
     const tabs = page.locator('.tasks-shell-tabs .v-tab')
-    await expect(tabs).toHaveText([/^Aufgaben$/, /^Meine Aufgaben$/])
-    await tabs.nth(1).click()
-    await expect(page).toHaveURL(new RegExp(`/${DEPT}/ga/tasks/mine$`))
+    await expect(tabs).toHaveText([/^Meine Einsätze$/, /^Alle Aufgaben$/])
     await tabs.nth(0).click()
     await expect(page).toHaveURL(new RegExp(`/${DEPT}/ga/tasks$`))
+    await tabs.nth(1).click()
+    await expect(page).toHaveURL(new RegExp(`/${DEPT}/ga/tasks/all$`))
     await expect(page.locator('.ga-card').first()).toBeVisible()
 
     // anlegen
@@ -81,8 +81,8 @@ test.describe('GA Aufgaben', () => {
     await detail.page().keyboard.press('Escape')
 
     // eigene Aufgaben
-    await page.goto(`/${DEPT}/ga/tasks/mine`)
-    await expect(page.locator('.meine')).toBeVisible()
+    await page.goto(`/${DEPT}/ga/tasks`)
+    await expect(page.locator('.ga-aufgaben')).toBeVisible()
     await expect(page.locator('.v-progress-circular')).toHaveCount(0)
     await page.screenshot({ path: 'test-results/ga-tasks-mine.png', fullPage: true })
 

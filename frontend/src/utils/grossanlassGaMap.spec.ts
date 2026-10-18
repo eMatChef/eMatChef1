@@ -74,10 +74,10 @@ describe('grossanlassGaMap', () => {
     expect(gaPlaceColor('bauprojekt')).toBe('#d97706')
   })
 
-  it('does not offer matplatz as a new GA place kind', () => {
-    expect(GA_PLACE_CREATE_KINDS).not.toContain('matplatz')
+  it('does not offer lagerplatz as a new GA place kind', () => {
+    expect(GA_PLACE_CREATE_KINDS).not.toContain('lagerplatz')
     expect(gaPlaceCreateKinds()).toEqual(['bauprojekt', 'anfahrt', 'unterlager', 'poi'])
-    expect(gaPlaceCreateKinds('matplatz')).toContain('matplatz')
+    expect(gaPlaceCreateKinds('lagerplatz')).toContain('lagerplatz')
   })
 
   it('derives overlay opacity for view and edit modes', () => {

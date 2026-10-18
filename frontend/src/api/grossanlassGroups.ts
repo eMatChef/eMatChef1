@@ -80,8 +80,11 @@ export async function restoreGrossanlassGroup(departmentId: string, groupId: str
 /** Echte Kennzahlen einer Auftragskarte (Backend berechnet, nichts geschätzt). */
 export type GrossanlassOrderCard = {
   group_id: string
+  /** Fertigmeldung/Abnahme des Bauauftrags; unabhängig vom Aufgabenfortschritt (`tasks`). */
+  order_status?: 'open' | 'review' | 'accepted'
   material: { items: number; covered_items: number; at_place_items: number }
-  tasks: { total: number; scheduled: number; done: number }
+  /** planned / in_window / overdue: offene Aufgaben nach Fachzeit (BusinessClock) */
+  tasks: { total: number; scheduled: number; done: number; planned?: number; in_window?: number; overdue?: number }
   /** need: erfasster Helferbedarf (null = nicht erfasst); assigned: eingeteilte Personen */
   staffing: { need: number | null; assigned: number }
 }

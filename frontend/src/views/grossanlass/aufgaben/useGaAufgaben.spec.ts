@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { GaBauprojektTask } from '@/api/grossanlassBauprojekt'
 import type { GrossanlassGroup } from '@/api/grossanlassGroups'
 import { bucketOf, isOverdue, statusCounts, taskProgress } from './gaAufgabenMock'
-import { assigneesFor, mapApiTask } from './useGaAufgaben'
+import { mapApiTask } from './useGaAufgaben'
 
 const group = (id: string, name: string, parent_id: string | null, extra: Partial<GrossanlassGroup> = {}) =>
   ({ id, name, parent_id, members: [], leaders: [], ...extra }) as unknown as GrossanlassGroup
@@ -24,6 +24,12 @@ const task = (extra: Partial<GaBauprojektTask> = {}): GaBauprojektTask => ({
 })
 
 describe('mapApiTask', () => {
+  it('übernimmt die Backend-Freigabe und gilt ohne Feld als nicht freigegeben', () => {
+    expect(mapApiTask(task({ released: true }), groups).released).toBe(true)
+    expect(mapApiTask(task({ released: false }), groups).released).toBe(false)
+    expect(mapApiTask(task(), groups).released).toBe(false)
+  })
+
   it('leitet Ressort und Bereich aus dem Gruppenbaum ab', () => {
     const row = mapApiTask(task(), groups)
     expect(row.origin).toEqual(['Bau', 'Bühne', 'Bar West'])
@@ -118,9 +124,5 @@ describe('mapApiTask', () => {
     expect(row.steps).toEqual([])
     expect(row.blocked).toBeNull()
     expect(row.permissions).toBeNull()
-  })
-
-  it('löst den Zuständigen über die Mitglieder auf', () => {
-    expect(assigneesFor('p', groups)).toEqual([{ value: 'u1', title: 'Lea' }])
   })
 })

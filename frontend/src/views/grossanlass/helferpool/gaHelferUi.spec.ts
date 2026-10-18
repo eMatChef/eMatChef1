@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GaCoverage, GaStaffingNeedRow } from '@/api/grossanlassStaffing'
-import { barStyle, defaultScheduleStart, fullName, functionRows, maxMissing, needState, percent, scheduleRange, splitIso, toIso } from './gaHelferUi'
+import { barStyle, defaultScheduleStart, fullName, functionRows, helperMatchesWish, maxMissing, needState, percent, resolveHelferpoolTab, scheduleRange, splitIso, toIso } from './gaHelferUi'
 
 const coverage = (over: Partial<GaCoverage> = {}): GaCoverage => ({
   required: 2, minutes: 240, segments: [], gaps: [], min_assigned: 2, peak_assigned: 2, fill_ratio: 1, overbooked: false, ...over,
@@ -56,5 +56,27 @@ describe('gaHelferUi', () => {
     expect(rows.map((r) => r.label)).toEqual(['Elektriker', ''])
     expect(rows[0]).toMatchObject({ required: 4, assigned: 3, fill: 0.75, needs: 2 })
     expect(rows[1]).toMatchObject({ required: 3, assigned: 0, fill: 0 })
+  })
+})
+
+describe('helperMatchesWish', () => {
+  it('matches a wished skill case-insensitively and never without a wish', () => {
+    expect(helperMatchesWish({ skills: ['Elektro', 'Gabelstapler'] }, ' elektro ')).toBe(true)
+    expect(helperMatchesWish({ skills: ['Elektro'] }, 'Koch')).toBe(false)
+    expect(helperMatchesWish({ skills: ['Elektro'] }, '')).toBe(false)
+    expect(helperMatchesWish({}, 'Elektro')).toBe(false)
+  })
+})
+
+describe('resolveHelferpoolTab', () => {
+  it('übernimmt gültige Werte und fällt sonst auf den Standardreiter zurück', () => {
+    expect(resolveHelferpoolTab('api', true)).toBe('api')
+    expect(resolveHelferpoolTab(['timeline', 'x'], true)).toBe('timeline')
+    expect(resolveHelferpoolTab('nope', true)).toBe('helpers')
+    expect(resolveHelferpoolTab(undefined, true)).toBe('helpers')
+  })
+  it('lässt Nicht-Berechtigte nur den Personalbedarf öffnen', () => {
+    expect(resolveHelferpoolTab('api', false)).toBe('needs')
+    expect(resolveHelferpoolTab(undefined, false)).toBe('needs')
   })
 })

@@ -28,13 +28,11 @@ import {
   type GaTaskStatus,
 } from '@/api/grossanlassBauprojekt'
 import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
-import { buildGrossanlassGroupPathLabel, isBauprojektGroup } from '@/utils/grossanlassGroupHierarchy'
+import { assigneesFor, buildGrossanlassGroupPathLabel, isBauprojektGroup } from '@/utils/grossanlassGroupHierarchy'
 import type { GaAufgabe } from './gaAufgabenMock'
 
 const SEP = '\u0000'
 const DEFAULT_MINUTES = 60
-
-export type GaAufgabeAssignee = { value: string; title: string }
 
 /** Reine Abbildung API → Anzeige-Modell; Aufgaben ohne Termin übernehmen das Fenster ihres Projekts. */
 export function mapApiTask(task: GaBauprojektTask, groups: GrossanlassGroup[]): GaAufgabe {
@@ -70,26 +68,13 @@ export function mapApiTask(task: GaBauprojektTask, groups: GrossanlassGroup[]): 
     waiting: task.waiting === true,
     waitingOn: task.waiting_on ?? [],
     waitingHidden: task.waiting_hidden ?? 0,
+    released: task.released === true,
+    assignedToMe: task.assigned_to_me === true,
     orderStatus: task.order_status ?? 'open',
     rework: task.rework ? { eventId: task.rework.event_id, reason: task.rework.reason, at: task.rework.at } : null,
     events: (task.events ?? []).map((event) => ({ id: event.id, type: event.type, byName: event.by_name, note: event.note, at: event.at })),
     routeStepIndex: -1,
   }
-}
-
-/** Mitglieder der Gruppe und ihrer Eltern, die als Zuständige in Frage kommen. */
-export function assigneesFor(groupId: string, groups: GrossanlassGroup[]): GaAufgabeAssignee[] {
-  const people = new Map<string, string>()
-  const seen = new Set<string>()
-  let current = groups.find((row) => row.id === groupId)
-  while (current && !seen.has(current.id)) {
-    seen.add(current.id)
-    for (const member of current.members ?? []) {
-      if (!people.has(member.user_id)) people.set(member.user_id, member.name)
-    }
-    current = current.parent_id ? groups.find((row) => row.id === current!.parent_id) : undefined
-  }
-  return [...people].map(([value, title]) => ({ value, title })).sort((a, b) => a.title.localeCompare(b.title, 'de'))
 }
 
 export function useGaAufgaben(departmentId: () => string, includeArchived: () => boolean = () => false) {

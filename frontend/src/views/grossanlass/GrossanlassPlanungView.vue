@@ -39,8 +39,8 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { EButton } from '@/components/form/base'
 import PageShell from '@/components/layout/PageShell.vue'
-import { provideGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
-import { provideGaUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { provideGrossanlassCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
+import { provideGrossanlassUebersicht } from '@/views/grossanlass/gaUebersicht'
 import {
   gaEinsatzComposerKey,
   type GaEinsatzComposer,
@@ -56,8 +56,8 @@ const router = useRouter()
 const authStore = useAuthStore()
 const { t } = useI18n()
 
-provideGaCommitmentCatalog()
-provideGaUebersicht()
+provideGrossanlassCommitmentCatalog()
+provideGrossanlassUebersicht()
 
 const einsatzComposer = reactive<GaEinsatzComposer>({
   open: () => {},

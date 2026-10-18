@@ -2,7 +2,10 @@
   <div class="all">
     <section class="all__map">
       <h3>{{ t('grossanlass.displays.gesamt.map') }}</h3>
-      <GaSiteMap
+      <!-- Live: die echte Geländekarte des Grossanlasses statt der Demo-Skizze -->
+      <div v-if="live" class="all__livemap"><GrossanlassMapWidget widget="ga_site_map" :config="{}" /></div>
+      <GrossanlassSiteMap
+        v-else
         dark
         :label="t('grossanlass.displays.projekt.mapLabel')"
         :places="['Zentrallager', 'Lager A', 'Häberli Holz', 'Zeltbau AG', 'Festgelände Süd']"
@@ -64,11 +67,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import GaSiteMap from './GaSiteMap.vue'
+import GrossanlassSiteMap from './GrossanlassSiteMap.vue'
+import GrossanlassMapWidget from '@/components/display/layout/widgets/GrossanlassMapWidget.vue'
 import { taskProgress } from '@/views/grossanlass/aufgaben/gaAufgabenMock'
 import { orderPlaceName, type overall } from '@/views/grossanlass/live/gaLiveModel'
 
-const props = defineProps<{ data: ReturnType<typeof overall> }>()
+const props = defineProps<{ data: ReturnType<typeof overall>; live?: boolean }>()
 const { t, locale } = useI18n()
 
 const underway = computed(() => props.data.logistics.trips.filter((trip) => trip.underway))
@@ -120,6 +124,10 @@ li small {
 }
 .muted {
   color: #64748b;
+}
+.all__livemap {
+  width: 100%;
+  aspect-ratio: 640 / 380;
 }
 .all__map {
   grid-column: span 6;

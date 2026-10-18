@@ -78,7 +78,7 @@ import { useI18n } from 'vue-i18n'
 import { EButton, ESelect, ETextField } from '@/components/form/base'
 import { createGrossanlassBauprojektTask, getGrossanlassOrderAcceptance, postGrossanlassOrderAcceptance, type GaOrderAcceptance } from '@/api/grossanlassBauprojekt'
 import type { GrossanlassGroup } from '@/api/grossanlassGroups'
-import { assigneesFor } from '@/views/grossanlass/aufgaben/useGaAufgaben'
+import { assigneesFor } from '@/utils/grossanlassGroupHierarchy'
 
 /** Formelle Gesamtabnahme des Bauauftrags im bestehenden Bauauftrag-Dialog. Rechte und Regeln setzt der Server durch. */
 const props = defineProps<{ departmentId: string; groupId: string; groups: GrossanlassGroup[]; refreshKey?: string }>()

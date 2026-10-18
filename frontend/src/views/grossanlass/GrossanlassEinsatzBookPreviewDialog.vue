@@ -218,7 +218,7 @@
           hide-details
         />
         <EAutocomplete
-          v-if="scope === 'project' && needsDriver"
+          v-if="scope === 'project' && needsDriver && !hideChauffeur"
           v-model="chauffeurId"
           v-model:menu="chauffeurMenuOpen"
           :items="chauffeurItems"
@@ -408,7 +408,7 @@
         </EButton>
       </div>
       <EAutocomplete
-        v-if="needsDriver"
+        v-if="needsDriver && !hideChauffeur"
         v-model="chauffeurId"
         v-model:menu="chauffeurMenuOpen"
         :items="chauffeurItems"
@@ -581,6 +581,8 @@ const props = defineProps<{
   defaultScope?: BookScope
   presetDelivery?: 'trip' | 'pickup' | null
   lockDelivery?: boolean
+  /** Planung erfasst nur; die Chauffeur-Zuteilung gehört in die Logistik-Disposition. */
+  hideChauffeur?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -825,7 +827,7 @@ const canConfirm = computed(() => {
     if (
       draft.value.objectId
       && needsDriver.value
-      && (!chauffeurId.value || chauffeurBlocked.value || !destinationPlaceId.value)
+      && ((!props.hideChauffeur && !chauffeurId.value) || chauffeurBlocked.value || !destinationPlaceId.value)
     ) return false
   }
   return true
@@ -900,7 +902,7 @@ const canConfirmProject = computed(() => {
   if (!fromDate.value || !toDate.value || !fromTime.value || !toTime.value) return false
   if (
     needsDriver.value
-    && (!chauffeurId.value || chauffeurBlocked.value || !destinationPlaceId.value)
+    && ((!props.hideChauffeur && !chauffeurId.value) || chauffeurBlocked.value || !destinationPlaceId.value)
   ) return false
   return true
 })

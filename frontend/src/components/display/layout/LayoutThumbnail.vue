@@ -1,6 +1,6 @@
 <template>
   <div class="thumb" :style="{ aspectRatio }" aria-hidden="true">
-    <div class="thumb__grid" :style="{ gridTemplateRows: `repeat(${view.rows}, minmax(0, 1fr))` }">
+    <div class="thumb__grid" :style="{ gridTemplateRows: `repeat(${view.rows}, minmax(0, 1fr))`, gridTemplateColumns: `repeat(${view.columns}, minmax(0, 1fr))` }">
       <div
         v-for="item in view.items"
         :key="item.id"

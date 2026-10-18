@@ -9,7 +9,7 @@
         hide-details="auto"
         @update:model-value="onToggle"
       />
-      <GaHelpHint field="enoughOnHand" :label="t('grossanlass.wishes.enoughOnHand')" />
+      <GrossanlassHelpHint field="enoughOnHand" :label="t('grossanlass.wishes.enoughOnHand')" />
     </div>
 
     <div v-if="value.enough" class="enough-field__source">
@@ -63,7 +63,7 @@
 import { computed, useId } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ECheckbox, ESelect, ETextField } from '@/components/form/base'
-import GaHelpHint from '@/components/grossanlass/GaHelpHint.vue'
+import GrossanlassHelpHint from '@/components/grossanlass/GrossanlassHelpHint.vue'
 import type { GrossanlassCommitment } from '@/api/grossanlassCommitments'
 import {
   emptyEnoughOnHand,

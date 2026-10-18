@@ -37,8 +37,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import PageShell from '@/components/layout/PageShell.vue'
-import { provideGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
-import { provideGaUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { provideGrossanlassCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
+import { provideGrossanlassUebersicht } from '@/views/grossanlass/gaUebersicht'
 import { gaCanOperateAusgabe } from '@/utils/grossanlassAccess'
 import { gaBestandListPath } from '@/views/grossanlass/gaBestandPaths'
 import '@/styles/views/materials-view-tabs.css'
@@ -48,8 +48,8 @@ const router = useRouter()
 const authStore = useAuthStore()
 const { t } = useI18n()
 
-provideGaCommitmentCatalog()
-provideGaUebersicht()
+provideGrossanlassCommitmentCatalog()
+provideGrossanlassUebersicht()
 
 const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''

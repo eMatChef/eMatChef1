@@ -2,7 +2,7 @@
   <section class="ga-group-deps" data-testid="group-dependencies">
     <h4>{{ t('grossanlass.aufgaben.deps.groupTitle') }}</h4>
     <p v-if="waiting" class="ga-group-deps__waiting">{{ t('grossanlass.aufgaben.deps.groupWaiting') }}</p>
-    <GaDependencyList
+    <GrossanlassDependencyList
       :dependencies="dependencies"
       :can-edit="canEdit"
       :candidates="candidates"
@@ -17,7 +17,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import GaDependencyList from '@/components/grossanlass/GaDependencyList.vue'
+import GrossanlassDependencyList from '@/components/grossanlass/GrossanlassDependencyList.vue'
 import {
   addGrossanlassGroupDependency,
   getGrossanlassGroupDependencies,

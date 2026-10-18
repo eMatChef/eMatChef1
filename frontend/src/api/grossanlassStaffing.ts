@@ -13,11 +13,23 @@ export type GaHelper = {
   note: string | null
   origin_department_id: string | null
   has_login: boolean
+  /** Verknüpftes eMatChef-Konto; Name und E-Mail kommen dann aus dem zentralen Profil. */
+  user_id?: string | null
   source: string
   status: GaHelperStatus
   archived_at: string | null
   availability?: GaHelperAvailability[]
+  occupation?: string | null
+  area?: string | null
+  skills?: string[]
+  qualifications?: GaHelperQualification[]
+  /** `profile`: zentraler Führerausweis des verknüpften Kontos (nur lesend); `local`: am Helfer erfasst (extern). */
+  drive_license?: GaHelperDriveLicense
 }
+
+export type GaHelperQualification = { label: string; valid_until: string | null }
+export type GaHelperDriveLicense = { classes: string[]; valid_until: string | null; source: 'profile' | 'local' }
+export type GaLinkableUser = { user_id: string; name: string; first_name: string; last_name: string; email: string; helper_id: string | null }
 
 export type GaHelperInput = {
   first_name?: string
@@ -26,6 +38,13 @@ export type GaHelperInput = {
   phone?: string | null
   note?: string | null
   origin_department_id?: string | null
+  user_id?: string | null
+  occupation?: string | null
+  area?: string | null
+  skills?: string[]
+  drive_classes?: string[]
+  drive_valid_until?: string | null
+  qualifications?: GaHelperQualification[]
 }
 
 export type GaHelperAvailability = {
@@ -110,6 +129,8 @@ export type GaNeedAssignment = {
   starts_at: string
   ends_at: string
   status: string
+  /** Gesetzt bei Status `conflict`: die externe Buchung wurde verschoben oder storniert. */
+  conflict?: { reason: string; detail: 'booking_cancelled' | 'shift_changed'; source_name?: string } | null
   override_reason: string | null
   version: number
 }
@@ -159,7 +180,8 @@ export type GaScheduleHelper = {
 }
 
 export type GaStaffingConflictItem = {
-  kind: 'double_booking' | 'outside_availability' | 'outside_need_window' | 'overbooked' | 'need_undated'
+  kind: 'double_booking' | 'outside_availability' | 'outside_need_window' | 'overbooked' | 'need_undated' | 'external_booking_invalid'
+  detail?: 'booking_cancelled' | 'shift_changed' | null
   helper_id?: string
   assignment_ids?: string[]
   need_id?: string
@@ -191,7 +213,7 @@ export function staffingConflictOf(err: unknown): GaStaffingConflictPayload | nu
 
 const base = (departmentId: string) => `/api/departments/${departmentId}/grossanlass`
 
-export async function listGaHelpers(departmentId: string, params: { status?: 'active' | 'archived' | 'all'; q?: string } = {}): Promise<GaHelper[]> {
+export async function listGaHelpers(departmentId: string, params: { status?: 'active' | 'archived' | 'all'; q?: string; limit?: number } = {}): Promise<GaHelper[]> {
   return (await apiClient.get<GaHelper[]>(`${base(departmentId)}/helpers`, { params })).data
 }
 
@@ -205,6 +227,19 @@ export async function createGaHelper(departmentId: string, data: GaHelperInput):
 
 export async function updateGaHelper(departmentId: string, helperId: string, data: GaHelperInput): Promise<GaHelper> {
   return (await apiClient.patch<GaHelper>(`${base(departmentId)}/helpers/${helperId}`, data)).data
+}
+
+/** Fähigkeitenkatalog des GA-Departments (Katalog plus verwendete Funktionswünsche). */
+export async function listGaSkills(departmentId: string): Promise<string[]> {
+  return (await apiClient.get<string[]>(`${base(departmentId)}/helper-skills`)).data
+}
+
+export async function addGaSkill(departmentId: string, name: string): Promise<string[]> {
+  return (await apiClient.post<string[]>(`${base(departmentId)}/helper-skills`, { name })).data
+}
+
+export async function listGaLinkableUsers(departmentId: string): Promise<GaLinkableUser[]> {
+  return (await apiClient.get<GaLinkableUser[]>(`${base(departmentId)}/helper-linkable-users`)).data
 }
 
 export async function archiveGaHelper(departmentId: string, helperId: string): Promise<GaHelper> {

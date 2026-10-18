@@ -1,14 +1,14 @@
 import type { GaMap, GaMapBounds, GaPlaceKind, GaPolygonPoint } from '@/api/grossanlassLogistics'
 
-export const GA_PLACE_KINDS: GaPlaceKind[] = ['bauprojekt', 'anfahrt', 'matplatz', 'unterlager', 'poi', 'area']
+export const GA_PLACE_KINDS: GaPlaceKind[] = ['bauprojekt', 'anfahrt', 'lagerplatz', 'unterlager', 'poi', 'area']
 
-/** Neu anlegbar. Matplatz ist der Lagerstandort, area kommt über den Ressort-Toggle. */
+/** Neu anlegbar. Lagerplatz ist der Lagerstandort, area kommt über den Ressort-Toggle. */
 export const GA_PLACE_CREATE_KINDS: GaPlaceKind[] = ['bauprojekt', 'anfahrt', 'unterlager', 'poi']
 
 export const GA_PLACE_COLORS: Record<GaPlaceKind, string> = {
   bauprojekt: '#d97706',
   anfahrt: '#0ea5e9',
-  matplatz: '#16a34a',
+  lagerplatz: '#16a34a',
   unterlager: '#7c3aed',
   poi: '#64748b',
   area: '#0f766e',
@@ -65,8 +65,8 @@ export function gaPlaceKind(kind: string | null | undefined): GaPlaceKind {
 }
 
 export function gaPlaceCreateKinds(current?: string | null): GaPlaceKind[] {
-  if (gaPlaceKind(current) === 'matplatz') {
-    return [...GA_PLACE_CREATE_KINDS, 'matplatz']
+  if (gaPlaceKind(current) === 'lagerplatz') {
+    return [...GA_PLACE_CREATE_KINDS, 'lagerplatz']
   }
   return GA_PLACE_CREATE_KINDS
 }
@@ -77,11 +77,11 @@ export function gaPlaceColor(kind: string | null | undefined): string {
 
 export function gaPlaceKindLabelKey(
   kind: string | null | undefined,
-): 'Bauprojekt' | 'Unterlager' | 'Matplatz' | 'Anfahrt' | 'Poi' | 'Area' {
+): 'Bauprojekt' | 'Unterlager' | 'Lagerplatz' | 'Anfahrt' | 'Poi' | 'Area' {
   const value = gaPlaceKind(kind)
   if (value === 'bauprojekt') return 'Bauprojekt'
   if (value === 'unterlager') return 'Unterlager'
-  if (value === 'matplatz') return 'Matplatz'
+  if (value === 'lagerplatz') return 'Lagerplatz'
   if (value === 'anfahrt') return 'Anfahrt'
   if (value === 'area') return 'Area'
   return 'Poi'

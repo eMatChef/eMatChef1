@@ -110,13 +110,13 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { EButton } from '@/components/form/base'
 import { useToast } from '@/composables/useToast'
-import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { useGrossanlassUebersicht } from '@/views/grossanlass/gaUebersicht'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
-const uebersicht = useGaUebersicht()
+const uebersicht = useGrossanlassUebersicht()
 const desk = ref<'person' | 'material'>('person')
 const holderId = ref('')
 

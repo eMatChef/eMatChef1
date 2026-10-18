@@ -21,7 +21,10 @@ import WidgetText from './widgets/WidgetText.vue'
  */
 const props = defineProps<{ content: LayoutWidgetContent }>()
 
-const GaWidget = defineAsyncComponent(() => import('./widgets/GaWidget.vue'))
+const GrossanlassWidget = defineAsyncComponent(() => import('./widgets/GrossanlassWidget.vue'))
+// Echte Karte (Leaflet) getrennt laden: die übrigen GA-Widgets brauchen sie nicht.
+const GrossanlassMapWidget = defineAsyncComponent(() => import('./widgets/GrossanlassMapWidget.vue'))
+
 
 const GENERAL: Record<string, Component> = {
   header: WidgetHeader,
@@ -38,7 +41,8 @@ const GENERAL: Record<string, Component> = {
 const renderer = computed<Component | null>(() => {
   const type = props.content.widget
   if (GENERAL[type]) return GENERAL[type]
-  if (type.startsWith('ga_')) return GaWidget
+  if (type === 'ga_site_map') return GrossanlassMapWidget
+  if (type.startsWith('ga_')) return GrossanlassWidget
   return null
 })
 </script>

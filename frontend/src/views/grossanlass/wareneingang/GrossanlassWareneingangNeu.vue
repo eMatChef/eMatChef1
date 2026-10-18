@@ -230,8 +230,8 @@ import {
   listGrossanlassProcurementLines,
   type GrossanlassProcurementLine,
 } from '@/api/grossanlassProcurement'
-import { useGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
-import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { useGrossanlassCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
+import { useGrossanlassUebersicht } from '@/views/grossanlass/gaUebersicht'
 import { gaBestandArtikelPath } from '@/views/grossanlass/gaBestandPaths'
 import {
   commitmentStemKey,
@@ -253,8 +253,8 @@ const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
-const catalog = useGaCommitmentCatalog()
-const uebersicht = useGaUebersicht()
+const catalog = useGrossanlassCommitmentCatalog()
+const uebersicht = useGrossanlassUebersicht()
 const busyId = ref<string | null>(null)
 const range = ref<RangeId>('expected')
 const modeFilter = ref<ModeId>('all')
@@ -268,11 +268,12 @@ const receiveQty = ref<Record<string, string | number>>({})
 const receivePlace = ref<Record<string, string | null>>({})
 const receiveNote = ref<Record<string, string>>({})
 
-/** Annahmeort: Lager (Matplatz) und Unterlager zuerst, sonst alle GA-Orte. */
+/** Annahmeort: Lagerplatz und Unterlager zuerst, sonst alle GA-Orte. */
 const placeItems = computed(() => {
   const places = uebersicht.data.value?.places ?? []
-  const storage = places.filter((place) => place.kind === 'matplatz' || place.kind === 'unterlager')
-  return (storage.length ? storage : places).map((place) => ({ title: place.name, value: place.id }))
+  return places
+    .filter((place) => place.kind === 'lagerplatz')
+    .map((place) => ({ title: place.name, value: place.id }))
 })
 
 const departmentId = computed(() => String(route.params.departmentId || ''))

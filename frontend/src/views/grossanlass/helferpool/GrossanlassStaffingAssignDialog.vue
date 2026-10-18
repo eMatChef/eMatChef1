@@ -59,7 +59,7 @@ import {
 import { EButton, EDialog, ESelect, ETextarea } from '@/components/form/base'
 import { apiErrorMessage } from '@/utils/apiErrorMessage'
 import GrossanlassHelferWindowFields from './GrossanlassHelferWindowFields.vue'
-import { conflictMessageKey, fullName, windowLabel } from './gaHelferUi'
+import { conflictMessageKey, fullName, helperMatchesWish, windowLabel } from './gaHelferUi'
 
 /**
  * Helfer einem Personalbedarf zuteilen oder eine Zuteilung ändern (ganz oder teilweise). Konflikte kommen vom Server als 409:
@@ -92,7 +92,14 @@ const needTitle = computed(() => {
   const parts = [n.task_title ?? t('grossanlass.helferpool.needs.projectNeed'), n.label].filter(Boolean)
   return parts.join(' · ')
 })
-const helperItems = computed(() => props.helpers.filter((h) => h.status === 'active').map((h) => ({ value: h.id, title: fullName(h) })))
+/** Wunsch-Fähigkeit des Bedarfs (`label`): passende Helfer stehen oben und sind markiert; die Zuteilung bleibt für alle möglich. */
+const matchesWish = (h: GaHelper) => helperMatchesWish(h, props.need?.label)
+const helperItems = computed(() =>
+  props.helpers
+    .filter((h) => h.status === 'active')
+    .map((h) => ({ value: h.id, title: matchesWish(h) ? `${fullName(h)} · ✓ ${props.need?.label}` : fullName(h), match: matchesWish(h) }))
+    .sort((a, b) => Number(b.match) - Number(a.match)),
+)
 const conflictMessage = computed(() => (conflict.value ? t(conflictMessageKey(conflict.value.conflict.kind)) : ''))
 const canSubmit = computed(() => {
   if (!props.need?.dated || !helperId.value || !startsAt.value || !endsAt.value || saving.value) return false

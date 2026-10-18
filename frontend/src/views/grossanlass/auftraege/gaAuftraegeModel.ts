@@ -4,7 +4,7 @@
  */
 import type { GrossanlassGroup, GrossanlassOrderCard } from '@/api/grossanlassGroups'
 import { buildGrossanlassGroupPathLabel, isBauprojektGroup } from '@/utils/grossanlassGroupHierarchy'
-import { resolveBuildStatus, type GaBuildStatus } from '@/utils/grossanlassBuildStatus'
+import { isGaBuildStatus, resolveBuildStatus, type GaBuildStatus } from '@/utils/grossanlassBuildStatus'
 
 export type GaOrderType = 'order' | 'build'
 export type GaOrderFilter = 'all' | GaOrderType
@@ -19,6 +19,18 @@ export const STATUS_COLOR: Record<GaBuildStatus, string> = {
   teardown: 'warning',
   done: 'success',
   aborted: 'error',
+}
+
+/**
+ * Bauphase der Auftragskarte. Ein abgelaufenes Zeitfenster schliesst den Bauauftrag nicht ab und löst auch keine
+ * Phase aus (die Phase kommt aus Kalenderperioden und Beschaffung, nicht aus dem Fensterende). «Abgeschlossen»
+ * gilt nur nach Abnahme (Ereignisprotokoll) oder wenn es ein berechtigter Benutzer bewusst manuell gesetzt hat;
+ * ein manuell gesetzter Status hat Vorrang. Aufgabenfortschritt fliesst nie ein.
+ */
+export function orderStatusOf(group: GrossanlassGroup, card: GrossanlassOrderCard | null): GaBuildStatus {
+  if (isGaBuildStatus(group.build_status)) return group.build_status
+  if (card?.order_status === 'accepted') return 'done'
+  return resolveBuildStatus({ ...group, window_end: null })
 }
 
 export type GaOrderRow = {
@@ -70,7 +82,8 @@ export function buildOrderRows(
   for (const group of visible) {
     const type = orderTypeOf(group)
     if (!type) continue
-    const status = resolveBuildStatus(group)
+    const card = cardById.get(group.id) ?? null
+    const status = orderStatusOf(group, card)
     rows.push({
       id: group.id,
       type,
@@ -82,7 +95,7 @@ export function buildOrderRows(
       windowEnd: group.window_end ?? null,
       place: group.place?.name ?? '',
       responsible: (group.leaders ?? []).map((leader) => leader.name),
-      card: cardById.get(group.id) ?? null,
+      card,
     })
   }
   return rows.sort((a, b) => a.title.localeCompare(b.title, 'de'))

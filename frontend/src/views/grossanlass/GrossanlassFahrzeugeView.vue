@@ -63,8 +63,8 @@ import { EButton } from '@/components/form/base'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import GrossanlassZusageCreatePreviewDialog from '@/views/grossanlass/GrossanlassZusageCreatePreviewDialog.vue'
 import type { GrossanlassCommitment } from '@/api/grossanlassCommitments'
-import { useGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
-import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { useGrossanlassCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
+import { useGrossanlassUebersicht } from '@/views/grossanlass/gaUebersicht'
 import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import type { GaZusageCreateDraft } from '@/views/grossanlass/grossanlassZusagePreviewStore'
 import { gaCanManageProcurement } from '@/utils/grossanlassAccess'
@@ -74,8 +74,8 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const { t, locale } = useI18n()
-const catalog = useGaCommitmentCatalog()
-const uebersicht = useGaUebersicht()
+const catalog = useGrossanlassCommitmentCatalog()
+const uebersicht = useGrossanlassUebersicht()
 
 const createOpen = ref(false)
 const createPreset = ref<Partial<GaZusageCreateDraft> | null>(null)

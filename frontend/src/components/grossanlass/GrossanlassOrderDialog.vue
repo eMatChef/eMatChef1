@@ -42,7 +42,7 @@
         :exclude-id="group?.id ?? null"
         :label="t('grossanlass.planung.ressorts.parentLabel')"
       />
-      <GaBuildMetaFields
+      <GrossanlassBuildMetaFields
         :department-id="departmentId"
         :autosave="!!group"
         v-model:start="form.window_start"
@@ -106,7 +106,7 @@
         :live-window="{ start: form.window_start, end: form.window_end }"
         @meta-saved="onMetaSaved"
       />
-      <GaOrderAcceptance
+      <GrossanlassOrderAcceptance
         v-if="isGrossanlassLeafNodeType(group.node_type)"
         :department-id="departmentId"
         :group-id="group.id"
@@ -114,7 +114,7 @@
         :refresh-key="tab"
         @changed="emit('changed')"
       />
-      <GaGroupDependencies
+      <GrossanlassGroupDependencies
         v-if="isGrossanlassLeafNodeType(group.node_type)"
         :department-id="departmentId"
         :group-id="group.id"
@@ -164,9 +164,9 @@
 import { computed, nextTick, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { EButton, EDialog, ESubTabs, ESwitch, ETextField, ETextarea } from '@/components/form/base'
-import GaBuildMetaFields from '@/components/grossanlass/GaBuildMetaFields.vue'
-import GaOrderAcceptance from '@/components/grossanlass/GaOrderAcceptance.vue'
-import GaGroupDependencies from '@/components/grossanlass/GaGroupDependencies.vue'
+import GrossanlassBuildMetaFields from '@/components/grossanlass/GrossanlassBuildMetaFields.vue'
+import GrossanlassOrderAcceptance from '@/components/grossanlass/GrossanlassOrderAcceptance.vue'
+import GrossanlassGroupDependencies from '@/components/grossanlass/GrossanlassGroupDependencies.vue'
 import GrossanlassBauprojektPanel from '@/components/grossanlass/GrossanlassBauprojektPanel.vue'
 import GrossanlassGroupMapEditor from '@/components/grossanlass/GrossanlassGroupMapEditor.vue'
 import GrossanlassParentTreeSelect from '@/components/grossanlass/GrossanlassParentTreeSelect.vue'

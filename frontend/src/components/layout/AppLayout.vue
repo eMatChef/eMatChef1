@@ -1,29 +1,31 @@
 <template>
-  <SidebarNavigation v-model="drawerOpen" />
-  <TopHeader v-if="!headerScrollsWithContent" v-model:drawer-open="drawerOpen" />
+  <SidebarNavigation v-if="!isStudio" v-model="drawerOpen" />
+  <TopHeader v-if="!isStudio && !headerScrollsWithContent" v-model:drawer-open="drawerOpen" />
 
   <v-main
     class="page-main"
     :class="{
+      'page-main--studio': isStudio,
       'page-main--activity-detail': isActivityDetailView,
       'page-main--einsaetze': isEinsaetzeView,
       'page-main--material-detail': isMaterialDetailView,
     }"
   >
     <TopHeader
-      v-if="headerScrollsWithContent"
+      v-if="!isStudio && headerScrollsWithContent"
       v-model:drawer-open="drawerOpen"
       scroll-with-content
     />
     <div
       class="page-content"
       :class="{
+        'page-content--studio': isStudio,
         'page-content--activity-detail': isActivityDetailView,
         'page-content--material-detail': isMaterialDetailView,
       }"
     >
       <PendingDepartmentInvitesPanel
-        v-if="showGlobalPendingInvites"
+        v-if="!isStudio && showGlobalPendingInvites"
         :compact="!isPendingAssignmentRoute"
         class="pending-invites-global"
       />
@@ -35,10 +37,10 @@
     </div>
   </v-main>
 
-  <ProfileModal />
+  <ProfileModal v-if="!isStudio" />
 
   <button
-    v-if="showHelpShortcut"
+    v-if="!isStudio && showHelpShortcut"
     type="button"
     class="help-shortcut-btn"
     :title="t('layout.header.helpTitle')"
@@ -49,9 +51,9 @@
     <span>{{ t('layout.header.helpTitle') }}</span>
   </button>
 
-  <GaHelpModal />
+  <GrossanlassHelpModal v-if="!isStudio" />
 
-  <OnboardingTourOverlay v-if="canUseTours || canUseGaSetupTour" />
+  <OnboardingTourOverlay v-if="!isStudio && (canUseTours || canUseGaSetupTour)" />
 </template>
 
 <script setup lang="ts">
@@ -68,8 +70,8 @@ import { useDepartmentOnboardingAccess } from '@/composables/useDepartmentOnboar
 import { useHelpShortcut } from '@/composables/useHelpShortcut'
 import { refreshOnboardingCompletionStatus } from '@/utils/onboardingChecklist'
 import OnboardingTourOverlay from '@/components/onboarding/OnboardingTourOverlay.vue'
-import GaHelpModal from '@/components/grossanlass/GaHelpModal.vue'
-import { provideGaEventPeriod } from '@/composables/useGaEventPeriod'
+import GrossanlassHelpModal from '@/components/grossanlass/GrossanlassHelpModal.vue'
+import { provideGrossanlassEventPeriod } from '@/composables/useGrossanlassEventPeriod'
 import SidebarNavigation from './SidebarNavigation.vue'
 import TopHeader from './TopHeader.vue'
 import PendingDepartmentInvitesPanel from '@/components/dashboard/PendingDepartmentInvitesPanel.vue'
@@ -84,6 +86,8 @@ const isActivityDetailView = computed(() => {
   return name === 'ActivityDetail' || name === 'ActivityDetailTab' || name === 'ActivityPackJourney'
 })
 
+/** Vollflächige Arbeitsansichten (Infoscreen-Studio): ohne Sidebar, Header und Hilfen. */
+const isStudio = computed(() => route.meta.studio === true)
 const isEinsaetzeView = computed(() => route.name === 'GrossanlassPlanungBelegung')
 const headerScrollsWithContent = computed(() => isActivityDetailView.value || isEinsaetzeView.value)
 
@@ -113,7 +117,7 @@ const { departmentId, profileId, canUseOnboarding, canUseTours } = useDepartment
 /** Einrichtungs-Tour im Grossanlass: dort ist `canUseTours` (Pfadi-Touren) bewusst aus. */
 const canUseGaSetupTour = computed(() => canUseGrossanlassSetupTour(authStore, departmentId.value))
 const { showFloatingButton: showHelpShortcut, openHelp } = useHelpShortcut()
-provideGaEventPeriod()
+provideGrossanlassEventPeriod()
 
 watch(
   [departmentId, profileId, () => authStore.isLoggedIn, () => authStore.currentDepartmentRole],
@@ -195,6 +199,38 @@ watch(
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* Studio: die Arbeitsfläche belegt den ganzen Browserbereich, gescrollt wird nur in den eigenen Panels. */
+.page-main--studio {
+  --v-layout-top: 0px !important;
+  --v-layout-left: 0px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.page-main--studio :deep(.v-main__wrap) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.page-content--studio {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-content--studio > * {
+  flex: 1;
+  min-height: 0;
 }
 
 .pending-invites-global {
