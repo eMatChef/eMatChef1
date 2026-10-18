@@ -774,7 +774,7 @@ final class DemoGrossanlassEventProcessSeedService
             if ($chargeRecord === null) {
                 continue;
             }
-            $this->once($context, $report, $seedKey, $version, function () use ($context, $department, $actor, $binding, $chargeRecord, $key): ?DepartmentGrossanlassCommitment {
+            $this->once($context, $report, $seedKey, $version, function () use ($context, $department, $actor, $binding, $chargeRecord): ?DepartmentGrossanlassCommitment {
                 $commitment = $this->find(DepartmentGrossanlassCommitment::class, $chargeRecord->getEntityId());
                 if (!$commitment instanceof DepartmentGrossanlassCommitment) {
                     return null;

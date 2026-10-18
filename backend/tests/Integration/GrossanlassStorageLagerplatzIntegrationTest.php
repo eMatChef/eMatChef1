@@ -10,22 +10,30 @@ use App\Entity\DepartmentGrossanlassPlace;
 use App\Entity\User;
 use App\Service\Grossanlass\GrossanlassPlaceCodes;
 use App\Service\Grossanlass\GrossanlassPlaceService;
+use App\Service\Demo\Scenario\DemoScenarioKey;
+use App\Service\Demo\Scenario\DemoScenarioRegistry;
+use App\Service\Demo\Scenario\DemoScenarioRunner;
+use App\Service\Demo\Scenario\SeedResult;
 use App\Service\Grossanlass\GrossanlassStorageLagerplatzService;
 use App\Tests\Wiring\FreshKernel;
+use App\Util\DemoAccounts;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Lageradresse ↔ GA-Lagerplatz: Schreibpfad und schreibfreie GET-Listen (Demo-Grossanlass-Event).
+ * Lageradresse ↔ GA-Lagerplatz: Schreibpfad und schreibfreie GET-Listen (Demo-Grossanlass-Event, in der isolierten
+ * Test-DB über den Szenario-Runner aufgebaut; Rollback am Ende).
  */
 final class GrossanlassStorageLagerplatzIntegrationTest extends TestCase
 {
-    private const EVENT_DEPT = '2d42e87c5197';
-    private const GELAENDE_PLACE = 'plf873a2b455';
-    private const CONTAINER_PLACE = 'plce35e2f40a';
-    private const GELAENDE_ADDR = '70020a03680a';
-    private const CONTAINER_ADDR = '4b1446b6054c';
+    private const GELAENDE = 'Lagerplatz Gelände';
+    private const CONTAINER = 'Langzeit-Lagercontainer';
+
+    private string $eventDept = '';
+
+    /** @var array<string, array{place: string, address: string}> Lagerplätze des Events nach Name */
+    private array $lager = [];
 
     /** @param callable(EntityManagerInterface, GrossanlassStorageLagerplatzService, GrossanlassPlaceService, User): void $test */
     private function withServices(callable $test): void
@@ -43,9 +51,29 @@ final class GrossanlassStorageLagerplatzIntegrationTest extends TestCase
             $conn->setNestTransactionsWithSavepoints(true);
             $conn->beginTransaction();
             try {
-                $user = $em->createQueryBuilder()->select('u')->from(User::class, 'u')->join('u.profile', 'p')
-                    ->where('LOWER(p.email) = :email')->setParameter('email', 'ga-mw@demo.ematchef.ch')
-                    ->setMaxResults(1)->getQuery()->getOneOrNullResult();
+                $runner = $c->get(DemoScenarioRunner::class);
+                $scenario = $c->get(DemoScenarioRegistry::class)->all()[DemoScenarioKey::GROSSANLASS_EVENT];
+                self::assertSame(SeedResult::OK, $runner->sync($scenario)->status);
+                $em->clear();
+                $this->eventDept = (string) $conn->fetchOne("SELECT id FROM department WHERE demo_scenario_key='grossanlass-event'");
+                // Zweite Lageradresse über den produktiven Sync-Pfad (der Demo-Seed liefert nur den Geländeplatz).
+                $container = new Address();
+                $container->setId(IdGenerator::generateUnique($em, Address::class));
+                $container->setScope(Address::SCOPE_DEPARTMENT);
+                $container->setDepartmentId($this->eventDept);
+                $container->setType('storage');
+                $container->setName(self::CONTAINER);
+                $em->persist($container);
+                $em->flush();
+                $c->get(GrossanlassStorageLagerplatzService::class)->syncStorageAddress($container);
+                $em->flush();
+                $em->clear();
+                $this->lager = [];
+                foreach ($conn->fetchAllAssociative("SELECT id, name, storage_address_id FROM department_grossanlass_place WHERE department_id=? AND kind='lagerplatz' AND storage_address_id IS NOT NULL", [$this->eventDept]) as $row) {
+                    $this->lager[(string) $row['name']] = ['place' => (string) $row['id'], 'address' => (string) $row['storage_address_id']];
+                }
+                $userId = $conn->fetchOne('SELECT u.id FROM "user" u JOIN profile p ON p.id=u.profile_id WHERE p.email=?', [DemoAccounts::email('ga-mw')]);
+                $user = $em->find(User::class, $userId);
                 self::assertInstanceOf(User::class, $user);
                 $test(
                     $em,
@@ -56,32 +84,36 @@ final class GrossanlassStorageLagerplatzIntegrationTest extends TestCase
             } finally {
                 $conn->rollBack();
             }
-        }, $url, [GrossanlassStorageLagerplatzService::class, GrossanlassPlaceService::class]);
+        }, $url, [DemoScenarioRunner::class, DemoScenarioRegistry::class, GrossanlassStorageLagerplatzService::class, GrossanlassPlaceService::class]);
     }
 
     public function testDemoStockLinksPreserved(): void
     {
         $this->withServices(function (EntityManagerInterface $em): void {
-            $gel = $em->find(DepartmentGrossanlassPlace::class, self::GELAENDE_PLACE);
-            $box = $em->find(DepartmentGrossanlassPlace::class, self::CONTAINER_PLACE);
+            self::assertArrayHasKey(self::GELAENDE, $this->lager);
+            self::assertArrayHasKey(self::CONTAINER, $this->lager);
+            $gel = $em->find(DepartmentGrossanlassPlace::class, $this->lager[self::GELAENDE]['place']);
+            $box = $em->find(DepartmentGrossanlassPlace::class, $this->lager[self::CONTAINER]['place']);
             self::assertInstanceOf(DepartmentGrossanlassPlace::class, $gel);
             self::assertInstanceOf(DepartmentGrossanlassPlace::class, $box);
-            self::assertSame(self::GELAENDE_ADDR, $gel->getStorageAddressId());
-            self::assertSame(self::CONTAINER_ADDR, $box->getStorageAddressId());
+            self::assertSame($this->lager[self::GELAENDE]['address'], $gel->getStorageAddressId());
+            self::assertSame($this->lager[self::CONTAINER]['address'], $box->getStorageAddressId());
+            self::assertInstanceOf(Address::class, $em->find(Address::class, $this->lager[self::GELAENDE]['address']));
+            self::assertInstanceOf(Address::class, $em->find(Address::class, $this->lager[self::CONTAINER]['address']));
         });
     }
 
     public function testListLagerplaetzeIsReadOnly(): void
     {
         $this->withServices(function (EntityManagerInterface $em, GrossanlassStorageLagerplatzService $sync, GrossanlassPlaceService $places, User $user): void {
-            $department = $em->find(Department::class, self::EVENT_DEPT);
+            $department = $em->find(Department::class, $this->eventDept);
             self::assertInstanceOf(Department::class, $department);
             $before = (int) $em->createQueryBuilder()
                 ->select('COUNT(p.id)')
                 ->from(DepartmentGrossanlassPlace::class, 'p')
                 ->where('p.departmentId = :d')
                 ->andWhere('p.kind = :k')
-                ->setParameter('d', self::EVENT_DEPT)
+                ->setParameter('d', $this->eventDept)
                 ->setParameter('k', 'lagerplatz')
                 ->getQuery()
                 ->getSingleScalarResult();
@@ -92,14 +124,14 @@ final class GrossanlassStorageLagerplatzIntegrationTest extends TestCase
                 ->from(DepartmentGrossanlassPlace::class, 'p')
                 ->where('p.departmentId = :d')
                 ->andWhere('p.kind = :k')
-                ->setParameter('d', self::EVENT_DEPT)
+                ->setParameter('d', $this->eventDept)
                 ->setParameter('k', 'lagerplatz')
                 ->getQuery()
                 ->getSingleScalarResult();
             self::assertSame($before, $after);
             self::assertCount(2, $listed);
-            self::assertSame(
-                ['Langzeit-Lagercontainer', 'Lagerplatz Gelände'],
+            self::assertEqualsCanonicalizing(
+                [self::CONTAINER, self::GELAENDE],
                 array_column($listed, 'name'),
             );
         });
@@ -108,13 +140,15 @@ final class GrossanlassStorageLagerplatzIntegrationTest extends TestCase
     public function testRenameKeepsLagerplatzId(): void
     {
         $this->withServices(function (EntityManagerInterface $em, GrossanlassStorageLagerplatzService $sync): void {
-            $address = $em->find(Address::class, self::CONTAINER_ADDR);
+            $container = $this->lager[self::CONTAINER] ?? null;
+            self::assertNotNull($container);
+            $address = $em->find(Address::class, $container['address']);
             self::assertInstanceOf(Address::class, $address);
             $address->setName('Langzeit-Lagercontainer Test');
             $sync->syncStorageAddress($address);
-            $place = $sync->findByStorageAddressId(self::CONTAINER_ADDR);
+            $place = $sync->findByStorageAddressId($container['address']);
             self::assertInstanceOf(DepartmentGrossanlassPlace::class, $place);
-            self::assertSame(self::CONTAINER_PLACE, $place->getId());
+            self::assertSame($container['place'], $place->getId());
             self::assertSame('Langzeit-Lagercontainer Test', $place->getName());
         });
     }
@@ -125,7 +159,7 @@ final class GrossanlassStorageLagerplatzIntegrationTest extends TestCase
             $address = new Address();
             $address->setId(IdGenerator::generateUnique($em, Address::class));
             $address->setScope(Address::SCOPE_DEPARTMENT);
-            $address->setDepartmentId(self::EVENT_DEPT);
+            $address->setDepartmentId($this->eventDept);
             $address->setType('storage');
             $address->setName('Integration Lager ' . substr($address->getId(), -4));
             $em->persist($address);
