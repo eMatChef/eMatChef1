@@ -12,7 +12,7 @@
         "api-platform/core": "^3.2",
         "doctrine/doctrine-bundle": "^2.11",
         "doctrine/doctrine-migrations-bundle": "^3.3",
-        "doctrine/orm": "^2.16",
+        "doctrine/orm": "^3.7",
         "dompdf/dompdf": "^3.1",
         "endroid/qr-code": "^6.1",
         "gesdinet/jwt-refresh-token-bundle": "^1.5",
